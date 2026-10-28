@@ -17,7 +17,7 @@ O PDF pronto, enviado pelo administrador, que o cliente baixa depois de comprar 
 _Avoid_: Conteúdo, e-book (quando falar do arquivo)
 
 **Administrador**:
-A pessoa que opera o painel: cadastra Produtos, envia Arquivos do produto e trata Reembolsos. Na Fase 1 é um só perfil, sempre com MFA; cada operação do painel exige uma capacidade própria, para permitir novos perfis no futuro.
+A pessoa que opera o painel: cadastra Produtos, envia Arquivos do produto e devolve o dinheiro dos Reembolsos no painel do Asaas. Na Fase 1 é um só perfil, sempre com MFA; cada operação do painel exige uma capacidade própria, para permitir novos perfis no futuro.
 _Avoid_: Admin, editor, usuário interno
 
 **Cliente**:
@@ -41,11 +41,11 @@ A lista dos Produtos que um Cliente comprou, de onde ele baixa o Arquivo do prod
 _Avoid_: Minha conta, área do cliente
 
 **Pedido**:
-O registro de que um Cliente quer comprar um Produto, com preço recalculado no servidor e um Pix de 30 minutos. Nasce pendente, vira pago só quando o Asaas confirma o pagamento, e vira expirado se o Pix não for pago a tempo.
+O registro de que um Cliente quer comprar um Produto, com preço recalculado no servidor e um Pix de 30 minutos. Nasce pendente, vira pago só quando o Asaas confirma o pagamento, e vira expirado se o Pix não for pago a tempo. Se o Asaas confirmar o pagamento de um Pedido já expirado, ele vira pago e o Acesso é concedido normalmente.
 _Avoid_: Compra, transação, carrinho
 
 **Reembolso**:
-Devolução do valor de um Pedido pago, aceita em até 7 dias após a compra (arrependimento) ou por defeito no Arquivo do produto. O dinheiro é devolvido pelo administrador no painel do Asaas; no sistema, o Reembolso registra o fato e cancela o acesso do cliente ao arquivo.
+Devolução do valor de um Pedido pago, aceita em até 7 dias após a compra (arrependimento) ou por defeito no Arquivo do produto. O Administrador devolve o dinheiro no painel do Asaas; o sistema não tem botão de reembolso, e o aviso de estorno do Asaas (ou de devolução por fraude, o MED do Pix) cancela sozinho o Acesso do Cliente.
 _Avoid_: Estorno (é do cartão), chargeback
 
 **Venda avulsa**:
