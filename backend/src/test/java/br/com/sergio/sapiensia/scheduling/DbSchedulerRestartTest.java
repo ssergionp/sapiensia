@@ -13,7 +13,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -48,7 +47,6 @@ class DbSchedulerRestartTest {
     private static CountDownLatch oneTimeLatch;
     private static AtomicReference<String> oneTimePayload;
     private static CountDownLatch recurringLatch;
-    private static final AtomicInteger recurringRuns = new AtomicInteger();
 
     @BeforeAll
     static void startDatabase() {
@@ -68,7 +66,6 @@ class DbSchedulerRestartTest {
         oneTimeLatch = new CountDownLatch(1);
         oneTimePayload = new AtomicReference<>();
         recurringLatch = new CountDownLatch(1);
-        recurringRuns.set(0);
         // Rows left by a previous test must not influence this one (the table exists after the first start).
         if (Boolean.TRUE.equals(
                 jdbc.queryForObject("select to_regclass('scheduled_tasks') is not null", Boolean.class))) {
@@ -117,7 +114,6 @@ class DbSchedulerRestartTest {
         }
 
         recurringLatch = new CountDownLatch(1);
-        recurringRuns.set(0);
 
         try (ConfigurableApplicationContext second = startApp(Duration.ofSeconds(1))) {
             assertThat(recurringLatch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
@@ -159,7 +155,6 @@ class DbSchedulerRestartTest {
         @Bean
         RecurringTask<Void> probeRecurring() {
             return Tasks.recurring("probe-recurring", FixedDelay.ofSeconds(1)).execute((instance, ctx) -> {
-                recurringRuns.incrementAndGet();
                 recurringLatch.countDown();
             });
         }
