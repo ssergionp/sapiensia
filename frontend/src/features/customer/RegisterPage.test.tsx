@@ -75,8 +75,8 @@ describe("RegisterPage", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.queryByLabelText("E-mail")).not.toBeInTheDocument();
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchSpy.mock.calls[0];
+    // apiFetch may first fetch the CSRF cookie; the registration is the last call.
+    const [url, init] = fetchSpy.mock.calls[fetchSpy.mock.calls.length - 1];
     expect(url).toBe("/api/customers");
     expect(init?.method).toBe("POST");
     expect(JSON.parse(String(init?.body))).toEqual({

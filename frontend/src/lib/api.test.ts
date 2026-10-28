@@ -36,3 +36,58 @@ test("does not send the CSRF token on reads", async () => {
   const [, init] = fetchMock.mock.calls[0];
   expect(new Headers(init.headers).has("X-XSRF-TOKEN")).toBe(false);
 });
+
+test("fetches the CSRF cookie first when a change request has none", async () => {
+  const fetchMock = vi
+    .fn()
+    .mockImplementationOnce(async () => {
+      // biome-ignore lint/suspicious/noDocumentCookie: the test sets the cookie the backend would set
+      document.cookie = "XSRF-TOKEN=fresh-token";
+      return new Response(null);
+    })
+    .mockResolvedValue(new Response(null));
+  vi.stubGlobal("fetch", fetchMock);
+
+  await apiFetch("/api/items", { method: "POST", body: "{}" });
+
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  const [primePath, primeInit] = fetchMock.mock.calls[0];
+  expect(primePath).toBe("/api/system/health");
+  expect(primeInit.method).toBe("GET");
+  const [path, init] = fetchMock.mock.calls[1];
+  expect(path).toBe("/api/items");
+  expect(new Headers(init.headers).get("X-XSRF-TOKEN")).toBe("fresh-token");
+});
+
+test("does not fetch the CSRF cookie when it is already present", async () => {
+  // biome-ignore lint/suspicious/noDocumentCookie: the test sets the cookie the backend would set
+  document.cookie = "XSRF-TOKEN=abc";
+  const fetchMock = stubFetch();
+
+  await apiFetch("/api/items", { method: "POST", body: "{}" });
+
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(fetchMock.mock.calls[0][0]).toBe("/api/items");
+});
+
+test("never fetches the CSRF cookie before a read", async () => {
+  const fetchMock = stubFetch();
+
+  await apiFetch("/api/items");
+
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+test("still sends the change request when fetching the CSRF cookie fails", async () => {
+  const fetchMock = vi
+    .fn()
+    .mockRejectedValueOnce(new TypeError("network down"))
+    .mockResolvedValue(new Response(null));
+  vi.stubGlobal("fetch", fetchMock);
+
+  const response = await apiFetch("/api/items", { method: "POST", body: "{}" });
+
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  expect(fetchMock.mock.calls[1][0]).toBe("/api/items");
+  expect(response).toBeInstanceOf(Response);
+});
