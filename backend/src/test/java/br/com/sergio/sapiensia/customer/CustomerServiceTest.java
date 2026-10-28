@@ -15,12 +15,16 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+@ExtendWith(OutputCaptureExtension.class)
 @SpringBootTest
 @Import(TestcontainersConfiguration.class)
 class CustomerServiceTest {
@@ -68,7 +72,9 @@ class CustomerServiceTest {
     @DisplayName("SEC-033: a tabela só guarda o necessário")
     void shouldKeepOnlyNecessaryColumnsInCustomersTable() {
         List<String> columns = jdbc.queryForList(
-                "select column_name from information_schema.columns where table_name = 'customers'", String.class);
+                "select column_name from information_schema.columns"
+                        + " where table_schema = current_schema() and table_name = 'customers'",
+                String.class);
 
         assertThat(columns)
                 .containsExactlyInAnyOrder("id", "email", "password_hash", "email_confirmed_at", "created_at");
@@ -98,7 +104,20 @@ class CustomerServiceTest {
 
     @Test
     void shouldKeepOneRowWhenSameEmailRegistersConcurrently() throws Exception {
-        int threads = 8;
+        registerConcurrently("ana@example.com", 8);
+
+        assertThat(countCustomers()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("SEC-033: a corrida de cadastro não escreve o e-mail no log")
+    void shouldNotLogEmailWhenSameEmailRegistersConcurrently(CapturedOutput output) throws Exception {
+        registerConcurrently("leakcheck@example.com", 8);
+
+        assertThat(output.getAll()).doesNotContain("leakcheck");
+    }
+
+    private void registerConcurrently(String email, int threads) throws Exception {
         CountDownLatch ready = new CountDownLatch(threads);
         CountDownLatch go = new CountDownLatch(1);
         ExecutorService pool = Executors.newFixedThreadPool(threads);
@@ -108,7 +127,7 @@ class CustomerServiceTest {
                 futures.add(pool.submit(() -> {
                     ready.countDown();
                     go.await();
-                    customerService.register("ana@example.com", PASSWORD);
+                    customerService.register(email, PASSWORD);
                     return null;
                 }));
             }
@@ -120,7 +139,5 @@ class CustomerServiceTest {
         } finally {
             pool.shutdownNow();
         }
-
-        assertThat(countCustomers()).isEqualTo(1);
     }
 }
