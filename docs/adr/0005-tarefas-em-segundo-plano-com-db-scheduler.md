@@ -9,4 +9,5 @@ Expirar Pedidos, conciliar pagamentos toda noite e repetir webhooks falhos rodam
 ## Consequences
 
 - Não há painel de tarefas; na Fase 1 bastam logs e os alertas por e-mail.
-- Nenhuma das duas bibliotecas declara suporte ao Java 25 nas fontes oficiais. Antes de fixar a escolha, um teste de integração com Java 25 deve passar; se falhar, reabrir esta decisão e considerar o JobRunr.
+- Spike do Java 25 concluído em 28/10/2026 (issue #6): o db-scheduler 16.12.0, com o starter para Spring Boot 4, roda tarefas no PostgreSQL 18 com Java 25.0.4.1 e Spring Boot 4.1.2; tarefas pendentes são executadas depois de um reinício e a tarefa recorrente continua se repetindo (NFR-004). A decisão está confirmada e o JobRunr não foi reaberto.
+- O projeto original ainda não declara suporte ao Java 25 (a biblioteca é compilada com Java 17); a evidência é o nosso teste de integração. Retentativa e dead-letter, o restante do NFR-004, ficam para o ticket que criar a primeira tarefa real.
