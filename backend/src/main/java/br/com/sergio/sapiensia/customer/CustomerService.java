@@ -32,7 +32,7 @@ public class CustomerService {
             throw new PasswordCompromisedException();
         }
         String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
-        // hash before looking up the e-mail, so the response time does not reveal whether the account exists
+        // the password is hashed on both paths (new and repeated e-mail), so the response time stays equal
         String passwordHash = passwordEncoder.encode(rawPassword);
         // a repeated e-mail inserts nothing (on conflict do nothing): no exception, so no e-mail in the database log
         customers.insertIfAbsent(normalizedEmail, passwordHash);

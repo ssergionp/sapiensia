@@ -75,8 +75,12 @@ describe("RegisterPage", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.queryByLabelText("E-mail")).not.toBeInTheDocument();
-    // apiFetch may first fetch the CSRF cookie; the registration is the last call.
-    const [url, init] = fetchSpy.mock.calls[fetchSpy.mock.calls.length - 1];
+    // apiFetch may first fetch the CSRF cookie; exactly one call is the registration.
+    const registrations = fetchSpy.mock.calls.filter(
+      ([url]) => url === "/api/customers",
+    );
+    expect(registrations).toHaveLength(1);
+    const [url, init] = registrations[0];
     expect(url).toBe("/api/customers");
     expect(init?.method).toBe("POST");
     expect(JSON.parse(String(init?.body))).toEqual({
@@ -104,6 +108,21 @@ describe("RegisterPage", () => {
 
   test("mostra erro amigável quando a API falha", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(500));
+    renderPage();
+
+    await fillAndSubmit("ana@example.com", "uma senha bem longa");
+
+    expect(
+      await screen.findByText(
+        "Não foi possível criar a conta agora. Tente novamente em instantes.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  test("mostra o erro genérico quando o 400 não traz erro de e-mail nem de senha", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(400, { errors: { other: "X" } }),
+    );
     renderPage();
 
     await fillAndSubmit("ana@example.com", "uma senha bem longa");

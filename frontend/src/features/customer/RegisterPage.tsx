@@ -53,8 +53,10 @@ export default function RegisterPage() {
     );
   }
 
+  const hasFieldError = Boolean(errors.email || errors.password);
   const showUnexpected =
-    mutation.isError && !(mutation.error instanceof RegisterCustomerError);
+    mutation.isError &&
+    (!(mutation.error instanceof RegisterCustomerError) || !hasFieldError);
 
   return (
     <main className="mx-auto max-w-md p-8">

@@ -1,11 +1,10 @@
 package br.com.sergio.sapiensia.customer;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -146,10 +145,19 @@ class CustomerControllerTest {
     }
 
     @Test
+    @DisplayName("a POST com o cookie XSRF-TOKEN e um cabeçalho X-XSRF-TOKEN diferente é recusado")
+    void shouldRejectPostWithMismatchedCsrfHeader() throws Exception {
+        mvc.perform(post("/api/customers")
+                        .cookie(csrfCookie)
+                        .header("X-XSRF-TOKEN", "not-the-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"ana@example.com\",\"password\":\"senhalongaok\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     @DisplayName("o cookie XSRF-TOKEN chega na primeira visita à tela de cadastro")
     void shouldSetXsrfCookieOnFirstVisitToSignupPage() throws Exception {
-        mvc.perform(get("/cadastro"))
-                .andExpect(status().isOk())
-                .andExpect(header().string("Set-Cookie", startsWith("XSRF-TOKEN=")));
+        mvc.perform(get("/cadastro")).andExpect(status().isOk()).andExpect(cookie().exists("XSRF-TOKEN"));
     }
 }
