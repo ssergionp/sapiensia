@@ -1,6 +1,6 @@
-# nome-do-projeto
+# sapiensia
 
-Descreva aqui, em uma frase, o que o projeto faz e para quem.
+Plataforma web para criar e revisar e-books, cartilhas, tutoriais e checklists com ajuda de IA e depois vendê-los, usada por mim no painel de administração e pelos clientes que compram e leem os conteúdos
 
 ## Como rodar
 1. Abra o Docker Desktop

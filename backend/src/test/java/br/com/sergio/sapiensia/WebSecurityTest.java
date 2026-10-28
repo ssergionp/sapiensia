@@ -1,4 +1,4 @@
-package com.example.app;
+package br.com.sergio.sapiensia;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;

@@ -1,7 +1,7 @@
-# nome-do-projeto
+# sapiensia
 
 ## O que é
-Descreva aqui, em uma frase, o que o projeto faz e para quem.
+Plataforma web para criar e revisar e-books, cartilhas, tutoriais e checklists com ajuda de IA e depois vendê-los, usada por mim no painel de administração e pelos clientes que compram e leem os conteúdos
 
 ## Ambiente
 - Desenvolvimento no Windows 11 com PowerShell; o CI roda em Linux.
@@ -24,7 +24,7 @@ Descreva aqui, em uma frase, o que o projeto faz e para quem.
 - Antes de declarar um ticket pronto: skill `verificar-entrega` (check recente, arquivos fora do plano, teste afrouxado, tela e sistema de verdade).
 - Se `just lint` acusar formatação, rode `just fmt`.
 - Um teste só: `cd backend; .\mvnw.cmd test -Dtest=NomeDoTest`
-- Swagger: http://localhost:8080/swagger-ui.html
+- Swagger: http://localhost:8081/swagger-ui.html
 
 ## Estrutura
 - backend/: API Spring Boot. Código por funcionalidade em src/main/java/<pacote>/<funcionalidade>/; migrations em src/main/resources/db/migration; dados fictícios em db/seed (só no perfil local).

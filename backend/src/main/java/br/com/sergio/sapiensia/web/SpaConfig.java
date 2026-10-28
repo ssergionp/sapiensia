@@ -1,4 +1,4 @@
-package com.example.app.web;
+package br.com.sergio.sapiensia.web;
 
 import java.io.IOException;
 import org.springframework.context.annotation.Configuration;

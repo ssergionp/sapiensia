@@ -1,11 +1,11 @@
-package com.example.app;
+package br.com.sergio.sapiensia;
 
 import org.springframework.boot.SpringApplication;
 
-public class TestNomeDoProjetoApplication {
+public class TestSapiensiaApplication {
 
     public static void main(String[] args) {
-        SpringApplication.from(NomeDoProjetoApplication::main)
+        SpringApplication.from(SapiensiaApplication::main)
                 .with(TestcontainersConfiguration.class)
                 .run(args);
     }

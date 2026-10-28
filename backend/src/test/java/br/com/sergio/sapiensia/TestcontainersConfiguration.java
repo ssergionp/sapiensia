@@ -1,4 +1,4 @@
-package com.example.app;
+package br.com.sergio.sapiensia;
 
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;

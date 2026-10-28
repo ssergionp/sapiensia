@@ -1,12 +1,12 @@
-package com.example.app;
+package br.com.sergio.sapiensia;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class NomeDoProjetoApplication {
+public class SapiensiaApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(NomeDoProjetoApplication.class, args);
+        SpringApplication.run(SapiensiaApplication.class, args);
     }
 }

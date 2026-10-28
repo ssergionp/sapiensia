@@ -14,7 +14,7 @@ export default defineConfig({
   server: {
     proxy: {
       // same port as server.port in backend/src/main/resources/application.yml
-      "/api": "http://localhost:8080",
+      "/api": "http://localhost:8081",
     },
   },
   test: {

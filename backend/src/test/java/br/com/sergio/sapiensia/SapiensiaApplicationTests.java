@@ -1,4 +1,4 @@
-package com.example.app;
+package br.com.sergio.sapiensia;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -6,7 +6,7 @@ import org.springframework.context.annotation.Import;
 
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
-class NomeDoProjetoApplicationTests {
+class SapiensiaApplicationTests {
 
     @Test
     void contextLoads() {}

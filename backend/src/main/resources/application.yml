@@ -1,9 +1,9 @@
 # API port: scripts/escolher-portas.ps1 gives each project its own (8081 and up).
 server:
-  port: 8080
+  port: 8081
 spring:
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/app}
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/app}
     username: ${DB_USER:app}
     password: ${DB_PASSWORD:app}
   jpa:
