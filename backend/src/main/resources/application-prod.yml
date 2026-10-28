@@ -1,0 +1,19 @@
+# Production and staging (the Docker image starts with this profile). Secrets come from the platform, never from here.
+server:
+  # behind the platform's HTTPS proxy: trust X-Forwarded-* to know the request was HTTPS
+  forward-headers-strategy: framework
+  servlet:
+    session:
+      cookie:
+        secure: true
+        same-site: lax
+logging:
+  structured:
+    # one JSON line per log entry, for the platform's log search; never log tokens, passwords or personal data
+    format:
+      console: ecs
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

@@ -1,0 +1,125 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  # format, lint, unit and integration tests, build (the same as just check)
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+        with:
+          just-version: '1.59.0'
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          package_json_file: frontend/package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: just setup
+      - run: .github/ci-report.sh "just check" just check
+
+  # the Docker image against a real database, end-to-end tests in a browser, and a scan of the image
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: postgres:18
+        env:
+          POSTGRES_DB: app
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U app" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build the image
+        run: .github/ci-report.sh "Docker build" docker build -t app:ci .
+      - name: Start the system
+        run: |
+          docker run -d --name app --network host \
+            -e DB_URL=jdbc:postgresql://localhost:5432/app -e DB_USER=app -e DB_PASSWORD=app \
+            -e SERVER_SERVLET_SESSION_COOKIE_SECURE=false app:ci
+          for i in $(seq 1 60); do
+            curl -fsS http://localhost:8080/api/system/health && exit 0
+            sleep 2
+          done
+          docker logs app > app.log 2>&1
+          .github/ci-report.sh "The system did not start" tail -n 80 app.log
+          exit 1
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          package_json_file: frontend/package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: End-to-end tests
+        working-directory: frontend
+        env:
+          E2E_BASE_URL: http://localhost:8080
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
+          ../.github/ci-report.sh "End-to-end tests" pnpm exec playwright test
+      - name: Logs of the system
+        if: failure()
+        run: docker logs app
+      - name: Report of the end-to-end tests
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-report
+          path: frontend/.tmp/e2e-report
+      - name: Install Trivy
+        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
+        with:
+          version: v0.76.1
+      - name: Scan the image (fails on fixable high or critical vulnerabilities)
+        run: .github/ci-report.sh "Trivy image" trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed --no-progress --format template --template "@.github/trivy-summary.tpl" app:ci
+
+  # leaked secrets, vulnerable dependencies, static analysis and the SBOM
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - name: Download the backend dependencies (Trivy reads them from the local Maven cache)
+        working-directory: backend
+        run: ./mvnw -q -B dependency:go-offline
+      - name: Secrets in the code and in the history (gitleaks)
+        run: .github/ci-report.sh "gitleaks" docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --redact --verbose
+      - name: Install Trivy
+        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
+        with:
+          version: v0.76.1
+      - name: Vulnerable dependencies (fails on fixable high or critical)
+        run: .github/ci-report.sh "Trivy dependencies" trivy fs --scanners vuln --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed --no-progress --format template --template "@.github/trivy-summary.tpl" .
+      - name: SBOM (list of every dependency, CycloneDX)
+        run: trivy fs --format cyclonedx --output sbom.cdx.json --no-progress .
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sbom
+          path: sbom.cdx.json
+      - name: Static analysis (Semgrep)
+        run: .github/ci-report.sh "Semgrep" .github/semgrep.sh

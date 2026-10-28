@@ -1,0 +1,26 @@
+# segredos (só o exemplo vai para o git)
+.env*
+!.env.example
+
+# gerados
+backend/target/
+frontend/node_modules/
+frontend/dist/
+.tmp/
+frontend/.tmp/
+
+# IDEs e sistema
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# Claude Code e Superpowers
+.claude/settings.local.json
+CLAUDE.local.md
+.worktrees/
+# rascunhos dos subagentes do Superpowers
+.superpowers/
+
+# frontend build copied into the backend by the Dockerfile (never committed)
+backend/src/main/resources/static/

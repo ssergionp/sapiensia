@@ -1,0 +1,16 @@
+# Only the source goes into the image build: no secrets, builds, dependencies or worktrees.
+.git
+.env*
+!.env.example
+.tmp
+.worktrees
+.superpowers
+.claude
+.idea
+.vscode
+**/node_modules
+**/dist
+**/.tmp
+backend/target
+backend/src/main/resources/static
+docs

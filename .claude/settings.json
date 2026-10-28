@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(just *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git switch *)",
+      "Bash(git worktree *)",
+      "Bash(gh issue view *)",
+      "Bash(gh issue list *)",
+      "Bash(node .claude/skills/verificar-entrega/conferir.mjs)"
+    ],
+    "deny": [
+      "Bash(docker compose down -v *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Edit(**/frontend/src/**)",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/biome-format.mjs\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/check-antes-de-parar.mjs\""
+          }
+        ]
+      }
+    ]
+  }
+}

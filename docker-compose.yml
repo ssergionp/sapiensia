@@ -1,0 +1,15 @@
+# Banco só para desenvolvimento: não é configuração de produção.
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: app
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports:
+      - "127.0.0.1:5432:5432" # só este computador enxerga a porta
+    volumes:
+      - pgdata:/var/lib/postgresql
+
+volumes:
+  pgdata:
