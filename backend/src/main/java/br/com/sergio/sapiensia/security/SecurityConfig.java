@@ -2,6 +2,7 @@ package br.com.sergio.sapiensia.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.web.SecurityFilterChain;
@@ -30,6 +31,8 @@ public class SecurityConfig {
         http.authorizeHttpRequests(auth -> auth.requestMatchers("/api/system/health", "/api/system/health/**")
                         .permitAll()
                         // a new endpoint starts denied: open it here, with the role or capability it requires
+                        .requestMatchers(HttpMethod.POST, "/api/customers")
+                        .permitAll()
                         .requestMatchers("/api/**")
                         .denyAll()
                         .anyRequest()

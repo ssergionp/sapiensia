@@ -11,3 +11,6 @@ O Administrador entra com senha e MFA obrigatório por aplicativo autenticador (
 - Cada operação do painel exige uma capacidade verificada no servidor, mesmo com um só Administrador, para que novos perfis (Editor, Revisor, Financeiro) entrem depois sem refazer a autorização.
 - Passkey fica como melhoria futura sem retrabalho, pois o Spring Security 7 aceita vários tipos de fator.
 - Os códigos de recuperação são a única saída se o Administrador perder o celular.
+- O cadastro do Cliente é público: `POST /api/customers` é liberado no `SecurityConfig` (o resto de `/api` segue negado).
+- A senha do Cliente tem de 12 a 128 caracteres, sem exigir símbolo, é conferida contra senhas vazadas (HIBP) e guardada com Argon2id (m=19456 KiB, t=2, p=1).
+- Se o serviço HIBP estiver fora do ar ou lento (timeouts de 2 s para conectar e 3 s para ler), o cadastro segue sem a checagem e a falha vai para o log, nunca com a senha nem o e-mail.
