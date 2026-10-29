@@ -41,7 +41,8 @@ class FileEmailSender implements EmailSender {
             Files.writeString(file, content, StandardCharsets.UTF_8);
         } catch (IOException e) {
             // the cause is dropped on purpose: its message carries the file path, which contains the recipient
-            throw new EmailDeliveryException("Could not write the e-mail to the outbox: " + e.getClass().getSimpleName());
+            throw new EmailDeliveryException(
+                    "Could not write the e-mail to the outbox: " + e.getClass().getSimpleName());
         }
     }
 }
