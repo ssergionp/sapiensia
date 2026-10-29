@@ -136,6 +136,16 @@ class CustomerControllerTest {
     }
 
     @Test
+    @DisplayName("e-mail com espaços e maiúsculas é tratado como o mesmo e-mail")
+    void shouldTreatPaddedMixedCaseEmailAsTheSameEmail() throws Exception {
+        register("  Ana@Example.com ", "senhalongaok").andExpect(status().isAccepted());
+        register("ana@example.com", "senhalongaok").andExpect(status().isAccepted());
+
+        assertThat(jdbc.queryForList("select email from customers", String.class))
+                .containsExactly("ana@example.com");
+    }
+
+    @Test
     @DisplayName("a POST sem token CSRF continua recusado")
     void shouldRejectPostWithoutCsrfToken() throws Exception {
         mvc.perform(post("/api/customers")

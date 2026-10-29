@@ -14,15 +14,22 @@ function readCookie(name: string): string | undefined {
 
 // The SPA page itself is not served by the API in development, so a visitor may send the first change request
 // without the cookie. One GET to the health endpoint makes Spring Security set it.
-async function primeCsrfCookie() {
-  try {
-    await fetch("/api/system/health", {
-      method: "GET",
-      credentials: "same-origin",
+// Requests that start together share one priming call, so a second response cannot replace the token the first read.
+let priming: Promise<void> | undefined;
+
+function primeCsrfCookie(): Promise<void> {
+  priming ??= fetch("/api/system/health", {
+    method: "GET",
+    credentials: "same-origin",
+  })
+    .then(() => undefined)
+    .catch(() => {
+      // The original request goes out anyway, as it would without the priming.
+    })
+    .finally(() => {
+      priming = undefined;
     });
-  } catch {
-    // The original request goes out anyway, as it would without the priming.
-  }
+  return priming;
 }
 
 export async function apiFetch(

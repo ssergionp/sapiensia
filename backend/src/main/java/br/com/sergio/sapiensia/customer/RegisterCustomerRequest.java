@@ -13,4 +13,12 @@ record RegisterCustomerRequest(
         @NotBlank(message = "PASSWORD_REQUIRED")
         @Size(min = 12, message = "PASSWORD_TOO_SHORT")
         @Size(max = 128, message = "PASSWORD_TOO_LONG")
-        String password) {}
+        String password) {
+
+    // Surrounding spaces (autofill, paste) are not part of the e-mail; the password is never trimmed.
+    RegisterCustomerRequest {
+        if (email != null) {
+            email = email.trim();
+        }
+    }
+}

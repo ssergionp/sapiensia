@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,18 +27,26 @@ export default function RegisterPage() {
   });
   const mutation = useRegisterCustomer();
 
+  // Decided once per failed submit, so correcting a field does not bring the generic message back.
+  const [showUnexpected, setShowUnexpected] = useState(false);
+
   function onSubmit(values: RegisterCustomerInput) {
+    setShowUnexpected(false);
     mutation.mutate(values, {
       onError: (error) => {
-        if (!(error instanceof RegisterCustomerError)) return;
-        for (const field of ["email", "password"] as const) {
-          const code = error.fieldErrors[field];
-          if (code) {
-            setError(field, {
-              message: errorMessages[code] ?? UNEXPECTED_ERROR,
-            });
+        let applied = false;
+        if (error instanceof RegisterCustomerError) {
+          for (const field of ["email", "password"] as const) {
+            const code = error.fieldErrors[field];
+            if (code) {
+              applied = true;
+              setError(field, {
+                message: errorMessages[code] ?? UNEXPECTED_ERROR,
+              });
+            }
           }
         }
+        setShowUnexpected(!applied);
       },
     });
   }
@@ -52,11 +61,6 @@ export default function RegisterPage() {
       </main>
     );
   }
-
-  const hasFieldError = Boolean(errors.email || errors.password);
-  const showUnexpected =
-    mutation.isError &&
-    (!(mutation.error instanceof RegisterCustomerError) || !hasFieldError);
 
   return (
     <main className="mx-auto max-w-md p-8">

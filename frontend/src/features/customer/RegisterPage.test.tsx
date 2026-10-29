@@ -134,6 +134,50 @@ describe("RegisterPage", () => {
     ).toBeInTheDocument();
   });
 
+  test("não mostra o erro genérico enquanto o usuário corrige a senha", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(400, { errors: { password: "PASSWORD_COMPROMISED" } }),
+    );
+    renderPage();
+
+    await fillAndSubmit("ana@example.com", "uma senha bem longa");
+    await screen.findByText(
+      "Essa senha já apareceu em vazamentos de dados. Escolha outra.",
+    );
+
+    await userEvent.setup().type(screen.getByLabelText("Senha"), "x");
+
+    await waitFor(() =>
+      expect(
+        screen.queryByText(
+          "Essa senha já apareceu em vazamentos de dados. Escolha outra.",
+        ),
+      ).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.queryByText(
+        "Não foi possível criar a conta agora. Tente novamente em instantes.",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  test("apara os espaços do e-mail antes de enviar", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(202));
+    renderPage();
+
+    await fillAndSubmit(" ana@example.com ", "uma senha bem longa");
+
+    expect(
+      await screen.findByText(
+        "Cadastro recebido. Verifique seu e-mail para continuar.",
+      ),
+    ).toBeInTheDocument();
+    const call = fetchSpy.mock.calls.find(([url]) => url === "/api/customers");
+    expect(JSON.parse(String(call?.[1]?.body)).email).toBe("ana@example.com");
+  });
+
   test('desabilita o botão e mostra "Criando conta…" enquanto envia', async () => {
     vi.spyOn(globalThis, "fetch").mockReturnValue(new Promise(() => {}));
     renderPage();

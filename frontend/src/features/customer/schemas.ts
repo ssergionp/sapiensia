@@ -3,8 +3,13 @@ import { z } from "zod";
 // Mirrors the backend limits: e-mail up to 254 characters, password from 12 to 128 characters.
 export const registerCustomerSchema = z.object({
   email: z
-    .email("Informe um e-mail válido.")
-    .max(254, "Informe um e-mail válido."),
+    .string()
+    .trim()
+    .pipe(
+      z
+        .email("Informe um e-mail válido.")
+        .max(254, "Informe um e-mail válido."),
+    ),
   password: z
     .string()
     .min(12, "A senha precisa ter pelo menos 12 caracteres.")
