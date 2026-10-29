@@ -12,6 +12,12 @@ logging:
     # one JSON line per log entry, for the platform's log search; never log tokens, passwords or personal data
     format:
       console: ecs
+app:
+  email:
+    provider: resend
+    resend:
+      # secret from the platform (RESEND_API_KEY); blank makes the application refuse to start
+      api-key: ${RESEND_API_KEY:}
 springdoc:
   api-docs:
     enabled: false
