@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -20,7 +21,13 @@ class FileEmailSender implements EmailSender {
 
     private final Path outboxDir;
 
-    FileEmailSender(@Value("${app.email.outbox-dir}") Path outboxDir) {
+    // bound as a String on purpose: Spring's own String-to-Path conversion treats "../x" as a resource path ("/../x")
+    @Autowired
+    FileEmailSender(@Value("${app.email.outbox-dir}") String outboxDir) {
+        this(Path.of(outboxDir).toAbsolutePath().normalize());
+    }
+
+    FileEmailSender(Path outboxDir) {
         this.outboxDir = outboxDir;
     }
 
