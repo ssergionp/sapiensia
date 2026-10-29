@@ -1,6 +1,7 @@
 package br.com.sergio.sapiensia.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
@@ -10,6 +11,13 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import com.sun.net.httpserver.HttpServer;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.http.HttpClient;
+import java.time.Duration;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,7 +26,9 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.password.CompromisedPasswordChecker;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
 @ExtendWith(OutputCaptureExtension.class)
@@ -98,6 +108,47 @@ class PasswordSecurityConfigTest {
                 .contains("Request for leaked passwords failed")
                 .doesNotContain(SHA1)
                 .doesNotContain(SHA1.toLowerCase());
+    }
+
+    @Test
+    @DisplayName("SEC-002: o HIBP lento não trava o cadastro: tempo-limite de 2 s para conectar")
+    void shouldUseTwoSecondConnectTimeoutForHibp() {
+        HttpClient httpClient =
+                (HttpClient) ReflectionTestUtils.getField(PasswordSecurityConfig.hibpRequestFactory(), "httpClient");
+
+        assertThat(httpClient.connectTimeout()).contains(Duration.ofSeconds(2));
+    }
+
+    @Test
+    @DisplayName("SEC-002: o HIBP lento não trava o cadastro: tempo-limite de 3 s para ler")
+    void shouldGiveUpAfterThreeSecondsWhenHibpDoesNotAnswer() throws Exception {
+        CountDownLatch release = new CountDownLatch(1);
+        HttpServer silentServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        silentServer.createContext("/", exchange -> {
+            try {
+                release.await(10, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            exchange.close();
+        });
+        silentServer.start();
+        try {
+            RestClient client = RestClient.builder()
+                    .requestFactory(PasswordSecurityConfig.hibpRequestFactory())
+                    .build();
+            String url = "http://127.0.0.1:" + silentServer.getAddress().getPort() + "/range/5BAA6";
+
+            long start = System.nanoTime();
+            assertThatThrownBy(() -> client.get().uri(url).retrieve().body(String.class))
+                    .isInstanceOf(ResourceAccessException.class);
+            Duration elapsed = Duration.ofNanos(System.nanoTime() - start);
+
+            assertThat(elapsed).isBetween(Duration.ofMillis(2500), Duration.ofSeconds(6));
+        } finally {
+            release.countDown();
+            silentServer.stop(0);
+        }
     }
 
     private Fixture fixture() {

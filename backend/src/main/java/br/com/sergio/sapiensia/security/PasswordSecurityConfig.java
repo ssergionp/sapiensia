@@ -46,13 +46,9 @@ class PasswordSecurityConfig {
     }
 
     CompromisedPasswordChecker compromisedPasswordChecker(RestClient.Builder builder) {
-        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(
-                HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build());
-        requestFactory.setReadTimeout(Duration.ofSeconds(3));
-
         // the Add-Padding header makes every response look alike, so its size does not leak the hash prefix
         RestClient restClient = builder.baseUrl("https://api.pwnedpasswords.com/range/")
-                .requestFactory(requestFactory)
+                .requestFactory(hibpRequestFactory())
                 .defaultHeader("Add-Padding", "true")
                 .requestInterceptor(PasswordSecurityConfig::dropPaddingEntries)
                 .build();
@@ -60,6 +56,14 @@ class PasswordSecurityConfig {
         HaveIBeenPwnedRestApiPasswordChecker checker = new HaveIBeenPwnedRestApiPasswordChecker();
         checker.setRestClient(restClient);
         return checker;
+    }
+
+    // a slow HIBP must not hold the registration: 2 s to connect and 3 s to read, then the check fails open
+    static JdkClientHttpRequestFactory hibpRequestFactory() {
+        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(
+                HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build());
+        requestFactory.setReadTimeout(Duration.ofSeconds(3));
+        return requestFactory;
     }
 
     // padding entries have a count of 0 and are not real leaks, but the Spring checker would still match them
