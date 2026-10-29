@@ -1,6 +1,9 @@
 spring:
   flyway:
     locations: classpath:db/migration,classpath:db/seed
+db-scheduler:
+  # Poll every second so the e-mail jobs go out quickly in local development
+  polling-interval: 1s
 app:
   email:
     provider: file
