@@ -51,11 +51,12 @@ class EmailConfirmationTokens {
                 .update();
     }
 
-    Optional<Pending> findValid(String token) {
+    Optional<Pending> findValid(String token, int maxWrongPasswords) {
         return jdbc.sql("select t.id, c.password_hash from email_confirmation_tokens t"
                         + " join customers c on c.id = t.customer_id"
-                        + " where t.token_hash = :hash and t.expires_at > now()")
+                        + " where t.token_hash = :hash and t.expires_at > now() and t.failed_attempts < :max")
                 .param("hash", hash(token))
+                .param("max", maxWrongPasswords)
                 .query((rs, i) -> new Pending(rs.getObject("id", UUID.class), rs.getString("password_hash")))
                 .optional();
     }
@@ -80,11 +81,13 @@ class EmailConfirmationTokens {
      *
      * @return true if this call consumed the token
      */
-    boolean consumeAndConfirm(UUID tokenId) {
-        return jdbc.sql("with used as (delete from email_confirmation_tokens where id = :id returning customer_id)"
-                                + " update customers set email_confirmed_at = coalesce(email_confirmed_at, now())"
-                                + " where id in (select customer_id from used)")
+    boolean consumeAndConfirm(UUID tokenId, int maxWrongPasswords) {
+        return jdbc.sql(
+                                "with used as (delete from email_confirmation_tokens where id = :id and failed_attempts < :max returning customer_id)"
+                                        + " update customers set email_confirmed_at = coalesce(email_confirmed_at, now())"
+                                        + " where id in (select customer_id from used)")
                         .param("id", tokenId)
+                        .param("max", maxWrongPasswords)
                         .update()
                 > 0;
     }

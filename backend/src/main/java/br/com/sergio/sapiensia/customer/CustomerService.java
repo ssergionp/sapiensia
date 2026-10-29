@@ -50,8 +50,9 @@ public class CustomerService {
      * <p>Not {@code @Transactional}: each statement is atomic on its own, and Argon2 must not hold a connection.
      */
     public void confirmEmail(String token, String rawPassword) {
-        EmailConfirmationTokens.Pending pending =
-                confirmationTokens.findValid(token).orElseThrow(InvalidConfirmationTokenException::new);
+        EmailConfirmationTokens.Pending pending = confirmationTokens
+                .findValid(token, MAX_WRONG_PASSWORDS)
+                .orElseThrow(InvalidConfirmationTokenException::new);
         if (!passwordEncoder.matches(rawPassword, pending.passwordHash())) {
             int attempts = confirmationTokens
                     .recordWrongPassword(pending.tokenId())
@@ -62,7 +63,7 @@ public class CustomerService {
             }
             throw new IncorrectConfirmationPasswordException();
         }
-        if (!confirmationTokens.consumeAndConfirm(pending.tokenId())) {
+        if (!confirmationTokens.consumeAndConfirm(pending.tokenId(), MAX_WRONG_PASSWORDS)) {
             throw new InvalidConfirmationTokenException();
         }
     }

@@ -144,7 +144,7 @@ class EmailConfirmationTest {
                     }
                 }));
             }
-            ready.await(10, TimeUnit.SECONDS);
+            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
             go.countDown();
 
             int winners = 0;
@@ -157,9 +157,61 @@ class EmailConfirmationTest {
                 }
             }
             assertThat(winners).isEqualTo(1);
+            assertThat(confirmedAt()).isNotNull();
+            assertThat(tokenRows()).isZero();
         } finally {
             pool.shutdownNow();
         }
+    }
+
+    @Test
+    @DisplayName("#49: palpites errados em paralelo não passam do limite de 5 por link")
+    void shouldInvalidateLinkAfterConcurrentWrongPasswords() throws Exception {
+        String token = tokens.issue(customerId);
+        int threads = 8;
+        CountDownLatch ready = new CountDownLatch(threads);
+        CountDownLatch go = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        try {
+            List<Future<Throwable>> results = new ArrayList<>();
+            for (int i = 0; i < threads; i++) {
+                results.add(pool.submit(() -> {
+                    ready.countDown();
+                    go.await();
+                    try {
+                        customerService.confirmEmail(token, WRONG_PASSWORD);
+                        return null;
+                    } catch (Throwable e) {
+                        return e;
+                    }
+                }));
+            }
+            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+            go.countDown();
+            for (Future<Throwable> result : results) {
+                assertThat(result.get(60, TimeUnit.SECONDS))
+                        .isInstanceOfAny(
+                                IncorrectConfirmationPasswordException.class, InvalidConfirmationTokenException.class);
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+
+        assertThat(tokenRows()).isZero();
+        assertThatThrownBy(() -> customerService.confirmEmail(token, PASSWORD))
+                .isInstanceOf(InvalidConfirmationTokenException.class);
+        assertThat(confirmedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("#49: link com 5 erros registrados não vale mais, mesmo que ainda não tenha sido apagado")
+    void shouldRejectLinkAtTheLimitEvenIfItWasNotDeleted() {
+        String token = tokens.issue(customerId);
+        jdbc.update("update email_confirmation_tokens set failed_attempts = 5 where customer_id = ?", customerId);
+
+        assertThatThrownBy(() -> customerService.confirmEmail(token, PASSWORD))
+                .isInstanceOf(InvalidConfirmationTokenException.class);
+        assertThat(confirmedAt()).isNull();
     }
 
     @Test
