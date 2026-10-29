@@ -9,6 +9,8 @@ export default defineConfig({
   outputDir: ".tmp/e2e-results",
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
+  // The e-mail jobs run in the scheduler, which polls every 10 s, so a test that waits for two e-mails needs more than 30 s.
+  timeout: 60_000,
   // A cold-started backend answers the first registration slowly (JIT, password hashing, breach check).
   expect: { timeout: 15_000 },
   reporter: [
