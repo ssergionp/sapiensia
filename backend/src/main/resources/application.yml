@@ -38,3 +38,6 @@ app:
   public-base-url: ${APP_PUBLIC_BASE_URL}
   email-confirmation:
     ttl: PT24H
+  unconfirmed-customer:
+    # accounts whose e-mail stays unconfirmed longer than this (from creation) are deleted by the daily cleanup
+    retention: P7D

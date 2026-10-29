@@ -2,10 +2,12 @@ package br.com.sergio.sapiensia.customer;
 
 import com.github.kagkarlsson.scheduler.SchedulerClient;
 import com.github.kagkarlsson.scheduler.task.TaskInstance;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.password.CompromisedPasswordChecker;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -20,13 +22,16 @@ public class CustomerService {
     private final PasswordEncoder passwordEncoder;
     private final CompromisedPasswordChecker compromisedPasswordChecker;
     private final SchedulerClient scheduler;
+    private final Duration unconfirmedRetention;
 
     CustomerService(
             CustomerRepository customers,
             EmailConfirmationTokens confirmationTokens,
             PasswordEncoder passwordEncoder,
             CompromisedPasswordChecker compromisedPasswordChecker,
-            SchedulerClient scheduler) {
+            SchedulerClient scheduler,
+            @Value("${app.unconfirmed-customer.retention}") Duration unconfirmedRetention) {
+        this.unconfirmedRetention = unconfirmedRetention;
         this.customers = customers;
         this.confirmationTokens = confirmationTokens;
         this.passwordEncoder = passwordEncoder;
@@ -64,6 +69,16 @@ public class CustomerService {
         customers
                 .findIdByEmail(normalizedEmail)
                 .ifPresent(id -> schedule(CustomerEmailTasks.ACCOUNT_EXISTS_NOTICE, id));
+    }
+
+    /**
+     * Deletes the accounts whose e-mail stayed unconfirmed for longer than the retention (counted from creation);
+     * their links go with them. Frees the e-mail for a new registration.
+     *
+     * @return how many accounts were deleted
+     */
+    public int deleteUnconfirmedOlderThanRetention() {
+        return customers.deleteUnconfirmedCreatedBefore(Instant.now().minus(unconfirmedRetention));
     }
 
     private void schedule(String taskName, UUID customerId) {

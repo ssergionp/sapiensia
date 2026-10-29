@@ -1,5 +1,6 @@
 package br.com.sergio.sapiensia.customer;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -34,6 +35,14 @@ interface CustomerRepository extends JpaRepository<Customer, UUID> {
             value = "update customers set password_hash = :passwordHash"
                     + " where email = :email and email_confirmed_at is null returning id")
     Optional<UUID> replacePasswordIfUnconfirmed(String email, String passwordHash);
+
+    /** Deletes unconfirmed accounts created before the cutoff; their tokens go away by cascade. */
+    @Transactional
+    @Modifying
+    @Query(
+            nativeQuery = true,
+            value = "delete from customers where email_confirmed_at is null and created_at < :cutoff")
+    int deleteUnconfirmedCreatedBefore(Instant cutoff);
 
     @Query("select c.id from Customer c where c.email = :email")
     Optional<UUID> findIdByEmail(String email);
