@@ -33,6 +33,8 @@ public class SecurityConfig {
                         // a new endpoint starts denied: open it here, with the role or capability it requires
                         .requestMatchers(HttpMethod.POST, "/api/customers")
                         .permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/customers/email-confirmations")
+                        .permitAll()
                         .requestMatchers("/api/**")
                         .denyAll()
                         .anyRequest()
