@@ -77,17 +77,22 @@ class EmailConfirmationTokens {
     }
 
     /**
-     * Consumes the token and confirms its customer in one statement. Of concurrent calls only one deletes the row.
+     * Consumes the token and confirms its customer in one statement, only if the password hash is still the one the
+     * caller verified. Of concurrent calls only one deletes the row.
      *
-     * @return true if this call consumed the token
+     * <p>If the password was replaced in the meantime (a newer registration), the token is still deleted but nothing is
+     * confirmed: the link becomes useless instead of confirming the account with a password the caller never checked.
+     *
+     * @return true if this call confirmed the customer
      */
-    boolean consumeAndConfirm(UUID tokenId, int maxWrongPasswords) {
+    boolean consumeAndConfirm(UUID tokenId, String verifiedPasswordHash, int maxWrongPasswords) {
         return jdbc.sql(
                                 "with used as (delete from email_confirmation_tokens where id = :id and failed_attempts < :max returning customer_id)"
                                         + " update customers set email_confirmed_at = coalesce(email_confirmed_at, now())"
-                                        + " where id in (select customer_id from used)")
+                                        + " where id in (select customer_id from used) and password_hash = :verifiedHash")
                         .param("id", tokenId)
                         .param("max", maxWrongPasswords)
+                        .param("verifiedHash", verifiedPasswordHash)
                         .update()
                 > 0;
     }

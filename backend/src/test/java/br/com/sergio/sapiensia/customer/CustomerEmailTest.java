@@ -200,7 +200,12 @@ class CustomerEmailTest {
         String token = tokenFrom(nextMessageTo(email));
         customerService.confirmEmail(token, PASSWORD);
 
-        assertThat(output.getAll()).doesNotContain(email).doesNotContain(token).doesNotContain(PASSWORD);
+        assertThat(sender.hasPendingFailureFor(email)).isFalse();
+        assertThat(output.getAll())
+                .doesNotContain(email)
+                .doesNotContain(token)
+                .doesNotContain(PASSWORD)
+                .doesNotContain(passwordHash(email));
     }
 
     @Test
@@ -210,6 +215,9 @@ class CustomerEmailTest {
         customerService.register(email, PASSWORD);
 
         assertThat(nextMessageTo(email).subject()).isEqualTo(CONFIRMATION_SUBJECT);
+        assertThat(sender.hasPendingFailureFor(email))
+                .as("the first attempt failed")
+                .isFalse();
     }
 
     @Test
@@ -246,6 +254,7 @@ class CustomerEmailTest {
         for (int i = 0; i < threads; i++) {
             assertThat(nextMessageTo(email).subject()).isEqualTo(CONFIRMATION_SUBJECT);
         }
+        assertThat(sender.awaitMessageTo(email, Duration.ofSeconds(3))).isEmpty();
         String hash = passwordHash(email);
         assertThat(passwords).anyMatch(password -> passwordEncoder.matches(password, hash));
     }

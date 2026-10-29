@@ -22,6 +22,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 @SpringBootTest
 @Import(TestcontainersConfiguration.class)
@@ -29,6 +30,7 @@ class EmailConfirmationTest {
 
     private static final String PASSWORD = "uma senha longa 1";
     private static final String WRONG_PASSWORD = "senha errada 123";
+    private static final String OTHER_PASSWORD = "outra senha longa 2";
 
     @Autowired
     private CustomerService customerService;
@@ -41,6 +43,12 @@ class EmailConfirmationTest {
 
     @Autowired
     private RecordingEmailSender sender;
+
+    @Autowired
+    private CustomerRepository customers;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     private String email;
     private UUID customerId;
@@ -266,6 +274,29 @@ class EmailConfirmationTest {
                     .isInstanceOf(IncorrectConfirmationPasswordException.class);
         }
         customerService.confirmEmail(second, PASSWORD);
+        assertThat(confirmedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("#49: a confirmação não vale se a senha mudou depois de conferida")
+    void shouldNotConfirmWhenPasswordChangedAfterItWasVerified() {
+        String token = tokens.issue(customerId);
+        // what confirmEmail does first: load the hash the password is checked against
+        EmailConfirmationTokens.Pending pending = tokens.findValid(token, 5).orElseThrow();
+        // meanwhile another registration of the same unconfirmed e-mail replaces the password (before revoking links)
+        customers.replacePasswordIfUnconfirmed(email, passwordEncoder.encode(OTHER_PASSWORD));
+
+        assertThat(tokens.consumeAndConfirm(pending.tokenId(), pending.passwordHash(), 5))
+                .isFalse();
+
+        assertThat(confirmedAt()).isNull();
+        // the stale link is gone, so it can never confirm later, with either password
+        assertThat(tokenRows()).isZero();
+        assertThatThrownBy(() -> customerService.confirmEmail(token, OTHER_PASSWORD))
+                .isInstanceOf(InvalidConfirmationTokenException.class);
+        assertThat(confirmedAt()).isNull();
+        String fresh = tokens.issue(customerId);
+        customerService.confirmEmail(fresh, OTHER_PASSWORD);
         assertThat(confirmedAt()).isNotNull();
     }
 

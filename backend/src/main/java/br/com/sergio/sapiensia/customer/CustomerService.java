@@ -90,7 +90,8 @@ public class CustomerService {
             }
             throw new IncorrectConfirmationPasswordException();
         }
-        if (!confirmationTokens.consumeAndConfirm(pending.tokenId(), MAX_WRONG_PASSWORDS)) {
+        // the hash is re-checked in the same statement: a password replaced during Argon2 must not be confirmed
+        if (!confirmationTokens.consumeAndConfirm(pending.tokenId(), pending.passwordHash(), MAX_WRONG_PASSWORDS)) {
             throw new InvalidConfirmationTokenException();
         }
     }

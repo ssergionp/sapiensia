@@ -38,6 +38,11 @@ public class RecordingEmailSender implements EmailSender {
         failNextSendTo.add(to);
     }
 
+    /** True while a failure set by {@link #failNextSendTo} has not been thrown yet. */
+    public boolean hasPendingFailureFor(String to) {
+        return failNextSendTo.contains(to);
+    }
+
     /**
      * Waits for the next message to this address that no earlier call returned, in arrival order, polling every 100
      * ms.
