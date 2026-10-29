@@ -89,17 +89,16 @@ class CustomerServiceTest {
     }
 
     @Test
-    @DisplayName("SEC-002: e-mail repetido, mesmo com maiúsculas e espaços, é ignorado sem erro")
-    void shouldIgnoreRepeatedEmailIgnoringCaseAndSpaces() {
+    @DisplayName("SEC-002: e-mail repetido não confirmado, mesmo com maiúsculas e espaços, troca a senha sem erro")
+    void shouldReplacePasswordOfUnconfirmedRepeatedEmailIgnoringCaseAndSpaces() {
         customerService.register("ana@example.com", PASSWORD);
-        String originalHash = jdbc.queryForObject("select password_hash from customers", String.class);
 
         assertThatCode(() -> customerService.register("  Ana@Example.COM ", "outra senha longa 2"))
                 .doesNotThrowAnyException();
 
         assertThat(countCustomers()).isEqualTo(1);
-        assertThat(jdbc.queryForObject("select password_hash from customers", String.class))
-                .isEqualTo(originalHash);
+        String hash = jdbc.queryForObject("select password_hash from customers", String.class);
+        assertThat(passwordEncoder.matches("outra senha longa 2", hash)).isTrue();
     }
 
     @Test

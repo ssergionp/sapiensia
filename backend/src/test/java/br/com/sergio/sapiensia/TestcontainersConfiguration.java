@@ -24,4 +24,11 @@ public class TestcontainersConfiguration {
     CompromisedPasswordChecker fakeCompromisedPasswordChecker() {
         return password -> new CompromisedPasswordDecision("Password123456".equals(password));
     }
+
+    /** Keeps e-mails in memory; tests never send real e-mails nor write them to disk. */
+    @Bean
+    @Primary
+    RecordingEmailSender recordingEmailSender() {
+        return new RecordingEmailSender();
+    }
 }

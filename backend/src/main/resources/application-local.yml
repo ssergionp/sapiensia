@@ -4,3 +4,5 @@ spring:
 app:
   email:
     provider: file
+  # Vite dev server (default port), which serves the frontend pages
+  public-base-url: http://localhost:5173

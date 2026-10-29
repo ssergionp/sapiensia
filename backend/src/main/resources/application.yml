@@ -31,5 +31,10 @@ app:
     from: "SapiensIA <nao-responda@sapiensia.app.br>"
     # where the "file" provider writes e-mails (relative to backend/); APP_EMAIL_OUTBOX_DIR overrides it
     outbox-dir: ${APP_EMAIL_OUTBOX_DIR:../.tmp/outbox}
+    # a failing e-mail task is tried this many times in total, once every retry-delay, then dropped
+    max-attempts: 5
+    retry-delay: PT5M
+  # site address used in e-mail links (no trailing slash); no default: a missing value stops the application
+  public-base-url: ${APP_PUBLIC_BASE_URL}
   email-confirmation:
     ttl: PT24H

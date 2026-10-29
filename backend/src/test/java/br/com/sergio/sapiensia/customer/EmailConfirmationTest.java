@@ -4,7 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import br.com.sergio.sapiensia.RecordingEmailSender;
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -37,14 +39,20 @@ class EmailConfirmationTest {
     @Autowired
     private JdbcTemplate jdbc;
 
+    @Autowired
+    private RecordingEmailSender sender;
+
     private String email;
     private UUID customerId;
 
     @BeforeEach
-    void createCustomer() {
+    void createCustomer() throws InterruptedException {
         email = "confirm-" + UUID.randomUUID() + "@example.com";
         customerService.register(email, PASSWORD);
         customerId = jdbc.queryForObject("select id from customers where email = ?", UUID.class, email);
+        // registration issues a link in the background: wait for it and drop it, so each test starts with no link
+        assertThat(sender.awaitMessageTo(email, Duration.ofSeconds(15))).isPresent();
+        tokens.revokeAll(customerId);
     }
 
     private Object confirmedAt() {
