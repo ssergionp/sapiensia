@@ -9,6 +9,8 @@ export default defineConfig({
   outputDir: ".tmp/e2e-results",
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
+  // A cold-started backend answers the first registration slowly (JIT, password hashing, breach check).
+  expect: { timeout: 15_000 },
   reporter: [
     ["list"],
     ["html", { outputFolder: ".tmp/e2e-report", open: "never" }],
