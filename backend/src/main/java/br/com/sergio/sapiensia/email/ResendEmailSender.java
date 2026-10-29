@@ -4,6 +4,7 @@ import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
@@ -22,6 +23,13 @@ class ResendEmailSender implements EmailSender {
     private final RestClient restClient;
     private final String from;
 
+    // no RestClient.Builder bean exists in this application, so Spring uses this one and starts from a plain builder
+    @Autowired
+    ResendEmailSender(@Value("${app.email.resend.api-key:}") String apiKey, @Value("${app.email.from}") String from) {
+        this(RestClient.builder(), apiKey, from);
+    }
+
+    // the builder is a test seam
     ResendEmailSender(
             RestClient.Builder builder,
             @Value("${app.email.resend.api-key:}") String apiKey,
