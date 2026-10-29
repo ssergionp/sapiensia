@@ -31,3 +31,5 @@ app:
     from: "SapiensIA <nao-responda@sapiensia.app.br>"
     # where the "file" provider writes e-mails (relative to backend/); APP_EMAIL_OUTBOX_DIR overrides it
     outbox-dir: ${APP_EMAIL_OUTBOX_DIR:../.tmp/outbox}
+  email-confirmation:
+    ttl: PT24H
