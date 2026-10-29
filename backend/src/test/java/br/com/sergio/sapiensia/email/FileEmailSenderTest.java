@@ -1,6 +1,7 @@
 package br.com.sergio.sapiensia.email;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -30,6 +31,21 @@ class FileEmailSenderTest {
         assertThat(files.get(0).getFileName().toString())
                 .matches("[A-Za-z0-9@._-]+")
                 .endsWith("-ana@example.com.txt");
+    }
+
+    @Test
+    void shouldNotLeakTheRecipientWhenTheWriteFails() {
+        // a 300-character local part makes the file name too long on every file system, and the
+        // IOException message then carries the whole file path (which contains the recipient)
+        String local = "recipient".repeat(34);
+        String to = local + "@example.com";
+
+        Throwable thrown = catchThrowable(() -> new FileEmailSender(outbox).send(new EmailMessage(to, "s", "t")));
+
+        assertThat(thrown).isInstanceOf(EmailDeliveryException.class);
+        for (Throwable t = thrown; t != null; t = t.getCause()) {
+            assertThat(String.valueOf(t.getMessage())).doesNotContain(to).doesNotContain("recipientrecipient");
+        }
     }
 
     @Test
