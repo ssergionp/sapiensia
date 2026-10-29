@@ -220,6 +220,108 @@ class EmailConfirmationTest {
     }
 
     @Test
+    @DisplayName("#49: 20 palpites errados em paralelo conferem a senha no máximo 5 vezes")
+    void shouldCheckThePasswordAtMostFiveTimesUnderAParallelBurst() throws Exception {
+        String token = tokens.issue(customerId);
+        int threads = 20;
+        CountDownLatch ready = new CountDownLatch(threads);
+        CountDownLatch go = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        int incorrect = 0;
+        try {
+            List<Future<Throwable>> results = new ArrayList<>();
+            for (int i = 0; i < threads; i++) {
+                results.add(pool.submit(() -> {
+                    ready.countDown();
+                    go.await();
+                    try {
+                        customerService.confirmEmail(token, WRONG_PASSWORD);
+                        return null;
+                    } catch (Throwable e) {
+                        return e;
+                    }
+                }));
+            }
+            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+            go.countDown();
+            for (Future<Throwable> result : results) {
+                Throwable failure = result.get(120, TimeUnit.SECONDS);
+                assertThat(failure)
+                        .isInstanceOfAny(
+                                IncorrectConfirmationPasswordException.class, InvalidConfirmationTokenException.class);
+                if (failure instanceof IncorrectConfirmationPasswordException) {
+                    incorrect++;
+                }
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+
+        // each of the 5 reserved attempts checks the password once; the 5th wrong one answers "invalid"
+        assertThat(incorrect).isLessThanOrEqualTo(4);
+        assertThat(tokenRows()).isZero();
+        assertThatThrownBy(() -> customerService.confirmEmail(token, PASSWORD))
+                .isInstanceOf(InvalidConfirmationTokenException.class);
+        assertThat(confirmedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("#49: 20 reservas em paralelo do mesmo link liberam exatamente 5 conferências de senha")
+    void shouldGrantExactlyFiveAttemptReservationsUnderAParallelBurst() throws Exception {
+        String token = tokens.issue(customerId);
+        int threads = 20;
+        CountDownLatch ready = new CountDownLatch(threads);
+        CountDownLatch go = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        try {
+            List<Future<Boolean>> results = new ArrayList<>();
+            for (int i = 0; i < threads; i++) {
+                results.add(pool.submit(() -> {
+                    ready.countDown();
+                    go.await();
+                    return tokens.reserveAttempt(token, 5).isPresent();
+                }));
+            }
+            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+            go.countDown();
+            int granted = 0;
+            for (Future<Boolean> result : results) {
+                if (result.get(60, TimeUnit.SECONDS)) {
+                    granted++;
+                }
+            }
+            assertThat(granted).isEqualTo(5);
+            assertThat(jdbc.queryForObject(
+                            "select failed_attempts from email_confirmation_tokens where customer_id = ?",
+                            Integer.class,
+                            customerId))
+                    .isEqualTo(5);
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
+    @DisplayName("#49: a senha certa na 5ª tentativa ainda confirma")
+    void shouldConfirmWithCorrectPasswordOnTheFifthAttempt() {
+        String token = tokens.issue(customerId);
+        for (int i = 0; i < 4; i++) {
+            assertThatThrownBy(() -> customerService.confirmEmail(token, WRONG_PASSWORD))
+                    .isInstanceOf(IncorrectConfirmationPasswordException.class);
+        }
+        assertThat(jdbc.queryForObject(
+                        "select failed_attempts from email_confirmation_tokens where customer_id = ?",
+                        Integer.class,
+                        customerId))
+                .isEqualTo(4);
+
+        assertThatCode(() -> customerService.confirmEmail(token, PASSWORD)).doesNotThrowAnyException();
+
+        assertThat(confirmedAt()).isNotNull();
+        assertThat(tokenRows()).isZero();
+    }
+
+    @Test
     @DisplayName("#49: link com 5 erros registrados não vale mais, mesmo que ainda não tenha sido apagado")
     void shouldRejectLinkAtTheLimitEvenIfItWasNotDeleted() {
         String token = tokens.issue(customerId);
@@ -281,12 +383,13 @@ class EmailConfirmationTest {
     @DisplayName("#49: a confirmação não vale se a senha mudou depois de conferida")
     void shouldNotConfirmWhenPasswordChangedAfterItWasVerified() {
         String token = tokens.issue(customerId);
-        // what confirmEmail does first: load the hash the password is checked against
-        EmailConfirmationTokens.Pending pending = tokens.findValid(token, 5).orElseThrow();
+        // what confirmEmail does first: reserve an attempt and load the hash the password is checked against
+        EmailConfirmationTokens.Pending pending =
+                tokens.reserveAttempt(token, 5).orElseThrow();
         // meanwhile another registration of the same unconfirmed e-mail replaces the password (before revoking links)
         customers.replacePasswordIfUnconfirmed(email, passwordEncoder.encode(OTHER_PASSWORD));
 
-        assertThat(tokens.consumeAndConfirm(pending.tokenId(), pending.passwordHash(), 5))
+        assertThat(tokens.consumeAndConfirm(pending.tokenId(), pending.passwordHash()))
                 .isFalse();
 
         assertThat(confirmedAt()).isNull();

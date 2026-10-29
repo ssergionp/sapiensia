@@ -92,21 +92,19 @@ public class CustomerService {
      * <p>Not {@code @Transactional}: each statement is atomic on its own, and Argon2 must not hold a connection.
      */
     public void confirmEmail(String token, String rawPassword) {
+        // the attempt is reserved atomically before the slow check, so parallel guesses cannot exceed the limit
         EmailConfirmationTokens.Pending pending = confirmationTokens
-                .findValid(token, MAX_WRONG_PASSWORDS)
+                .reserveAttempt(token, MAX_WRONG_PASSWORDS)
                 .orElseThrow(InvalidConfirmationTokenException::new);
         if (!passwordEncoder.matches(rawPassword, pending.passwordHash())) {
-            int attempts = confirmationTokens
-                    .recordWrongPassword(pending.tokenId())
-                    .orElseThrow(InvalidConfirmationTokenException::new);
-            if (attempts >= MAX_WRONG_PASSWORDS) {
+            if (pending.attempts() >= MAX_WRONG_PASSWORDS) {
                 confirmationTokens.delete(pending.tokenId());
                 throw new InvalidConfirmationTokenException();
             }
             throw new IncorrectConfirmationPasswordException();
         }
         // the hash is re-checked in the same statement: a password replaced during Argon2 must not be confirmed
-        if (!confirmationTokens.consumeAndConfirm(pending.tokenId(), pending.passwordHash(), MAX_WRONG_PASSWORDS)) {
+        if (!confirmationTokens.consumeAndConfirm(pending.tokenId(), pending.passwordHash())) {
             throw new InvalidConfirmationTokenException();
         }
     }

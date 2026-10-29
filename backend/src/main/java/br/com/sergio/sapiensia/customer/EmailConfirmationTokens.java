@@ -17,8 +17,8 @@ import org.springframework.stereotype.Component;
 @Component
 class EmailConfirmationTokens {
 
-    /** A valid, unexpired token together with the password hash of its customer. */
-    record Pending(UUID tokenId, String passwordHash) {}
+    /** A token with a reserved attempt: its customer's password hash and the attempts reserved so far, this one included. */
+    record Pending(UUID tokenId, String passwordHash, int attempts) {}
 
     private static final int TOKEN_BYTES = 32;
 
@@ -51,22 +51,20 @@ class EmailConfirmationTokens {
                 .update();
     }
 
-    Optional<Pending> findValid(String token, int maxWrongPasswords) {
-        return jdbc.sql("select t.id, c.password_hash from email_confirmation_tokens t"
-                        + " join customers c on c.id = t.customer_id"
-                        + " where t.token_hash = :hash and t.expires_at > now() and t.failed_attempts < :max")
+    /**
+     * Reserves one password attempt on the link in a single statement, before the slow password check, so parallel
+     * guesses cannot exceed the limit. Empty if the link is unknown, expired, used or already at the limit.
+     */
+    Optional<Pending> reserveAttempt(String token, int maxWrongPasswords) {
+        return jdbc.sql("with reserved as (update email_confirmation_tokens set failed_attempts = failed_attempts + 1"
+                        + " where token_hash = :hash and expires_at > now() and failed_attempts < :max"
+                        + " returning id, customer_id, failed_attempts)"
+                        + " select r.id, r.failed_attempts, c.password_hash from reserved r"
+                        + " join customers c on c.id = r.customer_id")
                 .param("hash", hash(token))
                 .param("max", maxWrongPasswords)
-                .query((rs, i) -> new Pending(rs.getObject("id", UUID.class), rs.getString("password_hash")))
-                .optional();
-    }
-
-    /** Adds one wrong attempt atomically; returns the new count, or empty if the token is already gone. */
-    Optional<Integer> recordWrongPassword(UUID tokenId) {
-        return jdbc.sql("update email_confirmation_tokens set failed_attempts = failed_attempts + 1"
-                        + " where id = :id returning failed_attempts")
-                .param("id", tokenId)
-                .query(Integer.class)
+                .query((rs, i) -> new Pending(
+                        rs.getObject("id", UUID.class), rs.getString("password_hash"), rs.getInt("failed_attempts")))
                 .optional();
     }
 
@@ -83,15 +81,16 @@ class EmailConfirmationTokens {
      * <p>If the password was replaced in the meantime (a newer registration), the token is still deleted but nothing is
      * confirmed: the link becomes useless instead of confirming the account with a password the caller never checked.
      *
+     * <p>The attempt limit is not checked here: {@link #reserveAttempt} already refused any link at the limit before
+     * the password was checked, and the 5th attempt may still be the correct one.
+     *
      * @return true if this call confirmed the customer
      */
-    boolean consumeAndConfirm(UUID tokenId, String verifiedPasswordHash, int maxWrongPasswords) {
-        return jdbc.sql(
-                                "with used as (delete from email_confirmation_tokens where id = :id and failed_attempts < :max returning customer_id)"
-                                        + " update customers set email_confirmed_at = coalesce(email_confirmed_at, now())"
-                                        + " where id in (select customer_id from used) and password_hash = :verifiedHash")
+    boolean consumeAndConfirm(UUID tokenId, String verifiedPasswordHash) {
+        return jdbc.sql("with used as (delete from email_confirmation_tokens where id = :id returning customer_id)"
+                                + " update customers set email_confirmed_at = coalesce(email_confirmed_at, now())"
+                                + " where id in (select customer_id from used) and password_hash = :verifiedHash")
                         .param("id", tokenId)
-                        .param("max", maxWrongPasswords)
                         .param("verifiedHash", verifiedPasswordHash)
                         .update()
                 > 0;
