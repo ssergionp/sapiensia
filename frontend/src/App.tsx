@@ -1,5 +1,6 @@
 import { Route, Routes } from "react-router";
 import { Button } from "@/components/ui/button";
+import ConfirmEmailPage from "@/features/customer/ConfirmEmailPage";
 import RegisterPage from "@/features/customer/RegisterPage";
 
 function Home() {
@@ -16,6 +17,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/cadastro" element={<RegisterPage />} />
+      <Route path="/confirmar-email" element={<ConfirmEmailPage />} />
     </Routes>
   );
 }
