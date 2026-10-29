@@ -1,6 +1,7 @@
 package br.com.sergio.sapiensia.customer;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -10,6 +11,8 @@ import br.com.sergio.sapiensia.email.EmailSender;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 
 class CustomerEmailServiceTest {
@@ -51,6 +54,14 @@ class CustomerEmailServiceTest {
                 .contains("http://localhost:5173/entrar")
                 .contains("http://localhost:5173/recuperar-senha")
                 .doesNotContain("5173//");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "   ", "/"})
+    void shouldRefuseToStartWhenTheBaseUrlIsBlank(String baseUrl) {
+        assertThatThrownBy(() -> new CustomerEmailService(customers, tokens, sender, baseUrl))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("APP_PUBLIC_BASE_URL");
     }
 
     @Test

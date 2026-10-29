@@ -50,6 +50,10 @@ class CustomerEmailService {
         this.confirmationTokens = confirmationTokens;
         this.sender = sender;
         this.publicBaseUrl = publicBaseUrl.replaceAll("/+$", ""); // links append "/path"
+        if (this.publicBaseUrl.isBlank()) {
+            throw new IllegalStateException(
+                    "APP_PUBLIC_BASE_URL (app.public-base-url) must be set: e-mail links would be relative without it");
+        }
     }
 
     /** Sends a new confirmation link, unless the customer no longer exists or is already confirmed. */
