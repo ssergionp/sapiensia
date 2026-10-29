@@ -49,7 +49,7 @@ class CustomerEmailService {
         this.customers = customers;
         this.confirmationTokens = confirmationTokens;
         this.sender = sender;
-        this.publicBaseUrl = publicBaseUrl;
+        this.publicBaseUrl = publicBaseUrl.replaceAll("/+$", ""); // links append "/path"
     }
 
     /** Sends a new confirmation link, unless the customer no longer exists or is already confirmed. */
