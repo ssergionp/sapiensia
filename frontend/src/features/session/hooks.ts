@@ -15,8 +15,9 @@ export function useLogin() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: login,
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: sessionQueryKey }),
+    // The login page has no active session observer, so invalidate would only mark the cache stale.
+    // Refetching (also inactive queries) makes the mutation wait for the fresh state before navigating.
+    onSuccess: () => queryClient.refetchQueries({ queryKey: sessionQueryKey }),
   });
 }
 
