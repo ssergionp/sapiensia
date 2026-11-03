@@ -24,4 +24,11 @@ class CustomerController {
     void register(@Valid @RequestBody RegisterCustomerRequest request) {
         customerService.register(request.email(), request.password());
     }
+
+    /** Public e-mail confirmation: the link token plus the password chosen at registration. */
+    @PostMapping("/email-confirmations")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void confirmEmail(@Valid @RequestBody ConfirmEmailRequest request) {
+        customerService.confirmEmail(request.token(), request.password());
+    }
 }

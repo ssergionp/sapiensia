@@ -9,6 +9,11 @@ export default defineConfig({
   outputDir: ".tmp/e2e-results",
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
+  // The e-mail jobs run in the scheduler (polling every second locally and in CI); a test that waits for two e-mails
+  // also pays for a cold-started backend, so 30 s was not enough.
+  timeout: 60_000,
+  // A cold-started backend answers the first registration slowly (JIT, password hashing, breach check).
+  expect: { timeout: 15_000 },
   reporter: [
     ["list"],
     ["html", { outputFolder: ".tmp/e2e-report", open: "never" }],

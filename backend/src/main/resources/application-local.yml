@@ -1,3 +1,11 @@
 spring:
   flyway:
     locations: classpath:db/migration,classpath:db/seed
+db-scheduler:
+  # Poll every second so the e-mail jobs go out quickly in local development
+  polling-interval: 1s
+app:
+  email:
+    provider: file
+  # Vite dev server (default port), which serves the frontend pages
+  public-base-url: http://localhost:5173

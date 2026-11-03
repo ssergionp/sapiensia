@@ -27,3 +27,19 @@ export const errorMessages: Record<string, string> = {
   PASSWORD_COMPROMISED:
     "Essa senha já apareceu em vazamentos de dados. Escolha outra.",
 };
+
+// The confirmation page has no length rule: any non-empty password is sent as typed.
+export const confirmEmailSchema = z.object({
+  password: z
+    .string()
+    .min(1, "Informe a senha.")
+    .max(128, "A senha pode ter no máximo 128 caracteres."),
+});
+
+export type ConfirmEmailInput = z.infer<typeof confirmEmailSchema>;
+
+export const confirmEmailMessages: Record<string, string> = {
+  PASSWORD_REQUIRED: "Informe a senha.",
+  PASSWORD_INCORRECT:
+    "Senha incorreta. Use a senha do seu cadastro mais recente.",
+};

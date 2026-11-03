@@ -32,3 +32,36 @@ export async function registerCustomer(
   }
   throw new Error(`Unexpected status ${response.status}`);
 }
+
+export class ConfirmEmailError extends Error {
+  readonly fieldErrors: Record<string, string>;
+
+  constructor(fieldErrors: Record<string, string>) {
+    super("E-mail confirmation was rejected");
+    this.name = "ConfirmEmailError";
+    this.fieldErrors = fieldErrors;
+  }
+}
+
+export async function confirmEmail(input: {
+  token: string;
+  password: string;
+}): Promise<void> {
+  const response = await apiFetch("/api/customers/email-confirmations", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (response.status === 204) return;
+  if (response.status === 400) {
+    const body: unknown = await response.json().catch(() => null);
+    const errors =
+      typeof body === "object" && body !== null && "errors" in body
+        ? body.errors
+        : null;
+    if (typeof errors === "object" && errors !== null) {
+      throw new ConfirmEmailError(errors as Record<string, string>);
+    }
+  }
+  throw new Error(`Unexpected status ${response.status}`);
+}

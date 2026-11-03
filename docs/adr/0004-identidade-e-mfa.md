@@ -14,4 +14,10 @@ O Administrador entra com senha e MFA obrigatório por aplicativo autenticador (
 - O cadastro do Cliente é público: `POST /api/customers` é liberado no `SecurityConfig` (o resto de `/api` segue negado).
 - A senha do Cliente tem de 12 a 128 caracteres, sem exigir símbolo, é conferida contra senhas vazadas (HIBP) e guardada com Argon2id (m=19456 KiB, t=2, p=1).
 - Se o serviço HIBP estiver fora do ar ou lento (timeouts de 2 s para conectar e 3 s para ler), o cadastro segue sem a checagem e a falha vai para o log, nunca com a senha nem o e-mail (o log de um erro de conexão com o HIBP pode trazer o prefixo SHA-1 de 5 caracteres da senha, que não é a senha).
-- Cadastro com um e-mail que já tem conta responde exatamente como um novo (HTTP 202, mesma mensagem) e é ignorado em silêncio, para a resposta nunca revelar se a conta existe.
+- Cadastro com um e-mail que já tem conta responde igual a um novo (HTTP 202, mesma mensagem), para a resposta nunca revelar se a conta existe. Se a conta já está confirmada, o titular recebe um aviso com os links para entrar e recuperar a senha. Se **não** está confirmada, o novo cadastro troca a senha, invalida os links anteriores e envia um novo link de confirmação (defesa contra pré-sequestro de conta).
+- O link de confirmação é um valor aleatório de 256 bits, guardado só como hash no banco, de uso único, válido por 24 h, com o token depois do `#` da URL (que o navegador não envia ao servidor).
+- A confirmação exige a senha do cadastro. Senha errada não gasta o link, mas a 5ª senha errada apaga o link. O link só confirma se a senha da conta ainda for a que foi verificada (um novo cadastro no meio do caminho troca a senha e inutiliza o link).
+- Link inválido, vencido, já usado ou apagado recebe sempre a mesma resposta (`400` com `errors.token = TOKEN_INVALID`).
+- Uma limpeza diária apaga as contas não confirmadas há mais de 7 dias.
+- A rota pública `POST /api/customers/email-confirmations` é liberada no `SecurityConfig`; o resto de `/api` segue negado.
+- O Resend é o provedor de e-mail, atrás da interface `EmailSender`, para poder trocá-lo sem mexer no resto do código.

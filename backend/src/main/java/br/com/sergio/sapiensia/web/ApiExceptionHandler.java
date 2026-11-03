@@ -1,6 +1,9 @@
 package br.com.sergio.sapiensia.web;
 
+import br.com.sergio.sapiensia.customer.IncorrectConfirmationPasswordException;
+import br.com.sergio.sapiensia.customer.InvalidConfirmationTokenException;
 import br.com.sergio.sapiensia.customer.PasswordCompromisedException;
+import br.com.sergio.sapiensia.customer.WrongPasswordLimitReachedException;
 import java.util.Map;
 import java.util.TreeMap;
 import org.springframework.http.HttpHeaders;
@@ -29,12 +32,31 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
                         error.getField(),
                         String.valueOf(error.getDefaultMessage()),
                         (a, b) -> a.compareTo(b) <= 0 ? a : b));
+        // a bad confirmation token hides every other error, so the answer never says anything about the password
+        if (errors.containsKey("token")) {
+            errors.keySet().removeIf(field -> !field.equals("token"));
+        }
         return ResponseEntity.badRequest().body(problem(errors));
     }
 
     @ExceptionHandler(PasswordCompromisedException.class)
     ResponseEntity<ProblemDetail> handlePasswordCompromised() {
         return ResponseEntity.badRequest().body(problem(Map.of("password", "PASSWORD_COMPROMISED")));
+    }
+
+    @ExceptionHandler(InvalidConfirmationTokenException.class)
+    ResponseEntity<ProblemDetail> handleInvalidConfirmationToken() {
+        return ResponseEntity.badRequest().body(problem(Map.of("token", "TOKEN_INVALID")));
+    }
+
+    @ExceptionHandler(WrongPasswordLimitReachedException.class)
+    ResponseEntity<ProblemDetail> handleWrongPasswordLimitReached() {
+        return ResponseEntity.badRequest().body(problem(Map.of("token", "TOKEN_LOCKED")));
+    }
+
+    @ExceptionHandler(IncorrectConfirmationPasswordException.class)
+    ResponseEntity<ProblemDetail> handleIncorrectConfirmationPassword() {
+        return ResponseEntity.badRequest().body(problem(Map.of("password", "PASSWORD_INCORRECT")));
     }
 
     private static ProblemDetail problem(Map<String, String> errors) {

@@ -9,6 +9,7 @@ import com.github.kagkarlsson.scheduler.task.helper.OneTimeTask;
 import com.github.kagkarlsson.scheduler.task.helper.RecurringTask;
 import com.github.kagkarlsson.scheduler.task.helper.Tasks;
 import com.github.kagkarlsson.scheduler.task.schedule.FixedDelay;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.CountDownLatch;
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.ConfigurableApplicationContext;
@@ -43,6 +45,9 @@ class DbSchedulerRestartTest {
     static PostgreSQLContainer postgres;
 
     private static JdbcTemplate jdbc;
+
+    @TempDir
+    static Path outboxDir;
 
     private static CountDownLatch oneTimeLatch;
     private static AtomicReference<String> oneTimePayload;
@@ -138,7 +143,11 @@ class DbSchedulerRestartTest {
                         "--spring.datasource.username=" + postgres.getUsername(),
                         "--spring.datasource.password=" + postgres.getPassword(),
                         "--server.port=0",
-                        "--db-scheduler.polling-interval=" + pollingInterval);
+                        "--db-scheduler.polling-interval=" + pollingInterval,
+                        // without TestcontainersConfiguration there is no fake sender: write e-mails to a temp folder
+                        "--app.email.provider=file",
+                        "--app.email.outbox-dir=" + outboxDir,
+                        "--app.public-base-url=http://localhost:5173");
     }
 
     @TestConfiguration(proxyBeanMethods = false)
