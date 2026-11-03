@@ -96,7 +96,7 @@ class EmailConfirmationControllerTest {
     }
 
     @Test
-    @DisplayName("#49: a 5ª senha errada apaga o link e responde TOKEN_INVALID")
+    @DisplayName("#49: a 5ª senha errada apaga o link e responde TOKEN_LOCKED; depois disso o link é TOKEN_INVALID")
     void shouldDeleteLinkOnFifthWrongPassword() throws Exception {
         UUID id = newCustomer();
         String token = tokens.issue(id);
@@ -108,7 +108,7 @@ class EmailConfirmationControllerTest {
         }
         confirm(token, "outrasenha123")
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errors.token").value("TOKEN_INVALID"));
+                .andExpect(jsonPath("$.errors.token").value("TOKEN_LOCKED"));
         confirm(token, PASSWORD)
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors.token").value("TOKEN_INVALID"));

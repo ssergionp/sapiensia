@@ -99,7 +99,7 @@ public class CustomerService {
         if (!passwordEncoder.matches(rawPassword, pending.passwordHash())) {
             if (pending.attempts() >= MAX_WRONG_PASSWORDS) {
                 confirmationTokens.delete(pending.tokenId());
-                throw new InvalidConfirmationTokenException();
+                throw new WrongPasswordLimitReachedException();
             }
             throw new IncorrectConfirmationPasswordException();
         }

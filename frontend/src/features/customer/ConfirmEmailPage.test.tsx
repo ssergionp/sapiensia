@@ -140,6 +140,25 @@ describe("ConfirmEmailPage", () => {
     expect(screen.queryByLabelText("Senha")).not.toBeInTheDocument();
   });
 
+  test("#49: depois de 5 senhas erradas explica o cancelamento e leva ao cadastro", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(400, { errors: { token: "TOKEN_LOCKED" } }),
+    );
+    renderPage();
+
+    await submit("qualquer");
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "Você errou a senha 5 vezes e, por segurança, este link foi cancelado. Faça o cadastro de novo para receber outro link.",
+    );
+    expect(
+      screen.getByRole("link", { name: "Faça o cadastro de novo" }),
+    ).toHaveAttribute("href", "/cadastro");
+    expect(screen.queryByText(INVALID_LINK)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Senha")).not.toBeInTheDocument();
+  });
+
   test("mostra link inválido sem formulário e sem chamar a API quando não há token na URL", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     renderPage("");

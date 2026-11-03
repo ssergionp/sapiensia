@@ -168,7 +168,12 @@ test("#49: cinco senhas erradas apagam o link", async ({ page }, testInfo) => {
     await expect(page.getByText(WRONG_PASSWORD)).toBeVisible();
   }
   await submitPassword(page, `${password}x5`);
-  await expect(page.getByText(INVALID_LINK)).toBeVisible();
+  await expect(page.getByRole("alert")).toContainText(
+    "Você errou a senha 5 vezes e, por segurança, este link foi cancelado.",
+  );
+  await expect(
+    page.getByRole("link", { name: "Faça o cadastro de novo" }),
+  ).toHaveAttribute("href", "/cadastro");
 
   await expectDeadLink(page, link, password);
 });

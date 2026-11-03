@@ -342,11 +342,11 @@ class EmailConfirmationTest {
                     .isInstanceOf(IncorrectConfirmationPasswordException.class);
         }
         assertThatThrownBy(() -> customerService.confirmEmail(token, WRONG_PASSWORD))
-                .isInstanceOf(InvalidConfirmationTokenException.class);
+                .isExactlyInstanceOf(WrongPasswordLimitReachedException.class);
 
         assertThat(tokenRows()).isZero();
         assertThatThrownBy(() -> customerService.confirmEmail(token, PASSWORD))
-                .isInstanceOf(InvalidConfirmationTokenException.class);
+                .isExactlyInstanceOf(InvalidConfirmationTokenException.class);
         assertThat(confirmedAt()).isNull();
     }
 

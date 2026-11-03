@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,6 +22,7 @@ export default function ConfirmEmailPage() {
   // The token travels in the URL fragment so it is never sent to servers or logs.
   const [token] = useState(() => window.location.hash.replace(/^#/, ""));
   const [tokenRejected, setTokenRejected] = useState(false);
+  const [tokenLocked, setTokenLocked] = useState(false);
   const [showUnexpected, setShowUnexpected] = useState(false);
   const {
     register,
@@ -41,7 +43,11 @@ export default function ConfirmEmailPage() {
         onError: (error) => {
           if (error instanceof ConfirmEmailError) {
             if (error.fieldErrors.token) {
-              setTokenRejected(true);
+              if (error.fieldErrors.token === "TOKEN_LOCKED") {
+                setTokenLocked(true);
+              } else {
+                setTokenRejected(true);
+              }
               return;
             }
             const code = error.fieldErrors.password;
@@ -63,6 +69,16 @@ export default function ConfirmEmailPage() {
     content = (
       <p role="status" className="mt-4">
         E-mail confirmado. Agora você já pode entrar na sua conta.
+      </p>
+    );
+  } else if (tokenLocked) {
+    content = (
+      <p role="alert" className="mt-4">
+        Você errou a senha 5 vezes e, por segurança, este link foi cancelado.{" "}
+        <Link to="/cadastro" className="underline">
+          Faça o cadastro de novo
+        </Link>{" "}
+        para receber outro link.
       </p>
     );
   } else if (!token || tokenRejected) {
