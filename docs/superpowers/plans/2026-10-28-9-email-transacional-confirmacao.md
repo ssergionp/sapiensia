@@ -357,6 +357,13 @@ Entradas que a spec não cita mas que acontecem (cada uma tem teste no task indi
 - **Um atacante pode trocar a senha pendente de uma conta não confirmada** repetidamente e invalidar o link da vítima (aborrecimento, não invasão: ele nunca recebe o link, e sem o link ninguém confirma). A vítima recupera cadastrando de novo. Mitigação real: #11/#42.
 - **Chutar a senha com um link válido:** cada link aceita no máximo 5 senhas erradas e um link novo só vem de um novo cadastro, que troca a senha da conta. Risco baixo.
 - **Conta apagada em 7 dias:** quem cadastrou, não confirmou e voltou no dia 8 precisa se cadastrar de novo (o link já vence em 24 h; o cadastro repetido gera outro enquanto a conta existir).
-- **Links `/entrar` e `/recuperar-senha` sem tela** até os tickets #10 e #12.
+- **O aviso de conta já existente não tem links** (as telas /entrar e /recuperar-senha só existem a partir dos tickets #10 e #12; o aviso pode ganhá-los lá).
 - **Entregabilidade real não é provada aqui** (decisão 10): os testes provam o contrato com o Resend e o fluxo local, não que o e-mail chega na caixa de entrada. O #7 faz o envio real.
 - **Tokens vencidos de contas que continuam existindo ficam na tabela** (sem limpeza); volume pequeno, e as contas não confirmadas somem em 7 dias com os tokens delas.
+
+## Ajustes depois do code-review
+
+- A conta não confirmada que se cadastra de novo reinicia os 7 dias de retenção (`created_at = now()`), para a limpeza não apagá-la logo depois de um link novo.
+- E-mail de aviso "Tentativa de cadastro" sem links (as telas /entrar e /recuperar-senha não existem): "Se foi você, não precisa fazer nada: use a conta que você já tem."
+- A 5ª senha errada responde `TOKEN_LOCKED` (o link já foi apagado); depois disso o link é `TOKEN_INVALID`. Texto da página: "Você errou a senha 5 vezes e, por segurança, este link foi cancelado. Faça o cadastro de novo para receber outro link." (o trecho "Faça o cadastro de novo" é link para /cadastro).
+- Fora deste ticket (issue de pendências): Idempotency-Key e não repetir erro 4xx no Resend, limpeza de tokens vencidos, ordem entre revogar e tarefa antiga, agendamento fora da transação, nome de arquivo do outbox.
