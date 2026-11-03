@@ -1,0 +1,5 @@
+# False positives: the fictional test password "outrasenha123" in a controller test (not a secret).
+# Format: <commit>:<file>:<rule>:<line>. Add a line here only after checking that the finding is not a real secret.
+92065153b135aa671545724e8ddc71695b06ffae:backend/src/test/java/br/com/sergio/sapiensia/customer/EmailConfirmationControllerTest.java:generic-api-key:90
+92065153b135aa671545724e8ddc71695b06ffae:backend/src/test/java/br/com/sergio/sapiensia/customer/EmailConfirmationControllerTest.java:generic-api-key:105
+92065153b135aa671545724e8ddc71695b06ffae:backend/src/test/java/br/com/sergio/sapiensia/customer/EmailConfirmationControllerTest.java:generic-api-key:109
