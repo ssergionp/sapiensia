@@ -47,3 +47,13 @@ app:
   unconfirmed-customer:
     # accounts whose e-mail stays unconfirmed longer than this (from creation) are deleted by the daily cleanup
     retention: P7D
+  login-limit:
+    # failed logins per account within account-window lock that account for account-lock
+    account-max-failures: 5
+    account-window: PT15M
+    account-lock: PT15M
+    # login attempts per client IP within ip-window
+    ip-max-attempts: 20
+    ip-window: PT15M
+    # request header carrying the client IP; blank uses the socket address (set only a header the platform overwrites)
+    client-ip-header:
