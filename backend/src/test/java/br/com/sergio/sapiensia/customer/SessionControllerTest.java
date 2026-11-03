@@ -213,7 +213,10 @@ class SessionControllerTest {
     @Test
     @DisplayName("quem não entrou recebe 401 em GET /api/sessions/current")
     void shouldAnswer401ForCurrentSessionWithoutLogin() throws Exception {
-        mvc.perform(get(CURRENT)).andExpect(status().isUnauthorized());
+        MvcResult result =
+                mvc.perform(get(CURRENT)).andExpect(status().isUnauthorized()).andReturn();
+
+        assertThat(result.getRequest().getSession(false)).isNull();
     }
 
     @Test

@@ -61,6 +61,9 @@ public class SecurityConfig {
                         .permitAll())
                 .csrf(csrf -> csrf.spa().csrfTokenRepository(csrfTokenRepository))
                 // no login page to redirect to: anonymous requests to protected routes get 401
+                // nothing to redirect back to after a login, and the saved request would create a session for every
+                // anonymous visitor
+                .requestCache(cache -> cache.disable())
                 .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .logout(logout -> logout.logoutRequestMatcher(
                                 PathPatternRequestMatcher.pathPattern(HttpMethod.DELETE, "/api/sessions/current"))

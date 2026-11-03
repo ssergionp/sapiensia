@@ -13,7 +13,11 @@ test("a tela inicial abre sem erros no console", async ({ page }) => {
   const errors: string[] = [];
   page.on("console", (message) => {
     // Asking who is logged in answers 401 for a visitor; the browser logs it, and it is expected.
-    if (message.location().url.endsWith("/api/sessions/current")) return;
+    if (
+      message.location().url.endsWith("/api/sessions/current") &&
+      message.text().includes("401")
+    )
+      return;
     if (message.type() === "error") errors.push(message.text());
   });
   page.on("pageerror", (error) => errors.push(error.message));

@@ -88,6 +88,57 @@ class SessionServerTest {
                 HttpResponse.BodyHandlers.ofString());
     }
 
+    private static String cookieValue(HttpResponse<?> response, String name) {
+        return response.headers().allValues("Set-Cookie").stream()
+                .filter(c -> c.startsWith(name + "="))
+                .map(c -> c.substring(name.length() + 1, c.indexOf(';')))
+                .reduce((first, last) -> last)
+                .orElseThrow();
+    }
+
+    private HttpResponse<String> current(String cookieHeader) throws Exception {
+        HttpRequest.Builder request =
+                HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/sessions/current"));
+        if (cookieHeader != null) {
+            request.header("Cookie", cookieHeader);
+        }
+        return HttpClient.newHttpClient().send(request.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    @Test
+    @DisplayName("SEC-006: depois do logout o servidor recusa o cookie de sessão antigo")
+    void shouldRefuseOldSessionCookieAfterLogoutOnRealServer() throws Exception {
+        HttpResponse<String> login = login();
+        String session = cookieValue(login, "JSESSIONID");
+        String xsrf = cookieValue(login, "XSRF-TOKEN");
+        String cookies = "JSESSIONID=" + session + "; XSRF-TOKEN=" + xsrf;
+        assertThat(current(cookies).statusCode()).isEqualTo(200);
+
+        HttpResponse<String> logout = HttpClient.newHttpClient()
+                .send(
+                        HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/sessions/current"))
+                                .header("Cookie", cookies)
+                                .header("X-XSRF-TOKEN", xsrf)
+                                .DELETE()
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
+
+        assertThat(logout.statusCode()).isEqualTo(204);
+        assertThat(current("JSESSIONID=" + session).statusCode()).isEqualTo(401);
+    }
+
+    @Test
+    @DisplayName("SEC-005: um pedido anônimo a uma rota protegida não cria sessão nem cookie JSESSIONID")
+    void shouldNotCreateSessionForAnonymousRequest() throws Exception {
+        MAX_INACTIVE_SECONDS.clear();
+
+        HttpResponse<String> response = current(null);
+
+        assertThat(response.statusCode()).isEqualTo(401);
+        assertThat(response.headers().allValues("Set-Cookie")).noneMatch(c -> c.startsWith("JSESSIONID="));
+        assertThat(MAX_INACTIVE_SECONDS).isEmpty();
+    }
+
     @Test
     @DisplayName("SEC-004: o cookie de sessão sai Secure, HttpOnly e SameSite=Lax")
     void shouldSendSecureHttpOnlyLaxSessionCookie() throws Exception {
