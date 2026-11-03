@@ -40,6 +40,17 @@ class CustomerUserDetailsService implements UserDetailsService {
             return credentials.emailConfirmedAt() != null;
         }
 
+        /** The copy kept in the session: no password hash. */
+        CustomerPrincipal withoutPassword() {
+            return new CustomerPrincipal(new CustomerCredentials(credentials.id(), credentials.email(), null, null));
+        }
+
+        // never the e-mail or the hash: Spring Security logs the Authentication at DEBUG/TRACE
+        @Override
+        public String toString() {
+            return "CustomerPrincipal[id=" + credentials.id() + "]";
+        }
+
         @Override
         public Collection<? extends GrantedAuthority> getAuthorities() {
             return List.of(new SimpleGrantedAuthority("ROLE_CUSTOMER"));

@@ -247,6 +247,38 @@ class SessionControllerTest {
     }
 
     @Test
+    @DisplayName("SEC-004: a sessão guarda um principal sem o hash da senha e sem e-mail no toString")
+    void shouldKeepPasswordHashAndEmailOutOfTheSessionPrincipal() throws Exception {
+        String hash = jdbc.queryForObject(
+                "select password_hash from customers where email = ?", String.class, confirmedEmail);
+        Logger root = (Logger) LoggerFactory.getLogger("org.springframework.security");
+        ch.qos.logback.classic.Level previous = root.getLevel();
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        root.addAppender(appender);
+        root.setLevel(ch.qos.logback.classic.Level.TRACE);
+        MvcResult result;
+        try {
+            result = login(confirmedEmail, PASSWORD);
+        } finally {
+            root.detachAppender(appender);
+            root.setLevel(previous);
+        }
+
+        var securityContext = (org.springframework.security.core.context.SecurityContext)
+                result.getRequest().getSession(false).getAttribute("SPRING_SECURITY_CONTEXT");
+        var authentication = securityContext.getAuthentication();
+        var principal = (org.springframework.security.core.userdetails.UserDetails) authentication.getPrincipal();
+        assertThat(principal.getPassword()).isNull();
+        for (String text : new String[] {principal.toString(), authentication.toString()}) {
+            assertThat(text).doesNotContain(hash).doesNotContain(confirmedEmail);
+        }
+        for (ILoggingEvent event : appender.list) {
+            assertThat(event.getFormattedMessage()).doesNotContain(hash).doesNotContain(confirmedEmail);
+        }
+    }
+
+    @Test
     @DisplayName("o app define o próprio UserDetailsService, então o Spring não gera senha de usuário")
     void shouldDefineOnlyTheCustomerUserDetailsService() {
         assertThat(context.getBeansOfType(UserDetailsService.class).values())

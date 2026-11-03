@@ -4,4 +4,11 @@ import java.time.Instant;
 import java.util.UUID;
 
 /** What the login needs to know about an account: read by a projection, so the entity stays untouched. */
-record CustomerCredentials(UUID id, String email, String passwordHash, Instant emailConfirmedAt) {}
+record CustomerCredentials(UUID id, String email, String passwordHash, Instant emailConfirmedAt) {
+
+    // the generated toString would print the e-mail and the password hash
+    @Override
+    public String toString() {
+        return "CustomerCredentials[id=" + id + "]";
+    }
+}

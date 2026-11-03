@@ -63,8 +63,12 @@ class SessionController {
         if (!((CustomerUserDetailsService.CustomerPrincipal) authentication.getPrincipal()).emailConfirmed()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+        // the session keeps the principal without the password hash
+        CustomerUserDetailsService.CustomerPrincipal principal =
+                ((CustomerUserDetailsService.CustomerPrincipal) authentication.getPrincipal()).withoutPassword();
         SecurityContext context = SecurityContextHolder.createEmptyContext();
-        context.setAuthentication(authentication);
+        context.setAuthentication(
+                UsernamePasswordAuthenticationToken.authenticated(principal, null, principal.getAuthorities()));
         // New session id and new CSRF token at login (session fixation). The token is issued here because
         // CsrfAuthenticationStrategy only expires the old cookie, so the SPA would have no valid cookie for logout.
         sessionStrategy.onAuthentication(authentication, request, response);
