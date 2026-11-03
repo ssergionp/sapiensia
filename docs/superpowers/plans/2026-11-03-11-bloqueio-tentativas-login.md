@@ -28,9 +28,11 @@ Ficam fora: recuperação de senha (#12), aviso de login novo (#13), limites ger
 - Não existe bean `Clock` no projeto. O `application.properties` de teste precisa de todas as propriedades `app.*`.
 - O CI sobe a imagem de produção com `-e` (`.github/workflows`, job `e2e`); sem cabeçalho de proxy, todo o e2e chega com o mesmo IP.
 
-## Fato ainda a conferir (Task 1)
+## Fato conferido na Task 1 (3/11/2026): Fly-Client-IP
 
-- Documentação do Fly.io: o cabeçalho `Fly-Client-IP` existe, é sempre posto pelo proxy e sobrescreve o que o cliente enviar? Se não, voltar ao Sérgio antes da Task 3.
+- A documentação (docs.fly.io/networking/request-headers) confirma que o `Fly-Client-IP` existe e é posto pelo Fly Proxy ("o endereço IP do cliente do ponto de vista do Fly Proxy"). **Ela não diz** que o proxy sobrescreve um valor enviado pelo cliente; só posts não oficiais de fórum dizem que não dá para forjar.
+- Por isso `application-prod.yml` ficou com o cabeçalho em branco (a decisão 3 só manda configurá-lo com a confirmação). O código lê o cabeçalho de qualquer jeito; ligar é uma linha no yml.
+- **Decisão em aberto para o Sérgio, antes do deploy:** ligar `Fly-Client-IP` (risco: se o Fly não sobrescrever, o limite por IP pode ser contornado; o bloqueio da conta continua valendo) ou confirmar com o suporte do Fly. Em branco, todos os Clientes dividem o IP do proxy e os mesmos 20 de 15 minutos.
 
 ## Rotas
 
