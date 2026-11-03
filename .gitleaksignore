@@ -3,3 +3,8 @@
 92065153b135aa671545724e8ddc71695b06ffae:backend/src/test/java/br/com/sergio/sapiensia/customer/EmailConfirmationControllerTest.java:generic-api-key:90
 92065153b135aa671545724e8ddc71695b06ffae:backend/src/test/java/br/com/sergio/sapiensia/customer/EmailConfirmationControllerTest.java:generic-api-key:105
 92065153b135aa671545724e8ddc71695b06ffae:backend/src/test/java/br/com/sergio/sapiensia/customer/EmailConfirmationControllerTest.java:generic-api-key:109
+# The same three lines again, under the commit that the squash merge of #52 created on main (the fingerprint above
+# is the commit from the PR branch, which no longer exists on main).
+585063e2541adfc90b7956c99bc172d0d37cd8a7:backend/src/test/java/br/com/sergio/sapiensia/customer/EmailConfirmationControllerTest.java:generic-api-key:90
+585063e2541adfc90b7956c99bc172d0d37cd8a7:backend/src/test/java/br/com/sergio/sapiensia/customer/EmailConfirmationControllerTest.java:generic-api-key:105
+585063e2541adfc90b7956c99bc172d0d37cd8a7:backend/src/test/java/br/com/sergio/sapiensia/customer/EmailConfirmationControllerTest.java:generic-api-key:109
