@@ -1,14 +1,81 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
+import { afterEach, expect, test, vi } from "vitest";
 import App from "./App";
 
-test("mostra o título do projeto", () => {
-  render(
-    <MemoryRouter>
-      <App />
-    </MemoryRouter>,
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+function renderAt(path: string) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={[path]}>
+        <App />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
+}
+
+test("a página inicial sem sessão oferece Entrar e Criar conta", async () => {
+  vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    new Response(null, { status: 401 }),
+  );
+  renderAt("/");
   expect(
-    screen.getByRole("heading", { name: "sapiensia" }),
+    await screen.findByRole("link", { name: "Entrar" }),
   ).toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Funciona" }),
+  ).not.toBeInTheDocument();
+});
+
+test("depois do login a página inicial nunca volta a mostrar o estado sem sessão", async () => {
+  let loggedIn = false;
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+    const url = String(input);
+    if (url === "/api/sessions" && init?.method === "POST") {
+      loggedIn = true;
+      return new Response(null, { status: 204 });
+    }
+    if (url === "/api/sessions/current") {
+      return loggedIn
+        ? new Response(JSON.stringify({ email: "ana@example.com" }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        : new Response(null, { status: 401 });
+    }
+    return new Response(null, { status: 200 });
+  });
+  const user = userEvent.setup();
+  renderAt("/");
+
+  // Home is visited anonymously first, so the session cache holds "no session".
+  await user.click(await screen.findByRole("link", { name: "Entrar" }));
+  await user.type(screen.getByLabelText("E-mail"), "ana@example.com");
+  await user.type(screen.getByLabelText("Senha"), "senha qualquer");
+
+  let anonymousFlash = false;
+  const observer = new MutationObserver(() => {
+    if (document.querySelector('a[href="/entrar"]')) anonymousFlash = true;
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+  await user.click(screen.getByRole("button", { name: "Entrar" }));
+
+  expect(
+    await screen.findByText("Você entrou como ana@example.com."),
+  ).toBeInTheDocument();
+  observer.disconnect();
+  expect(anonymousFlash).toBe(false);
+});
+
+test("a rota /entrar mostra a tela de login", () => {
+  renderAt("/entrar");
+  expect(screen.getByRole("heading", { name: "Entrar" })).toBeInTheDocument();
 });

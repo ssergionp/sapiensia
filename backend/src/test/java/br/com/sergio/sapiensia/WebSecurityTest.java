@@ -46,9 +46,9 @@ class WebSecurityTest {
     }
 
     @Test
-    @DisplayName("an API route the project did not open is denied")
+    @DisplayName("an API route the project did not open is denied (401 for an anonymous caller)")
     void apiIsDeniedByDefault() throws Exception {
-        mvc.perform(get("/api/anything")).andExpect(status().isForbidden());
+        mvc.perform(get("/api/anything")).andExpect(status().isUnauthorized());
     }
 
     @Test
