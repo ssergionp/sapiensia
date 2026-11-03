@@ -29,12 +29,6 @@ class CustomerEmailServiceTest {
         return captured();
     }
 
-    private EmailMessage sentNoticeFor(String baseUrl) {
-        when(customers.findEmailById(id)).thenReturn(Optional.of("a@example.com"));
-        new CustomerEmailService(customers, tokens, sender, baseUrl).sendAccountExistsNotice(id);
-        return captured();
-    }
-
     private EmailMessage captured() {
         ArgumentCaptor<EmailMessage> captor = ArgumentCaptor.forClass(EmailMessage.class);
         verify(sender).send(captor.capture());
@@ -45,14 +39,6 @@ class CustomerEmailServiceTest {
     void shouldBuildTheConfirmationLinkWithoutDoubleSlashWhenBaseUrlEndsWithSlash() {
         assertThat(sentConfirmationFor("http://localhost:5173/").text())
                 .contains("http://localhost:5173/confirmar-email#tok")
-                .doesNotContain("5173//");
-    }
-
-    @Test
-    void shouldBuildTheNoticeLinksWithoutDoubleSlashWhenBaseUrlEndsWithSlash() {
-        assertThat(sentNoticeFor("http://localhost:5173/").text())
-                .contains("http://localhost:5173/entrar")
-                .contains("http://localhost:5173/recuperar-senha")
                 .doesNotContain("5173//");
     }
 

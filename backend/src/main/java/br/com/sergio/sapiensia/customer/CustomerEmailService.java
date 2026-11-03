@@ -30,8 +30,7 @@ class CustomerEmailService {
 
             Alguém tentou criar uma conta na SapiensIA com este e-mail, que já tem cadastro.
 
-            Se foi você, entre na sua conta: %1$s/entrar
-            Se esqueceu a senha, recupere-a: %1$s/recuperar-senha
+            Se foi você, não precisa fazer nada: use a conta que você já tem.
 
             Se não foi você, ignore esta mensagem. Nada foi alterado na sua conta.
             """;
@@ -68,7 +67,6 @@ class CustomerEmailService {
     void sendAccountExistsNotice(UUID customerId) {
         customers
                 .findEmailById(customerId)
-                .ifPresent(email ->
-                        sender.send(new EmailMessage(email, NOTICE_SUBJECT, NOTICE_TEXT.formatted(publicBaseUrl))));
+                .ifPresent(email -> sender.send(new EmailMessage(email, NOTICE_SUBJECT, NOTICE_TEXT)));
     }
 }

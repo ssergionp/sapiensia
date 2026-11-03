@@ -111,8 +111,8 @@ class CustomerEmailTest {
         EmailMessage notice = nextMessageTo(email);
         assertThat(notice.subject()).isEqualTo(NOTICE_SUBJECT);
         assertThat(notice.text())
-                .contains(baseUrl + "/entrar")
-                .contains(baseUrl + "/recuperar-senha")
+                .contains("Se foi você, não precisa fazer nada: use a conta que você já tem.")
+                .doesNotContain(baseUrl)
                 .doesNotContain("confirmar-email")
                 .doesNotContain(OTHER_PASSWORD)
                 .doesNotContain(hashBefore);
