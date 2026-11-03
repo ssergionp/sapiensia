@@ -49,6 +49,20 @@ class UnconfirmedCustomersCleanupTest {
     }
 
     @Test
+    @DisplayName("#49(c): quem se cadastra de novo ganha mais 7 dias, mesmo que a conta já estivesse vencida")
+    void shouldKeepUnconfirmedCustomerThatRegisteredAgainBeforeTheCleanup() {
+        String email = uniqueEmail();
+        UUID id = insertCustomer(email, "8 days", false);
+
+        customerService.register(email, PASSWORD);
+        customerService.deleteUnconfirmedOlderThanRetention();
+
+        assertThat(countCustomers(email)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select id from customers where email = ?", UUID.class, email))
+                .isEqualTo(id);
+    }
+
+    @Test
     @DisplayName("#49(c): nunca apaga conta confirmada, por mais antiga que seja")
     void shouldNeverDeleteConfirmedCustomer() {
         String email = uniqueEmail();

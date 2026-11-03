@@ -25,14 +25,15 @@ interface CustomerRepository extends JpaRepository<Customer, UUID> {
     int insertIfAbsent(String email, String passwordHash);
 
     /**
-     * Replaces the password of an account whose e-mail is not confirmed yet.
+     * Replaces the password of an account whose e-mail is not confirmed yet and restarts its retention period, so
+     * the cleanup cannot delete the account right after the customer received a fresh link.
      *
      * @return the customer id, or empty if the account does not exist or is already confirmed
      */
     @Transactional
     @Query(
             nativeQuery = true,
-            value = "update customers set password_hash = :passwordHash"
+            value = "update customers set password_hash = :passwordHash, created_at = now()"
                     + " where email = :email and email_confirmed_at is null returning id")
     Optional<UUID> replacePasswordIfUnconfirmed(String email, String passwordHash);
 
