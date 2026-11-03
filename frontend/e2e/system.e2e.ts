@@ -12,12 +12,15 @@ test("a API está no ar e o banco responde", async ({ request }) => {
 test("a tela inicial abre sem erros no console", async ({ page }) => {
   const errors: string[] = [];
   page.on("console", (message) => {
+    // Asking who is logged in answers 401 for a visitor; the browser logs it, and it is expected.
+    if (message.location().url.endsWith("/api/sessions/current")) return;
     if (message.type() === "error") errors.push(message.text());
   });
   page.on("pageerror", (error) => errors.push(error.message));
 
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  // The Home has no heading; with no session it offers the "Entrar" link.
+  await expect(page.getByRole("link", { name: "Entrar" })).toBeVisible();
   expect(errors).toEqual([]);
 });
