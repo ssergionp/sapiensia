@@ -3,9 +3,15 @@ package br.com.sergio.sapiensia.security;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
+import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRepository;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 
 /**
  * Security baseline for every project created from the template.
@@ -26,10 +32,24 @@ public class SecurityConfig {
             + "connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; "
             + "frame-ancestors 'none'";
 
+    /** One repository for the filter chain and for the login, which renews the token by hand. */
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    CsrfTokenRepository csrfTokenRepository() {
+        return CookieCsrfTokenRepository.withHttpOnlyFalse();
+    }
+
+    @Bean
+    SecurityFilterChain securityFilterChain(HttpSecurity http, CsrfTokenRepository csrfTokenRepository)
+            throws Exception {
         http.authorizeHttpRequests(auth -> auth.requestMatchers("/api/system/health", "/api/system/health/**")
                         .permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/sessions")
+                        .permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/sessions/current")
+                        .hasRole("CUSTOMER")
+                        // logout is answered by the logout filter before this rule; kept so the route is listed
+                        .requestMatchers(HttpMethod.DELETE, "/api/sessions/current")
+                        .hasRole("CUSTOMER")
                         // a new endpoint starts denied: open it here, with the role or capability it requires
                         .requestMatchers(HttpMethod.POST, "/api/customers")
                         .permitAll()
@@ -39,7 +59,13 @@ public class SecurityConfig {
                         .denyAll()
                         .anyRequest()
                         .permitAll())
-                .csrf(csrf -> csrf.spa())
+                .csrf(csrf -> csrf.spa().csrfTokenRepository(csrfTokenRepository))
+                // no login page to redirect to: anonymous requests to protected routes get 401
+                .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+                .logout(logout -> logout.logoutRequestMatcher(
+                                PathPatternRequestMatcher.pathPattern(HttpMethod.DELETE, "/api/sessions/current"))
+                        .logoutSuccessHandler(new HttpStatusReturningLogoutSuccessHandler(HttpStatus.NO_CONTENT))
+                        .deleteCookies("JSESSIONID"))
                 .headers(headers -> headers.contentSecurityPolicy(csp -> csp.policyDirectives(CONTENT_SECURITY_POLICY))
                         .frameOptions(frame -> frame.deny()))
                 .httpBasic(AbstractHttpConfigurer::disable)

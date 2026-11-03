@@ -48,6 +48,10 @@ interface CustomerRepository extends JpaRepository<Customer, UUID> {
     @Query("select c.id from Customer c where c.email = :email")
     Optional<UUID> findIdByEmail(String email);
 
+    @Query("select new br.com.sergio.sapiensia.customer.CustomerCredentials("
+            + "c.id, c.email, c.passwordHash, c.emailConfirmedAt) from Customer c where c.email = :email")
+    Optional<CustomerCredentials> findCredentialsByEmail(String email);
+
     @Query("select c.email from Customer c where c.id = :id")
     Optional<String> findEmailById(UUID id);
 
