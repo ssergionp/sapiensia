@@ -48,6 +48,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build the image
         run: .github/ci-report.sh "Docker build" docker build -t app:ci .
+      # APP_LOGIN_LIMIT_IP_MAX_ATTEMPTS is raised because all e2e requests come from one IP
       - name: Start the system
         run: |
           mkdir -p .tmp/outbox && chmod 777 .tmp/outbox
@@ -56,6 +57,7 @@ jobs:
             -e APP_EMAIL_PROVIDER=file -e APP_EMAIL_OUTBOX_DIR=/outbox \
             -e APP_PUBLIC_BASE_URL=http://localhost:8080 \
             -e DB_SCHEDULER_POLLING_INTERVAL=PT1S \
+            -e APP_LOGIN_LIMIT_IP_MAX_ATTEMPTS=1000 \
             -e DB_URL=jdbc:postgresql://localhost:5432/app -e DB_USER=app -e DB_PASSWORD=app \
             -e SERVER_SERVLET_SESSION_COOKIE_SECURE=false app:ci
           for i in $(seq 1 60); do
