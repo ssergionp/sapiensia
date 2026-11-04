@@ -14,183 +14,294 @@ class LoginAttemptLimiterTest {
 
     private static final String EMAIL = "ana@example.com";
     private static final String IP = "203.0.113.1";
+    private static final LoginLimitProperties PROPERTIES =
+            new LoginLimitProperties(5, Duration.ofMinutes(15), Duration.ofMinutes(15), 20, Duration.ofMinutes(15), "");
 
     private final MutableClock clock = new MutableClock();
-    private final LoginAttemptLimiter limiter = new LoginAttemptLimiter(
-            new LoginLimitProperties(5, Duration.ofMinutes(15), Duration.ofMinutes(15), 20, Duration.ofMinutes(15), ""),
-            clock);
+    private final LoginAttemptLimiter limiter = new LoginAttemptLimiter(PROPERTIES, clock);
+    private int ipSequence;
 
-    private void fail(String email, int times) {
+    /** An attempt from an IP that was never used before, so only the account limit is in play. */
+    private LoginAttemptLimiter.Admission attempt(String email) {
+        return attempt(limiter, email);
+    }
+
+    private LoginAttemptLimiter.Admission attempt(LoginAttemptLimiter target, String email) {
+        ipSequence++;
+        return target.admit(email, "198.18." + (ipSequence / 250) + "." + (ipSequence % 250 + 1));
+    }
+
+    private void attempts(String email, int times) {
         for (int i = 0; i < times; i++) {
-            limiter.recordFailure(email);
+            assertThat(attempt(email).allowed()).isTrue();
         }
     }
 
     @Test
-    @DisplayName("SEC-002: shouldBlockAccountOnFifthFailureWithinWindow")
-    void shouldBlockAccountOnFifthFailureWithinWindow() {
-        fail(EMAIL, 4);
-        assertThat(limiter.blockedFor(EMAIL, IP)).isEmpty();
+    @DisplayName("SEC-002: shouldAdmitFiveAttemptsAndRefuseTheSixthWithinWindow")
+    void shouldAdmitFiveAttemptsAndRefuseTheSixthWithinWindow() {
+        attempts(EMAIL, 5);
 
-        limiter.recordFailure(EMAIL);
-
-        assertThat(limiter.blockedFor(EMAIL, IP)).contains(Duration.ofMinutes(15));
+        assertThat(attempt(EMAIL).blockedFor()).isEqualTo(Duration.ofMinutes(15));
     }
 
     @Test
     @DisplayName("SEC-002: shouldUnblockAccountExactlyWhenLockEnds")
     void shouldUnblockAccountExactlyWhenLockEnds() {
-        fail(EMAIL, 5);
+        attempts(EMAIL, 5);
 
         clock.advance(Duration.ofMinutes(14).plusSeconds(59));
-        assertThat(limiter.blockedFor(EMAIL, IP)).contains(Duration.ofSeconds(1));
+        assertThat(attempt(EMAIL).blockedFor()).isEqualTo(Duration.ofSeconds(1));
 
         clock.advance(Duration.ofSeconds(1));
-        assertThat(limiter.blockedFor(EMAIL, IP)).isEmpty();
-
-        limiter.recordFailure(EMAIL);
-        assertThat(limiter.blockedFor(EMAIL, IP)).isEmpty();
+        assertThat(attempt(EMAIL).allowed()).isTrue();
+        // counting restarted: it takes five new attempts to lock again
+        attempts(EMAIL, 3);
+        assertThat(attempt(EMAIL).allowed()).isTrue();
+        assertThat(attempt(EMAIL).allowed()).isFalse();
     }
 
     @Test
-    void shouldNotExtendLockWhenFailureIsRecordedWhileLocked() {
-        fail(EMAIL, 5);
+    void shouldNotExtendLockWhenAttemptsAreRefusedWhileLocked() {
+        attempts(EMAIL, 5);
         clock.advance(Duration.ofMinutes(10));
 
-        fail(EMAIL, 3);
+        for (int i = 0; i < 3; i++) {
+            assertThat(attempt(EMAIL).allowed()).isFalse();
+        }
 
-        assertThat(limiter.blockedFor(EMAIL, IP)).contains(Duration.ofMinutes(5));
+        assertThat(attempt(EMAIL).blockedFor()).isEqualTo(Duration.ofMinutes(5));
     }
 
     @Test
     @DisplayName("SEC-002: shouldIgnoreFailuresOlderThanWindow")
     void shouldIgnoreFailuresOlderThanWindow() {
-        fail(EMAIL, 4);
+        attempts(EMAIL, 4);
         clock.advance(Duration.ofMinutes(15));
 
-        limiter.recordFailure(EMAIL);
-
-        assertThat(limiter.blockedFor(EMAIL, IP)).isEmpty();
+        // the four old attempts no longer count: this is the first of a new window, so four more fit before the lock
+        attempts(EMAIL, 5);
+        assertThat(attempt(EMAIL).allowed()).isFalse();
     }
 
     @Test
     @DisplayName("SEC-002: shouldResetFailuresAfterSuccess")
     void shouldResetFailuresAfterSuccess() {
-        fail(EMAIL, 4);
+        attempts(EMAIL, 4);
         limiter.recordSuccess(EMAIL);
 
-        fail(EMAIL, 4);
+        attempts(EMAIL, 5);
 
-        assertThat(limiter.blockedFor(EMAIL, IP)).isEmpty();
+        assertThat(attempt(EMAIL).allowed()).isFalse();
     }
 
     @Test
     @DisplayName("SEC-002: shouldTreatEmailCaseAndSpacesAsTheSameAccount")
     void shouldTreatEmailCaseAndSpacesAsTheSameAccount() {
-        fail("Ana@Example.com ", 3);
-        fail("ana@example.com", 2);
+        attempts("Ana@Example.com ", 3);
+        attempts("ana@example.com", 2);
 
-        assertThat(limiter.blockedFor(" ANA@example.com", IP)).isPresent();
+        assertThat(attempt(" ANA@example.com").allowed()).isFalse();
+    }
+
+    @Test
+    @DisplayName("SEC-002: shouldFreeTheReservedSlotWhenTheAttemptIsReleased")
+    void shouldFreeTheReservedSlotWhenTheAttemptIsReleased() {
+        attempts(EMAIL, 4);
+        LoginAttemptLimiter.Admission fifth = attempt(EMAIL);
+        assertThat(fifth.allowed()).isTrue();
+
+        limiter.release(EMAIL, fifth);
+
+        // the released slot is free again, and the account is no longer locked
+        assertThat(attempt(EMAIL).allowed()).isTrue();
+        assertThat(attempt(EMAIL).allowed()).isFalse();
+    }
+
+    @Test
+    void shouldIgnoreReleaseOfAnAttemptThatIsAlreadyGone() {
+        LoginAttemptLimiter.Admission first = attempt(EMAIL);
+        limiter.recordSuccess(EMAIL);
+        clock.advance(Duration.ofSeconds(1));
+        attempts(EMAIL, 2);
+
+        limiter.release(EMAIL, first);
+
+        // only the two later attempts are counted: three more fit before the lock
+        attempts(EMAIL, 3);
+        assertThat(attempt(EMAIL).allowed()).isFalse();
     }
 
     @Test
     @DisplayName("SEC-014: shouldLimitIpIndependentlyOfAccounts")
     void shouldLimitIpIndependentlyOfAccounts() {
         for (int i = 0; i < 20; i++) {
-            assertThat(limiter.blockedFor("user" + i + "@example.com", "198.51.100.1"))
-                    .isEmpty();
+            assertThat(limiter.admit("user" + i + "@example.com", "198.51.100.1")
+                            .allowed())
+                    .isTrue();
         }
-        assertThat(limiter.blockedFor("user20@example.com", "198.51.100.1")).isPresent();
-        assertThat(limiter.blockedFor("user0@example.com", "198.51.100.2")).isEmpty();
+        assertThat(limiter.admit("user20@example.com", "198.51.100.1").allowed())
+                .isFalse();
+        assertThat(limiter.admit("user0@example.com", "198.51.100.2").allowed()).isTrue();
+    }
+
+    @Test
+    @DisplayName("SEC-014: shouldKeepIpWindowFixedAndRefuseTheTwentyFirstAttempt")
+    void shouldKeepIpWindowFixedAndRefuseTheTwentyFirstAttempt() {
+        for (int i = 0; i < 20; i++) {
+            assertThat(limiter.admit("a" + i + "@example.com", IP).allowed()).isTrue();
+        }
+        assertThat(limiter.admit("late@example.com", IP).blockedFor()).isEqualTo(Duration.ofMinutes(15));
+
+        // no gradual refill: a minute later, and just before the window ends, it is still refused
+        clock.advance(Duration.ofMinutes(1));
+        assertThat(limiter.admit("late@example.com", IP).blockedFor()).isEqualTo(Duration.ofMinutes(14));
+        clock.advance(Duration.ofMinutes(13).plusSeconds(59));
+        assertThat(limiter.admit("late@example.com", IP).blockedFor()).isEqualTo(Duration.ofSeconds(1));
+
+        // the window ends: exactly twenty more fit
+        clock.advance(Duration.ofSeconds(1));
+        for (int i = 0; i < 20; i++) {
+            assertThat(limiter.admit("b" + i + "@example.com", IP).allowed()).isTrue();
+        }
+        assertThat(limiter.admit("late@example.com", IP).allowed()).isFalse();
     }
 
     @Test
     @DisplayName("SEC-014: shouldLockAccountFromManyIpsWithoutExhaustingAnyIp")
     void shouldLockAccountFromManyIpsWithoutExhaustingAnyIp() {
         for (int i = 0; i < 5; i++) {
-            assertThat(limiter.blockedFor(EMAIL, "192.0.2." + i)).isEmpty();
-            limiter.recordFailure(EMAIL);
+            assertThat(limiter.admit(EMAIL, "192.0.2." + i).allowed()).isTrue();
         }
 
-        assertThat(limiter.blockedFor(EMAIL, "192.0.2.99")).isPresent();
-        assertThat(limiter.blockedFor("other@example.com", "192.0.2.0")).isEmpty();
-    }
-
-    @Test
-    @DisplayName("SEC-014: shouldAllowIpAgainAfterWindow")
-    void shouldAllowIpAgainAfterWindow() {
-        for (int i = 0; i < 20; i++) {
-            limiter.blockedFor("a@example.com", IP);
-        }
-        assertThat(limiter.blockedFor("a@example.com", IP)).isPresent();
-
-        clock.advance(Duration.ofMinutes(15));
-
-        for (int i = 0; i < 20; i++) {
-            assertThat(limiter.blockedFor("a@example.com", IP)).isEmpty();
-        }
-        assertThat(limiter.blockedFor("a@example.com", IP)).isPresent();
-    }
-
-    @Test
-    void shouldReturnLargerWaitWhenIpAndAccountAreBothBlocked() {
-        for (int i = 0; i < 21; i++) {
-            limiter.blockedFor("x@example.com", IP);
-        }
-        fail(EMAIL, 5);
-        clock.advance(Duration.ofMinutes(14));
-        for (int i = 0; i < 20; i++) {
-            limiter.blockedFor("y@example.com", IP);
-        }
-
-        // account lock has 1 minute left; the IP bucket was just drained and needs well under that for one token
-        assertThat(limiter.blockedFor(EMAIL, IP)).contains(Duration.ofMinutes(1));
-    }
-
-    @Test
-    void shouldReturnIpWaitWhenItIsLargerThanRemainingAccountLock() {
-        fail(EMAIL, 5);
-        clock.advance(Duration.ofMinutes(14).plusSeconds(50));
-        for (int i = 0; i < 20; i++) {
-            limiter.blockedFor("y@example.com", IP);
-        }
-
-        // account lock has 10 seconds left; the drained IP bucket needs 45 seconds (15 min / 20) for one token
-        assertThat(limiter.blockedFor(EMAIL, IP)).contains(Duration.ofSeconds(45));
+        assertThat(limiter.admit(EMAIL, "192.0.2.99").allowed()).isFalse();
+        assertThat(limiter.admit("other@example.com", "192.0.2.0").allowed()).isTrue();
     }
 
     @Test
     @DisplayName("SEC-014: shouldSpendIpTokenEvenWhenAccountIsLocked")
     void shouldSpendIpTokenEvenWhenAccountIsLocked() {
         String ip = "198.51.100.9";
-        fail(EMAIL, 5);
+        attempts(EMAIL, 5);
         for (int i = 0; i < 20; i++) {
-            assertThat(limiter.blockedFor(EMAIL, ip)).isPresent();
+            assertThat(limiter.admit(EMAIL, ip).allowed()).isFalse();
         }
 
         // the 20 calls for the locked account drained the tokens of this IP, so an unlocked account is blocked too
-        assertThat(limiter.blockedFor("other@example.com", ip)).isPresent();
-        assertThat(limiter.blockedFor("other@example.com", "198.51.100.10")).isEmpty();
+        assertThat(limiter.admit("other@example.com", ip).allowed()).isFalse();
+        assertThat(limiter.admit("other@example.com", "198.51.100.10").allowed())
+                .isTrue();
+    }
+
+    @Test
+    void shouldNotReserveASlotWhenTheIpIsBlocked() {
+        for (int i = 0; i < 20; i++) {
+            limiter.admit("x" + i + "@example.com", IP);
+        }
+
+        for (int i = 0; i < 10; i++) {
+            assertThat(limiter.admit(EMAIL, IP).allowed()).isFalse();
+        }
+
+        // the ten refused calls did not count as attempts of the account
+        attempts(EMAIL, 5);
+    }
+
+    @Test
+    void shouldReturnTheAccountWaitWhenItIsLargerThanTheIpWait() {
+        for (int i = 0; i < 20; i++) {
+            limiter.admit("x" + i + "@example.com", IP);
+        }
+        clock.advance(Duration.ofMinutes(10));
+        attempts(EMAIL, 5);
+        clock.advance(Duration.ofMinutes(4));
+
+        // the IP window ends in 1 minute; the account lock, set 4 minutes ago, ends in 11
+        assertThat(limiter.admit(EMAIL, IP).blockedFor()).isEqualTo(Duration.ofMinutes(11));
+    }
+
+    @Test
+    void shouldReturnTheIpWaitWhenItIsLargerThanTheAccountWait() {
+        attempts(EMAIL, 5);
+        clock.advance(Duration.ofMinutes(14));
+        for (int i = 0; i < 20; i++) {
+            limiter.admit("x" + i + "@example.com", IP);
+        }
+
+        // the account lock ends in 1 minute; the IP window, opened just now, ends in 15
+        assertThat(limiter.admit(EMAIL, IP).blockedFor()).isEqualTo(Duration.ofMinutes(15));
     }
 
     @Test
     void shouldNotThrowForNullEmailOrIp() {
-        assertThat(limiter.blockedFor(null, null)).isEmpty();
-        limiter.recordFailure(null);
+        assertThat(limiter.admit(null, null).allowed()).isTrue();
         limiter.recordSuccess(null);
     }
 
     @Test
     @DisplayName("shouldDropExpiredEntries")
     void shouldDropExpiredEntries() {
-        fail(EMAIL, 2);
-        limiter.blockedFor(EMAIL, IP);
-        assertThat(limiter.trackedKeys()).isEqualTo(2);
+        attempts(EMAIL, 2);
+        assertThat(limiter.trackedAccounts()).isEqualTo(1);
+        assertThat(limiter.trackedIps()).isEqualTo(2);
 
         clock.advance(Duration.ofMinutes(15));
         limiter.recordSuccess("nobody@example.com");
 
-        assertThat(limiter.trackedKeys()).isZero();
+        assertThat(limiter.trackedAccounts()).isZero();
+        assertThat(limiter.trackedIps()).isZero();
+    }
+
+    @Test
+    @DisplayName("SEC-002: shouldRefuseNewKeysWhenFullWithoutLoosenessForTrackedAccounts")
+    void shouldRefuseNewKeysWhenFullWithoutLoosenessForTrackedAccounts() {
+        LoginAttemptLimiter small = new LoginAttemptLimiter(PROPERTIES, clock, 3);
+        for (String email : new String[] {EMAIL, "b@example.com", "c@example.com"}) {
+            assertThat(small.admit(email, IP).allowed()).isTrue();
+        }
+
+        // flooding with new e-mails is refused and evicts nobody...
+        for (int i = 0; i < 30; i++) {
+            assertThat(small.admit("flood" + i + "@example.com", IP).allowed()).isFalse();
+        }
+        assertThat(small.trackedAccounts()).isEqualTo(3);
+        // ...so the tracked account still locks on its fifth attempt, never later
+        for (int i = 0; i < 4; i++) {
+            assertThat(small.admit(EMAIL, IP).allowed()).isTrue();
+        }
+        assertThat(small.admit(EMAIL, IP).allowed()).isFalse();
+
+        // the refusal is temporary: once the entries expire, new e-mails are admitted again
+        clock.advance(Duration.ofMinutes(16));
+        small.recordSuccess("nobody@example.com");
+        assertThat(small.admit("flood0@example.com", IP).allowed()).isTrue();
+    }
+
+    @Test
+    @DisplayName("SEC-002: shouldRefuseNewIpsWhenFull")
+    void shouldRefuseNewIpsWhenFull() {
+        LoginAttemptLimiter small = new LoginAttemptLimiter(PROPERTIES, clock, 2);
+        assertThat(small.admit("a@example.com", "192.0.2.1").allowed()).isTrue();
+        assertThat(small.admit("b@example.com", "192.0.2.2").allowed()).isTrue();
+
+        assertThat(small.admit("c@example.com", "192.0.2.3").allowed()).isFalse();
+        assertThat(small.admit("a@example.com", "192.0.2.1").allowed()).isTrue();
+        assertThat(small.trackedIps()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("SEC-002: shouldNeverPurgeAnAccountThatIsStillLocked")
+    void shouldNeverPurgeAnAccountThatIsStillLocked() {
+        attempts("old@example.com", 2);
+        clock.advance(Duration.ofMinutes(10));
+        attempts(EMAIL, 5);
+
+        // the two old attempts are now out of the window and purgeable; the lock set 10 minutes later is not
+        clock.advance(Duration.ofMinutes(6));
+        limiter.recordSuccess("nobody@example.com");
+
+        assertThat(limiter.trackedAccounts()).isEqualTo(1);
+        assertThat(attempt(EMAIL).blockedFor()).isEqualTo(Duration.ofMinutes(9));
     }
 
     private static final class MutableClock extends Clock {

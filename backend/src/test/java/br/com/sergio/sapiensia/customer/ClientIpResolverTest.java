@@ -97,6 +97,8 @@ class ClientIpResolverTest {
                 "203.0.113. 7",
                 "2001:db8::1 ::2",
                 "fe80::1%eth0",
+                "203.0.113.7:5678",
+                "[2001:db8::1]:443",
                 "::g",
                 "1:2:3:4:5:6:7:8:9",
                 // A leading '.' makes InetAddress.getByName do a real DNS lookup instead of a literal parse;

@@ -1,9 +1,12 @@
 package br.com.sergio.sapiensia.customer;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -14,7 +17,13 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import jakarta.servlet.http.Cookie;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -126,6 +135,56 @@ class LoginLockoutTest {
 
         assertBlocked(result);
         verify(passwordEncoder, never()).matches(any(), any());
+    }
+
+    @Test
+    @DisplayName("SEC-002: parallel wrong passwords for one e-mail reach the hash at most five times")
+    void shouldLetOnlyFiveParallelAttemptsReachTheHashForOneEmail() throws Exception {
+        String email = newCustomer(true);
+        clearInvocations(passwordEncoder);
+        int threads = 8; // the IP limit of this context; one IP per thread so only the account limit is in play
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        CountDownLatch start = new CountDownLatch(1);
+        List<Integer> statuses = new ArrayList<>();
+        try {
+            List<Future<Integer>> results = new ArrayList<>();
+            for (int i = 0; i < threads; i++) {
+                String ip = "10.9.0." + i;
+                results.add(pool.submit(() -> {
+                    start.await();
+                    return login(email, WRONG, ip).getResponse().getStatus();
+                }));
+            }
+            start.countDown();
+            for (Future<Integer> result : results) {
+                statuses.add(result.get());
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+
+        assertThat(statuses.stream().filter(status -> status == 401).count()).isEqualTo(5);
+        assertThat(statuses.stream().filter(status -> status == 429).count()).isEqualTo(3);
+        verify(passwordEncoder, times(5)).matches(any(), any());
+    }
+
+    @Test
+    @DisplayName("SEC-002: an unexpected exception while checking the password leaves no failure counted")
+    void shouldNotCountAFailureWhenAnUnexpectedExceptionInterruptsTheLogin() throws Exception {
+        String email = newCustomer(true);
+        doThrow(new IllegalStateException("boom"))
+                .doCallRealMethod()
+                .when(passwordEncoder)
+                .matches(any(), any());
+
+        assertThatThrownBy(() -> login(email, WRONG, "10.10.0.1")).hasRootCauseInstanceOf(IllegalStateException.class);
+
+        // five more wrong passwords are still five attempts, not six: no slot was left behind
+        for (int i = 0; i < 5; i++) {
+            assertThat(login(email, WRONG, "10.10.0.1").getResponse().getStatus())
+                    .isEqualTo(401);
+        }
+        assertBlocked(login(email, WRONG, "10.10.0.1"));
     }
 
     @Test

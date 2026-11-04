@@ -2,9 +2,7 @@ package br.com.sergio.sapiensia.customer;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.time.Duration;
 import java.util.Map;
-import java.util.Optional;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -70,28 +68,33 @@ class SessionController {
                 || login.password().length() > MAX_PASSWORD_LENGTH) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        // before any authentication: a locked account refuses even the correct password, and no hash is computed
-        Optional<Duration> blocked = limiter.blockedFor(login.email(), clientIp.resolve(request));
-        if (blocked.isPresent()) {
+        // before any authentication: a locked account refuses even the correct password, and no hash is computed.
+        // An admitted attempt is already counted as a failure (see LoginAttemptLimiter), so parallel requests cannot
+        // all get past the check before the first failure is recorded.
+        LoginAttemptLimiter.Admission admission = limiter.admit(login.email(), clientIp.resolve(request));
+        if (!admission.allowed()) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                     .header(
                             HttpHeaders.RETRY_AFTER,
-                            String.valueOf(blocked.get().toSeconds()))
+                            String.valueOf(admission.blockedFor().toSeconds()))
                     .build();
         }
         Authentication authentication;
+        CustomerUserDetailsService.CustomerPrincipal fullPrincipal;
         try {
             authentication = authenticationManager.authenticate(
                     UsernamePasswordAuthenticationToken.unauthenticated(login.email(), login.password()));
+            fullPrincipal = (CustomerUserDetailsService.CustomerPrincipal) authentication.getPrincipal();
         } catch (AuthenticationException e) {
-            limiter.recordFailure(login.email());
+            // a wrong password keeps the failure that was reserved for it
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (RuntimeException e) {
+            // an unexpected error is not a failure of the customer: give the reserved place back
+            limiter.release(login.email(), admission);
+            throw e;
         }
-        CustomerUserDetailsService.CustomerPrincipal fullPrincipal =
-                (CustomerUserDetailsService.CustomerPrincipal) authentication.getPrincipal();
         // checked after the password, so a wrong password and an unconfirmed account cost and answer the same
         if (!fullPrincipal.emailConfirmed()) {
-            limiter.recordFailure(login.email());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         limiter.recordSuccess(login.email());
