@@ -96,7 +96,7 @@ test("SEC-004: o Cliente confirmado entra, continua logado ao recarregar, sai e 
   await page.reload();
   await expect(page.getByText(`Você entrou como ${email}.`)).toBeVisible();
 
-  await page.getByRole("button", { name: "Sair" }).click();
+  await page.getByRole("button", { name: "Sair", exact: true }).click();
   await expectAnonymousHome(page);
 
   await page.reload();
