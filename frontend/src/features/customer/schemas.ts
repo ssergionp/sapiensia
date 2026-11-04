@@ -28,6 +28,19 @@ export const errorMessages: Record<string, string> = {
     "Essa senha já apareceu em vazamentos de dados. Escolha outra.",
 };
 
+export const forgotPasswordSchema = registerCustomerSchema.pick({
+  email: true,
+});
+
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+
+// Same limits as the registration password: 12 to 128 characters.
+export const resetPasswordSchema = z.object({
+  newPassword: registerCustomerSchema.shape.password,
+});
+
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+
 // The confirmation page has no length rule: any non-empty password is sent as typed.
 export const confirmEmailSchema = z.object({
   password: z

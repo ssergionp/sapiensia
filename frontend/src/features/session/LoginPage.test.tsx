@@ -177,6 +177,14 @@ describe("LoginPage", () => {
     await waitFor(() => expect(button).toBeDisabled());
   });
 
+  test("o link Esqueci minha senha aponta para /esqueci-senha", () => {
+    renderPage();
+
+    expect(
+      screen.getByRole("link", { name: "Esqueci minha senha" }),
+    ).toHaveAttribute("href", "/esqueci-senha");
+  });
+
   test("o link para criar conta vai para /cadastro", async () => {
     renderPage();
 
