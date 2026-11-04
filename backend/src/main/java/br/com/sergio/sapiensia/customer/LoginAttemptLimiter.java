@@ -90,7 +90,7 @@ class LoginAttemptLimiter {
             if (failures.size() >= properties.accountMaxFailures()) {
                 return new AccountState(List.of(), now.plus(properties.accountLock()));
             }
-            return new AccountState(failures, null);
+            return new AccountState(List.copyOf(failures), null);
         });
     }
 
@@ -135,6 +135,7 @@ class LoginAttemptLimiter {
                 return locked || !recent(state, now).isEmpty() ? state : null;
             });
         }
+        // Benign race: a bucket may be removed right after computeIfAbsent returned it; at most one token is lost.
         for (String ip : ips.keySet()) {
             ips.computeIfPresent(
                     ip, (k, bucket) -> bucket.getAvailableTokens() >= properties.ipMaxAttempts() ? null : bucket);

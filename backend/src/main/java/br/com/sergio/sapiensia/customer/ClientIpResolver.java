@@ -1,14 +1,24 @@
 package br.com.sergio.sapiensia.customer;
 
 import jakarta.servlet.http.HttpServletRequest;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.regex.Pattern;
 import org.springframework.stereotype.Component;
 
 /**
  * Finds the client IP for login limiting. Only the header named in app.login-limit.client-ip-header is trusted
  * (the platform proxy sets it); when it is not configured, any such header is ignored because it could be forged.
+ * The header must only be set to one that the platform proxy overwrites (e.g. Fly-Client-IP), never to
+ * X-Forwarded-For. A value that is not a literal IP address falls back to the remote address.
  */
 @Component
 class ClientIpResolver {
+
+    private static final int MAX_IP_LENGTH = 45;
+    private static final Pattern IPV4 =
+            Pattern.compile("(?:(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)\\.){3}(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)");
+    private static final Pattern IPV6_CHARS = Pattern.compile("[0-9a-fA-F:.]+");
 
     private final String headerName;
 
@@ -20,9 +30,32 @@ class ClientIpResolver {
         if (headerName != null && !headerName.isBlank()) {
             String value = request.getHeader(headerName);
             if (value != null && !value.isBlank()) {
-                return value.split(",")[0].trim();
+                String candidate = value.split(",")[0].trim();
+                if (isLiteralIp(candidate)) {
+                    return candidate;
+                }
             }
         }
         return request.getRemoteAddr();
+    }
+
+    /** Literal IPv4/IPv6 check that never performs a DNS lookup. */
+    private static boolean isLiteralIp(String candidate) {
+        if (candidate.isEmpty() || candidate.length() > MAX_IP_LENGTH) {
+            return false;
+        }
+        if (IPV4.matcher(candidate).matches()) {
+            return true;
+        }
+        if (candidate.indexOf(':') < 0 || !IPV6_CHARS.matcher(candidate).matches()) {
+            return false;
+        }
+        try {
+            // A string containing ':' is parsed as an IPv6 literal, never resolved through DNS.
+            InetAddress.getByName(candidate);
+            return true;
+        } catch (UnknownHostException e) {
+            return false;
+        }
     }
 }

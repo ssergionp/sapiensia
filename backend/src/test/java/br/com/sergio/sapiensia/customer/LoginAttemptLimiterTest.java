@@ -148,6 +148,32 @@ class LoginAttemptLimiterTest {
     }
 
     @Test
+    void shouldReturnIpWaitWhenItIsLargerThanRemainingAccountLock() {
+        fail(EMAIL, 5);
+        clock.advance(Duration.ofMinutes(14).plusSeconds(50));
+        for (int i = 0; i < 20; i++) {
+            limiter.blockedFor("y@example.com", IP);
+        }
+
+        // account lock has 10 seconds left; the drained IP bucket needs 45 seconds (15 min / 20) for one token
+        assertThat(limiter.blockedFor(EMAIL, IP)).contains(Duration.ofSeconds(45));
+    }
+
+    @Test
+    @DisplayName("SEC-014: shouldSpendIpTokenEvenWhenAccountIsLocked")
+    void shouldSpendIpTokenEvenWhenAccountIsLocked() {
+        String ip = "198.51.100.9";
+        fail(EMAIL, 5);
+        for (int i = 0; i < 20; i++) {
+            assertThat(limiter.blockedFor(EMAIL, ip)).isPresent();
+        }
+
+        // the 20 calls for the locked account drained the tokens of this IP, so an unlocked account is blocked too
+        assertThat(limiter.blockedFor("other@example.com", ip)).isPresent();
+        assertThat(limiter.blockedFor("other@example.com", "198.51.100.10")).isEmpty();
+    }
+
+    @Test
     void shouldNotThrowForNullEmailOrIp() {
         assertThat(limiter.blockedFor(null, null)).isEmpty();
         limiter.recordFailure(null);

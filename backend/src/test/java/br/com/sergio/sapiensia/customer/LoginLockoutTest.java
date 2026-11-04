@@ -1,6 +1,10 @@
 package br.com.sergio.sapiensia.customer;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -21,6 +25,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -47,7 +52,8 @@ class LoginLockoutTest {
     @Autowired
     JdbcTemplate jdbc;
 
-    @Autowired
+    // Spy (not a replacement): lets the tests prove that a blocked or rejected login never hashes the password
+    @MockitoSpyBean
     PasswordEncoder passwordEncoder;
 
     MockMvc mvc;
@@ -107,15 +113,33 @@ class LoginLockoutTest {
     }
 
     @Test
+    @DisplayName("SEC-002: um login bloqueado não calcula o hash")
+    void shouldNotHashPasswordWhenLoginIsBlocked() throws Exception {
+        String email = newCustomer(true);
+        for (int i = 0; i < 5; i++) {
+            assertThat(login(email, WRONG, "10.8.0.1").getResponse().getStatus())
+                    .isEqualTo(401);
+        }
+        clearInvocations(passwordEncoder);
+
+        MvcResult result = login(email, PASSWORD, "10.8.0.1");
+
+        assertBlocked(result);
+        verify(passwordEncoder, never()).matches(any(), any());
+    }
+
+    @Test
     @DisplayName("SEC-002: shouldBlockUnknownEmailTheSameWayAsAnExistingOne")
     void shouldBlockUnknownEmailTheSameWayAsAnExistingOne() throws Exception {
         String email = newCustomer(true);
         String unknown = "ninguem-" + UUID.randomUUID() + "@example.com";
         for (int i = 0; i < 5; i++) {
-            login(email, WRONG, "10.2.0.1");
+            assertThat(login(email, WRONG, "10.2.0.1").getResponse().getStatus())
+                    .isEqualTo(401);
         }
         for (int i = 0; i < 5; i++) {
-            login(unknown, WRONG, "10.2.0.2");
+            assertThat(login(unknown, WRONG, "10.2.0.2").getResponse().getStatus())
+                    .isEqualTo(401);
         }
 
         MvcResult existing = login(email, WRONG, "10.2.0.1");
@@ -123,6 +147,12 @@ class LoginLockoutTest {
 
         assertBlocked(existing);
         assertBlocked(missing);
+        assertThat(missing.getResponse().getHeaderNames())
+                .containsExactlyInAnyOrderElementsOf(existing.getResponse().getHeaderNames());
+        assertThat(Long.parseLong(existing.getResponse().getHeader("Retry-After")))
+                .isBetween(1L, 900L);
+        assertThat(Long.parseLong(missing.getResponse().getHeader("Retry-After")))
+                .isBetween(1L, 900L);
         assertThat(missing.getResponse().getStatus())
                 .isEqualTo(existing.getResponse().getStatus());
         assertThat(missing.getResponse().getContentAsString())
@@ -147,7 +177,8 @@ class LoginLockoutTest {
         String email = newCustomer(true);
         // two IPs, so the per-IP limit (8) does not interfere with the 9 attempts of this test
         for (int i = 0; i < 4; i++) {
-            login(email, WRONG, "10.4.0.1");
+            assertThat(login(email, WRONG, "10.4.0.1").getResponse().getStatus())
+                    .isEqualTo(401);
         }
         assertThat(login(email, PASSWORD, "10.4.0.1").getResponse().getStatus()).isEqualTo(204);
         for (int i = 0; i < 3; i++) {
@@ -173,6 +204,18 @@ class LoginLockoutTest {
                         .getResponse()
                         .getStatus())
                 .isEqualTo(401);
+    }
+
+    @Test
+    @DisplayName("shouldNotHashTooLongInputs")
+    void shouldNotHashTooLongInputs() throws Exception {
+        String email = newCustomer(true);
+        clearInvocations(passwordEncoder);
+
+        login(email, "p".repeat(129), "10.9.0.1");
+        login("e".repeat(255 - "@example.com".length()) + "@example.com", PASSWORD, "10.9.0.1");
+
+        verify(passwordEncoder, never()).matches(any(), any());
     }
 
     @Test
