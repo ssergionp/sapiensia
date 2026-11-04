@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, type NavigateFunction, useNavigate } from "react-router";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import ResetPasswordPage from "./ResetPasswordPage";
 
@@ -16,14 +16,21 @@ function confirmCalls(spy: { mock: { calls: Parameters<typeof fetch>[] } }) {
   return spy.mock.calls.filter(([url]) => url === CONFIRM_URL);
 }
 
+let navigate: NavigateFunction;
+
+function CaptureNavigate() {
+  navigate = useNavigate();
+  return null;
+}
+
 function renderPage(hash = "#tok-123") {
-  window.location.hash = hash;
   const client = new QueryClient({
     defaultOptions: { mutations: { retry: false } },
   });
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[`/redefinir-senha${hash}`]}>
+        <CaptureNavigate />
         <ResetPasswordPage />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -46,7 +53,6 @@ async function submit(password: string) {
 describe("ResetPasswordPage", () => {
   afterEach(() => {
     vi.restoreAllMocks();
-    window.location.hash = "";
   });
 
   test("mostra título, instrução e campo de senha nova", () => {
@@ -124,6 +130,25 @@ describe("ResetPasswordPage", () => {
     expect(init?.method).toBe("POST");
     expect(JSON.parse(String(init?.body))).toEqual({
       token: "tok-123",
+      newPassword: LONG_ENOUGH,
+    });
+  });
+
+  test("SEC-007: um link mais novo aberto na mesma aba envia o token novo", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(204));
+    renderPage("#OLD");
+
+    act(() => {
+      navigate("/redefinir-senha#NEW");
+    });
+    await submit(LONG_ENOUGH);
+
+    await screen.findByText(SUCCESS);
+    const [, init] = confirmCalls(fetchSpy)[0];
+    expect(JSON.parse(String(init?.body))).toEqual({
+      token: "NEW",
       newPassword: LONG_ENOUGH,
     });
   });

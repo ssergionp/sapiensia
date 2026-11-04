@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +18,13 @@ const UNEXPECTED_ERROR =
 
 export default function ResetPasswordPage() {
   // The token travels in the URL fragment so it is never sent to servers or logs.
-  const [token] = useState(() => window.location.hash.replace(/^#/, ""));
+  // Read from the router so a newer link opened in the same tab replaces it; the key
+  // resets the form and its flags for the new token.
+  const token = useLocation().hash.replace(/^#/, "");
+  return <ResetPasswordContent key={token} token={token} />;
+}
+
+function ResetPasswordContent({ token }: { token: string }) {
   const [tokenRejected, setTokenRejected] = useState(false);
   const [showUnexpected, setShowUnexpected] = useState(false);
   const {
