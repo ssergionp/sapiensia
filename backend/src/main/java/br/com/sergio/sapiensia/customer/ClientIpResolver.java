@@ -31,31 +31,38 @@ class ClientIpResolver {
             String value = request.getHeader(headerName);
             if (value != null && !value.isBlank()) {
                 String candidate = value.split(",")[0].trim();
-                if (isLiteralIp(candidate)) {
-                    return candidate;
+                String canonical = canonicalLiteralIp(candidate);
+                if (canonical != null) {
+                    return canonical;
                 }
             }
         }
         return request.getRemoteAddr();
     }
 
-    /** Literal IPv4/IPv6 check that never performs a DNS lookup. */
-    private static boolean isLiteralIp(String candidate) {
+    /**
+     * Returns the canonical text of a literal IPv4/IPv6 address (so equivalent forms share one limiter key), or
+     * null when the value is not a literal. Never performs a DNS lookup.
+     */
+    private static String canonicalLiteralIp(String candidate) {
         if (candidate.isEmpty() || candidate.length() > MAX_IP_LENGTH) {
-            return false;
+            return null;
         }
-        if (IPV4.matcher(candidate).matches()) {
-            return true;
-        }
-        if (candidate.indexOf(':') < 0 || !IPV6_CHARS.matcher(candidate).matches()) {
-            return false;
+        if (!IPV4.matcher(candidate).matches()) {
+            if (candidate.indexOf(':') < 0 || !IPV6_CHARS.matcher(candidate).matches()) {
+                return null;
+            }
+            // getByName only parses a literal when the string starts with a hex digit or ':'; anything else
+            // (e.g. ".:1") would go through the DNS resolver.
+            char first = candidate.charAt(0);
+            if (first != ':' && Character.digit(first, 16) < 0) {
+                return null;
+            }
         }
         try {
-            // A string containing ':' is parsed as an IPv6 literal, never resolved through DNS.
-            InetAddress.getByName(candidate);
-            return true;
+            return InetAddress.getByName(candidate).getHostAddress();
         } catch (UnknownHostException e) {
-            return false;
+            return null;
         }
     }
 }

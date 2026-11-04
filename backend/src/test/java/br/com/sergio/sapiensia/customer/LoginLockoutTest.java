@@ -207,24 +207,13 @@ class LoginLockoutTest {
     }
 
     @Test
-    @DisplayName("shouldNotHashTooLongInputs")
-    void shouldNotHashTooLongInputs() throws Exception {
-        String email = newCustomer(true);
-        clearInvocations(passwordEncoder);
-
-        login(email, "p".repeat(129), "10.9.0.1");
-        login("e".repeat(255 - "@example.com".length()) + "@example.com", PASSWORD, "10.9.0.1");
-
-        verify(passwordEncoder, never()).matches(any(), any());
-    }
-
-    @Test
     @DisplayName("shouldAnswer401WithoutHashingForTooLongInputs")
     void shouldAnswer401WithoutHashingForTooLongInputs() throws Exception {
         String longPassword = "p".repeat(129);
         String longEmail = "e".repeat(255 - "@example.com".length()) + "@example.com";
         assertThat(longEmail).hasSize(255);
         String email = newCustomer(true);
+        clearInvocations(passwordEncoder);
 
         // More than the IP limit (8): all stay 401 because such inputs never touch the limiter
         for (int i = 0; i < 9; i++) {
@@ -234,6 +223,8 @@ class LoginLockoutTest {
             assertThat(tooLongEmail.getResponse().getStatus()).isEqualTo(401);
             assertThat(tooLongPassword.getResponse().getContentAsString()).isEmpty();
         }
+        // too-long inputs never reach the password hasher
+        verify(passwordEncoder, never()).matches(any(), any());
         // and they did not count as failures of the account nor spend IP tokens
         assertThat(login(email, PASSWORD, "10.6.0.1").getResponse().getStatus()).isEqualTo(204);
     }
