@@ -57,6 +57,12 @@ interface CustomerRepository extends JpaRepository<Customer, UUID> {
     @Query("select c.sessionVersion from Customer c where c.id = :id")
     Optional<Integer> findSessionVersion(UUID id);
 
+    /** Ends every open session of the account: the filter compares each session's version with this one. */
+    @Transactional
+    @Modifying
+    @Query("update Customer c set c.sessionVersion = c.sessionVersion + 1 where c.id = :id")
+    int incrementSessionVersion(UUID id);
+
     @Query("select c.email from Customer c where c.id = :id")
     Optional<String> findEmailById(UUID id);
 

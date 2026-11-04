@@ -1,7 +1,9 @@
 package br.com.sergio.sapiensia.customer;
 
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,6 +24,7 @@ import org.springframework.security.web.authentication.session.ChangeSessionIdAu
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -47,12 +50,16 @@ class SessionController {
     private final LoginAttemptLimiter limiter;
     private final ClientIpResolver clientIp;
 
+    private final CustomerRepository customers;
+
     SessionController(
+            CustomerRepository customers,
             CustomerUserDetailsService userDetailsService,
             PasswordEncoder passwordEncoder,
             CsrfTokenRepository csrfTokenRepository,
             LoginAttemptLimiter limiter,
             ClientIpResolver clientIp) {
+        this.customers = customers;
         this.limiter = limiter;
         this.clientIp = clientIp;
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider(userDetailsService);
@@ -124,6 +131,24 @@ class SessionController {
         sessionStrategy.onAuthentication(authentication, request, response);
         csrfTokenRepository.saveToken(csrfTokenRepository.generateToken(request), request, response);
         securityContextRepository.saveContext(context, request, response);
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Ends every session of the account, this one included (SEC-009, SEC-006): 204 and the cookie is deleted. */
+    @DeleteMapping
+    ResponseEntity<Void> logoutEverywhere(
+            Authentication authentication, HttpServletRequest request, HttpServletResponse response) {
+        var principal = (CustomerUserDetailsService.CustomerPrincipal) authentication.getPrincipal();
+        customers.incrementSessionVersion(principal.credentials().id());
+        HttpSession session = request.getSession(false);
+        if (session != null) {
+            session.invalidate();
+        }
+        SecurityContextHolder.clearContext();
+        Cookie cookie = new Cookie("JSESSIONID", "");
+        cookie.setMaxAge(0);
+        cookie.setPath(request.getContextPath().isEmpty() ? "/" : request.getContextPath());
+        response.addCookie(cookie);
         return ResponseEntity.noContent().build();
     }
 
