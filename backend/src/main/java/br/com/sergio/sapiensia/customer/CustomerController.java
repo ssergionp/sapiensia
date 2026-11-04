@@ -32,6 +32,13 @@ class CustomerController {
         customerService.requestPasswordReset(request.email());
     }
 
+    /** Public password change with the reset link. 204 and no login: the customer signs in afterwards. */
+    @PostMapping("/password-resets/confirmation")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        customerService.resetPassword(request.token(), request.newPassword());
+    }
+
     /** Public e-mail confirmation: the link token plus the password chosen at registration. */
     @PostMapping("/email-confirmations")
     @ResponseStatus(HttpStatus.NO_CONTENT)

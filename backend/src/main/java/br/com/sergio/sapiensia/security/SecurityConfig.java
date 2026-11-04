@@ -57,6 +57,8 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/customers/password-resets")
                         .permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/customers/password-resets/confirmation")
+                        .permitAll()
                         .requestMatchers("/api/**")
                         .denyAll()
                         .anyRequest()

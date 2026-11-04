@@ -19,6 +19,7 @@ public class CustomerService {
 
     private final CustomerRepository customers;
     private final EmailConfirmationTokens confirmationTokens;
+    private final PasswordResetTokens passwordResetTokens;
     private final PasswordEncoder passwordEncoder;
     private final CompromisedPasswordChecker compromisedPasswordChecker;
     private final SchedulerClient scheduler;
@@ -27,6 +28,7 @@ public class CustomerService {
     CustomerService(
             CustomerRepository customers,
             EmailConfirmationTokens confirmationTokens,
+            PasswordResetTokens passwordResetTokens,
             PasswordEncoder passwordEncoder,
             CompromisedPasswordChecker compromisedPasswordChecker,
             SchedulerClient scheduler,
@@ -34,6 +36,7 @@ public class CustomerService {
         this.unconfirmedRetention = unconfirmedRetention;
         this.customers = customers;
         this.confirmationTokens = confirmationTokens;
+        this.passwordResetTokens = passwordResetTokens;
         this.passwordEncoder = passwordEncoder;
         this.compromisedPasswordChecker = compromisedPasswordChecker;
         this.scheduler = scheduler;
@@ -79,6 +82,24 @@ public class CustomerService {
         String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
         UUID customerId = customers.findConfirmedIdByEmail(normalizedEmail).orElseGet(UUID::randomUUID);
         schedule(CustomerEmailTasks.PASSWORD_RESET, customerId);
+    }
+
+    /**
+     * Sets a new password with a single-use link and schedules the notice to the owner. Does not log in and does not
+     * confirm the e-mail.
+     *
+     * <p>Not {@code @Transactional}: the link and the password change in one statement, and Argon2 must not hold a
+     * connection. The size rules ran before, in the request validation, so a rejected password keeps the link valid.
+     */
+    public void resetPassword(String token, String rawPassword) {
+        if (compromisedPasswordChecker.check(rawPassword).isCompromised()) {
+            throw new PasswordCompromisedException("newPassword");
+        }
+        String passwordHash = passwordEncoder.encode(rawPassword);
+        UUID customerId = passwordResetTokens
+                .consumeAndSetPassword(token, passwordHash)
+                .orElseThrow(InvalidConfirmationTokenException::new);
+        schedule(CustomerEmailTasks.PASSWORD_CHANGED_NOTICE, customerId);
     }
 
     /**

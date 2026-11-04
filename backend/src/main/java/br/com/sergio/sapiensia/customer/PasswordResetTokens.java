@@ -3,6 +3,7 @@ package br.com.sergio.sapiensia.customer;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -35,6 +36,24 @@ class PasswordResetTokens {
                 .param("seconds", ttl.toSeconds())
                 .update();
         return token;
+    }
+
+    /**
+     * Uses the link and sets the new password hash in one statement, so only the request that marks the link as used
+     * changes the password. Unknown, used and expired links give the same empty result.
+     *
+     * @return the customer id, or empty if the link is not valid
+     */
+    Optional<UUID> consumeAndSetPassword(String token, String newPasswordHash) {
+        return jdbc.sql("with used as (update password_reset_tokens set used_at = now()"
+                        + " where token_hash = :hash and used_at is null and expires_at > now()"
+                        + " returning customer_id)"
+                        + " update customers set password_hash = :passwordHash from used"
+                        + " where customers.id = used.customer_id returning customers.id")
+                .param("hash", EmailConfirmationTokens.hash(token))
+                .param("passwordHash", newPasswordHash)
+                .query(UUID.class)
+                .optional();
     }
 
     /** Deletes the customer's links that were not used yet, so a new request leaves only the latest one valid. */

@@ -47,6 +47,17 @@ class CustomerEmailService {
             Se você não pediu isso, ignore esta mensagem: sua senha continua a mesma.
             """;
 
+    private static final String PASSWORD_CHANGED_SUBJECT = "Sua senha na SapiensIA foi alterada";
+    private static final String PASSWORD_CHANGED_TEXT = """
+            Olá!
+
+            A senha da sua conta na SapiensIA acabou de ser alterada, e todos os aparelhos foram desconectados.
+
+            Se foi você, não precisa fazer nada.
+
+            Se não foi você, use "Esqueci minha senha" para criar outra senha agora.
+            """;
+
     private final CustomerRepository customers;
     private final EmailConfirmationTokens confirmationTokens;
     private final PasswordResetTokens passwordResetTokens;
@@ -88,6 +99,14 @@ class CustomerEmailService {
             String link = publicBaseUrl + "/redefinir-senha#" + passwordResetTokens.issue(customerId);
             sender.send(new EmailMessage(email, PASSWORD_RESET_SUBJECT, PASSWORD_RESET_TEXT.formatted(link)));
         });
+    }
+
+    /** Tells the owner that the password changed; carries no password, token or link. */
+    void sendPasswordChangedNotice(UUID customerId) {
+        customers
+                .findEmailById(customerId)
+                .ifPresent(
+                        email -> sender.send(new EmailMessage(email, PASSWORD_CHANGED_SUBJECT, PASSWORD_CHANGED_TEXT)));
     }
 
     /** Tells the owner of a confirmed account that someone tried to register with it; carries no token. */
