@@ -129,6 +129,14 @@ class LoginAttemptLimiter {
 
     /** A correct login clears the failures and any lock of the account. */
     void recordSuccess(String email) {
+        releaseAccount(email);
+    }
+
+    /**
+     * Clears the failures and any lock of the account, leaving the per-IP limit untouched. Used after a password reset
+     * through the e-mailed link: whoever changed the password proved they own the account's e-mail.
+     */
+    void releaseAccount(String email) {
         purgeIfDue();
         accounts.remove(key(email));
     }

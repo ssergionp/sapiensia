@@ -23,6 +23,7 @@ public class CustomerService {
     private final PasswordEncoder passwordEncoder;
     private final CompromisedPasswordChecker compromisedPasswordChecker;
     private final SchedulerClient scheduler;
+    private final LoginAttemptLimiter loginAttemptLimiter;
     private final Duration unconfirmedRetention;
 
     CustomerService(
@@ -32,8 +33,10 @@ public class CustomerService {
             PasswordEncoder passwordEncoder,
             CompromisedPasswordChecker compromisedPasswordChecker,
             SchedulerClient scheduler,
+            LoginAttemptLimiter loginAttemptLimiter,
             @Value("${app.unconfirmed-customer.retention}") Duration unconfirmedRetention) {
         this.unconfirmedRetention = unconfirmedRetention;
+        this.loginAttemptLimiter = loginAttemptLimiter;
         this.customers = customers;
         this.confirmationTokens = confirmationTokens;
         this.passwordResetTokens = passwordResetTokens;
@@ -85,8 +88,8 @@ public class CustomerService {
     }
 
     /**
-     * Sets a new password with a single-use link and schedules the notice to the owner. Does not log in and does not
-     * confirm the e-mail.
+     * Sets a new password with a single-use link, lifts the account's login lockout and schedules the notice to the
+     * owner. Does not log in and does not confirm the e-mail.
      *
      * <p>Not {@code @Transactional}: the link and the password change in one statement, and Argon2 must not hold a
      * connection. The size rules ran before, in the request validation, so a rejected password keeps the link valid.
@@ -99,6 +102,8 @@ public class CustomerService {
         UUID customerId = passwordResetTokens
                 .consumeAndSetPassword(token, passwordHash)
                 .orElseThrow(InvalidConfirmationTokenException::new);
+        // the owner proved they hold the e-mail: lift the account lockout (SEC-002), never the per-IP limit
+        customers.findEmailById(customerId).ifPresent(loginAttemptLimiter::releaseAccount);
         schedule(CustomerEmailTasks.PASSWORD_CHANGED_NOTICE, customerId);
     }
 
