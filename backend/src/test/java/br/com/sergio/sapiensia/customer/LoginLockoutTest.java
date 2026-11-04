@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -64,6 +65,10 @@ class LoginLockoutTest {
     // Spy (not a replacement): lets the tests prove that a blocked or rejected login never hashes the password
     @MockitoSpyBean
     PasswordEncoder passwordEncoder;
+
+    // Spy on the user lookup too, to simulate the database going down in the middle of a login
+    @MockitoSpyBean
+    CustomerUserDetailsService userDetailsService;
 
     MockMvc mvc;
     Cookie csrfCookie;
@@ -185,6 +190,30 @@ class LoginLockoutTest {
                     .isEqualTo(401);
         }
         assertBlocked(login(email, WRONG, "10.10.0.1"));
+    }
+
+    @Test
+    @DisplayName("SEC-002: a failure of the user lookup (database down) is not counted as a wrong password")
+    void shouldNotCountAFailureWhenTheUserLookupBreaks() throws Exception {
+        String email = newCustomer(true);
+        // Spring Security wraps this in InternalAuthenticationServiceException, which is an AuthenticationException
+        doThrow(new DataAccessResourceFailureException("database down"))
+                .doCallRealMethod()
+                .when(userDetailsService)
+                .loadUserByUsername(any());
+
+        // not a 401: the customer's password was never checked, so the answer must not say it was wrong
+        MvcResult unavailable = login(email, PASSWORD, "10.11.0.1");
+        assertThat(unavailable.getResponse().getStatus()).isEqualTo(503);
+        assertThat(unavailable.getResponse().getContentAsString()).isEmpty();
+        assertThat(unavailable.getResponse().getCookies()).isEmpty();
+
+        // the customer did nothing wrong: five wrong passwords are still five attempts, the sixth is blocked
+        for (int i = 0; i < 5; i++) {
+            assertThat(login(email, WRONG, "10.11.0.1").getResponse().getStatus())
+                    .isEqualTo(401);
+        }
+        assertBlocked(login(email, WRONG, "10.11.0.1"));
     }
 
     @Test

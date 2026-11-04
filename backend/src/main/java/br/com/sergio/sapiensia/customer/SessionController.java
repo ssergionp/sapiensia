@@ -3,10 +3,13 @@ package br.com.sergio.sapiensia.customer;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.InternalAuthenticationServiceException;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -29,6 +32,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/sessions")
 class SessionController {
+
+    private static final Logger log = LoggerFactory.getLogger(SessionController.class);
 
     private final AuthenticationManager authenticationManager;
     private final SessionAuthenticationStrategy sessionStrategy = new ChangeSessionIdAuthenticationStrategy();
@@ -85,6 +90,17 @@ class SessionController {
             authentication = authenticationManager.authenticate(
                     UsernamePasswordAuthenticationToken.unauthenticated(login.email(), login.password()));
             fullPrincipal = (CustomerUserDetailsService.CustomerPrincipal) authentication.getPrincipal();
+        } catch (InternalAuthenticationServiceException e) {
+            // Spring wraps a failure of the user lookup (database down) in this AuthenticationException: it is not
+            // a wrong password, so it must not count against the customer, and the answer must not say it was one.
+            // Answered here with 503 because a rethrown AuthenticationException would be turned into a 401 by Spring
+            // Security. Only the class of the cause is logged: its message could carry the e-mail.
+            limiter.release(login.email(), admission);
+            Throwable cause = e.getCause() == null ? e : e.getCause();
+            log.error(
+                    "Login unavailable: the customer lookup failed ({})",
+                    cause.getClass().getName());
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
         } catch (AuthenticationException e) {
             // a wrong password keeps the failure that was reserved for it
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
