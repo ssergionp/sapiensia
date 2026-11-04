@@ -22,6 +22,8 @@ const PASSWORD_CHANGED =
   "Senha alterada. Por segurança, você saiu de todos os aparelhos. Entre com a nova senha.";
 const DEAD_LINK =
   'Este link venceu ou já foi usado. Peça um novo link em "Esqueci minha senha".';
+const LOGIN_BLOCKED =
+  "Muitas tentativas de entrada. Aguarde alguns minutos e tente de novo.";
 
 // The desktop and celular projects share one database and one outbox, so each test gets its own e-mail.
 function uniqueEmail(projectName: string): string {
@@ -176,4 +178,38 @@ test("SEC-006/SEC-007: recuperar a senha encerra a sessão aberta, o link vale u
   expect(notice.body).not.toContain("redefinir-senha");
 
   await otherContext.close();
+});
+
+test("SEC-002/SEC-007: trocar a senha pelo link libera a conta bloqueada por senhas erradas", async ({
+  page,
+}, testInfo) => {
+  const email = uniqueEmail(testInfo.project.name);
+  const oldPassword = strongPassword();
+  const newPassword = strongPassword();
+  await registerAndConfirm(page, email, oldPassword);
+
+  // Five wrong passwords lock the account, even for the right one.
+  await page.goto("/entrar");
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    await page.getByLabel("E-mail").fill(email);
+    await page.getByLabel("Senha").fill(`${oldPassword}x`);
+    await page.getByRole("button", { name: "Entrar" }).click();
+    await expect(page.getByRole("alert")).toHaveText(LOGIN_FAILED);
+  }
+  await page.getByLabel("Senha").fill(oldPassword);
+  await page.getByRole("button", { name: "Entrar" }).click();
+  await expect(page.getByRole("alert")).toHaveText(LOGIN_BLOCKED);
+
+  await requestReset(page, email);
+  const message = await waitForMessage(email, RESET_SUBJECT);
+  const match = message.body.match(
+    /^.*(\/redefinir-senha#[A-Za-z0-9_-]+)\s*$/m,
+  );
+  if (!match) throw new Error("No reset link in the e-mail");
+  await openLink(page, match[1]);
+  await submitNewPassword(page, newPassword);
+  await expect(page.getByText(PASSWORD_CHANGED)).toBeVisible();
+
+  await logIn(page, email, newPassword);
+  await expect(page.getByText(`Você entrou como ${email}.`)).toBeVisible();
 });
