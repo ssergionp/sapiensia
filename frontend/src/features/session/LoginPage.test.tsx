@@ -38,6 +38,8 @@ async function fillAndSubmit(email: string, password: string) {
 
 const FAILURE =
   "E-mail ou senha incorretos, ou o e-mail ainda não foi confirmado.";
+const BLOCKED =
+  "Muitas tentativas de entrada. Aguarde alguns minutos e tente de novo.";
 const UNEXPECTED =
   "Não foi possível entrar agora. Tente novamente em instantes.";
 
@@ -127,6 +129,23 @@ describe("LoginPage", () => {
     const message = await screen.findByText(FAILURE);
     expect(message).toHaveAttribute("role", "alert");
     expect(screen.queryByText(UNEXPECTED)).not.toBeInTheDocument();
+  });
+
+  test("SEC-002: 429 mostra a mensagem de bloqueio e o botão volta a ficar ativo", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(null, { status: 429, headers: { "Retry-After": "900" } }),
+    );
+    renderPage();
+
+    await fillAndSubmit("ana@example.com", "senha qualquer");
+
+    const message = await screen.findByText(BLOCKED);
+    expect(message).toHaveAttribute("role", "alert");
+    expect(screen.queryByText(FAILURE)).not.toBeInTheDocument();
+    expect(screen.queryByText(UNEXPECTED)).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Entrar" })).toBeEnabled(),
+    );
   });
 
   test("erro de rede mostra a mensagem inesperada", async () => {
