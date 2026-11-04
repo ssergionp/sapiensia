@@ -14,6 +14,8 @@ const CONFIRMATION_SUBJECT = "Confirme seu e-mail na SapiensIA";
 const CONFIRMED = "E-mail confirmado. Agora você já pode entrar na sua conta.";
 const LOGIN_FAILED =
   "E-mail ou senha incorretos, ou o e-mail ainda não foi confirmado.";
+const LOGIN_BLOCKED =
+  "Muitas tentativas de entrada. Aguarde alguns minutos e tente de novo.";
 
 // The desktop and celular projects share one database and one outbox, so each test gets its own e-mail.
 function uniqueEmail(projectName: string): string {
@@ -110,6 +112,29 @@ test("SEC-004/SEC-006: senha errada mostra a mensagem única e não cria sessão
 
   await logIn(page, email, `${password}x`);
   await expect(page.getByText(LOGIN_FAILED)).toBeVisible();
+
+  await page.goto("/");
+  await expectAnonymousHome(page);
+});
+
+test("SEC-002: depois de 5 senhas erradas a conta fica bloqueada, mesmo com a senha certa", async ({
+  page,
+}, testInfo) => {
+  const email = uniqueEmail(testInfo.project.name);
+  const password = strongPassword();
+  await registerAndConfirm(page, email, password);
+
+  await page.goto("/entrar");
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    await page.getByLabel("E-mail").fill(email);
+    await page.getByLabel("Senha").fill(`${password}x`);
+    await page.getByRole("button", { name: "Entrar" }).click();
+    await expect(page.getByRole("alert")).toHaveText(LOGIN_FAILED);
+  }
+
+  await page.getByLabel("Senha").fill(password);
+  await page.getByRole("button", { name: "Entrar" }).click();
+  await expect(page.getByRole("alert")).toHaveText(LOGIN_BLOCKED);
 
   await page.goto("/");
   await expectAnonymousHome(page);

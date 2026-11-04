@@ -13,6 +13,14 @@ export class LoginRejectedError extends Error {
   }
 }
 
+// 429 covers both a blocked account and a blocked IP; the UI does not tell them apart.
+export class LoginBlockedError extends Error {
+  constructor() {
+    super("Login is temporarily blocked");
+    this.name = "LoginBlockedError";
+  }
+}
+
 export async function login(input: LoginInput): Promise<void> {
   const response = await apiFetch("/api/sessions", {
     method: "POST",
@@ -21,6 +29,7 @@ export async function login(input: LoginInput): Promise<void> {
   });
   if (response.status === 204) return;
   if (response.status === 401) throw new LoginRejectedError();
+  if (response.status === 429) throw new LoginBlockedError();
   throw new Error(`Unexpected status ${response.status}`);
 }
 
