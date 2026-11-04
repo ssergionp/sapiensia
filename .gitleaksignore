@@ -8,3 +8,10 @@
 585063e2541adfc90b7956c99bc172d0d37cd8a7:backend/src/test/java/br/com/sergio/sapiensia/customer/EmailConfirmationControllerTest.java:generic-api-key:90
 585063e2541adfc90b7956c99bc172d0d37cd8a7:backend/src/test/java/br/com/sergio/sapiensia/customer/EmailConfirmationControllerTest.java:generic-api-key:105
 585063e2541adfc90b7956c99bc172d0d37cd8a7:backend/src/test/java/br/com/sergio/sapiensia/customer/EmailConfirmationControllerTest.java:generic-api-key:109
+# Fictional test passwords in earlier commits of the #12 branch (not secrets). The final lines carry
+# "// gitleaks:allow", so these five can be deleted after #12 is merged.
+45bc97210a7449448e7fa6bf141f21108445d10a:backend/src/test/java/br/com/sergio/sapiensia/customer/PasswordResetLockoutReleaseTest.java:generic-api-key:43
+4b11d74a9cdbaf2edc7244f7ffbca447d4e76c3c:backend/src/test/java/br/com/sergio/sapiensia/customer/SessionRevocationTest.java:generic-api-key:43
+ad9849015b70287c8ea86c31356fd19a93494903:backend/src/test/java/br/com/sergio/sapiensia/customer/PasswordResetConfirmationTest.java:generic-api-key:42
+ad9849015b70287c8ea86c31356fd19a93494903:backend/src/test/java/br/com/sergio/sapiensia/customer/PasswordResetConfirmationTest.java:generic-api-key:183
+ad9849015b70287c8ea86c31356fd19a93494903:backend/src/test/java/br/com/sergio/sapiensia/customer/PasswordResetConfirmationTest.java:generic-api-key:189
