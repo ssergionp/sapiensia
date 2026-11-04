@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchSession, login, logout } from "./api";
+import { fetchSession, login, logout, logoutEverywhere } from "./api";
 
 export const sessionQueryKey = ["session"] as const;
 
@@ -18,6 +18,15 @@ export function useLogin() {
     // The login page has no active session observer, so invalidate would only mark the cache stale.
     // Refetching (also inactive queries) makes the mutation wait for the fresh state before navigating.
     onSuccess: () => queryClient.refetchQueries({ queryKey: sessionQueryKey }),
+  });
+}
+
+export function useLogoutEverywhere() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: logoutEverywhere,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: sessionQueryKey }),
   });
 }
 

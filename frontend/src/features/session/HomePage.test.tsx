@@ -27,6 +27,10 @@ function jsonResponse(status: number, body?: unknown) {
 
 const LOGOUT_ERROR = "Não foi possível sair agora. Tente novamente.";
 const SESSION_URL = "/api/sessions/current";
+const SESSIONS_URL = "/api/sessions";
+const LOGOUT_ALL_SUCCESS = "Você saiu de todos os aparelhos.";
+const LOGOUT_ALL_ERROR =
+  "Não foi possível sair de todos os aparelhos agora. Tente novamente.";
 
 describe("HomePage", () => {
   afterEach(() => {
@@ -121,6 +125,99 @@ describe("HomePage", () => {
     expect(
       screen.getByText("Você entrou como ana@example.com."),
     ).toBeInTheDocument();
+  });
+
+  test("com sessão mostra também o botão Sair de todos os aparelhos", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(200, { email: "ana@example.com" }),
+    );
+    renderPage();
+
+    expect(
+      await screen.findByRole("button", { name: "Sair de todos os aparelhos" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sair" })).toBeInTheDocument();
+  });
+
+  test("Sair de todos os aparelhos chama DELETE /api/sessions e avisa", async () => {
+    let loggedIn = true;
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        if (String(input) === SESSIONS_URL && init?.method === "DELETE") {
+          loggedIn = false;
+          return jsonResponse(204);
+        }
+        if (String(input) === SESSION_URL) {
+          return loggedIn
+            ? jsonResponse(200, { email: "ana@example.com" })
+            : jsonResponse(401);
+        }
+        return jsonResponse(200);
+      });
+    renderPage();
+
+    await userEvent.setup().click(
+      await screen.findByRole("button", {
+        name: "Sair de todos os aparelhos",
+      }),
+    );
+
+    expect(await screen.findByRole("link", { name: "Entrar" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Criar conta" })).toBeVisible();
+    const status = await screen.findByText(LOGOUT_ALL_SUCCESS);
+    expect(status).toHaveAttribute("role", "status");
+    expect(
+      fetchSpy.mock.calls.filter(
+        ([url, init]) => url === SESSIONS_URL && init?.method === "DELETE",
+      ),
+    ).toHaveLength(1);
+  });
+
+  test("falha ao sair de todos os aparelhos mostra a mensagem e mantém a sessão", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input) === SESSIONS_URL && init?.method === "DELETE")
+        return jsonResponse(500);
+      if (String(input) === SESSION_URL)
+        return jsonResponse(200, { email: "ana@example.com" });
+      return jsonResponse(200);
+    });
+    renderPage();
+
+    await userEvent.setup().click(
+      await screen.findByRole("button", {
+        name: "Sair de todos os aparelhos",
+      }),
+    );
+
+    const message = await screen.findByText(LOGOUT_ALL_ERROR);
+    expect(message).toHaveAttribute("role", "alert");
+    expect(
+      screen.getByText("Você entrou como ana@example.com."),
+    ).toBeInTheDocument();
+  });
+
+  test('mostra "Saindo de todos os aparelhos…" enquanto sai', async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      if (String(input) === SESSIONS_URL && init?.method === "DELETE")
+        return new Promise(() => {});
+      if (String(input) === SESSION_URL)
+        return Promise.resolve(jsonResponse(200, { email: "ana@example.com" }));
+      return Promise.resolve(jsonResponse(200));
+    });
+    renderPage();
+
+    await userEvent.setup().click(
+      await screen.findByRole("button", {
+        name: "Sair de todos os aparelhos",
+      }),
+    );
+
+    expect(
+      await screen.findByRole("button", {
+        name: "Saindo de todos os aparelhos…",
+      }),
+    ).toBeDisabled();
   });
 
   test('mostra "Saindo…" enquanto sai', async () => {

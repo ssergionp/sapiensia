@@ -52,6 +52,12 @@ export async function fetchSession(): Promise<Session | null> {
   throw new Error("Unexpected session payload");
 }
 
+export async function logoutEverywhere(): Promise<void> {
+  const response = await apiFetch("/api/sessions", { method: "DELETE" });
+  if (response.status === 204) return;
+  throw new Error(`Unexpected status ${response.status}`);
+}
+
 export async function logout(): Promise<void> {
   const response = await apiFetch(SESSION_URL, { method: "DELETE" });
   if (response.status === 204) return;
