@@ -126,8 +126,8 @@ class PasswordResetConfirmationTest {
         MvcResult result = confirm(token, NEW_PASSWORD);
 
         assertThat(result.getResponse().getStatus()).isEqualTo(204);
-        assertThat(result.getResponse().getHeaders("Set-Cookie")).noneMatch(c -> c.contains("JSESSIONID"));
-        assertThat(result.getResponse().getCookie("JSESSIONID")).isNull();
+        // MockMvc never writes the session cookie, so check the session itself: no login means no session at all
+        assertThat(result.getRequest().getSession(false)).isNull();
         assertThat(login(NEW_PASSWORD)).isEqualTo(204);
         assertThat(login(OLD_PASSWORD)).isEqualTo(401);
     }
