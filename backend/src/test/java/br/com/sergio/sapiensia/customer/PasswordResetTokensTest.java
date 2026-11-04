@@ -3,8 +3,14 @@ package br.com.sergio.sapiensia.customer;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -96,6 +102,28 @@ class PasswordResetTokensTest {
         assertThat(jdbc.queryForObject(
                         "select count(*) from password_reset_tokens where customer_id = ?", Long.class, other))
                 .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("SEC-007: pedidos paralelos da mesma conta deixam só um link válido")
+    void shouldLeaveOnlyOneUnusedLinkWhenReissuedInParallel() throws Exception {
+        int threads = 8;
+        CountDownLatch start = new CountDownLatch(1);
+        try (ExecutorService pool = Executors.newFixedThreadPool(threads)) {
+            List<Future<String>> results = new ArrayList<>();
+            for (int i = 0; i < threads; i++) {
+                results.add(pool.submit(() -> {
+                    start.await();
+                    return tokens.reissue(customerId);
+                }));
+            }
+            start.countDown();
+            for (Future<String> result : results) {
+                assertThat(result.get(30, TimeUnit.SECONDS)).matches("[A-Za-z0-9_-]{43}");
+            }
+        }
+
+        assertThat(rows()).isEqualTo(1);
     }
 
     @Test

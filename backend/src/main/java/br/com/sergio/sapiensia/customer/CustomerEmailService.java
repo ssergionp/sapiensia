@@ -95,8 +95,7 @@ class CustomerEmailService {
      */
     void sendPasswordReset(UUID customerId) {
         customers.findConfirmedEmailById(customerId).ifPresent(email -> {
-            passwordResetTokens.revokeUnused(customerId);
-            String link = publicBaseUrl + "/redefinir-senha#" + passwordResetTokens.issue(customerId);
+            String link = publicBaseUrl + "/redefinir-senha#" + passwordResetTokens.reissue(customerId);
             sender.send(new EmailMessage(email, PASSWORD_RESET_SUBJECT, PASSWORD_RESET_TEXT.formatted(link)));
         });
     }

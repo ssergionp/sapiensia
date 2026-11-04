@@ -64,7 +64,7 @@ class CustomerEmailServiceTest {
     @DisplayName("SEC-007: o link de redefinição vai por e-mail, numa linha só")
     void shouldBuildThePasswordResetLink() {
         when(customers.findConfirmedEmailById(id)).thenReturn(Optional.of("a@example.com"));
-        when(resetTokens.issue(id)).thenReturn("tok");
+        when(resetTokens.reissue(id)).thenReturn("tok");
 
         new CustomerEmailService(customers, tokens, resetTokens, sender, "http://localhost:5173/")
                 .sendPasswordReset(id);
@@ -83,6 +83,6 @@ class CustomerEmailServiceTest {
         new CustomerEmailService(customers, tokens, resetTokens, sender, "http://localhost:5173").sendPasswordReset(id);
 
         verify(sender, never()).send(any());
-        verify(resetTokens, never()).issue(any());
+        verify(resetTokens, never()).reissue(any());
     }
 }
