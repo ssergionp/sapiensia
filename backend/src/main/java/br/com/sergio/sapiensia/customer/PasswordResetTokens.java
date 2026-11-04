@@ -40,7 +40,9 @@ class PasswordResetTokens {
 
     /**
      * Uses the link and sets the new password hash in one statement, so only the request that marks the link as used
-     * changes the password. Unknown, used and expired links give the same empty result.
+     * changes the password. The same statement increments the session version, which ends every session opened
+     * before (SEC-006), so the password never changes without that. Unknown, used and expired links give the same
+     * empty result.
      *
      * @return the customer id, or empty if the link is not valid
      */
@@ -48,7 +50,8 @@ class PasswordResetTokens {
         return jdbc.sql("with used as (update password_reset_tokens set used_at = now()"
                         + " where token_hash = :hash and used_at is null and expires_at > now()"
                         + " returning customer_id)"
-                        + " update customers set password_hash = :passwordHash from used"
+                        + " update customers set password_hash = :passwordHash,"
+                        + " session_version = session_version + 1 from used"
                         + " where customers.id = used.customer_id returning customers.id")
                 .param("hash", EmailConfirmationTokens.hash(token))
                 .param("passwordHash", newPasswordHash)

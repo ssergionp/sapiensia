@@ -40,9 +40,10 @@ class CustomerUserDetailsService implements UserDetailsService {
             return credentials.emailConfirmedAt() != null;
         }
 
-        /** The copy kept in the session: no password hash. */
+        /** The copy kept in the session: no password hash, but the session version that SessionVersionFilter checks. */
         CustomerPrincipal withoutPassword() {
-            return new CustomerPrincipal(new CustomerCredentials(credentials.id(), credentials.email(), null, null));
+            return new CustomerPrincipal(new CustomerCredentials(
+                    credentials.id(), credentials.email(), null, null, credentials.sessionVersion()));
         }
 
         // never the e-mail or the hash: Spring Security logs the Authentication at DEBUG/TRACE

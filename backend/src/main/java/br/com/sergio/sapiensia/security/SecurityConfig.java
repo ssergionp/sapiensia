@@ -1,5 +1,7 @@
 package br.com.sergio.sapiensia.security;
 
+import br.com.sergio.sapiensia.customer.SessionVersionFilter;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -9,6 +11,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
@@ -38,9 +41,23 @@ public class SecurityConfig {
         return CookieCsrfTokenRepository.withHttpOnlyFalse();
     }
 
+    /**
+     * The filter runs only inside the security chain: as a bean, Spring Boot would also register it in the servlet
+     * container, before the security context is loaded.
+     */
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, CsrfTokenRepository csrfTokenRepository)
+    FilterRegistrationBean<SessionVersionFilter> sessionVersionFilterRegistration(SessionVersionFilter filter) {
+        FilterRegistrationBean<SessionVersionFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
+    }
+
+    @Bean
+    SecurityFilterChain securityFilterChain(
+            HttpSecurity http, CsrfTokenRepository csrfTokenRepository, SessionVersionFilter sessionVersionFilter)
             throws Exception {
+        // right after the context is loaded from the session: ends sessions opened before a password change (SEC-006)
+        http.addFilterAfter(sessionVersionFilter, SecurityContextHolderFilter.class);
         http.authorizeHttpRequests(auth -> auth.requestMatchers("/api/system/health", "/api/system/health/**")
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/sessions")

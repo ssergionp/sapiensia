@@ -27,6 +27,10 @@ class Customer {
     @Column(name = "email_confirmed_at")
     private Instant emailConfirmedAt;
 
+    // starts at the database default and is only incremented in SQL (password change)
+    @Column(name = "session_version", insertable = false, updatable = false)
+    private int sessionVersion;
+
     // filled by the database default
     @Generated(event = EventType.INSERT)
     @Column(name = "created_at", insertable = false, updatable = false)
