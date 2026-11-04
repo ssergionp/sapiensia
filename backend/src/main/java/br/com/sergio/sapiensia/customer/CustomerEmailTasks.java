@@ -19,6 +19,8 @@ import org.springframework.context.annotation.Configuration;
 class CustomerEmailTasks {
 
     static final String CONFIRMATION = "customer-email-confirmation";
+    static final String PASSWORD_RESET = "customer-password-reset";
+    static final String PASSWORD_CHANGED_NOTICE = "customer-password-changed-notice";
     static final String ACCOUNT_EXISTS_NOTICE = "customer-account-exists-notice";
 
     private static final Logger log = LoggerFactory.getLogger(CustomerEmailTasks.class);
@@ -45,6 +47,20 @@ class CustomerEmailTasks {
         return Tasks.oneTime(ACCOUNT_EXISTS_NOTICE, UUID.class)
                 .onFailure(retryThenDrop(ACCOUNT_EXISTS_NOTICE))
                 .execute((instance, context) -> emails.sendAccountExistsNotice(instance.getData()));
+    }
+
+    @Bean
+    OneTimeTask<UUID> customerPasswordResetTask(CustomerEmailService emails) {
+        return Tasks.oneTime(PASSWORD_RESET, UUID.class)
+                .onFailure(retryThenDrop(PASSWORD_RESET))
+                .execute((instance, context) -> emails.sendPasswordReset(instance.getData()));
+    }
+
+    @Bean
+    OneTimeTask<UUID> customerPasswordChangedNoticeTask(CustomerEmailService emails) {
+        return Tasks.oneTime(PASSWORD_CHANGED_NOTICE, UUID.class)
+                .onFailure(retryThenDrop(PASSWORD_CHANGED_NOTICE))
+                .execute((instance, context) -> emails.sendPasswordChangedNotice(instance.getData()));
     }
 
     private FailureHandler<UUID> retryThenDrop(String taskName) {

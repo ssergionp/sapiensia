@@ -40,8 +40,8 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     @ExceptionHandler(PasswordCompromisedException.class)
-    ResponseEntity<ProblemDetail> handlePasswordCompromised() {
-        return ResponseEntity.badRequest().body(problem(Map.of("password", "PASSWORD_COMPROMISED")));
+    ResponseEntity<ProblemDetail> handlePasswordCompromised(PasswordCompromisedException e) {
+        return ResponseEntity.badRequest().body(problem(Map.of(e.field(), "PASSWORD_COMPROMISED")));
     }
 
     @ExceptionHandler(InvalidConfirmationTokenException.class)

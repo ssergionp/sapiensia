@@ -35,18 +35,44 @@ class CustomerEmailService {
             Se não foi você, ignore esta mensagem. Nada foi alterado na sua conta.
             """;
 
+    private static final String PASSWORD_RESET_SUBJECT = "Redefinição de senha na SapiensIA";
+    private static final String PASSWORD_RESET_TEXT = """
+            Olá!
+
+            Recebemos um pedido para redefinir a senha da sua conta na SapiensIA. Use o link abaixo para escolher \
+            uma nova senha. O link vale por 30 minutos e só pode ser usado uma vez.
+
+            %s
+
+            Se você não pediu isso, ignore esta mensagem: sua senha continua a mesma.
+            """;
+
+    private static final String PASSWORD_CHANGED_SUBJECT = "Sua senha na SapiensIA foi alterada";
+    private static final String PASSWORD_CHANGED_TEXT = """
+            Olá!
+
+            A senha da sua conta na SapiensIA acabou de ser alterada, e todos os aparelhos foram desconectados.
+
+            Se foi você, não precisa fazer nada.
+
+            Se não foi você, use "Esqueci minha senha" para criar outra senha agora.
+            """;
+
     private final CustomerRepository customers;
     private final EmailConfirmationTokens confirmationTokens;
+    private final PasswordResetTokens passwordResetTokens;
     private final EmailSender sender;
     private final String publicBaseUrl;
 
     CustomerEmailService(
             CustomerRepository customers,
             EmailConfirmationTokens confirmationTokens,
+            PasswordResetTokens passwordResetTokens,
             EmailSender sender,
             @Value("${app.public-base-url}") String publicBaseUrl) {
         this.customers = customers;
         this.confirmationTokens = confirmationTokens;
+        this.passwordResetTokens = passwordResetTokens;
         this.sender = sender;
         this.publicBaseUrl = publicBaseUrl.replaceAll("/+$", ""); // links append "/path"
         if (this.publicBaseUrl.isBlank()) {
@@ -61,6 +87,25 @@ class CustomerEmailService {
             String link = publicBaseUrl + "/confirmar-email#" + confirmationTokens.issue(customerId);
             sender.send(new EmailMessage(email, CONFIRMATION_SUBJECT, CONFIRMATION_TEXT.formatted(link)));
         });
+    }
+
+    /**
+     * Replaces the customer's unused reset links with a new one and sends it, unless the customer does not exist or
+     * is not confirmed (then nothing is stored and nothing is sent).
+     */
+    void sendPasswordReset(UUID customerId) {
+        customers.findConfirmedEmailById(customerId).ifPresent(email -> {
+            String link = publicBaseUrl + "/redefinir-senha#" + passwordResetTokens.reissue(customerId);
+            sender.send(new EmailMessage(email, PASSWORD_RESET_SUBJECT, PASSWORD_RESET_TEXT.formatted(link)));
+        });
+    }
+
+    /** Tells the owner that the password changed; carries no password, token or link. */
+    void sendPasswordChangedNotice(UUID customerId) {
+        customers
+                .findEmailById(customerId)
+                .ifPresent(
+                        email -> sender.send(new EmailMessage(email, PASSWORD_CHANGED_SUBJECT, PASSWORD_CHANGED_TEXT)));
     }
 
     /** Tells the owner of a confirmed account that someone tried to register with it; carries no token. */

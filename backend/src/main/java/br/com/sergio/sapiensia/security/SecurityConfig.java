@@ -1,5 +1,7 @@
 package br.com.sergio.sapiensia.security;
 
+import br.com.sergio.sapiensia.customer.SessionVersionFilter;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -9,8 +11,11 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
+import org.springframework.security.web.header.writers.DelegatingRequestMatcherHeaderWriter;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 
 /**
@@ -38,9 +43,23 @@ public class SecurityConfig {
         return CookieCsrfTokenRepository.withHttpOnlyFalse();
     }
 
+    /**
+     * The filter runs only inside the security chain: as a bean, Spring Boot would also register it in the servlet
+     * container, before the security context is loaded.
+     */
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, CsrfTokenRepository csrfTokenRepository)
+    FilterRegistrationBean<SessionVersionFilter> sessionVersionFilterRegistration(SessionVersionFilter filter) {
+        FilterRegistrationBean<SessionVersionFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
+    }
+
+    @Bean
+    SecurityFilterChain securityFilterChain(
+            HttpSecurity http, CsrfTokenRepository csrfTokenRepository, SessionVersionFilter sessionVersionFilter)
             throws Exception {
+        // right after the context is loaded from the session: ends sessions opened before a password change (SEC-006)
+        http.addFilterAfter(sessionVersionFilter, SecurityContextHolderFilter.class);
         http.authorizeHttpRequests(auth -> auth.requestMatchers("/api/system/health", "/api/system/health/**")
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/sessions")
@@ -54,6 +73,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/customers")
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/customers/email-confirmations")
+                        .permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/customers/password-resets")
+                        .permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/customers/password-resets/confirmation")
                         .permitAll()
                         .requestMatchers("/api/**")
                         .denyAll()
@@ -70,7 +93,12 @@ public class SecurityConfig {
                         .logoutSuccessHandler(new HttpStatusReturningLogoutSuccessHandler(HttpStatus.NO_CONTENT))
                         .deleteCookies("JSESSIONID"))
                 .headers(headers -> headers.contentSecurityPolicy(csp -> csp.policyDirectives(CONTENT_SECURITY_POLICY))
-                        .frameOptions(frame -> frame.deny()))
+                        .frameOptions(frame -> frame.deny())
+                        // the reset link carries its token in the URL fragment: never let it reach another site
+                        // (SEC-007)
+                        .addHeaderWriter(new DelegatingRequestMatcherHeaderWriter(
+                                PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/redefinir-senha"),
+                                new ReferrerPolicyHeaderWriter(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER))))
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable);
         return http.build();

@@ -77,7 +77,8 @@ class CustomerServiceTest {
                 String.class);
 
         assertThat(columns)
-                .containsExactlyInAnyOrder("id", "email", "password_hash", "email_confirmed_at", "created_at");
+                .containsExactlyInAnyOrder(
+                        "id", "email", "password_hash", "email_confirmed_at", "created_at", "session_version");
     }
 
     @Test

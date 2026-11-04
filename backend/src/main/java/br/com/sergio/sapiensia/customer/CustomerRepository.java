@@ -49,11 +49,22 @@ interface CustomerRepository extends JpaRepository<Customer, UUID> {
     Optional<UUID> findIdByEmail(String email);
 
     @Query("select new br.com.sergio.sapiensia.customer.CustomerCredentials("
-            + "c.id, c.email, c.passwordHash, c.emailConfirmedAt) from Customer c where c.email = :email")
+            + "c.id, c.email, c.passwordHash, c.emailConfirmedAt, c.sessionVersion)"
+            + " from Customer c where c.email = :email")
     Optional<CustomerCredentials> findCredentialsByEmail(String email);
+
+    /** The current session version of the account, or empty if the account no longer exists. */
+    @Query("select c.sessionVersion from Customer c where c.id = :id")
+    Optional<Integer> findSessionVersion(UUID id);
 
     @Query("select c.email from Customer c where c.id = :id")
     Optional<String> findEmailById(UUID id);
+
+    @Query("select c.id from Customer c where c.email = :email and c.emailConfirmedAt is not null")
+    Optional<UUID> findConfirmedIdByEmail(String email);
+
+    @Query("select c.email from Customer c where c.id = :id and c.emailConfirmedAt is not null")
+    Optional<String> findConfirmedEmailById(UUID id);
 
     @Query("select c.email from Customer c where c.id = :id and c.emailConfirmedAt is null")
     Optional<String> findUnconfirmedEmailById(UUID id);
