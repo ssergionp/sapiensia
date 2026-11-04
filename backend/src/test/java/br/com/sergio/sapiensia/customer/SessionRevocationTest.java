@@ -40,7 +40,7 @@ import org.springframework.web.context.WebApplicationContext;
 class SessionRevocationTest {
 
     private static final String OLD_PASSWORD = "senha-antiga-123";
-    private static final String NEW_PASSWORD = "senha-nova-4567";
+    private static final String NEW_PASSWORD = "senha-nova-4567"; // gitleaks:allow
 
     @LocalServerPort
     int port;

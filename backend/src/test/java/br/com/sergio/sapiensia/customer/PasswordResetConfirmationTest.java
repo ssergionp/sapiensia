@@ -39,7 +39,7 @@ class PasswordResetConfirmationTest {
     private static final Duration WAIT = Duration.ofSeconds(15);
     private static final Duration NO_MAIL_WAIT = Duration.ofSeconds(2);
     private static final String OLD_PASSWORD = "senha-antiga-123";
-    private static final String NEW_PASSWORD = "senha-nova-4567";
+    private static final String NEW_PASSWORD = "senha-nova-4567"; // gitleaks:allow
     private static final String TOKEN_INVALID = "\"errors\":{\"token\":\"TOKEN_INVALID\"}";
 
     @Autowired
@@ -180,13 +180,13 @@ class PasswordResetConfirmationTest {
     @DisplayName("SEC-007: link usado, vencido e inexistente dão a mesma resposta 400")
     void shouldAnswerTheSameForUsedExpiredAndUnknownLinks() throws Exception {
         confirm(token, NEW_PASSWORD);
-        MvcResult used = confirm(token, "outra-senha-9876");
+        MvcResult used = confirm(token, "outra-senha-9876"); // gitleaks:allow
 
         String expiredToken = tokens.issue(customerId);
         jdbc.update(
                 "update password_reset_tokens set expires_at = now() - interval '1 minute' where token_hash = ?",
                 EmailConfirmationTokens.hash(expiredToken));
-        MvcResult expired = confirm(expiredToken, "outra-senha-9876");
+        MvcResult expired = confirm(expiredToken, "outra-senha-9876"); // gitleaks:allow
 
         MvcResult unknown = confirm("x".repeat(43), "outra-senha-9876");
 

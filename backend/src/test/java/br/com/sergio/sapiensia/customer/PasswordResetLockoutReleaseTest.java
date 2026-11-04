@@ -40,7 +40,7 @@ class PasswordResetLockoutReleaseTest {
     private static final Duration WAIT = Duration.ofSeconds(15);
     private static final int IP_LIMIT = 8;
     private static final String OLD_PASSWORD = "senha-antiga-123";
-    private static final String NEW_PASSWORD = "senha-nova-4567";
+    private static final String NEW_PASSWORD = "senha-nova-4567"; // gitleaks:allow
     private static final String WRONG = "senhaerrada123";
 
     @Autowired
