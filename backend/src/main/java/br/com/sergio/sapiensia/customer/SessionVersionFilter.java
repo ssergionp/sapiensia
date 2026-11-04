@@ -38,13 +38,6 @@ public class SessionVersionFilter extends OncePerRequestFilter {
         this.customers = customers;
     }
 
-    /** Only /api requests use the session; the SPA files are public and must not cost a database lookup each. */
-    @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getRequestURI().substring(request.getContextPath().length());
-        return !path.startsWith("/api/");
-    }
-
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
