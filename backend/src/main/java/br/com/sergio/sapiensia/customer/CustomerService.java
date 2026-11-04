@@ -72,6 +72,16 @@ public class CustomerService {
     }
 
     /**
+     * Schedules the reset-link task and nothing else, so the response is the same, and takes the same time, whether
+     * the e-mail belongs to a confirmed account or not. Without an account the task gets a random id it will not find.
+     */
+    public void requestPasswordReset(String email) {
+        String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
+        UUID customerId = customers.findConfirmedIdByEmail(normalizedEmail).orElseGet(UUID::randomUUID);
+        schedule(CustomerEmailTasks.PASSWORD_RESET, customerId);
+    }
+
+    /**
      * Deletes the accounts whose e-mail stayed unconfirmed for longer than the retention (counted from creation);
      * their links go with them. Frees the e-mail for a new registration.
      *

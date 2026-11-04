@@ -55,6 +55,12 @@ interface CustomerRepository extends JpaRepository<Customer, UUID> {
     @Query("select c.email from Customer c where c.id = :id")
     Optional<String> findEmailById(UUID id);
 
+    @Query("select c.id from Customer c where c.email = :email and c.emailConfirmedAt is not null")
+    Optional<UUID> findConfirmedIdByEmail(String email);
+
+    @Query("select c.email from Customer c where c.id = :id and c.emailConfirmedAt is not null")
+    Optional<String> findConfirmedEmailById(UUID id);
+
     @Query("select c.email from Customer c where c.id = :id and c.emailConfirmedAt is null")
     Optional<String> findUnconfirmedEmailById(UUID id);
 }

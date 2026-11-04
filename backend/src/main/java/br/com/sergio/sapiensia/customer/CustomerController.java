@@ -25,6 +25,13 @@ class CustomerController {
         customerService.register(request.email(), request.password());
     }
 
+    /** Public password reset request. Same 202 and empty body whether or not the account exists. */
+    @PostMapping("/password-resets")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    void requestPasswordReset(@Valid @RequestBody RequestPasswordResetRequest request) {
+        customerService.requestPasswordReset(request.email());
+    }
+
     /** Public e-mail confirmation: the link token plus the password chosen at registration. */
     @PostMapping("/email-confirmations")
     @ResponseStatus(HttpStatus.NO_CONTENT)
