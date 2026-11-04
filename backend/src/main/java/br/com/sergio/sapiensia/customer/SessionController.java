@@ -4,11 +4,16 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.InternalAuthenticationServiceException;
@@ -50,7 +55,12 @@ class SessionController {
     private final LoginAttemptLimiter limiter;
     private final ClientIpResolver clientIp;
 
+    private static final String DEVICE_COOKIE = "SAPIENSIA_DEVICE";
+    private static final Duration DEVICE_COOKIE_MAX_AGE = Duration.ofDays(365);
+
     private final CustomerRepository customers;
+    private final CustomerService customerService;
+    private final boolean secureCookie;
 
     SessionController(
             CustomerRepository customers,
@@ -58,8 +68,12 @@ class SessionController {
             PasswordEncoder passwordEncoder,
             CsrfTokenRepository csrfTokenRepository,
             LoginAttemptLimiter limiter,
-            ClientIpResolver clientIp) {
+            ClientIpResolver clientIp,
+            CustomerService customerService,
+            @Value("${server.servlet.session.cookie.secure:false}") boolean secureCookie) {
         this.customers = customers;
+        this.customerService = customerService;
+        this.secureCookie = secureCookie;
         this.limiter = limiter;
         this.clientIp = clientIp;
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider(userDetailsService);
@@ -121,6 +135,7 @@ class SessionController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         limiter.recordSuccess(login.email());
+        rememberDevice(fullPrincipal.credentials().id(), request, response);
         // the session keeps the principal without the password hash
         CustomerUserDetailsService.CustomerPrincipal principal = fullPrincipal.withoutPassword();
         SecurityContext context = SecurityContextHolder.createEmptyContext();
@@ -132,6 +147,36 @@ class SessionController {
         csrfTokenRepository.saveToken(csrfTokenRepository.generateToken(request), request, response);
         securityContextRepository.saveContext(context, request, response);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Registers the browser of a correct login and refreshes its device cookie. The notice never changes the answer of
+     * the login: on any failure only the exception type is logged (the message could carry the e-mail or the token).
+     */
+    private void rememberDevice(UUID customerId, HttpServletRequest request, HttpServletResponse response) {
+        try {
+            String cookieToken = null;
+            if (request.getCookies() != null) {
+                for (Cookie cookie : request.getCookies()) {
+                    if (DEVICE_COOKIE.equals(cookie.getName())) {
+                        cookieToken = cookie.getValue();
+                    }
+                }
+            }
+            String token = customerService.recognizeDevice(customerId, cookieToken, Instant.now());
+            response.addHeader(
+                    HttpHeaders.SET_COOKIE,
+                    ResponseCookie.from(DEVICE_COOKIE, token)
+                            .maxAge(DEVICE_COOKIE_MAX_AGE)
+                            .path("/api/sessions")
+                            .httpOnly(true)
+                            .secure(secureCookie)
+                            .sameSite("Lax")
+                            .build()
+                            .toString());
+        } catch (RuntimeException e) {
+            log.warn("Could not register the login device ({})", e.getClass().getName());
+        }
     }
 
     /** Ends every session of the account, this one included (SEC-009, SEC-006): 204 and the cookie is deleted. */

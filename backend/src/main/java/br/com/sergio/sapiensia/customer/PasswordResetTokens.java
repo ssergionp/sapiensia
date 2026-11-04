@@ -16,7 +16,8 @@ class PasswordResetTokens {
 
     private static final int TOKEN_BYTES = 32;
 
-    private final SecureRandom random = new SecureRandom();
+    private static final SecureRandom RANDOM = new SecureRandom();
+
     private final JdbcClient jdbc;
     private final Duration ttl;
 
@@ -27,9 +28,7 @@ class PasswordResetTokens {
 
     /** Creates a token for the customer and returns it in plain text; only its hash is stored. */
     String issue(UUID customerId) {
-        byte[] bytes = new byte[TOKEN_BYTES];
-        random.nextBytes(bytes);
-        String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        String token = newToken();
         jdbc.sql("insert into password_reset_tokens (customer_id, token_hash, expires_at)"
                         + " values (:customerId, :hash, now() + make_interval(secs => :seconds))")
                 .param("customerId", customerId)
@@ -37,6 +36,13 @@ class PasswordResetTokens {
                 .param("seconds", ttl.toSeconds())
                 .update();
         return token;
+    }
+
+    /** A random 32-byte token in Base64 URL form without padding (43 characters). Also used by the device cookie. */
+    static String newToken() {
+        byte[] bytes = new byte[TOKEN_BYTES];
+        RANDOM.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
     /**

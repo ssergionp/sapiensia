@@ -8,6 +8,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.lang.Nullable;
 import org.springframework.security.authentication.password.CompromisedPasswordChecker;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,7 @@ public class CustomerService {
     private final CompromisedPasswordChecker compromisedPasswordChecker;
     private final SchedulerClient scheduler;
     private final LoginAttemptLimiter loginAttemptLimiter;
+    private final KnownDevices knownDevices;
     private final Duration unconfirmedRetention;
 
     CustomerService(
@@ -34,9 +36,11 @@ public class CustomerService {
             CompromisedPasswordChecker compromisedPasswordChecker,
             SchedulerClient scheduler,
             LoginAttemptLimiter loginAttemptLimiter,
+            KnownDevices knownDevices,
             @Value("${app.unconfirmed-customer.retention}") Duration unconfirmedRetention) {
         this.unconfirmedRetention = unconfirmedRetention;
         this.loginAttemptLimiter = loginAttemptLimiter;
+        this.knownDevices = knownDevices;
         this.customers = customers;
         this.confirmationTokens = confirmationTokens;
         this.passwordResetTokens = passwordResetTokens;
@@ -102,6 +106,8 @@ public class CustomerService {
         UUID customerId = passwordResetTokens
                 .consumeAndSetPassword(token, passwordHash)
                 .orElseThrow(InvalidConfirmationTokenException::new);
+        // a new password makes every device new again
+        knownDevices.forgetAll(customerId);
         // the owner proved they hold the e-mail: lift the account lockout (SEC-002), never the per-IP limit
         customers.findEmailById(customerId).ifPresent(loginAttemptLimiter::releaseAccount);
         schedule(CustomerEmailTasks.PASSWORD_CHANGED_NOTICE, customerId);
@@ -115,6 +121,25 @@ public class CustomerService {
      */
     public int deleteUnconfirmedOlderThanRetention() {
         return customers.deleteUnconfirmedCreatedBefore(Instant.now().minus(unconfirmedRetention));
+    }
+
+    /**
+     * Registers the device of a correct login and, if the account has logged in before from another device, schedules
+     * the e-mail to its owner.
+     *
+     * @return the token for the device cookie
+     */
+    public String recognizeDevice(UUID customerId, @Nullable String cookieToken, Instant loggedInAt) {
+        KnownDevices.DeviceCheck check = knownDevices.recognize(customerId, cookieToken);
+        if (check.notifyOwner()) {
+            scheduler.schedule(
+                    new TaskInstance<>(
+                            CustomerEmailTasks.NEW_DEVICE_NOTICE,
+                            UUID.randomUUID().toString(),
+                            new NewDeviceNotice(customerId, loggedInAt)),
+                    Instant.now());
+        }
+        return check.token();
     }
 
     private void schedule(String taskName, UUID customerId) {
