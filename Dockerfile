@@ -22,6 +22,14 @@ RUN ./mvnw -q -B -DskipTests package && cp target/*.jar /app/app.jar
 
 # 3. Runtime: JRE only, no build tools, a user without privileges
 FROM eclipse-temurin:25-jre
+# TEMPORARY: Trivy fails the build on the HIGH CVE-2026-109518 in apt and libapt-pkg7.0 3.2.0 of this base image, fixed
+# in 3.2.1ubuntu0.1. Remove this RUN when eclipse-temurin:25-jre ships apt 3.2.1ubuntu0.1 or newer
+# (check with: docker run --rm eclipse-temurin:25-jre apt --version). The base image is not pinned by digest, so a
+# rebuilt tag is picked up on its own. This stage runs as root until the USER line below; the apt lists go away in
+# the same layer.
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --only-upgrade apt libapt-pkg7.0 \
+    && rm -rf /var/lib/apt/lists/*
 RUN groupadd --system app && useradd --system --gid app --no-create-home app
 WORKDIR /app
 COPY --from=backend /app/app.jar app.jar
