@@ -61,6 +61,16 @@
   - A verificação final procura a senha no stdout, em `.tmp/e2e-report` e em `.tmp/e2e-results` (zero ocorrências).
 - **E-mail longo em `/painel`:** quebra desde o início (`[overflow-wrap:anywhere]`, cf. #63). O `/verificar-tela` confere isso a 390 px com um e-mail de 254 caracteres.
 
+## Desvios do plano (aprovados pelo Sérgio em 05/11/2026, durante a execução)
+
+1. **Extração do `PasswordLogin` (Task 3).**
+   - **O que mudou:** o plano previa um login do painel próprio, ao lado do login do Cliente, mas a primeira versão copiou o fluxo do `customer/SessionController.login`. A revisão apontou que foi nessa cópia que surgiu um furo: a chave do contador de tentativas usava o e-mail sem normalizar, e um espaço ou um tab no começo escapava do bloqueio por conta.
+   - **Por quê:** extrair o fluxo para um componente único, usado pelos dois logins, impede que um volte a se afastar do outro.
+   - **Condições:** a extração fica num commit `refactor:` separado e sem mudança de comportamento. Os testes do #11 não mudam. Depois rodam de novo os testes do login do Cliente e o e2e `customer-login`.
+   - **Registro:** este desvio também vai na descrição da PR.
+2. **Uma só função de normalização do e-mail.** O cadastro, os dois logins, o limitador, a recuperação de senha e o bootstrap passam a chamar a mesma função.
+3. **Limite por IP compartilhado.** São 20 tentativas por IP em 15 minutos, somando o login do Cliente e o do painel; só a chave por conta leva o prefixo `admin:`. Fica registrado no ADR-0004, com a dependência da #56 (IP real na Fly.io).
+
 ## Global Constraints
 
 - Rotas `permitAll` novas: só `POST /api/admin/sessions` e `POST /api/admin/password-setup`. As duas continuam exigindo o token CSRF e entram no ADR-0004. Nenhuma rota cria Administrador.
