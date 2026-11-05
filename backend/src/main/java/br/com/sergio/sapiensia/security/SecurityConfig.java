@@ -1,5 +1,6 @@
 package br.com.sergio.sapiensia.security;
 
+import br.com.sergio.sapiensia.admin.Capability;
 import br.com.sergio.sapiensia.customer.SessionVersionFilter;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
@@ -85,6 +86,11 @@ public class SecurityConfig {
                         // the link token in the body is the credential; CSRF stays on
                         .requestMatchers(HttpMethod.POST, "/api/admin/password-setup")
                         .permitAll()
+                        // the panel: login is public (CSRF stays on); "who am I" needs the panel capability
+                        .requestMatchers(HttpMethod.POST, "/api/admin/sessions")
+                        .permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/admin/sessions/current")
+                        .hasAuthority(Capability.PANEL_ACCESS.authority())
                         .requestMatchers("/api/**")
                         .denyAll()
                         .anyRequest()

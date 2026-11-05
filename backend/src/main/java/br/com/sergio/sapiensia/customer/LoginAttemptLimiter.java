@@ -28,14 +28,14 @@ import org.springframework.stereotype.Component;
  * insert, so concurrent attempts can overshoot it by at most the number of request threads.
  */
 @Component
-class LoginAttemptLimiter {
+public class LoginAttemptLimiter {
 
     private static final Duration PURGE_INTERVAL = Duration.ofMinutes(1);
     private static final int DEFAULT_MAX_TRACKED_KEYS = 100_000;
 
     /** Result of {@link #admit}: {@code blockedFor} is null when the attempt may proceed. */
-    record Admission(Duration blockedFor, Instant reservedAt) {
-        boolean allowed() {
+    public record Admission(Duration blockedFor, Instant reservedAt) {
+        public boolean allowed() {
             return blockedFor == null;
         }
     }
@@ -80,7 +80,7 @@ class LoginAttemptLimiter {
      * one failure of the account (locking it on the {@code accountMaxFailures}-th). A refused attempt reserves nothing
      * and does not extend a lock.
      */
-    Admission admit(String email, String clientIp) {
+    public Admission admit(String email, String clientIp) {
         purgeIfDue();
         Instant now = clock.instant();
         String accountKey = key(email);
@@ -128,7 +128,7 @@ class LoginAttemptLimiter {
     }
 
     /** A correct login clears the failures and any lock of the account. */
-    void recordSuccess(String email) {
+    public void recordSuccess(String email) {
         releaseAccount(email);
     }
 
@@ -142,7 +142,7 @@ class LoginAttemptLimiter {
     }
 
     /** Gives back the place reserved by an admitted attempt that ended without a verdict (unexpected error). */
-    void release(String email, Admission admission) {
+    public void release(String email, Admission admission) {
         Instant reservedAt = admission.reservedAt();
         accounts.computeIfPresent(key(email), (k, state) -> {
             List<Instant> failures = new ArrayList<>(state.failures());

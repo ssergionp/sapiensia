@@ -59,6 +59,27 @@ class Administrators {
                 .optional();
     }
 
+    record Login(UUID id, String email, String passwordHash, int sessionVersion) {
+
+        // never the e-mail or the hash
+        @Override
+        public String toString() {
+            return "Login[id=" + id + "]";
+        }
+    }
+
+    /** The account for the login; {@code email} is already normalized. */
+    Optional<Login> findForLogin(String email) {
+        return jdbc.sql("select id, email, password_hash, session_version from administrators where email = :email")
+                .param("email", email)
+                .query((rs, i) -> new Login(
+                        rs.getObject("id", UUID.class),
+                        rs.getString("email"),
+                        rs.getString("password_hash"),
+                        rs.getInt("session_version")))
+                .optional();
+    }
+
     /** The session version, for the filter that ends sessions opened before a password change. */
     OptionalInt findSessionVersion(UUID id) {
         return jdbc.sql("select session_version from administrators where id = :id")
