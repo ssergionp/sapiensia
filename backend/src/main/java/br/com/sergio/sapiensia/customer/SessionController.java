@@ -3,7 +3,6 @@ package br.com.sergio.sapiensia.customer;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
@@ -25,6 +24,10 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.authentication.logout.CompositeLogoutHandler;
+import org.springframework.security.web.authentication.logout.CookieClearingLogoutHandler;
+import org.springframework.security.web.authentication.logout.LogoutHandler;
+import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.security.web.authentication.session.ChangeSessionIdAuthenticationStrategy;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
@@ -60,6 +63,9 @@ class SessionController {
 
     private static final String DEVICE_COOKIE = "SAPIENSIA_DEVICE";
     private static final Duration DEVICE_COOKIE_MAX_AGE = Duration.ofDays(365);
+
+    private final LogoutHandler currentSessionCloser = new CompositeLogoutHandler(
+            new SecurityContextLogoutHandler(), new CookieClearingLogoutHandler("JSESSIONID"));
 
     private final CustomerService customerService;
     private final boolean secureCookie;
@@ -179,21 +185,16 @@ class SessionController {
         }
     }
 
-    /** Ends every session of the account, this one included (SEC-009, SEC-006): 204 and the cookie is deleted. */
+    /**
+     * Ends every session of the account, this one included (SEC-009, SEC-006): 204 and the cookie is deleted. The
+     * current session is closed by the same Spring handlers the logout of this account uses (SecurityConfig).
+     */
     @DeleteMapping
     ResponseEntity<Void> logoutEverywhere(
             Authentication authentication, HttpServletRequest request, HttpServletResponse response) {
         var principal = (CustomerUserDetailsService.CustomerPrincipal) authentication.getPrincipal();
         customerService.logoutEverywhere(principal.credentials().id());
-        HttpSession session = request.getSession(false);
-        if (session != null) {
-            session.invalidate();
-        }
-        SecurityContextHolder.clearContext();
-        Cookie cookie = new Cookie("JSESSIONID", "");
-        cookie.setMaxAge(0);
-        cookie.setPath(request.getContextPath().isEmpty() ? "/" : request.getContextPath());
-        response.addCookie(cookie);
+        currentSessionCloser.logout(request, response, authentication);
         return ResponseEntity.noContent().build();
     }
 

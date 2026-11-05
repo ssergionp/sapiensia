@@ -7,6 +7,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -77,6 +78,21 @@ class LogoutEverywhereTest {
 
     /** Logs in like a new device and returns its session cookie. */
     private String login(String address) throws Exception {
+        return "JSESSIONID=" + cookieValue(loginResponse(address), "JSESSIONID");
+    }
+
+    private static String setCookieHeader(HttpResponse<?> response, String name) {
+        return response.headers().allValues("Set-Cookie").stream()
+                .filter(c -> c.startsWith(name + "="))
+                .reduce((first, last) -> last)
+                .orElseThrow();
+    }
+
+    private static List<String> attributes(String setCookie) {
+        return List.of(setCookie.split("; "));
+    }
+
+    private HttpResponse<String> loginResponse(String address) throws Exception {
         String xsrf = xsrfToken();
         HttpResponse<String> response = client.send(
                 HttpRequest.newBuilder(URI.create(url("/api/sessions")))
@@ -88,7 +104,7 @@ class LogoutEverywhereTest {
                         .build(),
                 HttpResponse.BodyHandlers.ofString());
         assertThat(response.statusCode()).isEqualTo(204);
-        return "JSESSIONID=" + cookieValue(response, "JSESSIONID");
+        return response;
     }
 
     private int current(String sessionCookie) throws Exception {
@@ -132,6 +148,34 @@ class LogoutEverywhereTest {
                 .anyMatch(c -> c.startsWith("JSESSIONID=;") && c.contains("Expires=Thu, 01 Jan 1970"));
         assertThat(current(phone)).isEqualTo(401);
         assertThat(current(laptop)).isEqualTo(401);
+    }
+
+    @Test
+    @DisplayName("SEC-009: o cookie de sessão é apagado como no logout (#10) e com o mesmo Path do cookie original")
+    void shouldClearTheSessionCookieLikeTheLogoutDoes() throws Exception {
+        HttpResponse<String> loginResponse = loginResponse(email);
+        String original = setCookieHeader(loginResponse, "JSESSIONID");
+        String originalPath = attributes(original).stream()
+                .filter(a -> a.startsWith("Path="))
+                .findFirst()
+                .orElseThrow();
+        String xsrf = xsrfToken();
+        HttpResponse<String> plainLogout = client.send(
+                HttpRequest.newBuilder(URI.create(url("/api/sessions/current")))
+                        .DELETE()
+                        .header(
+                                "Cookie",
+                                "JSESSIONID=" + cookieValue(loginResponse, "JSESSIONID") + "; XSRF-TOKEN=" + xsrf)
+                        .header("X-XSRF-TOKEN", xsrf)
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(plainLogout.statusCode()).isEqualTo(204);
+
+        HttpResponse<String> everywhere = logoutEverywhereWithToken(login(email));
+
+        List<String> cleared = attributes(setCookieHeader(everywhere, "JSESSIONID"));
+        assertThat(cleared).isEqualTo(attributes(setCookieHeader(plainLogout, "JSESSIONID")));
+        assertThat(cleared).contains(originalPath).anyMatch(a -> a.startsWith("Expires=Thu, 01 Jan 1970"));
     }
 
     @Test
