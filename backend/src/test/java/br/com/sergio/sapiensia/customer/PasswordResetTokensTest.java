@@ -104,6 +104,52 @@ class PasswordResetTokensTest {
                 .isEqualTo(1);
     }
 
+    private void addDevice(UUID owner) {
+        jdbc.update(
+                "insert into customer_devices (customer_id, token_hash) values (?, ?)",
+                owner,
+                EmailConfirmationTokens.hash(PasswordResetTokens.newToken()));
+    }
+
+    private long devices(UUID owner) {
+        return jdbc.queryForObject("select count(*) from customer_devices where customer_id = ?", Long.class, owner);
+    }
+
+    @Test
+    @DisplayName("SEC-007: consumir o link apaga os aparelhos da conta, na mesma instrução, e só os dela")
+    void shouldForgetTheDevicesOfTheAccountWhenTheLinkIsConsumed() {
+        UUID other = UUID.randomUUID();
+        jdbc.update(
+                "insert into customers (id, email, password_hash) values (?, ?, 'x')",
+                other,
+                "reset-devices-other-" + other + "@example.com");
+        addDevice(customerId);
+        addDevice(customerId);
+        addDevice(other);
+        String token = tokens.issue(customerId);
+
+        assertThat(tokens.consumeAndSetPassword(token, "new-hash")).contains(customerId);
+
+        assertThat(devices(customerId)).isZero();
+        assertThat(devices(other)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("SEC-007: um link inválido ou já usado não apaga os aparelhos")
+    void shouldKeepTheDevicesWhenTheLinkIsInvalidOrUsed() {
+        addDevice(customerId);
+        String token = tokens.issue(customerId);
+        assertThat(tokens.consumeAndSetPassword(PasswordResetTokens.newToken(), "h"))
+                .isEmpty();
+        assertThat(devices(customerId)).isEqualTo(1);
+
+        assertThat(tokens.consumeAndSetPassword(token, "h")).isPresent();
+        addDevice(customerId);
+
+        assertThat(tokens.consumeAndSetPassword(token, "h")).isEmpty();
+        assertThat(devices(customerId)).isEqualTo(1);
+    }
+
     @Test
     @DisplayName("SEC-007: pedidos paralelos da mesma conta deixam só um link válido")
     void shouldLeaveOnlyOneUnusedLinkWhenReissuedInParallel() throws Exception {

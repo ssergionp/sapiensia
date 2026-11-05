@@ -106,8 +106,6 @@ public class CustomerService {
         UUID customerId = passwordResetTokens
                 .consumeAndSetPassword(token, passwordHash)
                 .orElseThrow(InvalidConfirmationTokenException::new);
-        // a new password makes every device new again
-        knownDevices.forgetAll(customerId);
         // the owner proved they hold the e-mail: lift the account lockout (SEC-002), never the per-IP limit
         customers.findEmailById(customerId).ifPresent(loginAttemptLimiter::releaseAccount);
         schedule(CustomerEmailTasks.PASSWORD_CHANGED_NOTICE, customerId);

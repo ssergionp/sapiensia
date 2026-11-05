@@ -58,11 +58,4 @@ class KnownDevices {
                 .update();
         return new DeviceCheck(token, firstLogin == 0);
     }
-
-    /** Forgets every device of the account (a password reset makes all of them new again). */
-    void forgetAll(UUID customerId) {
-        jdbc.sql("delete from customer_devices where customer_id = :customerId")
-                .param("customerId", customerId)
-                .update();
-    }
 }

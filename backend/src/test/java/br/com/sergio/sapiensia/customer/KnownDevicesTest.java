@@ -49,24 +49,6 @@ class KnownDevicesTest {
     }
 
     @Test
-    @DisplayName("SEC-007: forgetAll apaga os aparelhos da conta e só os dela")
-    void shouldForgetOnlyTheDevicesOfTheAccount() {
-        UUID mine = newCustomer();
-        UUID other = newCustomer();
-        devices.recognize(mine, null);
-        devices.recognize(other, null);
-
-        devices.forgetAll(mine);
-
-        assertThat(jdbc.queryForObject(
-                        "select count(*) from customer_devices where customer_id = ?", Integer.class, mine))
-                .isZero();
-        assertThat(jdbc.queryForObject(
-                        "select count(*) from customer_devices where customer_id = ?", Integer.class, other))
-                .isEqualTo(1);
-    }
-
-    @Test
     @DisplayName("SEC-007: um token malformado não é gravado")
     void shouldNotStoreAMalformedToken() {
         UUID id = newCustomer();
