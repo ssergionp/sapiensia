@@ -1,8 +1,8 @@
 package br.com.sergio.sapiensia.admin;
 
+import br.com.sergio.sapiensia.customer.Emails;
 import java.util.Collection;
 import java.util.EnumSet;
-import java.util.Locale;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -49,7 +49,7 @@ class AdministratorUserDetailsService implements UserDetailsService {
         // An Administrator without a password is treated as unknown, so the provider hashes a dummy password in
         // all three failures (wrong password, unknown e-mail, no password) and they cost and answer the same.
         return administrators
-                .findForLogin(email.trim().toLowerCase(Locale.ROOT))
+                .findForLogin(Emails.normalize(email))
                 .filter(login -> login.passwordHash() != null)
                 .map(login -> new Loaded(
                         new AdministratorPrincipal(

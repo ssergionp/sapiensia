@@ -8,7 +8,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -186,7 +185,7 @@ class LoginAttemptLimiter {
     }
 
     private static String key(String email) {
-        return email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
+        return Emails.normalize(email);
     }
 
     /** Drops idle entries, at most once per minute, from inside the regular calls. Never drops a locked account. */

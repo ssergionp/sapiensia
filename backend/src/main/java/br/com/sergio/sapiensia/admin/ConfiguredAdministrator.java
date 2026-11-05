@@ -1,9 +1,9 @@
 package br.com.sergio.sapiensia.admin;
 
+import br.com.sergio.sapiensia.customer.Emails;
 import jakarta.validation.Validator;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Size;
-import java.util.Locale;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -24,7 +24,7 @@ class ConfiguredAdministrator {
             @Value("${app.admin.email}") String rawEmail,
             @Value("${app.admin.required}") boolean required,
             Validator validator) {
-        String normalized = rawEmail == null ? "" : rawEmail.trim().toLowerCase(Locale.ROOT);
+        String normalized = Emails.normalize(rawEmail);
         boolean valid = !normalized.isEmpty()
                 && validator.validate(new Candidate(normalized)).isEmpty();
         if (required && !valid) {
