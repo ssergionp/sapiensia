@@ -17,6 +17,7 @@ import org.springframework.security.web.csrf.CsrfTokenRepository;
 import org.springframework.security.web.header.writers.DelegatingRequestMatcherHeaderWriter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
 
 /**
  * Security baseline for every project created from the template.
@@ -81,6 +82,9 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/customers/password-resets/confirmation")
                         .permitAll()
+                        // the link token in the body is the credential; CSRF stays on
+                        .requestMatchers(HttpMethod.POST, "/api/admin/password-setup")
+                        .permitAll()
                         .requestMatchers("/api/**")
                         .denyAll()
                         .anyRequest()
@@ -100,7 +104,9 @@ public class SecurityConfig {
                         // the reset link carries its token in the URL fragment: never let it reach another site
                         // (SEC-007)
                         .addHeaderWriter(new DelegatingRequestMatcherHeaderWriter(
-                                PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/redefinir-senha"),
+                                new OrRequestMatcher(
+                                        PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/redefinir-senha"),
+                                        PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/painel/definir-senha")),
                                 new ReferrerPolicyHeaderWriter(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER))))
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable);

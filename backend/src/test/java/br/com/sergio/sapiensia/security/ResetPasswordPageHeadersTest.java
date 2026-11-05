@@ -44,6 +44,14 @@ class ResetPasswordPageHeadersTest {
     }
 
     @Test
+    @DisplayName("SEC-007: /painel/definir-senha is served with Referrer-Policy no-referrer")
+    void adminSetupPageHasNoReferrerPolicy() throws Exception {
+        mvc.perform(get("/painel/definir-senha"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Referrer-Policy", "no-referrer"));
+    }
+
+    @Test
     @DisplayName("SEC-007: other app routes do not get the Referrer-Policy header")
     void otherRoutesAreUnchanged() throws Exception {
         mvc.perform(get("/entrar")).andExpect(status().isOk()).andExpect(header().doesNotExist("Referrer-Policy"));
