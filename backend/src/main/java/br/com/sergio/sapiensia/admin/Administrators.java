@@ -7,11 +7,13 @@ import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
-/** Access to the {@code administrators} table. Other packages use only the public methods. */
+/** Access to the {@code administrators} table. Package-private: other features use {@link AdministratorSessions}. */
 @Repository
-public class Administrators {
+class Administrators {
 
     /** The single Administrator row, as the bootstrap needs it. */
+    record Pending(UUID id, String email) {}
+
     record Row(UUID id, String email, boolean passwordSet, boolean linkSentRecently) {}
 
     private final JdbcClient jdbc;
@@ -49,16 +51,16 @@ public class Administrators {
                 .optional();
     }
 
-    /** The e-mail of an Administrator that still has no password. */
-    Optional<String> findEmailWithoutPassword(UUID id) {
-        return jdbc.sql("select email from administrators where id = :id and password_hash is null")
-                .param("id", id)
-                .query(String.class)
+    /** The Administrator that still has no password (there is only one). */
+    Optional<Pending> findWithoutPassword() {
+        return jdbc.sql("select id, email from administrators where password_hash is null"
+                        + " order by created_at limit 1")
+                .query((rs, i) -> new Pending(rs.getObject("id", UUID.class), rs.getString("email")))
                 .optional();
     }
 
     /** The session version, for the filter that ends sessions opened before a password change. */
-    public OptionalInt findSessionVersion(UUID id) {
+    OptionalInt findSessionVersion(UUID id) {
         return jdbc.sql("select session_version from administrators where id = :id")
                 .param("id", id)
                 .query(Integer.class)

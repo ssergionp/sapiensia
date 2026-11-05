@@ -4,14 +4,13 @@ import com.github.kagkarlsson.scheduler.task.FailureHandler;
 import com.github.kagkarlsson.scheduler.task.helper.OneTimeTask;
 import com.github.kagkarlsson.scheduler.task.helper.Tasks;
 import java.time.Duration;
-import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-/** Background task of the Administrator's first-access e-mail. The task data is only the Administrator id. */
+/** Background task of the Administrator's first-access e-mail. The task has no data: it looks up the Administrator when it runs. */
 @Configuration(proxyBeanMethods = false)
 class AdministratorEmailTasks {
 
@@ -32,15 +31,15 @@ class AdministratorEmailTasks {
     }
 
     @Bean
-    OneTimeTask<UUID> administratorPasswordSetupTask(AdministratorEmailService emails) {
-        return Tasks.oneTime(PASSWORD_SETUP, UUID.class)
+    OneTimeTask<Void> administratorPasswordSetupTask(AdministratorEmailService emails) {
+        return Tasks.oneTime(PASSWORD_SETUP)
                 .onFailure(retryThenDrop())
-                .execute((instance, context) -> emails.sendPasswordSetup(instance.getData()));
+                .execute((instance, context) -> emails.sendPasswordSetup());
     }
 
-    private FailureHandler<UUID> retryThenDrop() {
+    private FailureHandler<Void> retryThenDrop() {
         // the log names only the task: never the e-mail, the token or the hash
-        return FailureHandler.<UUID>maxRetries(maxAttempts)
+        return FailureHandler.<Void>maxRetries(maxAttempts)
                 .retryEvery(retryDelay)
                 .thenRemove(
                         execution -> log.error("Task {} failed {} times and was dropped", PASSWORD_SETUP, maxAttempts));

@@ -4,7 +4,6 @@ import br.com.sergio.sapiensia.customer.EmailConfirmationTokens;
 import br.com.sergio.sapiensia.customer.PasswordResetTokens;
 import br.com.sergio.sapiensia.email.EmailMessage;
 import br.com.sergio.sapiensia.email.EmailSender;
-import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -49,15 +48,16 @@ class AdministratorEmailService {
 
     /**
      * Sends a new set-password link and only then stores its hash (replacing the unused ones). If the send fails,
-     * nothing is stored, so the database never holds a link that was not delivered. Does nothing if the Administrator
-     * no longer exists or already has a password.
+     * nothing is stored, so the database never holds a link that was not delivered. The task carries no id: the
+     * Administrator is looked up when it runs, so a row deleted and recreated while a task was pending still gets its
+     * link. Does nothing if no Administrator is waiting for a password.
      */
-    void sendPasswordSetup(UUID administratorId) {
-        administrators.findEmailWithoutPassword(administratorId).ifPresent(email -> {
+    void sendPasswordSetup() {
+        administrators.findWithoutPassword().ifPresent(pending -> {
             String token = PasswordResetTokens.newToken();
             String link = publicBaseUrl + "/painel/definir-senha#" + token;
-            sender.send(new EmailMessage(email, SUBJECT, TEXT.formatted(link)));
-            tokens.replaceWith(administratorId, EmailConfirmationTokens.hash(token));
+            sender.send(new EmailMessage(pending.email(), SUBJECT, TEXT.formatted(link)));
+            tokens.replaceWith(pending.id(), EmailConfirmationTokens.hash(token));
         });
     }
 }

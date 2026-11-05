@@ -5,7 +5,6 @@ import com.github.kagkarlsson.scheduler.task.TaskInstance;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
-import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -50,9 +49,12 @@ public class AdministratorBootstrap {
         administrators.lockBootstrap();
         Optional<Administrators.Row> existing = administrators.findOnly(minInterval);
         if (existing.isEmpty()) {
-            Optional<UUID> id = administrators.insertIfEmpty(email.get());
-            // the advisory lock makes the insert always succeed here
-            id.ifPresent(this::scheduleAfterCommit);
+            // the advisory lock makes the insert always succeed here: anything else is a broken invariant
+            if (administrators.insertIfEmpty(email.get()).isEmpty()) {
+                throw new IllegalStateException(
+                        "administrator bootstrap: the insert returned no row although the table was empty");
+            }
+            scheduleAfterCommit();
             log.info("administrator bootstrap: created");
             return BootstrapResult.CREATED;
         }
@@ -69,31 +71,29 @@ public class AdministratorBootstrap {
             log.info("administrator bootstrap: pending");
             return BootstrapResult.PENDING_RECENTLY_SENT;
         }
-        scheduleAfterCommit(row.id());
+        scheduleAfterCommit();
         log.info("administrator bootstrap: pending, e-mail scheduled");
         return BootstrapResult.PENDING_EMAIL_SCHEDULED;
     }
 
     /** Schedules after the commit, so the task never runs before the Administrator row is visible. */
-    private void scheduleAfterCommit(UUID administratorId) {
+    private void scheduleAfterCommit() {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            schedule(administratorId);
+            schedule();
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                schedule(administratorId);
+                schedule();
             }
         });
     }
 
-    private void schedule(UUID administratorId) {
+    private void schedule() {
         scheduler.scheduleIfNotExists(
-                new TaskInstance<>(
-                        AdministratorEmailTasks.PASSWORD_SETUP,
-                        AdministratorEmailTasks.BOOTSTRAP_INSTANCE,
-                        administratorId),
+                new TaskInstance<Void>(
+                        AdministratorEmailTasks.PASSWORD_SETUP, AdministratorEmailTasks.BOOTSTRAP_INSTANCE),
                 Instant.now());
     }
 }

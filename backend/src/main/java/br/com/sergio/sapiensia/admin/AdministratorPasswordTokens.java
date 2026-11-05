@@ -11,7 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /** Stores the set-password links of the Administrator. Only the SHA-256 hash of a token is persisted. */
 @Component
-public class AdministratorPasswordTokens {
+class AdministratorPasswordTokens {
 
     private final JdbcClient jdbc;
     private final Duration ttl;
@@ -56,7 +56,7 @@ public class AdministratorPasswordTokens {
      *
      * @return the Administrator id, or empty if the link is not valid
      */
-    public Optional<UUID> consumeAndSetPassword(String token, String passwordHash) {
+    Optional<UUID> consumeAndSetPassword(String token, String passwordHash) {
         return jdbc.sql("with used as (update administrator_password_tokens set used_at = now()"
                         + " where token_hash = :hash and used_at is null and expires_at > now()"
                         + " returning administrator_id)"

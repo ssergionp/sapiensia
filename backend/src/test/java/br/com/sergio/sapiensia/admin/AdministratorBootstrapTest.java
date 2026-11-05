@@ -94,6 +94,9 @@ class AdministratorBootstrapTest {
                 WAIT,
                 "the link to be stored",
                 () -> count("administrators where password_link_sent_at is not null") == 1);
+        // db-scheduler removes the finished instance a moment later: wait, or the next bootstrap() would find it
+        eventually(
+                WAIT, "the task to be removed", () -> count("scheduled_tasks where task_name = '" + TASK + "'") == 0);
         return tokenIn(mail);
     }
 
@@ -132,7 +135,7 @@ class AdministratorBootstrapTest {
 
     @Test
     @DisplayName("SEC-007 / ADR-0004: depois de mais de 1 hora sai um link novo e o anterior deixa de valer")
-    void shouldSendANewLinkAfterTheMinimumInterval() throws Exception {
+    void shouldSendANewLinkAfterTheMinimumInterval(CapturedOutput output) throws Exception {
         String firstToken = createAndDeliver();
         jdbc.update("update administrators set password_link_sent_at = now() - interval '61 minutes'");
 
@@ -140,6 +143,11 @@ class AdministratorBootstrapTest {
 
         String secondToken = tokenIn(sender.awaitMessageTo(EMAIL, WAIT).orElseThrow());
         eventually(WAIT, "the new link to replace the old one", () -> isValid(secondToken));
+        assertThat(output)
+                .contains("administrator bootstrap: pending, e-mail scheduled")
+                .doesNotContain(EMAIL)
+                .doesNotContain(firstToken)
+                .doesNotContain(secondToken);
         assertThat(secondToken).isNotEqualTo(firstToken);
         assertThat(isValid(firstToken)).isFalse();
         assertThat(count("administrator_password_tokens")).isEqualTo(1);
@@ -198,6 +206,27 @@ class AdministratorBootstrapTest {
             pool.shutdownNow();
         }
         assertThat(sender.awaitMessageTo(EMAIL, WAIT)).isPresent();
+        assertThat(sender.awaitMessageTo(EMAIL, NO_MAIL_WAIT)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("SEC-007 / ADR-0004: tarefa pendente de um Administrador apagado entrega o link ao recriado")
+    void shouldDeliverTheLinkToTheRecreatedAdministratorWhenATaskWasStillPending() throws Exception {
+        sender.failNextSendTo(EMAIL);
+        assertThat(bootstrap.bootstrap()).isEqualTo(BootstrapResult.CREATED);
+        eventually(WAIT, "the simulated failure", () -> !sender.hasPendingFailureFor(EMAIL));
+        // the failed task is now waiting for its retry; the row is deleted and recreated meanwhile (risk g)
+        jdbc.update("delete from administrators");
+
+        assertThat(bootstrap.bootstrap()).isEqualTo(BootstrapResult.CREATED);
+
+        assertThat(sender.awaitMessageTo(EMAIL, WAIT)).isPresent();
+        eventually(
+                WAIT,
+                "the link to be stored for the recreated administrator",
+                () -> count("administrator_password_tokens t join administrators a on a.id = t.administrator_id"
+                                + " where a.password_link_sent_at is not null")
+                        == 1);
     }
 
     @Test
@@ -213,7 +242,8 @@ class AdministratorBootstrapTest {
 
     @Test
     @DisplayName("SEC-007 / ADR-0004: envio que falha não grava link e a retentativa grava só o link entregue")
-    void shouldStoreNothingWhenTheSendFailsAndOnlyTheDeliveredLinkAfterTheRetry() throws Exception {
+    void shouldStoreNothingWhenTheSendFailsAndOnlyTheDeliveredLinkAfterTheRetry(CapturedOutput output)
+            throws Exception {
         sender.failNextSendTo(EMAIL);
 
         assertThat(bootstrap.bootstrap()).isEqualTo(BootstrapResult.CREATED);
@@ -228,6 +258,11 @@ class AdministratorBootstrapTest {
         assertThat(isValid(token)).isTrue();
         assertThat(count("administrators where password_link_sent_at is not null"))
                 .isEqualTo(1);
+        assertThat(output)
+                .doesNotContain(EMAIL)
+                .doesNotContain("Admin-Boot")
+                .doesNotContain(token)
+                .doesNotContain(EmailConfirmationTokens.hash(token));
     }
 
     @Test

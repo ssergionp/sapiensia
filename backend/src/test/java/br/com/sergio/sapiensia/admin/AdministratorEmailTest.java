@@ -43,8 +43,16 @@ class AdministratorEmailTest {
     private UUID administratorId;
 
     @BeforeEach
-    void createAdministrator() {
-        jdbc.update("delete from administrators where email = ?", TO);
+    void createAdministrator() throws Exception {
+        // the startup runner scheduled a task that picks "the" administrator: let it finish before resetting
+        AdminTestSupport.eventually(
+                Duration.ofSeconds(15),
+                "the startup task to finish",
+                () -> jdbc.queryForObject(
+                                "select count(*) from scheduled_tasks where task_name = 'administrator-password-setup'",
+                                Integer.class)
+                        == 0);
+        jdbc.update("delete from administrators");
         administratorId =
                 jdbc.queryForObject("insert into administrators (email) values (?) returning id", UUID.class, TO);
     }
@@ -52,7 +60,7 @@ class AdministratorEmailTest {
     @Test
     @DisplayName("SEC-007 / ADR-0004: o e-mail usa só o app.public-base-url e a classe não recebe a requisição")
     void shouldBuildTheLinkFromTheConfiguredBaseUrlOnly() throws Exception {
-        emails.sendPasswordSetup(administratorId);
+        emails.sendPasswordSetup();
 
         EmailMessage mail = sender.awaitMessageTo(TO, Duration.ofSeconds(5)).orElseThrow();
         assertThat(mail.text())
@@ -65,7 +73,7 @@ class AdministratorEmailTest {
     @Test
     @DisplayName("SEC-007 / ADR-0004: o link guardado é de uso único e define a senha só uma vez")
     void shouldLetTheStoredLinkSetThePasswordOnce() throws Exception {
-        emails.sendPasswordSetup(administratorId);
+        emails.sendPasswordSetup();
         EmailMessage mail = sender.awaitMessageTo(TO, Duration.ofSeconds(5)).orElseThrow();
         String token = mail.text().replaceAll("(?s).*#([A-Za-z0-9_-]{43}).*", "$1");
 
@@ -86,7 +94,7 @@ class AdministratorEmailTest {
     void shouldNotSendWhenThePasswordIsAlreadySet() throws Exception {
         jdbc.update("update administrators set password_hash = 'x' where id = ?", administratorId);
 
-        emails.sendPasswordSetup(administratorId);
+        emails.sendPasswordSetup();
 
         assertThat(sender.awaitMessageTo(TO, Duration.ofSeconds(1))).isEmpty();
     }
