@@ -62,7 +62,11 @@ class AdministratorPasswordSetupTest {
                 .andReturn()
                 .getResponse()
                 .getCookie("XSRF-TOKEN");
-        // the startup bootstrap may have created one: this test controls the only Administrator
+        // The startup bootstrap may have created one, and its first-access e-mail task may still be pending: when it
+        // runs it finds the Administrator without a password and replaces every unused link, which would delete this
+        // test's link (seen as [400, 400] in the parallel test). This test controls the only Administrator and the
+        // link, so the pending task goes first.
+        jdbc.update("delete from scheduled_tasks where task_name = ?", AdministratorEmailTasks.PASSWORD_SETUP);
         jdbc.update("delete from administrators");
         adminId = UUID.randomUUID();
         jdbc.update("insert into administrators (id, email) values (?, ?)", adminId, adminId + "@example.com");
