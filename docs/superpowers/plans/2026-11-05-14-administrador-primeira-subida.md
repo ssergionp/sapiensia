@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** OK expresso do Sérgio em 05/11/2026 para executar, em modo automático. **A tela `/painel/entrar` (Task 4) só depois do OK nos textos dela.** Os textos do e-mail, de `/painel/definir-senha` e de `/painel` estão aprovados.
+**Status:** OK expresso do Sérgio em 05/11/2026 para executar, em modo automático. Todos os textos estão aprovados: o e-mail, `/painel/definir-senha`, `/painel` e `/painel/entrar`. Os de `/painel/entrar` foram aprovados mais tarde, no mesmo dia. **Ajuste:** os textos iguais aos do login do Cliente (bloqueio, erro inesperado, validação de e-mail e de senha) usam a mesma constante ou o mesmo schema, sem cópia.
 
 **Goal:** Na primeira subida, o sistema cria o único Administrador a partir do e-mail do segredo `APP_ADMIN_EMAIL` e envia a ele um link de uso único para definir a senha. O Administrador entra no painel com e-mail e senha, e cada rota do painel exige uma capacidade verificada no servidor. Não existe cadastro público de Administrador nem recuperação de senha do painel no #14.
 
