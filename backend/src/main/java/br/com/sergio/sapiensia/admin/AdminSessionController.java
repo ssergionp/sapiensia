@@ -48,13 +48,7 @@ class AdminSessionController {
         SessionFixationProtectionStrategy sessionStrategy = new SessionFixationProtectionStrategy();
         sessionStrategy.setMigrateSessionAttributes(false);
         this.loginVariant = new PasswordLogin.Variant(
-                new ProviderManager(provider),
-                sessionStrategy,
-                ACCOUNT_KEY_PREFIX,
-                ACCOUNT_KEY_PREFIX,
-                "administrator",
-                log,
-                this::accept);
+                new ProviderManager(provider), sessionStrategy, ACCOUNT_KEY_PREFIX, "administrator", log, this::accept);
     }
 
     /** 204 and the session cookie, or an empty 401 that is identical for every kind of failure. */

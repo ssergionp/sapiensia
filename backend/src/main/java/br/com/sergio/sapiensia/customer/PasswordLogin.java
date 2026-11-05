@@ -50,7 +50,6 @@ public class PasswordLogin {
             AuthenticationManager authenticationManager,
             SessionAuthenticationStrategy sessionStrategy,
             String accountKeyPrefix,
-            String ipKeyPrefix,
             String subject,
             Logger log,
             AfterPassword afterPassword) {}
@@ -67,11 +66,6 @@ public class PasswordLogin {
         this.csrfTokenRepository = csrfTokenRepository;
     }
 
-    private String ipKey(Variant variant, HttpServletRequest request) {
-        String ip = clientIp.resolve(request);
-        return variant.ipKeyPrefix().isEmpty() ? ip : variant.ipKeyPrefix() + ip;
-    }
-
     /** 204 and the session cookie, or an empty 401 that is identical for every kind of failure. */
     public ResponseEntity<Void> login(
             Variant variant, String email, String password, HttpServletRequest request, HttpServletResponse response) {
@@ -83,11 +77,13 @@ public class PasswordLogin {
                 || password.length() > MAX_PASSWORD_LENGTH) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        String accountKey = variant.accountKeyPrefix() + email;
+        // normalized before the prefix, like the account lookup: " Ana@x" must not get a bucket of its own. The IP
+        // key has no prefix: the per-IP budget is shared by the customer and the panel logins.
+        String accountKey = variant.accountKeyPrefix() + Emails.normalize(email);
         // before any authentication: a locked account refuses even the correct password, and no hash is computed.
         // An admitted attempt is already counted as a failure (see LoginAttemptLimiter), so parallel requests cannot
         // all get past the check before the first failure is recorded.
-        LoginAttemptLimiter.Admission admission = limiter.admit(accountKey, ipKey(variant, request));
+        LoginAttemptLimiter.Admission admission = limiter.admit(accountKey, clientIp.resolve(request));
         if (!admission.allowed()) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                     .header(

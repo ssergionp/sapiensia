@@ -148,6 +148,54 @@ class AdminSessionTest {
     }
 
     @Test
+    @DisplayName("SEC-002: espaços e maiúsculas no e-mail não dão um balde novo de tentativas")
+    void shouldNotLetADifferentSpellingOfTheEmailBypassTheLockout() throws Exception {
+        AdminBrowser browser = browser();
+        String[] variants = {
+            email, " " + email.toUpperCase() + " ", "\\t" + email.toUpperCase() + "\\t", email + " ", "  " + email
+        };
+        // the five wrong passwords are spread over the spellings: together they fill ONE bucket
+        for (String variant : variants) {
+            assertThat(browser.loginAdmin(variant, WRONG).statusCode()).isEqualTo(401);
+        }
+
+        for (String variant : variants) {
+            assertThat(browser.loginAdmin(variant, PASSWORD).statusCode()).isEqualTo(429);
+        }
+    }
+
+    @Test
+    @DisplayName("SEC-002: as grafias de um e-mail inexistente também dividem um balde só")
+    void shouldShareOneBucketAmongTheSpellingsOfAnUnknownEmail() throws Exception {
+        String unknown = "ninguem-" + UUID.randomUUID() + "@example.com";
+        String[] variants = {
+            unknown, " " + unknown.toUpperCase(), "\\t" + unknown + "\\t", unknown.toUpperCase(), unknown + " "
+        };
+        AdminBrowser browser = browser();
+        for (String variant : variants) {
+            assertThat(browser.loginAdmin(variant, WRONG).statusCode()).isEqualTo(401);
+        }
+
+        for (String variant : variants) {
+            assertThat(browser.loginAdmin(variant, WRONG).statusCode()).isEqualTo(429);
+        }
+    }
+
+    @Test
+    @DisplayName("SEC-010: Cliente logado que erra o login do painel continua com a sessão de Cliente")
+    void shouldKeepTheCustomerSessionWhenThePanelLoginFails() throws Exception {
+        String customerEmail = newCustomer("cliente-" + UUID.randomUUID() + "@example.com");
+        AdminBrowser browser = browser();
+        assertThat(browser.loginCustomer(customerEmail, PASSWORD).statusCode()).isEqualTo(204);
+        String session = browser.cookie("JSESSIONID");
+
+        assertThat(browser.loginAdmin(email, WRONG).statusCode()).isEqualTo(401);
+
+        assertThat(browser.cookie("JSESSIONID")).isEqualTo(session);
+        assertThat(browser.get("/api/sessions/current").statusCode()).isEqualTo(200);
+    }
+
+    @Test
     @DisplayName("SEC-002: erros do Cliente não bloqueiam o Administrador com o mesmo e-mail")
     void shouldNotLetCustomerFailuresLockTheAdministrator() throws Exception {
         newCustomer(email);

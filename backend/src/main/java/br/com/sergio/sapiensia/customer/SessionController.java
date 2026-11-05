@@ -69,7 +69,6 @@ class SessionController {
                 new ProviderManager(provider),
                 new ChangeSessionIdAuthenticationStrategy(),
                 "",
-                "",
                 "customer",
                 log,
                 this::acceptConfirmed);
