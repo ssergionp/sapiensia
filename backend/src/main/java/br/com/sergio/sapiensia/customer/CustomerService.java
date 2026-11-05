@@ -8,7 +8,6 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.lang.Nullable;
 import org.springframework.security.authentication.password.CompromisedPasswordChecker;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -123,11 +122,11 @@ public class CustomerService {
 
     /**
      * Registers the device of a correct login and, if the account has logged in before from another device, schedules
-     * the e-mail to its owner.
+     * the e-mail to its owner. {@code cookieToken} is null when the browser sent no device cookie.
      *
      * @return the token for the device cookie
      */
-    public String recognizeDevice(UUID customerId, @Nullable String cookieToken, Instant loggedInAt) {
+    public String recognizeDevice(UUID customerId, String cookieToken, Instant loggedInAt) {
         // not atomic: if scheduling throws after recognize(), the device row and first_login_at stay recorded, the
         // cookie is not written and the notice is lost. Login still succeeds by design.
         KnownDevices.DeviceCheck check = knownDevices.recognize(customerId, cookieToken);
@@ -140,6 +139,11 @@ public class CustomerService {
                     Instant.now());
         }
         return check.token();
+    }
+
+    /** Ends every session of the account, the current one included (SEC-009, SEC-006). */
+    public void logoutEverywhere(UUID customerId) {
+        customers.incrementSessionVersion(customerId);
     }
 
     private void schedule(String taskName, UUID customerId) {

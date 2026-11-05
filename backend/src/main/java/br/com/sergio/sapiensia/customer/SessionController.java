@@ -61,12 +61,10 @@ class SessionController {
     private static final String DEVICE_COOKIE = "SAPIENSIA_DEVICE";
     private static final Duration DEVICE_COOKIE_MAX_AGE = Duration.ofDays(365);
 
-    private final CustomerRepository customers;
     private final CustomerService customerService;
     private final boolean secureCookie;
 
     SessionController(
-            CustomerRepository customers,
             CustomerUserDetailsService userDetailsService,
             PasswordEncoder passwordEncoder,
             CsrfTokenRepository csrfTokenRepository,
@@ -74,7 +72,6 @@ class SessionController {
             ClientIpResolver clientIp,
             CustomerService customerService,
             @Value("${server.servlet.session.cookie.secure:false}") boolean secureCookie) {
-        this.customers = customers;
         this.customerService = customerService;
         this.secureCookie = secureCookie;
         this.limiter = limiter;
@@ -187,7 +184,7 @@ class SessionController {
     ResponseEntity<Void> logoutEverywhere(
             Authentication authentication, HttpServletRequest request, HttpServletResponse response) {
         var principal = (CustomerUserDetailsService.CustomerPrincipal) authentication.getPrincipal();
-        customers.incrementSessionVersion(principal.credentials().id());
+        customerService.logoutEverywhere(principal.credentials().id());
         HttpSession session = request.getSession(false);
         if (session != null) {
             session.invalidate();

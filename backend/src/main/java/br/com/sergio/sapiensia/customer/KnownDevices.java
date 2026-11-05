@@ -3,7 +3,6 @@ package br.com.sergio.sapiensia.customer;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import org.springframework.jdbc.core.simple.JdbcClient;
-import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
 /**
@@ -24,16 +23,20 @@ class KnownDevices {
         this.jdbc = jdbc;
     }
 
-    /** True if the value has the shape of a token we issue (43 Base64 URL characters); anything else counts as absent. */
-    static boolean isWellFormed(@Nullable String token) {
+    /**
+     * True if the value has the shape of a token we issue (43 Base64 URL characters); anything else, null included,
+     * counts as absent.
+     */
+    static boolean isWellFormed(String token) {
         return token != null && VALID_TOKEN.matcher(token).matches();
     }
 
     /**
      * Registers the device for the account after a correct login. The first login of an account never notifies; a
-     * later login notifies unless the cookie token is already registered for this account.
+     * later login notifies unless the cookie token is already registered for this account. {@code cookieToken} is
+     * null when the browser sent no device cookie.
      */
-    DeviceCheck recognize(UUID customerId, @Nullable String cookieToken) {
+    DeviceCheck recognize(UUID customerId, String cookieToken) {
         boolean wellFormed = isWellFormed(cookieToken);
         if (wellFormed) {
             int seen = jdbc.sql("update customer_devices set last_seen_at = now()"
