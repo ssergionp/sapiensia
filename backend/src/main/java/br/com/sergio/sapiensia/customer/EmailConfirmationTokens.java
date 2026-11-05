@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 
 /** Stores, looks up and deletes e-mail confirmation tokens. Only the SHA-256 hash of a token is persisted. */
 @Component
-class EmailConfirmationTokens {
+public class EmailConfirmationTokens {
 
     /** A token with a reserved attempt: its customer's password hash and the attempts reserved so far, this one included. */
     record Pending(UUID tokenId, String passwordHash, int attempts) {}
@@ -96,7 +96,7 @@ class EmailConfirmationTokens {
                 > 0;
     }
 
-    static String hash(String token) {
+    public static String hash(String token) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(digest);

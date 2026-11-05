@@ -56,6 +56,7 @@ jobs:
             -v "$PWD/.tmp/outbox:/outbox" \
             -e APP_EMAIL_PROVIDER=file -e APP_EMAIL_OUTBOX_DIR=/outbox \
             -e APP_PUBLIC_BASE_URL=http://localhost:8080 \
+            -e APP_ADMIN_EMAIL=admin-e2e@example.com \
             -e DB_SCHEDULER_POLLING_INTERVAL=PT1S \
             -e APP_LOGIN_LIMIT_IP_MAX_ATTEMPTS=1000 \
             -e DB_URL=jdbc:postgresql://localhost:5432/app -e DB_USER=app -e DB_PASSWORD=app \
@@ -79,6 +80,7 @@ jobs:
         working-directory: frontend
         env:
           E2E_BASE_URL: http://localhost:8080
+          E2E_ADMIN_EMAIL: admin-e2e@example.com
         run: |
           pnpm install --frozen-lockfile
           pnpm exec playwright install --with-deps chromium

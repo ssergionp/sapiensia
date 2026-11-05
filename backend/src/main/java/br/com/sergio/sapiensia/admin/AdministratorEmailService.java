@@ -1,0 +1,63 @@
+package br.com.sergio.sapiensia.admin;
+
+import br.com.sergio.sapiensia.customer.EmailConfirmationTokens;
+import br.com.sergio.sapiensia.customer.PasswordResetTokens;
+import br.com.sergio.sapiensia.email.EmailMessage;
+import br.com.sergio.sapiensia.email.EmailSender;
+import java.util.UUID;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+/**
+ * Builds and sends the first-access e-mail. The link uses only {@code app.public-base-url}: it runs in a background
+ * task, without a request.
+ */
+@Service
+class AdministratorEmailService {
+
+    private static final String SUBJECT = "Defina sua senha de Administrador na SapiensIA";
+    private static final String TEXT = """
+            Olá!
+
+            Uma conta de Administrador da SapiensIA foi criada para este e-mail. Use o link abaixo para definir a \
+            sua senha. O link vale por 24 horas e só pode ser usado uma vez.
+
+            %s
+
+            Se você não esperava esta mensagem, não use o link.
+            """;
+
+    private final Administrators administrators;
+    private final AdministratorPasswordTokens tokens;
+    private final EmailSender sender;
+    private final String publicBaseUrl;
+
+    AdministratorEmailService(
+            Administrators administrators,
+            AdministratorPasswordTokens tokens,
+            EmailSender sender,
+            @Value("${app.public-base-url}") String publicBaseUrl) {
+        this.administrators = administrators;
+        this.tokens = tokens;
+        this.sender = sender;
+        this.publicBaseUrl = publicBaseUrl.replaceAll("/+$", ""); // links append "/path"
+        if (this.publicBaseUrl.isBlank()) {
+            throw new IllegalStateException(
+                    "APP_PUBLIC_BASE_URL (app.public-base-url) must be set: e-mail links would be relative without it");
+        }
+    }
+
+    /**
+     * Sends a new set-password link and only then stores its hash (replacing the unused ones). If the send fails,
+     * nothing is stored, so the database never holds a link that was not delivered. Does nothing if the Administrator
+     * no longer exists or already has a password.
+     */
+    void sendPasswordSetup(UUID administratorId) {
+        administrators.findEmailWithoutPassword(administratorId).ifPresent(email -> {
+            String token = PasswordResetTokens.newToken();
+            String link = publicBaseUrl + "/painel/definir-senha#" + token;
+            sender.send(new EmailMessage(email, SUBJECT, TEXT.formatted(link)));
+            tokens.replaceWith(administratorId, EmailConfirmationTokens.hash(token));
+        });
+    }
+}

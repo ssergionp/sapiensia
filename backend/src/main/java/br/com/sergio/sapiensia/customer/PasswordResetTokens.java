@@ -12,7 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /** Stores and revokes password reset tokens. Only the SHA-256 hash of a token is persisted. */
 @Component
-class PasswordResetTokens {
+public class PasswordResetTokens {
 
     private static final int TOKEN_BYTES = 32;
 
@@ -39,7 +39,7 @@ class PasswordResetTokens {
     }
 
     /** A random 32-byte token in Base64 URL form without padding (43 characters). Also used by the device cookie. */
-    static String newToken() {
+    public static String newToken() {
         byte[] bytes = new byte[TOKEN_BYTES];
         RANDOM.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);

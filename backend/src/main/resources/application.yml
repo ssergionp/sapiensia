@@ -49,6 +49,14 @@ app:
   unconfirmed-customer:
     # accounts whose e-mail stays unconfirmed longer than this (from creation) are deleted by the daily cleanup
     retention: P7D
+  admin:
+    # e-mail of the single Administrator, created on first startup (secret APP_ADMIN_EMAIL); there is no initial password
+    email: ${APP_ADMIN_EMAIL:}
+    # validity of the set-password link, and the minimum time between two first-access e-mails
+    password-link-ttl: PT24H
+    password-link-min-interval: PT1H
+    # true (prod only): a blank or invalid e-mail stops the application
+    required: false
   login-limit:
     # failed logins per account within account-window lock that account for account-lock
     account-max-failures: 5
