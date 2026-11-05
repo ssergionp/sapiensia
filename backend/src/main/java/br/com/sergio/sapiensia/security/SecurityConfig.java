@@ -66,6 +66,9 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/sessions/current")
                         .hasRole("CUSTOMER")
+                        // log out of all devices (SEC-009)
+                        .requestMatchers(HttpMethod.DELETE, "/api/sessions")
+                        .hasRole("CUSTOMER")
                         // logout is answered by the logout filter before this rule; kept so the route is listed
                         .requestMatchers(HttpMethod.DELETE, "/api/sessions/current")
                         .hasRole("CUSTOMER")

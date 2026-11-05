@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import br.com.sergio.sapiensia.email.EmailMessage;
 import br.com.sergio.sapiensia.email.EmailSender;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -73,6 +74,32 @@ class CustomerEmailServiceTest {
         assertThat(message.to()).isEqualTo("a@example.com");
         assertThat(message.subject()).isEqualTo("Redefinição de senha na SapiensIA");
         assertThat(message.text()).contains("\nhttp://localhost:5173/redefinir-senha#tok\n");
+    }
+
+    @Test
+    @DisplayName("SEC-007: o aviso de aparelho novo mostra a data no horário de Brasília e nada mais")
+    void shouldFormatTheNewDeviceNoticeInBrasiliaTime() {
+        when(customers.findEmailById(id)).thenReturn(Optional.of("a@example.com"));
+
+        new CustomerEmailService(customers, tokens, resetTokens, sender, "http://localhost:5173")
+                .sendNewDeviceNotice(new NewDeviceNotice(id, Instant.parse("2026-11-04T17:32:00Z")));
+
+        EmailMessage message = captured();
+        assertThat(message.to()).isEqualTo("a@example.com");
+        assertThat(message.subject()).isEqualTo("Novo acesso à sua conta na SapiensIA");
+        assertThat(message.text()).contains("acessada em 04/11/2026 às 14:32 (horário de Brasília)");
+        assertThat(message.text()).doesNotContain("http");
+    }
+
+    @Test
+    @DisplayName("SEC-007: o aviso de aparelho novo não envia nada para conta inexistente")
+    void shouldSendNoNewDeviceNoticeForAMissingCustomer() {
+        when(customers.findEmailById(id)).thenReturn(Optional.empty());
+
+        new CustomerEmailService(customers, tokens, resetTokens, sender, "http://localhost:5173")
+                .sendNewDeviceNotice(new NewDeviceNotice(id, Instant.now()));
+
+        verify(sender, never()).send(any());
     }
 
     @Test

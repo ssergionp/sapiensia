@@ -78,7 +78,13 @@ class CustomerServiceTest {
 
         assertThat(columns)
                 .containsExactlyInAnyOrder(
-                        "id", "email", "password_hash", "email_confirmed_at", "created_at", "session_version");
+                        "id",
+                        "email",
+                        "password_hash",
+                        "email_confirmed_at",
+                        "created_at",
+                        "session_version",
+                        "first_login_at");
     }
 
     @Test

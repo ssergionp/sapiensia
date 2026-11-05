@@ -12,8 +12,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Background e-mail tasks (db-scheduler). The task data is only the customer id: the e-mail and the token are loaded
- * or created when the task runs, so they never sit in the scheduler table.
+ * Background e-mail tasks (db-scheduler). The task data is only the customer id (plus the login time for the
+ * new-device notice): the e-mail and the token are loaded or created when the task runs, so they never sit in the
+ * scheduler table.
  */
 @Configuration(proxyBeanMethods = false)
 class CustomerEmailTasks {
@@ -21,6 +22,7 @@ class CustomerEmailTasks {
     static final String CONFIRMATION = "customer-email-confirmation";
     static final String PASSWORD_RESET = "customer-password-reset";
     static final String PASSWORD_CHANGED_NOTICE = "customer-password-changed-notice";
+    static final String NEW_DEVICE_NOTICE = "customer-new-device-notice";
     static final String ACCOUNT_EXISTS_NOTICE = "customer-account-exists-notice";
 
     private static final Logger log = LoggerFactory.getLogger(CustomerEmailTasks.class);
@@ -63,9 +65,16 @@ class CustomerEmailTasks {
                 .execute((instance, context) -> emails.sendPasswordChangedNotice(instance.getData()));
     }
 
-    private FailureHandler<UUID> retryThenDrop(String taskName) {
+    @Bean
+    OneTimeTask<NewDeviceNotice> customerNewDeviceNoticeTask(CustomerEmailService emails) {
+        return Tasks.oneTime(NEW_DEVICE_NOTICE, NewDeviceNotice.class)
+                .onFailure(retryThenDrop(NEW_DEVICE_NOTICE))
+                .execute((instance, context) -> emails.sendNewDeviceNotice(instance.getData()));
+    }
+
+    private <T> FailureHandler<T> retryThenDrop(String taskName) {
         // the log names only the task: never the e-mail, the token or the customer data
-        return FailureHandler.<UUID>maxRetries(maxAttempts)
+        return FailureHandler.<T>maxRetries(maxAttempts)
                 .retryEvery(retryDelay)
                 .thenRemove(execution -> log.error("Task {} failed {} times and was dropped", taskName, maxAttempts));
     }

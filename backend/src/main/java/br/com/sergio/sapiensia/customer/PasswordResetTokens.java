@@ -16,7 +16,8 @@ class PasswordResetTokens {
 
     private static final int TOKEN_BYTES = 32;
 
-    private final SecureRandom random = new SecureRandom();
+    private static final SecureRandom RANDOM = new SecureRandom();
+
     private final JdbcClient jdbc;
     private final Duration ttl;
 
@@ -27,9 +28,7 @@ class PasswordResetTokens {
 
     /** Creates a token for the customer and returns it in plain text; only its hash is stored. */
     String issue(UUID customerId) {
-        byte[] bytes = new byte[TOKEN_BYTES];
-        random.nextBytes(bytes);
-        String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        String token = newToken();
         jdbc.sql("insert into password_reset_tokens (customer_id, token_hash, expires_at)"
                         + " values (:customerId, :hash, now() + make_interval(secs => :seconds))")
                 .param("customerId", customerId)
@@ -39,18 +38,28 @@ class PasswordResetTokens {
         return token;
     }
 
+    /** A random 32-byte token in Base64 URL form without padding (43 characters). Also used by the device cookie. */
+    static String newToken() {
+        byte[] bytes = new byte[TOKEN_BYTES];
+        RANDOM.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
     /**
      * Uses the link and sets the new password hash in one statement, so only the request that marks the link as used
      * changes the password. The same statement increments the session version, which ends every session opened
-     * before (SEC-006), so the password never changes without that. Unknown, used and expired links give the same
-     * empty result.
+     * before (SEC-006), so the password never changes without that. It also forgets the account's known devices
+     * (ADR-0004), so a new password makes every device new again in the same operation. Unknown, used and expired
+     * links give the same empty result.
      *
      * @return the customer id, or empty if the link is not valid
      */
     Optional<UUID> consumeAndSetPassword(String token, String newPasswordHash) {
         return jdbc.sql("with used as (update password_reset_tokens set used_at = now()"
                         + " where token_hash = :hash and used_at is null and expires_at > now()"
-                        + " returning customer_id)"
+                        + " returning customer_id),"
+                        + " forgotten as (delete from customer_devices where customer_id in"
+                        + " (select customer_id from used))"
                         + " update customers set password_hash = :passwordHash,"
                         + " session_version = session_version + 1 from used"
                         + " where customers.id = used.customer_id returning customers.id")

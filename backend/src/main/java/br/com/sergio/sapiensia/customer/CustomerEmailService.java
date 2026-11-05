@@ -2,6 +2,8 @@ package br.com.sergio.sapiensia.customer;
 
 import br.com.sergio.sapiensia.email.EmailMessage;
 import br.com.sergio.sapiensia.email.EmailSender;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -58,6 +60,22 @@ class CustomerEmailService {
             Se não foi você, use "Esqueci minha senha" para criar outra senha agora.
             """;
 
+    private static final String NEW_DEVICE_SUBJECT = "Novo acesso à sua conta na SapiensIA";
+    private static final String NEW_DEVICE_TEXT = """
+            Olá!
+
+            Sua conta na SapiensIA foi acessada em %s (horário de Brasília), em um aparelho ou navegador que ainda não \
+            tínhamos visto.
+
+            Se foi você, não precisa fazer nada.
+
+            Se não foi você, use "Esqueci minha senha" para criar outra senha agora. A troca de senha desconecta todos \
+            os aparelhos.
+            """;
+
+    private static final DateTimeFormatter NEW_DEVICE_DATE =
+            DateTimeFormatter.ofPattern("dd/MM/yyyy 'às' HH:mm").withZone(ZoneId.of("America/Sao_Paulo"));
+
     private final CustomerRepository customers;
     private final EmailConfirmationTokens confirmationTokens;
     private final PasswordResetTokens passwordResetTokens;
@@ -106,6 +124,14 @@ class CustomerEmailService {
                 .findEmailById(customerId)
                 .ifPresent(
                         email -> sender.send(new EmailMessage(email, PASSWORD_CHANGED_SUBJECT, PASSWORD_CHANGED_TEXT)));
+    }
+
+    /** Tells the owner that the account was opened from a new device; carries only the date, no token or password. */
+    void sendNewDeviceNotice(NewDeviceNotice notice) {
+        customers.findEmailById(notice.customerId()).ifPresent(email -> {
+            String when = NEW_DEVICE_DATE.format(notice.loggedInAt());
+            sender.send(new EmailMessage(email, NEW_DEVICE_SUBJECT, NEW_DEVICE_TEXT.formatted(when)));
+        });
     }
 
     /** Tells the owner of a confirmed account that someone tried to register with it; carries no token. */

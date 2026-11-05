@@ -128,6 +128,20 @@ class SessionServerTest {
     }
 
     @Test
+    @DisplayName("SEC-007: o cookie do aparelho sai Secure, HttpOnly e SameSite=Lax em produção")
+    void shouldSendSecureHttpOnlyLaxDeviceCookie() throws Exception {
+        HttpResponse<String> response = login();
+
+        assertThat(response.statusCode()).isEqualTo(204);
+        String cookie = response.headers().allValues("Set-Cookie").stream()
+                .filter(c -> c.startsWith("SAPIENSIA_DEVICE="))
+                .findFirst()
+                .orElseThrow();
+        assertThat(cookie).containsIgnoringCase("HttpOnly").containsIgnoringCase("Secure");
+        assertThat(cookie).containsIgnoringCase("SameSite=Lax").contains("Path=/api/sessions");
+    }
+
+    @Test
     @DisplayName("SEC-005: um pedido anônimo a uma rota protegida não cria sessão nem cookie JSESSIONID")
     void shouldNotCreateSessionForAnonymousRequest() throws Exception {
         MAX_INACTIVE_SECONDS.clear();
