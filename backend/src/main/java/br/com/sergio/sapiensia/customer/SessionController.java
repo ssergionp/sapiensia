@@ -36,7 +36,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Customer login and "who am I". Logout is the DELETE rule in SecurityConfig. */
+/**
+ * Customer login and "who am I". {@code DELETE /api/sessions/current} (logout) is configured in SecurityConfig;
+ * {@code DELETE /api/sessions} (log out of all devices) is handled here.
+ */
 @RestController
 @RequestMapping("/api/sessions")
 class SessionController {

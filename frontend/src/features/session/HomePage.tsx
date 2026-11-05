@@ -53,7 +53,7 @@ export default function HomePage() {
           {LOGOUT_ALL_ERROR}
         </p>
       )}
-      <div className="mt-4 flex gap-4">
+      <div className="mt-4 flex flex-wrap gap-4">
         <Button disabled={logout.isPending} onClick={() => logout.mutate()}>
           {logout.isPending ? "Saindo…" : "Sair"}
         </Button>

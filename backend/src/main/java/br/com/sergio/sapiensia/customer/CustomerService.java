@@ -130,6 +130,8 @@ public class CustomerService {
      * @return the token for the device cookie
      */
     public String recognizeDevice(UUID customerId, @Nullable String cookieToken, Instant loggedInAt) {
+        // not atomic: if scheduling throws after recognize(), the device row and first_login_at stay recorded, the
+        // cookie is not written and the notice is lost. Login still succeeds by design.
         KnownDevices.DeviceCheck check = knownDevices.recognize(customerId, cookieToken);
         if (check.notifyOwner()) {
             scheduler.schedule(

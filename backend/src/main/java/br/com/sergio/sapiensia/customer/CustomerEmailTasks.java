@@ -12,8 +12,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Background e-mail tasks (db-scheduler). The task data is only the customer id (plus the login time for the new-device notice): the e-mail and the token are loaded
- * or created when the task runs, so they never sit in the scheduler table.
+ * Background e-mail tasks (db-scheduler). The task data is only the customer id (plus the login time for the
+ * new-device notice): the e-mail and the token are loaded or created when the task runs, so they never sit in the
+ * scheduler table.
  */
 @Configuration(proxyBeanMethods = false)
 class CustomerEmailTasks {
