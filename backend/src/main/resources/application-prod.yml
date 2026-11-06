@@ -21,6 +21,8 @@ app:
   admin:
     # a blank or invalid APP_ADMIN_EMAIL stops the application
     required: true
+    # no panel login until MFA (#15, ADR-0004); only the CI e2e switches it on (APP_ADMIN_PANEL_LOGIN_ENABLED=true)
+    panel-login-enabled: false
   # public site address from the platform (APP_PUBLIC_BASE_URL); no default, so a missing value stops the application
   public-base-url: ${APP_PUBLIC_BASE_URL}
 springdoc:

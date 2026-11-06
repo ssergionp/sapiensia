@@ -11,6 +11,7 @@ import java.util.Optional;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -36,10 +37,15 @@ class AdminSessionController {
 
     private final PasswordLogin passwordLogin;
     private final PasswordLogin.Variant loginVariant;
+    private final boolean panelLoginEnabled;
 
     AdminSessionController(
-            Administrators administrators, PasswordEncoder passwordEncoder, PasswordLogin passwordLogin) {
+            Administrators administrators,
+            PasswordEncoder passwordEncoder,
+            PasswordLogin passwordLogin,
+            @Value("${app.admin.panel-login-enabled}") boolean panelLoginEnabled) {
         this.passwordLogin = passwordLogin;
+        this.panelLoginEnabled = panelLoginEnabled;
         DaoAuthenticationProvider provider =
                 new DaoAuthenticationProvider(new AdministratorUserDetailsService(administrators));
         provider.setPasswordEncoder(passwordEncoder);
@@ -52,10 +58,16 @@ class AdminSessionController {
                 new ProviderManager(provider), sessionStrategy, ACCOUNT_KEY_PREFIX, "administrator", log, this::accept);
     }
 
-    /** 204 and the session cookie, or an empty 401 that is identical for every kind of failure. */
+    /**
+     * 204 and the session cookie, or an empty 401 that is identical for every kind of failure. While the panel login is
+     * switched off (prod until MFA, #15, ADR-0004) the route answers 404 before anything else.
+     */
     @PostMapping
     ResponseEntity<Void> login(
             @RequestBody AdminLoginRequest login, HttpServletRequest request, HttpServletResponse response) {
+        if (!panelLoginEnabled) {
+            return ResponseEntity.notFound().build();
+        }
         return passwordLogin.login(loginVariant, login.email(), login.password(), request, response);
     }
 
