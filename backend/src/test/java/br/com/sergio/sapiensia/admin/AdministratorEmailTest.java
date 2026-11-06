@@ -64,7 +64,9 @@ class AdministratorEmailTest {
 
         EmailMessage mail = sender.awaitMessageTo(TO, Duration.ofSeconds(5)).orElseThrow();
         assertThat(mail.text())
-                .containsPattern("\n\nhttps://sapiensia\\.test/painel/definir-senha#[A-Za-z0-9_-]{43}\n\n");
+                .containsPattern("\n\nhttps://sapiensia\\.test/painel/definir-senha#[A-Za-z0-9_-]{43}\n\n")
+                // the default app.admin.password-link-ttl (PT24H) keeps the approved sentence
+                .contains("O link vale por 24 horas e só pode ser usado uma vez.");
         assertThat(Arrays.stream(AdministratorEmailService.class.getDeclaredConstructors())
                         .flatMap(c -> Arrays.stream(c.getParameterTypes())))
                 .doesNotContain(HttpServletRequest.class);

@@ -4,6 +4,7 @@ import br.com.sergio.sapiensia.customer.EmailConfirmationTokens;
 import br.com.sergio.sapiensia.customer.PasswordResetTokens;
 import br.com.sergio.sapiensia.email.EmailMessage;
 import br.com.sergio.sapiensia.email.EmailSender;
+import java.time.Duration;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -19,7 +20,7 @@ class AdministratorEmailService {
             Olá!
 
             Uma conta de Administrador da SapiensIA foi criada para este e-mail. Use o link abaixo para definir a \
-            sua senha. O link vale por 24 horas e só pode ser usado uma vez.
+            sua senha. O link vale por %s e só pode ser usado uma vez.
 
             %s
 
@@ -30,15 +31,18 @@ class AdministratorEmailService {
     private final AdministratorPasswordTokens tokens;
     private final EmailSender sender;
     private final String publicBaseUrl;
+    private final Duration linkTtl;
 
     AdministratorEmailService(
             Administrators administrators,
             AdministratorPasswordTokens tokens,
             EmailSender sender,
-            @Value("${app.public-base-url}") String publicBaseUrl) {
+            @Value("${app.public-base-url}") String publicBaseUrl,
+            @Value("${app.admin.password-link-ttl}") Duration linkTtl) {
         this.administrators = administrators;
         this.tokens = tokens;
         this.sender = sender;
+        this.linkTtl = linkTtl;
         this.publicBaseUrl = publicBaseUrl.replaceAll("/+$", ""); // links append "/path"
         if (this.publicBaseUrl.isBlank()) {
             throw new IllegalStateException(
@@ -56,8 +60,22 @@ class AdministratorEmailService {
         administrators.findWithoutPassword().ifPresent(pending -> {
             String token = PasswordResetTokens.newToken();
             String link = publicBaseUrl + "/painel/definir-senha#" + token;
-            sender.send(new EmailMessage(pending.email(), SUBJECT, TEXT.formatted(link)));
+            sender.send(new EmailMessage(pending.email(), SUBJECT, text(link, linkTtl)));
             tokens.replaceWith(pending.id(), EmailConfirmationTokens.hash(token));
         });
+    }
+
+    /** The e-mail body; the validity comes from the same TTL that sets the link's expiry. */
+    static String text(String link, Duration ttl) {
+        return TEXT.formatted(validity(ttl), link);
+    }
+
+    private static String validity(Duration ttl) {
+        if (ttl.toMinutes() % 60 == 0) {
+            long hours = ttl.toHours();
+            return hours == 1 ? "1 hora" : hours + " horas";
+        }
+        long minutes = ttl.toMinutes();
+        return minutes == 1 ? "1 minuto" : minutes + " minutos";
     }
 }
