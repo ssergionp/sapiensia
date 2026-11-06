@@ -105,6 +105,12 @@ class AdminMfaLoginTest {
 
         assertThat(mfa.statusCode()).isEqualTo(204);
         assertThat(mfa.body()).isEmpty();
+        // the old pending session is dead: replayed in a fresh request it opens nothing
+        AdminBrowser replay = browser();
+        replay.setCookie("JSESSIONID", pendingSession);
+        replay.setCookie("XSRF-TOKEN", pendingXsrf);
+        assertThat(replay.get(CURRENT).statusCode()).isEqualTo(401);
+        assertThat(replay.verifyMfa(code()).statusCode()).isEqualTo(401);
         assertThat(browser.cookie("JSESSIONID")).isNotBlank().isNotEqualTo(pendingSession);
         assertThat(browser.cookie("XSRF-TOKEN")).isNotBlank().isNotEqualTo(pendingXsrf);
         HttpResponse<String> current = browser.get(CURRENT);
