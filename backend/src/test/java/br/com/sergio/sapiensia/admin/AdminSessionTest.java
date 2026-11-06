@@ -350,6 +350,47 @@ class AdminSessionTest {
     }
 
     @Test
+    @DisplayName("SEC-012: campos extras no corpo do login do painel não mudam as capacidades nem o e-mail")
+    void shouldIgnoreCapabilitiesSentInTheLoginBody() throws Exception {
+        AdminBrowser browser = browser();
+
+        HttpResponse<String> login = browser.post(
+                "/api/admin/sessions",
+                "{\"email\":\"" + email + "\",\"password\":\"" + PASSWORD + "\","
+                        + "\"capabilities\":[\"PRODUCTS_MANAGE\",\"ANYTHING\"],\"role\":\"ADMIN\","
+                        + "\"authorities\":[\"ROLE_CUSTOMER\"],\"id\":\"" + UUID.randomUUID() + "\"}");
+
+        assertThat(login.statusCode()).isEqualTo(204);
+        HttpResponse<String> current = browser.get(CURRENT);
+        assertThat(current.statusCode()).isEqualTo(200);
+        assertThat(current.body()).isEqualTo("{\"email\":\"" + email + "\",\"capabilities\":[\"PANEL_ACCESS\"]}");
+    }
+
+    @Test
+    @DisplayName("SEC-012: Cliente que manda cabeçalho ou corpo com capacidades de administrador continua com 403")
+    void shouldNotGrantPanelAccessToACustomerClaimingCapabilities() throws Exception {
+        String customerEmail = newCustomer("cliente-" + UUID.randomUUID() + "@example.com");
+        AdminBrowser browser = browser();
+        assertThat(browser.loginCustomer(customerEmail, PASSWORD).statusCode()).isEqualTo(204);
+
+        HttpResponse<String> response = java.net.http.HttpClient.newHttpClient()
+                .send(
+                        java.net.http.HttpRequest.newBuilder(java.net.URI.create("http://localhost:" + port + CURRENT))
+                                .header("Cookie", "JSESSIONID=" + browser.cookie("JSESSIONID"))
+                                .header("X-Capabilities", "PANEL_ACCESS")
+                                .header("Content-Type", "application/json")
+                                .method(
+                                        "GET",
+                                        java.net.http.HttpRequest.BodyPublishers.ofString(
+                                                "{\"capabilities\":[\"PANEL_ACCESS\"],\"role\":\"ADMIN\"}"))
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
+
+        assertThat(response.statusCode()).isEqualTo(403);
+        assertThat(response.body()).doesNotContain("PANEL_ACCESS");
+    }
+
+    @Test
     @DisplayName("SEC-010: o log do login não contém o e-mail nem a senha")
     void shouldNotLogTheEmailOrThePassword(CapturedOutput output) throws Exception {
         AdminBrowser browser = browser();
