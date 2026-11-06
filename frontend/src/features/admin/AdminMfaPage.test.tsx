@@ -4,7 +4,10 @@ import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, describe, expect, test, vi } from "vitest";
+import { sessionQueryKey } from "../session/hooks";
 import AdminMfaPage from "./AdminMfaPage";
+import { fetchAdminSession } from "./api";
+import { adminSessionQueryKey } from "./hooks";
 
 const STATUS = "GET /api/admin/sessions/mfa";
 const ENROLL = "POST /api/admin/sessions/mfa/enrollment";
@@ -56,10 +59,15 @@ function callsTo(spy: ReturnType<typeof mockApi>, key: string) {
   );
 }
 
-function renderPage(options: { strict?: boolean } = {}) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
+function renderPage(options: { strict?: boolean; client?: QueryClient } = {}) {
+  const client =
+    options.client ??
+    new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
   const page = (
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={["/painel/verificacao"]}>
@@ -71,7 +79,10 @@ function renderPage(options: { strict?: boolean } = {}) {
       </MemoryRouter>
     </QueryClientProvider>
   );
-  return render(options.strict ? <StrictMode>{page}</StrictMode> : page);
+  return {
+    client,
+    ...render(options.strict ? <StrictMode>{page}</StrictMode> : page),
+  };
 }
 
 const enrollRoutes: ApiRoutes = {
@@ -214,6 +225,53 @@ describe("AdminMfaPage", () => {
     expect(JSON.parse(String(calls[0][1]?.body))).toEqual({ code: "123456" });
   });
 
+  describe.each([
+    {
+      path: "confirmation",
+      routes: enrollRoutes,
+      key: CONFIRM,
+      button: "Ativar e entrar",
+    },
+    {
+      path: "verification",
+      routes: verifyRoutes,
+      key: VERIFY,
+      button: "Entrar",
+    },
+  ])("session cache after the $path succeeds", ({ routes, key, button }) => {
+    test("refreshes the Administrator session and invalidates the Customer session before going to /painel", async () => {
+      const spy = mockApi({
+        ...routes,
+        [key]: () => json(204),
+        "GET /api/admin/sessions/current": () =>
+          json(200, { email: "admin@example.com", capabilities: [] }),
+      });
+      const client = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false },
+          mutations: { retry: false },
+        },
+      });
+      client.setQueryData(sessionQueryKey, { email: "cliente@example.com" });
+      // The cached "no Administrator session" entry has no observer here, so give it the fetcher the app registers.
+      client.setQueryDefaults(adminSessionQueryKey, {
+        queryFn: fetchAdminSession,
+      });
+      client.setQueryData(adminSessionQueryKey, null);
+      renderPage({ client });
+
+      await typeCode("123456", button);
+
+      expect(await screen.findByText("painel")).toBeInTheDocument();
+      expect(callsTo(spy, "GET /api/admin/sessions/current")).toHaveLength(1);
+      expect(client.getQueryData(adminSessionQueryKey)).toEqual({
+        email: "admin@example.com",
+        capabilities: [],
+      });
+      expect(client.getQueryState(sessionQueryKey)?.isInvalidated).toBe(true);
+    });
+  });
+
   test('disables the button and shows "Entrando…" while sending', async () => {
     mockApi({
       ...verifyRoutes,
@@ -337,17 +395,46 @@ describe("AdminMfaPage", () => {
     expect(await screen.findByText("painel")).toBeInTheDocument();
   });
 
-  test("409 when confirming shows the interrupted text and starts a new enrollment", async () => {
-    const spy = mockApi({ ...enrollRoutes, [CONFIRM]: () => json(409) });
+  test("409 when confirming replaces the key and the QR, clears the code and lets the user confirm the new enrollment", async () => {
+    const newSecret = "MFRGGZDFMZTWQ2LKMFRGGZDFMZTWQ2LK";
+    const newSecretGrouped = "MFRG GZDF MZTW Q2LK MFRG GZDF MZTW Q2LK";
+    const newOtpauth = `otpauth://totp/SapiensIA:admin%40example.com?secret=${newSecret}&issuer=SapiensIA`;
+    let enrollCalls = 0;
+    let confirmCalls = 0;
+    const spy = mockApi({
+      ...enrollRoutes,
+      [ENROLL]: () => {
+        enrollCalls += 1;
+        return enrollCalls === 1
+          ? json(200, { secret: SECRET, otpauthUri: OTPAUTH })
+          : json(200, { secret: newSecret, otpauthUri: newOtpauth });
+      },
+      [CONFIRM]: () => {
+        confirmCalls += 1;
+        return confirmCalls === 1 ? json(409) : json(204);
+      },
+    });
     renderPage();
+    expect(await screen.findByText(SECRET_GROUPED)).toBeVisible();
 
-    await typeCode("123456", "Ativar e entrar");
+    const user = await typeCode("123456", "Ativar e entrar");
 
     expect(await screen.findByText(INTERRUPTED)).toBeInTheDocument();
-    await waitFor(() => expect(callsTo(spy, ENROLL)).toHaveLength(2));
-    expect(
-      await screen.findByRole("img", { name: QR_NAME }),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(newSecretGrouped)).toBeVisible();
+    expect(screen.queryByText(SECRET_GROUPED)).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: QR_NAME })).toBeInTheDocument();
+    expect(callsTo(spy, ENROLL)).toHaveLength(2);
+    expect(screen.getByLabelText("Código")).toHaveValue("");
+
+    await user.type(screen.getByLabelText("Código"), "654321");
+    await user.click(screen.getByRole("button", { name: "Ativar e entrar" }));
+
+    expect(await screen.findByText("painel")).toBeInTheDocument();
+    const confirmations = callsTo(spy, CONFIRM);
+    expect(confirmations).toHaveLength(2);
+    expect(JSON.parse(String(confirmations[1][1]?.body))).toEqual({
+      code: "654321",
+    });
   });
 
   test("409 when confirming and then 409 on the new enrollment goes to the verification", async () => {
