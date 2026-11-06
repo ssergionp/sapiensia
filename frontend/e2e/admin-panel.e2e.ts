@@ -86,6 +86,7 @@ async function readStoredTotp(): Promise<StoredTotp | null> {
   }
 }
 
+// The mode 0o600 is ignored by the Windows ACLs; the file lives in the git-ignored .tmp folder.
 async function writeStoredTotp(value: StoredTotp) {
   await mkdir(dirname(TOTP_FILE), { recursive: true });
   await writeFile(TOTP_FILE, JSON.stringify(value), {
@@ -95,6 +96,7 @@ async function writeStoredTotp(value: StoredTotp) {
 }
 
 // The server refuses a time step that was already used, so a new code needs a step after the last one.
+// It accepts +-1 step, so a code generated just before a step rolls over is still valid when it arrives.
 async function waitForStepAfter(lastStep: number) {
   while (currentStep() <= lastStep) {
     await new Promise((r) => setTimeout(r, 1_000));
@@ -105,14 +107,19 @@ async function waitForStepAfter(lastStep: number) {
 async function tryPassword(page: Page, password: string): Promise<boolean> {
   await page.goto("/painel/entrar");
   await page.getByLabel("E-mail").fill(ADMIN_EMAIL);
-  await fillSecret(page.getByLabel("Senha"), password);
-  await page.getByRole("button", { name: "Entrar" }).click();
-  const failed = page.getByText(LOGIN_FAILED);
-  const mfa = page
-    .getByRole("heading", { name: ENROLL_TITLE, exact: true })
-    .or(page.getByRole("heading", { name: VERIFY_TITLE, exact: true }));
-  await expect(failed.or(mfa)).toBeVisible();
-  return !(await failed.isVisible());
+  const field = page.getByLabel("Senha");
+  try {
+    await fillSecret(field, password);
+    await page.getByRole("button", { name: "Entrar" }).click();
+    const failed = page.getByText(LOGIN_FAILED);
+    const mfa = page
+      .getByRole("heading", { name: ENROLL_TITLE, exact: true })
+      .or(page.getByRole("heading", { name: VERIFY_TITLE, exact: true }));
+    await expect(failed.or(mfa)).toBeVisible();
+    return !(await failed.isVisible());
+  } finally {
+    await clearSecret(field);
+  }
 }
 
 async function setPasswordFromNewestEmail(page: Page): Promise<string> {
@@ -153,22 +160,41 @@ async function setPasswordFromNewestEmail(page: Page): Promise<string> {
   return password;
 }
 
-async function submitCode(page: Page, code: string) {
-  await fillSecret(page.getByLabel("Código"), code);
-  await page
-    .getByRole("button", { name: /^(Ativar e entrar|Entrar)$/ })
-    .click();
+// Clears a field that holds a secret, if it is still on the page. A failure snapshot (error-context.md) lists
+// the value of every textbox, so the secret must not be left in it when a later step fails.
+async function clearSecret(field: Locator) {
+  if ((await field.count()) > 0) await fillSecret(field, "");
 }
 
-// Reads the manual key from the screen and hides it in the DOM right away, so that no failure snapshot has it.
+// Types the code, submits and runs the checks of the outcome. Whatever happens, the code field is cleared at the end.
+async function enterCode(
+  page: Page,
+  code: string,
+  outcome: () => Promise<void>,
+) {
+  const field = page.getByLabel("Código");
+  try {
+    await fillSecret(field, code);
+    await page
+      .getByRole("button", { name: /^(Ativar e entrar|Entrar)$/ })
+      .click();
+    await outcome();
+  } finally {
+    await clearSecret(field);
+  }
+}
+
+// Reads the manual key from the screen and hides it in the DOM in the same call (nothing runs in between), so that
+// no failure snapshot has it. Fails without printing any content.
 async function readAndHideKey(page: Page): Promise<string> {
-  const keyElement = page
+  const text = await page
     .getByText(ENROLL_ALTERNATIVE)
-    .locator("xpath=following-sibling::p[1]");
-  const text = await keyElement.textContent();
-  await keyElement.evaluate((el, hidden) => {
-    el.textContent = hidden;
-  }, HIDDEN);
+    .locator("xpath=following-sibling::p[1]")
+    .evaluate((el, hidden) => {
+      const value = el.textContent;
+      el.textContent = hidden;
+      return value;
+    }, HIDDEN);
   const secret = (text ?? "").replace(/\s/g, "");
   if (!/^[A-Z2-7]{16,}$/.test(secret)) {
     throw new Error("The manual key on the enrollment page could not be read");
@@ -204,6 +230,11 @@ test("SEC-001: o Administrador entra com senha e código e o Cliente é barrado"
     .getByRole("heading", { name: ENROLL_TITLE, exact: true })
     .isVisible();
   const painel = page.getByRole("heading", { name: "Painel do Administrador" });
+  const panelShown = () => expect(painel).toBeVisible();
+  const wrongCodeShown = async () => {
+    await expect(page.getByText(WRONG_CODE)).toBeVisible();
+    await expect(painel).toBeHidden();
+  };
 
   // 5. A code outside the window (10 steps ahead) is refused. It never opens the panel.
   // It runs first, on the page of either mode, with the secret only known after the enrollment page is read.
@@ -211,15 +242,12 @@ test("SEC-001: o Administrador entra com senha e código e o Cliente é barrado"
   if (enrolling) {
     // 2. MFA not active: enroll with the key shown on the page.
     secret = await readAndHideKey(page);
-    await submitCode(page, totpCode(secret, currentStep() + 10));
-    await expect(page.getByText(WRONG_CODE)).toBeVisible();
-    await expect(painel).toBeHidden();
+    await enterCode(page, totpCode(secret, currentStep() + 10), wrongCodeShown);
     const step = currentStep();
     // Saved before the click, so a failure after the activation does not lose the secret. If the activation
     // does not happen, the next run sees the enrollment page again and overwrites it.
     await writeStoredTotp({ secret, lastStep: step });
-    await submitCode(page, totpCode(secret, step));
-    await expect(painel).toBeVisible();
+    await enterCode(page, totpCode(secret, step), panelShown);
   } else {
     // 3. MFA active: the stored secret is needed.
     const totp = await readStoredTotp();
@@ -229,14 +257,11 @@ test("SEC-001: o Administrador entra com senha e código e o Cliente é barrado"
       );
     }
     secret = totp.secret;
-    await submitCode(page, totpCode(secret, currentStep() + 10));
-    await expect(page.getByText(WRONG_CODE)).toBeVisible();
-    await expect(painel).toBeHidden();
+    await enterCode(page, totpCode(secret, currentStep() + 10), wrongCodeShown);
     await waitForStepAfter(totp.lastStep);
     const step = currentStep();
     await writeStoredTotp({ secret, lastStep: step });
-    await submitCode(page, totpCode(secret, step));
-    await expect(painel).toBeVisible();
+    await enterCode(page, totpCode(secret, step), panelShown);
   }
 
   // 6. Log out and back in with the password and the next code.
@@ -252,8 +277,7 @@ test("SEC-001: o Administrador entra com senha e código e o Cliente é barrado"
   await waitForStepAfter(usedStep);
   const nextStep = currentStep();
   await writeStoredTotp({ secret, lastStep: nextStep });
-  await submitCode(page, totpCode(secret, nextStep));
-  await expect(painel).toBeVisible();
+  await enterCode(page, totpCode(secret, nextStep), panelShown);
   await page.getByRole("button", { name: "Sair" }).click();
   await expect(page).toHaveURL(/\/painel\/entrar$/);
 

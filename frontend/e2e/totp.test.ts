@@ -1,4 +1,4 @@
-import { currentStep, totpCode } from "../../e2e/totp";
+import { currentStep, totpCode } from "./totp";
 
 // RFC 6238 secret "12345678901234567890" in Base32; 6 digits instead of the 8 of the RFC table.
 const SECRET = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
