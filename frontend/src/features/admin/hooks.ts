@@ -24,11 +24,10 @@ export function useAdminLogin() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: adminLogin,
-    // Refetch (also inactive queries) so /painel already has the fresh session when we navigate there.
-    // The login replaced any Customer session of this browser, so the cached Customer session is stale too.
+    // The password alone no longer opens a panel session (the code does, see useMfaSubmit), so there is no
+    // Administrator session to refetch here. It did replace any Customer session of this browser, so that one is stale.
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: sessionQueryKey });
-      await queryClient.refetchQueries({ queryKey: adminSessionQueryKey });
     },
   });
 }
