@@ -62,7 +62,8 @@ class AdministratorPasswordTokens {
     /**
      * Uses the link and sets the password hash in one statement, so only one request wins. It also increments the
      * session version. Unknown, used and expired links, and a link of an Administrator who already has a password,
-     * give the same empty result.
+     * give the same empty result. In that last case the link is still marked as used although the password does not
+     * change: the first part of the statement always runs, so a leftover link cannot be tried again.
      *
      * @return the Administrator id, or empty if the link is not valid
      */
