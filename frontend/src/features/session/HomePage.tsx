@@ -1,8 +1,8 @@
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { useLogout, useLogoutEverywhere, useSession } from "./hooks";
+import { LOGOUT_ERROR } from "./messages";
 
-const LOGOUT_ERROR = "Não foi possível sair agora. Tente novamente.";
 const LOGOUT_ALL_ERROR =
   "Não foi possível sair de todos os aparelhos agora. Tente novamente.";
 const LOGOUT_ALL_SUCCESS = "Você saiu de todos os aparelhos.";

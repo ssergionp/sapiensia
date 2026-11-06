@@ -11,10 +11,8 @@ import {
   errorMessages,
   type ResetPasswordInput,
   resetPasswordSchema,
+  SAVE_UNEXPECTED_ERROR,
 } from "./schemas";
-
-const UNEXPECTED_ERROR =
-  "Não foi possível salvar agora. Tente novamente em instantes.";
 
 export default function ResetPasswordPage() {
   // The token travels in the URL fragment so it is never sent to servers or logs.
@@ -117,7 +115,7 @@ function ResetPasswordContent({ token }: { token: string }) {
           </div>
           {showUnexpected && (
             <p role="alert" className="text-sm text-destructive">
-              {UNEXPECTED_ERROR}
+              {SAVE_UNEXPECTED_ERROR}
             </p>
           )}
           <Button type="submit" disabled={mutation.isPending}>

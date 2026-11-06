@@ -28,6 +28,9 @@ export const errorMessages: Record<string, string> = {
     "Essa senha já apareceu em vazamentos de dados. Escolha outra.",
 };
 
+export const SAVE_UNEXPECTED_ERROR =
+  "Não foi possível salvar agora. Tente novamente em instantes.";
+
 export const forgotPasswordSchema = registerCustomerSchema.pick({
   email: true,
 });
