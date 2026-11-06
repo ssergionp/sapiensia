@@ -35,6 +35,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Guard: no log line may carry a TOTP code, the secret, the encryption key, the cipher text or the Administrator
@@ -72,6 +73,9 @@ class AdminMfaLogTest {
 
     @Autowired
     Environment environment;
+
+    @Autowired
+    PostgreSQLContainer postgres;
 
     @Autowired
     AdminMfaTestSupport.MutableClock clock;
@@ -183,9 +187,9 @@ class AdminMfaLogTest {
                     // command-line arguments win over the test application.properties; builder properties would not
                     .run(
                             "--app.mfa.encryption-key=" + badKey,
-                            "--spring.datasource.url=" + environment.getProperty("spring.datasource.url"),
-                            "--spring.datasource.username=" + environment.getProperty("spring.datasource.username"),
-                            "--spring.datasource.password=" + environment.getProperty("spring.datasource.password"),
+                            "--spring.datasource.url=" + postgres.getJdbcUrl(),
+                            "--spring.datasource.username=" + postgres.getUsername(),
+                            "--spring.datasource.password=" + postgres.getPassword(),
                             "--app.email.provider=file",
                             "--app.email.outbox-dir=target/log-test-outbox",
                             "--spring.main.banner-mode=off",
