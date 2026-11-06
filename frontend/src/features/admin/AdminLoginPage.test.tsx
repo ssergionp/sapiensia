@@ -3,12 +3,14 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, describe, expect, test, vi } from "vitest";
+import { sessionQueryKey } from "../session/hooks";
 import AdminLoginPage from "./AdminLoginPage";
 
-function renderPage() {
-  const client = new QueryClient({
+function renderPage(
+  client = new QueryClient({
     defaultOptions: { mutations: { retry: false } },
-  });
+  }),
+) {
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={["/painel/entrar"]}>
@@ -110,6 +112,20 @@ describe("AdminLoginPage", () => {
       email: "admin@example.com",
       password: "uma senha",
     });
+  });
+
+  test("204 invalida a sessão de Cliente em cache", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(204));
+    const client = new QueryClient({
+      defaultOptions: { mutations: { retry: false } },
+    });
+    client.setQueryData(sessionQueryKey, { email: "cliente@example.com" });
+    renderPage(client);
+
+    await fillAndSubmit("admin@example.com", "senha-do-painel-123");
+
+    expect(await screen.findByText("painel")).toBeInTheDocument();
+    expect(client.getQueryState(sessionQueryKey)?.isInvalidated).toBe(true);
   });
 
   test("401 mostra a falha do painel", async () => {

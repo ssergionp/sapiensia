@@ -7,6 +7,7 @@ import {
   registerAndConfirm,
   strongPassword,
   uniqueEmail,
+  waitForMessage,
 } from "./outbox";
 
 // Real API, database and e-mail outbox (files): no page.route() and no mocks.
@@ -63,6 +64,14 @@ async function tryLogIn(page: Page, password: string): Promise<boolean> {
 }
 
 async function setPasswordFromNewestEmail(page: Page): Promise<string> {
+  // Wait (bounded) until a first-access e-mail exists, then pick the newest one.
+  try {
+    await waitForMessage(ADMIN_EMAIL, FIRST_ACCESS_SUBJECT);
+  } catch {
+    throw new Error(
+      "Administrator password unknown and no first-access e-mail in the outbox: see Risco (g) of ticket #14 (restart the API with a clean Administrator, then run again).",
+    );
+  }
   const messages = await messagesFor(ADMIN_EMAIL, FIRST_ACCESS_SUBJECT);
   const link = [...messages]
     .reverse()

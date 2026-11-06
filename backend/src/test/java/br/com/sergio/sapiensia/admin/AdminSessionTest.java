@@ -112,6 +112,23 @@ class AdminSessionTest {
     }
 
     @Test
+    @DisplayName("SEC-010: o login do painel sem o token CSRF dá 403 e não cria sessão")
+    void shouldRejectTheLoginWithoutTheCsrfToken() throws Exception {
+        HttpResponse<String> response = java.net.http.HttpClient.newHttpClient()
+                .send(
+                        java.net.http.HttpRequest.newBuilder(
+                                        java.net.URI.create("http://localhost:" + port + "/api/admin/sessions"))
+                                .header("Content-Type", "application/json")
+                                .POST(java.net.http.HttpRequest.BodyPublishers.ofString(
+                                        "{\"email\":\"" + email + "\",\"password\":\"" + PASSWORD + "\"}"))
+                                .build(),
+                        HttpResponse.BodyHandlers.ofString());
+
+        assertThat(response.statusCode()).isEqualTo(403);
+        assertThat(response.headers().allValues("set-cookie")).noneMatch(c -> c.startsWith("JSESSIONID"));
+    }
+
+    @Test
     @DisplayName("SEC-010 / SEC-002: e-mail errado, senha errada e senha não definida dão o mesmo 401 vazio")
     void shouldAnswerTheSameForEveryFailure() throws Exception {
         String noPasswordEmail = "sem-senha-" + UUID.randomUUID() + "@example.com";

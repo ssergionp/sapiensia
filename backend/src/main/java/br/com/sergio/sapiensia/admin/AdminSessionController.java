@@ -43,8 +43,9 @@ class AdminSessionController {
         DaoAuthenticationProvider provider =
                 new DaoAuthenticationProvider(new AdministratorUserDetailsService(administrators));
         provider.setPasswordEncoder(passwordEncoder);
-        // the whole session is replaced: new id and none of the previous attributes (a Customer who was logged in
-        // at this browser is logged out)
+        // the session id is replaced; only Spring Security's own SPRING_SECURITY_* attributes are still copied, and
+        // the security context is replaced right after by saveContext (a Customer who was logged in at this browser
+        // is logged out); CSRF lives in a cookie, not in the session
         SessionFixationProtectionStrategy sessionStrategy = new SessionFixationProtectionStrategy();
         sessionStrategy.setMigrateSessionAttributes(false);
         this.loginVariant = new PasswordLogin.Variant(
