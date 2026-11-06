@@ -92,6 +92,25 @@ class AdministratorEmailTest {
     }
 
     @Test
+    @DisplayName("SEC-007: um link não usado e ainda válido não troca uma senha já definida")
+    void shouldNotReplaceAPasswordThatIsAlreadySet() throws Exception {
+        emails.sendPasswordSetup();
+        EmailMessage mail = sender.awaitMessageTo(TO, Duration.ofSeconds(5)).orElseThrow();
+        String token = mail.text().replaceAll("(?s).*#([A-Za-z0-9_-]{43}).*", "$1");
+        // a password set by another path while the link is still unused and valid
+        jdbc.update("update administrators set password_hash = 'existing-hash' where id = ?", administratorId);
+
+        assertThat(tokens.consumeAndSetPassword(token, "new-hash")).isEmpty();
+
+        assertThat(jdbc.queryForObject(
+                        "select password_hash from administrators where id = ?", String.class, administratorId))
+                .isEqualTo("existing-hash");
+        assertThat(jdbc.queryForObject(
+                        "select session_version from administrators where id = ?", Integer.class, administratorId))
+                .isZero();
+    }
+
+    @Test
     @DisplayName("SEC-007 / ADR-0004: Administrador que já tem senha não recebe link")
     void shouldNotSendWhenThePasswordIsAlreadySet() throws Exception {
         jdbc.update("update administrators set password_hash = 'x' where id = ?", administratorId);

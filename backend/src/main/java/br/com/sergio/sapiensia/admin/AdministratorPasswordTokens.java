@@ -52,7 +52,8 @@ class AdministratorPasswordTokens {
 
     /**
      * Uses the link and sets the password hash in one statement, so only one request wins. It also increments the
-     * session version. Unknown, used and expired links give the same empty result.
+     * session version. Unknown, used and expired links, and a link of an Administrator who already has a password,
+     * give the same empty result.
      *
      * @return the Administrator id, or empty if the link is not valid
      */
@@ -62,7 +63,9 @@ class AdministratorPasswordTokens {
                         + " returning administrator_id)"
                         + " update administrators set password_hash = :passwordHash,"
                         + " session_version = session_version + 1 from used"
-                        + " where administrators.id = used.administrator_id returning administrators.id")
+                        // a link never replaces a password that is already set, however it survived
+                        + " where administrators.id = used.administrator_id and administrators.password_hash is null"
+                        + " returning administrators.id")
                 .param("hash", EmailConfirmationTokens.hash(token))
                 .param("passwordHash", passwordHash)
                 .query(UUID.class)
