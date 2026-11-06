@@ -1,0 +1,255 @@
+import { zodResolver } from "@hookform/resolvers/zod";
+import { QRCodeSVG } from "qrcode.react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useForm } from "react-hook-form";
+import { Link, Navigate, useNavigate } from "react-router";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { LoginBlockedError } from "@/features/session/api";
+import {
+  LOGIN_BLOCKED,
+  LOGIN_UNEXPECTED_ERROR,
+} from "@/features/session/messages";
+import {
+  MfaCodeRejectedError,
+  MfaConflictError,
+  MfaExpiredError,
+  startMfaEnrollment,
+} from "./api";
+import { useMfaStatus, useMfaSubmit } from "./hooks";
+import {
+  type MfaCodeInput,
+  type MfaCodeOutput,
+  type MfaEnrollment,
+  mfaCodeSchema,
+} from "./schemas";
+
+const LOADING = "Carregando…";
+const LOAD_ERROR =
+  "Não foi possível carregar esta página agora. Tente novamente.";
+const EXPIRED =
+  "O tempo para digitar o código acabou. Entre de novo com a sua senha.";
+const BACK_TO_LOGIN = "Voltar para a entrada";
+const WRONG_CODE =
+  "Código incorreto ou vencido. Confira o aplicativo e tente de novo.";
+const ENROLLMENT_INTERRUPTED =
+  "A ativação foi interrompida. Leia o novo QR code e digite o código de novo.";
+
+const ENROLL_TITLE = "Ative a verificação em duas etapas";
+const ENROLL_INTRO =
+  "Para proteger o painel, a entrada pede a senha e um código do aplicativo autenticador do seu celular.";
+const ENROLL_STEP_1 = "1. No aplicativo autenticador, leia o QR code abaixo.";
+const QR_NAME = "QR code para o aplicativo autenticador";
+const ENROLL_ALTERNATIVE =
+  "Não consegue ler o QR code? Digite esta chave no aplicativo:";
+const ENROLL_STEP_2 =
+  "2. Digite o código de 6 dígitos que o aplicativo mostra.";
+const ENROLL_SUBMIT = "Ativar e entrar";
+const ENROLL_SUBMITTING = "Ativando…";
+
+const VERIFY_TITLE = "Verificação em duas etapas";
+const VERIFY_INSTRUCTION =
+  "Digite o código de 6 dígitos do aplicativo autenticador.";
+const VERIFY_SUBMIT = "Entrar";
+const VERIFY_SUBMITTING = "Entrando…";
+
+const CODE_LABEL = "Código";
+
+type Mode = "enroll" | "verify";
+
+function groupKey(secret: string): string {
+  return secret.replace(/(.{4})(?=.)/g, "$1 ");
+}
+
+function submitFailure(error: Error): string {
+  if (error instanceof MfaCodeRejectedError) return WRONG_CODE;
+  if (error instanceof LoginBlockedError) return LOGIN_BLOCKED;
+  return LOGIN_UNEXPECTED_ERROR;
+}
+
+export default function AdminMfaPage() {
+  const status = useMfaStatus();
+  const navigate = useNavigate();
+  const [modeOverride, setModeOverride] = useState<Mode | null>(null);
+  const [enrollment, setEnrollment] = useState<MfaEnrollment | null>(null);
+  const [expired, setExpired] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+  // Each enrollment call replaces the secret on the server, so the first one is guarded against re-runs.
+  const enrollmentStarted = useRef(false);
+  const submitting = useRef(false);
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<MfaCodeInput, unknown, MfaCodeOutput>({
+    resolver: zodResolver(mfaCodeSchema),
+    defaultValues: { code: "" },
+  });
+
+  const statusData =
+    status.data !== undefined && typeof status.data === "object"
+      ? status.data
+      : null;
+  const mode: Mode =
+    modeOverride ?? (statusData?.enrolled === false ? "enroll" : "verify");
+  const submit = useMfaSubmit(mode);
+
+  const beginEnrollment = useCallback(async () => {
+    setEnrollment(null);
+    try {
+      const result = await startMfaEnrollment();
+      if (result === "active") {
+        // The MFA got active meanwhile: go to the verification quietly, dropping any interruption notice.
+        setFailure(null);
+        setModeOverride("verify");
+      } else {
+        setModeOverride("enroll");
+        setEnrollment(result);
+      }
+    } catch (error) {
+      if (error instanceof MfaExpiredError) setExpired(true);
+      else setLoadFailed(true);
+    }
+  }, []);
+
+  const shouldEnroll = statusData?.enrolled === false;
+  useEffect(() => {
+    if (shouldEnroll && !enrollmentStarted.current) {
+      enrollmentStarted.current = true;
+      void beginEnrollment();
+    }
+  }, [shouldEnroll, beginEnrollment]);
+
+  function onSubmit(values: MfaCodeOutput) {
+    if (submitting.current) return;
+    submitting.current = true;
+    setFailure(null);
+    submit.mutate(values.code, {
+      onSuccess: () => navigate("/painel"),
+      onError: (error) => {
+        if (error instanceof MfaExpiredError) {
+          setExpired(true);
+        } else if (error instanceof MfaConflictError) {
+          reset();
+          enrollmentStarted.current = true;
+          if (mode === "enroll") setFailure(ENROLLMENT_INTERRUPTED);
+          setModeOverride("enroll");
+          void beginEnrollment();
+        } else {
+          setFailure(submitFailure(error));
+        }
+      },
+      onSettled: () => {
+        submitting.current = false;
+      },
+    });
+  }
+
+  if (status.data === "forbidden") return <Navigate to="/painel" replace />;
+
+  if (expired || status.data === "expired") {
+    return (
+      <main className="mx-auto max-w-md p-8">
+        <p role="alert">{EXPIRED}</p>
+        <p className="mt-4">
+          <Link to="/painel/entrar" className="underline">
+            {BACK_TO_LOGIN}
+          </Link>
+        </p>
+      </main>
+    );
+  }
+
+  if (status.isError || loadFailed) {
+    return (
+      <main className="mx-auto max-w-md p-8">
+        <p role="alert" className="text-destructive">
+          {LOAD_ERROR}
+        </p>
+      </main>
+    );
+  }
+
+  if (status.isPending || (mode === "enroll" && enrollment === null)) {
+    return (
+      <main className="mx-auto max-w-md p-8">
+        <p>{LOADING}</p>
+      </main>
+    );
+  }
+
+  const enrolling = mode === "enroll";
+
+  return (
+    <main className="mx-auto max-w-md p-8">
+      <h1 className="text-2xl font-bold">
+        {enrolling ? ENROLL_TITLE : VERIFY_TITLE}
+      </h1>
+      {enrolling && enrollment ? (
+        <>
+          <p className="mt-4">{ENROLL_INTRO}</p>
+          <p className="mt-4">{ENROLL_STEP_1}</p>
+          <div className="mt-2 inline-block rounded-md bg-white p-3">
+            <QRCodeSVG
+              value={enrollment.otpauthUri}
+              size={192}
+              role="img"
+              aria-label={QR_NAME}
+            />
+          </div>
+          <p className="mt-4">{ENROLL_ALTERNATIVE}</p>
+          <p className="mt-1 font-mono text-lg font-semibold [overflow-wrap:anywhere]">
+            {groupKey(enrollment.secret)}
+          </p>
+          <p className="mt-4">{ENROLL_STEP_2}</p>
+        </>
+      ) : (
+        <p className="mt-4">{VERIFY_INSTRUCTION}</p>
+      )}
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        noValidate
+        className="mt-4 flex flex-col gap-4"
+      >
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="code">{CODE_LABEL}</Label>
+          <Input
+            id="code"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            aria-invalid={errors.code ? true : undefined}
+            aria-describedby={errors.code ? "code-error" : undefined}
+            {...register("code")}
+          />
+          {errors.code && (
+            <p
+              id="code-error"
+              role="alert"
+              className="text-sm text-destructive"
+            >
+              {errors.code.message}
+            </p>
+          )}
+        </div>
+        {failure && (
+          <p role="alert" className="text-sm text-destructive">
+            {failure}
+          </p>
+        )}
+        <Button type="submit" disabled={submit.isPending}>
+          {submit.isPending
+            ? enrolling
+              ? ENROLL_SUBMITTING
+              : VERIFY_SUBMITTING
+            : enrolling
+              ? ENROLL_SUBMIT
+              : VERIFY_SUBMIT}
+        </Button>
+      </form>
+    </main>
+  );
+}

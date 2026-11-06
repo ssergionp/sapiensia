@@ -1,6 +1,7 @@
 import { Route, Routes } from "react-router";
 import AdminHomePage from "@/features/admin/AdminHomePage";
 import AdminLoginPage from "@/features/admin/AdminLoginPage";
+import AdminMfaPage from "@/features/admin/AdminMfaPage";
 import SetAdminPasswordPage from "@/features/admin/SetAdminPasswordPage";
 import ConfirmEmailPage from "@/features/customer/ConfirmEmailPage";
 import ForgotPasswordPage from "@/features/customer/ForgotPasswordPage";
@@ -20,6 +21,7 @@ export default function App() {
       <Route path="/redefinir-senha" element={<ResetPasswordPage />} />
       <Route path="/painel" element={<AdminHomePage />} />
       <Route path="/painel/entrar" element={<AdminLoginPage />} />
+      <Route path="/painel/verificacao" element={<AdminMfaPage />} />
       <Route path="/painel/definir-senha" element={<SetAdminPasswordPage />} />
     </Routes>
   );
