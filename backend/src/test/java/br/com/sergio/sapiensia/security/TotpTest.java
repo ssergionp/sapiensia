@@ -92,8 +92,19 @@ class TotpTest {
             asked.add(s);
             return "123456";
         });
-        assertThat(result).isEqualTo(OptionalLong.of(step - 1));
+        assertThat(result).isEqualTo(OptionalLong.of(step + 1));
         assertThat(asked).containsExactly(step - 1, step, step + 1);
+    }
+
+    @Test
+    void matchingStepReturnsTheHighestStepWhenTheCodeIsValidInMoreThanOne() {
+        long step = 1000;
+        // the same code at step and step + 1: returning the older one would let it be replayed one step later
+        assertThat(Totp.matchingStep("123456", step, s -> s >= step ? "123456" : "000000"))
+                .isEqualTo(OptionalLong.of(step + 1));
+        // the same code at step - 1 and step only
+        assertThat(Totp.matchingStep("123456", step, s -> s <= step ? "123456" : "000000"))
+                .isEqualTo(OptionalLong.of(step));
     }
 
     @Test

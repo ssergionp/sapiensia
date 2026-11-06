@@ -80,7 +80,8 @@ public final class Totp {
         // No early exit: all three candidates are always computed and compared.
         for (long step = currentStep - 1; step <= currentStep + 1; step++) {
             byte[] expected = codeAt.apply(step).getBytes(StandardCharsets.US_ASCII);
-            if (MessageDigest.isEqual(given, expected) && !matched) {
+            // later iterations overwrite: when a code is valid in several steps the highest one wins
+            if (MessageDigest.isEqual(given, expected)) {
                 matched = true;
                 found = step;
             }
