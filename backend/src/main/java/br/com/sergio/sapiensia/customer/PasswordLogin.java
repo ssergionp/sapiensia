@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.Optional;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 import org.slf4j.Logger;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -43,13 +44,14 @@ public class PasswordLogin {
     }
 
     /**
-     * How one kind of account logs in. {@code accountKeyPrefix} separates the limiter's account keys
-     * ("customer:" for customers, "admin:" for the panel); {@code subject} and {@code log} are only for the 503 log line.
+     * How one kind of account logs in. {@code accountKey} turns the typed e-mail into the limiter's account key, with a
+     * prefix of its own and the e-mail normalized ({@link LoginAttemptLimiter#customerKey} for customers, "admin:" for
+     * the panel); {@code subject} and {@code log} are only for the 503 log line.
      */
     public record Variant(
             AuthenticationManager authenticationManager,
             SessionAuthenticationStrategy sessionStrategy,
-            String accountKeyPrefix,
+            UnaryOperator<String> accountKey,
             String subject,
             Logger log,
             AfterPassword afterPassword) {}
@@ -79,7 +81,7 @@ public class PasswordLogin {
         }
         // normalized before the prefix, like the account lookup: " Ana@x" must not get a bucket of its own. The IP
         // key has no prefix: the per-IP budget is shared by the customer and the panel logins.
-        String accountKey = variant.accountKeyPrefix() + Emails.normalize(email);
+        String accountKey = variant.accountKey().apply(email);
         // before any authentication: a locked account refuses even the correct password, and no hash is computed.
         // An admitted attempt is already counted as a failure (see LoginAttemptLimiter), so parallel requests cannot
         // all get past the check before the first failure is recorded.

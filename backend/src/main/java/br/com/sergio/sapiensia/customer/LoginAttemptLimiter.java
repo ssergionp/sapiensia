@@ -30,10 +30,13 @@ import org.springframework.stereotype.Component;
 class LoginAttemptLimiter {
 
     /**
-     * Prefix of the customer account keys. The panel uses "admin:": with a prefix on both sides, no e-mail typed in
-     * one login (such as "admin:someone@example.com") can reach a key of the other.
+     * The one way to build a customer account key, used by the login and by the lockout release after a password
+     * reset: the e-mail normalized, then the "customer:" prefix. The panel uses "admin:": with a prefix on both sides,
+     * no e-mail typed in one login (such as "admin:someone@example.com") can reach a key of the other.
      */
-    static final String CUSTOMER_KEY_PREFIX = "customer:";
+    static String customerKey(String email) {
+        return "customer:" + Emails.normalize(email);
+    }
 
     private static final Duration PURGE_INTERVAL = Duration.ofMinutes(1);
     private static final int DEFAULT_MAX_TRACKED_KEYS = 100_000;

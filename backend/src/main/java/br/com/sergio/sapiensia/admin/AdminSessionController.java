@@ -1,5 +1,6 @@
 package br.com.sergio.sapiensia.admin;
 
+import br.com.sergio.sapiensia.customer.Emails;
 import br.com.sergio.sapiensia.customer.PasswordLogin;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -55,7 +56,17 @@ class AdminSessionController {
         SessionFixationProtectionStrategy sessionStrategy = new SessionFixationProtectionStrategy();
         sessionStrategy.setMigrateSessionAttributes(false);
         this.loginVariant = new PasswordLogin.Variant(
-                new ProviderManager(provider), sessionStrategy, ACCOUNT_KEY_PREFIX, "administrator", log, this::accept);
+                new ProviderManager(provider),
+                sessionStrategy,
+                AdminSessionController::accountKey,
+                "administrator",
+                log,
+                this::accept);
+    }
+
+    /** The e-mail normalized, then the "admin:" prefix: every spelling of one e-mail shares one bucket. */
+    private static String accountKey(String email) {
+        return ACCOUNT_KEY_PREFIX + Emails.normalize(email);
     }
 
     /**

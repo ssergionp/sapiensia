@@ -68,7 +68,7 @@ class SessionController {
         this.loginVariant = new PasswordLogin.Variant(
                 new ProviderManager(provider),
                 new ChangeSessionIdAuthenticationStrategy(),
-                LoginAttemptLimiter.CUSTOMER_KEY_PREFIX,
+                LoginAttemptLimiter::customerKey,
                 "customer",
                 log,
                 this::acceptConfirmed);

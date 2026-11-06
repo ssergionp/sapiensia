@@ -107,8 +107,7 @@ public class CustomerService {
         // the owner proved they hold the e-mail: lift the account lockout (SEC-002), never the per-IP limit
         customers
                 .findEmailById(customerId)
-                .ifPresent(
-                        email -> loginAttemptLimiter.releaseAccount(LoginAttemptLimiter.CUSTOMER_KEY_PREFIX + email));
+                .ifPresent(email -> loginAttemptLimiter.releaseAccount(LoginAttemptLimiter.customerKey(email)));
         schedule(CustomerEmailTasks.PASSWORD_CHANGED_NOTICE, customerId);
     }
 
