@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -49,7 +50,50 @@ class AdminMfaController {
             HttpServletRequest request,
             HttpServletResponse response) {
         var pending = (PendingAdministrator) authentication.getPrincipal();
-        AdministratorMfa.Outcome outcome = mfa.verify(pending, body.code(), clientIp.resolve(request));
+        return answer(pending, mfa.verify(pending, body.code(), clientIp.resolve(request)), request, response);
+    }
+
+    /** Whether the Administrator already has an active authenticator (the SPA picks the enrollment or the code). */
+    @GetMapping
+    EnrolledStatus status(Authentication authentication) {
+        return new EnrolledStatus(mfa.enrolled(((PendingAdministrator) authentication.getPrincipal()).id()));
+    }
+
+    /**
+     * 200 with the new pending secret and its otpauth URI (never cached); 409 when MFA is already active. Only this
+     * answer ever carries the secret.
+     */
+    @PostMapping("/enrollment")
+    ResponseEntity<AdministratorMfa.Enrollment> enroll(Authentication authentication) {
+        return mfa.startEnrollment((PendingAdministrator) authentication.getPrincipal())
+                .map(enrollment -> ResponseEntity.ok()
+                        .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                        .body(enrollment))
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.CONFLICT).build());
+    }
+
+    /**
+     * 204 with a new session holding the full Administrator once the code confirms the pending secret; 400
+     * CODE_INVALID; 429 with Retry-After; 409 when MFA is already active or no enrollment was started.
+     */
+    @PostMapping("/enrollment/confirmation")
+    ResponseEntity<Void> confirm(
+            @RequestBody MfaCodeRequest body,
+            Authentication authentication,
+            HttpServletRequest request,
+            HttpServletResponse response) {
+        var pending = (PendingAdministrator) authentication.getPrincipal();
+        return answer(
+                pending, mfa.confirmEnrollment(pending, body.code(), clientIp.resolve(request)), request, response);
+    }
+
+    record EnrolledStatus(boolean enrolled) {}
+
+    private ResponseEntity<Void> answer(
+            PendingAdministrator pending,
+            AdministratorMfa.Outcome outcome,
+            HttpServletRequest request,
+            HttpServletResponse response) {
         return switch (outcome.verdict()) {
             case ACCEPTED -> {
                 var principal = new AdministratorPrincipal(

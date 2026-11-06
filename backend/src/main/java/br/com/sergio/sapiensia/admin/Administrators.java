@@ -120,6 +120,32 @@ class Administrators {
                 .update();
     }
 
+    /**
+     * Stores a new, not yet active secret (and forgets the last step) only while MFA is inactive: one conditional
+     * UPDATE, so an active MFA is never overwritten whatever the callers do. Returns the rows changed (0 = active).
+     */
+    int startEnrollment(UUID id, String secretCipher) {
+        return jdbc.sql("update administrators set totp_secret = :cipher, totp_last_step = null"
+                        + " where id = :id and totp_enabled_at is null")
+                .param("cipher", secretCipher)
+                .param("id", id)
+                .update();
+    }
+
+    /**
+     * Activates MFA with the secret that was confirmed by a code of {@code step}, only if it is still inactive and the
+     * stored secret is still that one. Of parallel confirmations the row lock lets exactly one through. Returns the
+     * rows changed (1 activated, 0 refused).
+     */
+    int enable(UUID id, String secretCipher, long step) {
+        return jdbc.sql("update administrators set totp_enabled_at = now(), totp_last_step = :step"
+                        + " where id = :id and totp_enabled_at is null and totp_secret = :cipher")
+                .param("step", step)
+                .param("id", id)
+                .param("cipher", secretCipher)
+                .update();
+    }
+
     /** The session version, for the filter that ends sessions opened before a password change. */
     OptionalInt findSessionVersion(UUID id) {
         return jdbc.sql("select session_version from administrators where id = :id")

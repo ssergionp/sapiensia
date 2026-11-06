@@ -33,6 +33,8 @@ class AdminMfaBypassTest {
     private static final String PASSWORD = "senha-do-painel-123"; // gitleaks:allow
     private static final String CURRENT = "/api/admin/sessions/current";
     private static final String MFA = "/api/admin/sessions/mfa";
+    private static final String ENROLLMENT = MFA + "/enrollment";
+    private static final String CONFIRMATION = ENROLLMENT + "/confirmation";
 
     enum State {
         ANONYMOUS,
@@ -124,6 +126,18 @@ class AdminMfaBypassTest {
                 Arguments.of(State.ANONYMOUS, "POST", MFA, 401),
                 Arguments.of(State.FULL_ADMINISTRATOR, "POST", MFA, 403),
                 Arguments.of(State.FULL_ADMINISTRATOR, "GET", CURRENT, 200),
+                Arguments.of(State.ANONYMOUS, "GET", MFA, 401),
+                Arguments.of(State.ANONYMOUS, "POST", ENROLLMENT, 401),
+                Arguments.of(State.ANONYMOUS, "POST", CONFIRMATION, 401),
+                Arguments.of(State.CUSTOMER, "GET", MFA, 403),
+                Arguments.of(State.CUSTOMER, "POST", ENROLLMENT, 403),
+                Arguments.of(State.CUSTOMER, "POST", CONFIRMATION, 403),
+                Arguments.of(State.FULL_ADMINISTRATOR, "GET", MFA, 403),
+                Arguments.of(State.FULL_ADMINISTRATOR, "POST", ENROLLMENT, 403),
+                Arguments.of(State.FULL_ADMINISTRATOR, "POST", CONFIRMATION, 403),
+                Arguments.of(State.PENDING_EXPIRED, "GET", MFA, 401),
+                Arguments.of(State.PENDING_EXPIRED, "POST", ENROLLMENT, 401),
+                Arguments.of(State.PENDING_EXPIRED, "POST", CONFIRMATION, 401),
                 Arguments.of(State.FULL_ADMINISTRATOR, "GET", "/api/admin/qualquer-coisa", 403));
     }
 
@@ -185,6 +199,35 @@ class AdminMfaBypassTest {
         assertThat(browser.loginAdmin(email, PASSWORD).statusCode()).isEqualTo(204);
 
         assertThat(browser.get(CURRENT).statusCode()).isEqualTo(401);
+    }
+
+    @Test
+    @DisplayName("SEC-001: o logout da sessão pendente dá 204 e encerra a pendência")
+    void shouldEndThePendingStateOnLogout() throws Exception {
+        AdminBrowser browser = browserIn(State.PENDING);
+
+        assertThat(browser.delete("/api/sessions/current").statusCode()).isEqualTo(204);
+
+        String code = AdminMfaTestSupport.codeAt(secret, clock.instant());
+        assertThat(browser.verifyMfa(code).statusCode()).isEqualTo(401);
+    }
+
+    @Test
+    @DisplayName("SEC-001: a senha de novo na sessão pendente recomeça a etapa e a sessão antiga morre")
+    void shouldRestartThePendingStepOnANewPassword() throws Exception {
+        AdminBrowser browser = browserIn(State.PENDING);
+        String oldSession = browser.cookie("JSESSIONID");
+        String oldXsrf = browser.cookie("XSRF-TOKEN");
+
+        assertThat(browser.loginAdmin(email, PASSWORD).statusCode()).isEqualTo(204);
+
+        assertThat(browser.cookie("JSESSIONID")).isNotEqualTo(oldSession);
+        AdminBrowser replay = new AdminBrowser(port);
+        replay.setCookie("JSESSIONID", oldSession);
+        replay.setCookie("XSRF-TOKEN", oldXsrf);
+        String code = AdminMfaTestSupport.codeAt(secret, clock.instant());
+        assertThat(replay.verifyMfa(code).statusCode()).isEqualTo(401);
+        assertThat(browser.verifyMfa(code).statusCode()).isEqualTo(204);
     }
 
     @Test

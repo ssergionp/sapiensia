@@ -27,6 +27,15 @@ final class AdminBrowser {
                 .orElse(null);
     }
 
+    /** Puts a cookie in the jar by hand: replays a session cookie that the server has since ended. */
+    void setCookie(String name, String value) {
+        HttpCookie cookie = new HttpCookie(name, value);
+        cookie.setPath("/");
+        // version 0 (Netscape style): version 1 would send a "$Version" attribute the server parses as a cookie
+        cookie.setVersion(0);
+        jar.getCookieStore().add(uri("/"), cookie);
+    }
+
     private URI uri(String path) {
         return URI.create("http://localhost:" + port + path);
     }
