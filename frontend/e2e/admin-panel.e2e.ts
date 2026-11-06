@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import {
   messagesFor,
   registerAndConfirm,
@@ -24,8 +24,23 @@ const PASSWORD_FILE = resolve(
 
 const FIRST_ACCESS_SUBJECT = "Defina sua senha de Administrador na SapiensIA";
 const LOGIN_FAILED = "E-mail ou senha incorretos.";
+const DEAD_LINK_START = "Este link venceu ou já foi usado.";
 const PASSWORD_SET = "Senha definida. Entre no painel com a nova senha.";
 const CUSTOMER_BLOCKED = "Esta área é só para o Administrador.";
+
+// Playwright records the value of locator.fill() in the step title, and the HTML report keeps steps even with
+// trace off. Setting the value from the page keeps the Administrator password out of every step and call log.
+async function fillSecret(field: Locator, value: string) {
+  await field.evaluate((el, v) => {
+    const setter = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )?.set;
+    if (!setter) throw new Error("No value setter");
+    setter.call(el, v);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  }, value);
+}
 
 async function readStoredPassword(): Promise<string | null> {
   try {
@@ -39,7 +54,7 @@ async function readStoredPassword(): Promise<string | null> {
 async function tryLogIn(page: Page, password: string): Promise<boolean> {
   await page.goto("/painel/entrar");
   await page.getByLabel("E-mail").fill(ADMIN_EMAIL);
-  await page.getByLabel("Senha").fill(password);
+  await fillSecret(page.getByLabel("Senha"), password);
   await page.getByRole("button", { name: "Entrar" }).click();
   const failed = page.getByText(LOGIN_FAILED);
   const ok = page.getByText(`Você entrou como ${ADMIN_EMAIL}.`);
@@ -59,11 +74,19 @@ async function setPasswordFromNewestEmail(page: Page): Promise<string> {
     );
   }
   const password = strongPassword();
+  // A fresh navigation, because changing only the fragment would not reload the page.
   await page.goto("/painel/entrar");
   await page.goto(link[0]);
-  await page.getByLabel("Nova senha").fill(password);
+  await fillSecret(page.getByLabel("Nova senha"), password);
   await page.getByRole("button", { name: "Salvar senha" }).click();
-  await expect(page.getByText(PASSWORD_SET)).toBeVisible();
+  const done = page.getByText(PASSWORD_SET);
+  const dead = page.getByText(DEAD_LINK_START);
+  await expect(done.or(dead)).toBeVisible();
+  if (await dead.isVisible()) {
+    throw new Error(
+      "Administrator password unknown and the newest first-access link is already used or expired: see Risco (g) of ticket #14.",
+    );
+  }
   await mkdir(dirname(PASSWORD_FILE), { recursive: true });
   await writeFile(PASSWORD_FILE, password, "utf8");
   return password;
