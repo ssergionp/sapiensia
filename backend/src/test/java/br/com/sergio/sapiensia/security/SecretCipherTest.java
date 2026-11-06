@@ -95,6 +95,19 @@ class SecretCipherTest {
     }
 
     @Test
+    @DisplayName("SEC-003: a null AAD is refused explicitly, on both directions")
+    void shouldRejectANullAad() {
+        String stored = cipher.encrypt(PLAIN, AAD);
+
+        assertThatThrownBy(() -> cipher.encrypt(PLAIN, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("aad is required");
+        assertThatThrownBy(() -> cipher.decrypt(stored, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("aad is required");
+    }
+
+    @Test
     @DisplayName("SEC-003: MfaProperties.toString redacts the key")
     void shouldRedactTheKeyInToString() {
         assertThat(new MfaProperties(KEY).toString()).isEqualTo("MfaProperties[redacted]");

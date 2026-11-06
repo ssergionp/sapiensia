@@ -116,8 +116,7 @@ class AdminMfaEnrollmentTest {
         HttpResponse<String> response = pending().post(ENROLLMENT, "{}");
 
         assertThat(response.statusCode()).isEqualTo(200);
-        assertThat(response.headers().firstValue("Cache-Control"))
-                .hasValueSatisfying(v -> assertThat(v).contains("no-store"));
+        assertThat(response.headers().firstValue("Cache-Control")).hasValue("no-store");
         Matcher m = SECRET.matcher(response.body());
         assertThat(m.find()).isTrue();
         String base32 = m.group(1);
@@ -233,6 +232,27 @@ class AdminMfaEnrollmentTest {
         HttpResponse<String> response = pending().post(CONFIRMATION, body("123456"));
 
         assertThat(response.statusCode()).isEqualTo(409);
+    }
+
+    @Test
+    @DisplayName("SEC-001: as rotas POST do MFA sem o token CSRF dão 403 e nada muda")
+    void shouldRefuseTheMfaPostRoutesWithoutTheCsrfToken() throws Exception {
+        AdminBrowser browser = pending();
+        byte[] secret = secretOf(browser.post(ENROLLMENT, "{}"));
+        String before = storedSecret();
+        String code = code(secret);
+
+        assertThat(browser.postWithoutCsrf(ENROLLMENT, "{}").statusCode()).isEqualTo(403);
+        assertThat(storedSecret()).isEqualTo(before);
+        assertThat(browser.postWithoutCsrf(CONFIRMATION, body(code)).statusCode())
+                .isEqualTo(403);
+        assertThat(jdbc.queryForObject(
+                        "select totp_enabled_at is null from administrators where id = ?", Boolean.class, adminId))
+                .isTrue();
+        assertThat(browser.postWithoutCsrf(MFA, body(code)).statusCode()).isEqualTo(403);
+        assertThat(browser.get(CURRENT).statusCode()).isEqualTo(401);
+        // the same session and the same code still work with the token: nothing was spent
+        assertThat(browser.post(CONFIRMATION, body(code)).statusCode()).isEqualTo(204);
     }
 
     @Test

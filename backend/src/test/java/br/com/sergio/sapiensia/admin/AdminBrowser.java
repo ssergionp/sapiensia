@@ -61,6 +61,17 @@ final class AdminBrowser {
                 HttpResponse.BodyHandlers.ofString());
     }
 
+    /** A POST that keeps the cookies but sends no X-XSRF-TOKEN header: what a cross-site form would send. */
+    HttpResponse<String> postWithoutCsrf(String path, String json) throws Exception {
+        ensureCsrfCookie();
+        return client.send(
+                HttpRequest.newBuilder(uri(path))
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString(json))
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+    }
+
     HttpResponse<String> delete(String path) throws Exception {
         ensureCsrfCookie();
         return client.send(

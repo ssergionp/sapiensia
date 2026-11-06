@@ -63,7 +63,10 @@ class MfaConfigurationTest {
     @Test
     @DisplayName("SEC-003: an absent key stops the context")
     void shouldFailWithoutAKey() {
-        runner.run(context -> assertThat(context).hasFailed());
+        runner.run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(failureChain(context.getStartupFailure())).contains("Invalid app.mfa.encryption-key");
+        });
     }
 
     @Test
@@ -76,16 +79,37 @@ class MfaConfigurationTest {
         assertThat(prod).doesNotContain("encryption-key").doesNotContain("APP_MFA_ENCRYPTION_KEY");
     }
 
-    @Test
-    @DisplayName("SEC-003: with the prod profile and no APP_MFA_ENCRYPTION_KEY the context does not start")
-    void shouldFailInProdWithoutTheVariable() {
-        runner.withInitializer(new ConfigDataApplicationContextInitializer())
+    /**
+     * The real application.yml and application-prod.yml, with the prod profile. The test property sits above the
+     * environment, so an APP_MFA_ENCRYPTION_KEY set on a developer machine or in the CI cannot change the result.
+     */
+    private ApplicationContextRunner prodRunner(String variable) {
+        return runner.withInitializer(new ConfigDataApplicationContextInitializer())
                 .withPropertyValues(
                         "spring.profiles.active=prod",
-                        "spring.config.location=classpath:/application.yml,classpath:/application-prod.yml")
-                .run(context -> {
-                    assertThat(context).hasFailed();
-                    assertThat(failureChain(context.getStartupFailure())).contains("Invalid app.mfa.encryption-key");
-                });
+                        "spring.config.location=classpath:/application.yml,classpath:/application-prod.yml",
+                        "APP_MFA_ENCRYPTION_KEY=" + variable);
+    }
+
+    @Test
+    @DisplayName("SEC-003: with the prod profile and no usable APP_MFA_ENCRYPTION_KEY the context does not start")
+    void shouldFailInProdWithoutTheVariable() {
+        // a literal that is not Base64: the placeholder in application.yml has no default, so it resolves to this
+        prodRunner("not-a-key !!").run(context -> {
+            assertThat(context).hasFailed();
+            assertThat(failureChain(context.getStartupFailure())).contains("Invalid app.mfa.encryption-key");
+        });
+    }
+
+    @Test
+    @DisplayName("SEC-003: control: the same prod files start with a valid APP_MFA_ENCRYPTION_KEY, so they are loaded")
+    void shouldStartInProdWithTheVariable() {
+        String valid = key(32);
+
+        prodRunner(valid).run(context -> {
+            assertThat(context).hasNotFailed();
+            // the value reached the bean only through the placeholder in the application.yml
+            assertThat(context.getBean(MfaProperties.class).encryptionKey()).isEqualTo(valid);
+        });
     }
 }
