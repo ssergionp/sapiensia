@@ -6,6 +6,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
 
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
+import br.com.sergio.sapiensia.security.SecretCipher;
 import br.com.sergio.sapiensia.security.Tokens;
 import java.net.http.HttpResponse;
 import java.security.SecureRandom;
@@ -30,7 +31,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 /** Real server, own context (limiter state is in memory) and its own cookie jar per "browser". */
-@Import(TestcontainersConfiguration.class)
+@Import({TestcontainersConfiguration.class, AdminMfaTestSupport.ClockConfig.class})
 @ExtendWith(OutputCaptureExtension.class)
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
@@ -50,11 +51,18 @@ class AdminSessionTest {
     @Autowired
     PasswordEncoder passwordEncoder;
 
+    @Autowired
+    SecretCipher cipher;
+
+    @Autowired
+    AdminMfaTestSupport.MutableClock clock;
+
     @MockitoSpyBean
     Administrators administrators;
 
     private String email;
     private UUID adminId;
+    private byte[] secret;
 
     @BeforeEach
     void setUp() {
@@ -67,6 +75,7 @@ class AdminSessionTest {
                 adminId,
                 email,
                 passwordEncoder.encode(PASSWORD));
+        secret = AdminMfaTestSupport.enableMfa(jdbc, cipher, adminId);
     }
 
     private AdminBrowser browser() {
@@ -100,7 +109,7 @@ class AdminSessionTest {
         String xsrfBefore = browser.cookie("XSRF-TOKEN");
         assertThat(browser.get(CURRENT).statusCode()).isEqualTo(401);
 
-        HttpResponse<String> login = browser.loginAdmin(email, PASSWORD);
+        HttpResponse<String> login = browser.loginAdminFully(email, PASSWORD, secret, clock);
 
         assertThat(login.statusCode()).isEqualTo(204);
         assertThat(login.body()).isEmpty();
@@ -263,7 +272,8 @@ class AdminSessionTest {
         assertThat(customer.get(CURRENT).statusCode()).isEqualTo(403);
 
         AdminBrowser admin = browser();
-        assertThat(admin.loginAdmin(email, PASSWORD).statusCode()).isEqualTo(204);
+        assertThat(admin.loginAdminFully(email, PASSWORD, secret, clock).statusCode())
+                .isEqualTo(204);
         assertThat(admin.get("/api/sessions/current").statusCode()).isEqualTo(403);
         assertThat(admin.delete("/api/sessions").statusCode()).isEqualTo(403);
         assertThat(admin.get(CURRENT).statusCode()).isEqualTo(200);
@@ -279,7 +289,8 @@ class AdminSessionTest {
         String customerSession = browser.cookie("JSESSIONID");
         String customerXsrf = browser.cookie("XSRF-TOKEN");
 
-        assertThat(browser.loginAdmin(email, PASSWORD).statusCode()).isEqualTo(204);
+        assertThat(browser.loginAdminFully(email, PASSWORD, secret, clock).statusCode())
+                .isEqualTo(204);
 
         assertThat(browser.cookie("JSESSIONID")).isNotBlank().isNotEqualTo(customerSession);
         assertThat(browser.cookie("XSRF-TOKEN")).isNotBlank().isNotEqualTo(customerXsrf);
@@ -292,7 +303,8 @@ class AdminSessionTest {
     void shouldReplaceTheAdministratorSessionWhenTheCustomerLogsIn() throws Exception {
         String customerEmail = newCustomer("cliente-" + UUID.randomUUID() + "@example.com");
         AdminBrowser browser = browser();
-        assertThat(browser.loginAdmin(email, PASSWORD).statusCode()).isEqualTo(204);
+        assertThat(browser.loginAdminFully(email, PASSWORD, secret, clock).statusCode())
+                .isEqualTo(204);
         String adminSession = browser.cookie("JSESSIONID");
 
         assertThat(browser.loginCustomer(customerEmail, PASSWORD).statusCode()).isEqualTo(204);
@@ -306,7 +318,8 @@ class AdminSessionTest {
     @DisplayName("SEC-007: um link que sobrou não troca a senha já definida, e a sessão do Administrador continua")
     void shouldRefuseALeftoverLinkOnceThePasswordIsSet() throws Exception {
         AdminBrowser browser = browser();
-        assertThat(browser.loginAdmin(email, PASSWORD).statusCode()).isEqualTo(204);
+        assertThat(browser.loginAdminFully(email, PASSWORD, secret, clock).statusCode())
+                .isEqualTo(204);
         assertThat(browser.get(CURRENT).statusCode()).isEqualTo(200);
         byte[] bytes = new byte[32];
         new SecureRandom().nextBytes(bytes);
@@ -333,7 +346,8 @@ class AdminSessionTest {
             "SEC-006: quando a session_version do Administrador sobe (definir a senha a sobe), a sessão antiga recebe 401")
     void shouldEndTheSessionWhenTheSessionVersionChanges() throws Exception {
         AdminBrowser browser = browser();
-        assertThat(browser.loginAdmin(email, PASSWORD).statusCode()).isEqualTo(204);
+        assertThat(browser.loginAdminFully(email, PASSWORD, secret, clock).statusCode())
+                .isEqualTo(204);
         assertThat(browser.get(CURRENT).statusCode()).isEqualTo(200);
 
         jdbc.update("update administrators set session_version = session_version + 1 where id = ?", adminId);
@@ -345,7 +359,8 @@ class AdminSessionTest {
     @DisplayName("SEC-006: sem a linha do Administrador a sessão recebe 401")
     void shouldEndTheSessionOfADeletedAdministrator() throws Exception {
         AdminBrowser browser = browser();
-        assertThat(browser.loginAdmin(email, PASSWORD).statusCode()).isEqualTo(204);
+        assertThat(browser.loginAdminFully(email, PASSWORD, secret, clock).statusCode())
+                .isEqualTo(204);
 
         jdbc.update("delete from administrators where id = ?", adminId);
 
@@ -356,7 +371,8 @@ class AdminSessionTest {
     @DisplayName("SEC-006: o logout DELETE /api/sessions/current encerra a sessão do Administrador")
     void shouldEndTheAdministratorSessionOnLogout() throws Exception {
         AdminBrowser browser = browser();
-        assertThat(browser.loginAdmin(email, PASSWORD).statusCode()).isEqualTo(204);
+        assertThat(browser.loginAdminFully(email, PASSWORD, secret, clock).statusCode())
+                .isEqualTo(204);
 
         assertThat(browser.delete("/api/sessions/current").statusCode()).isEqualTo(204);
 
@@ -376,6 +392,11 @@ class AdminSessionTest {
                         + "\"authorities\":[\"ROLE_CUSTOMER\"],\"id\":\"" + UUID.randomUUID() + "\"}");
 
         assertThat(login.statusCode()).isEqualTo(204);
+        assertThat(browser.get(CURRENT).statusCode()).isEqualTo(401);
+        clock.advance(java.time.Duration.ofSeconds(30));
+        assertThat(browser.verifyMfa(AdminMfaTestSupport.codeAt(secret, clock.instant()))
+                        .statusCode())
+                .isEqualTo(204);
         HttpResponse<String> current = browser.get(CURRENT);
         assertThat(current.statusCode()).isEqualTo(200);
         assertThat(current.body()).isEqualTo("{\"email\":\"" + email + "\",\"capabilities\":[\"PANEL_ACCESS\"]}");
@@ -420,5 +441,51 @@ class AdminSessionTest {
                 .doesNotContain(email)
                 .doesNotContain(PASSWORD)
                 .doesNotContain(WRONG);
+    }
+
+    @Test
+    @DisplayName("SEC-001: falha do banco no código dá 503, não conta como erro e o log não traz o código")
+    void shouldAnswer503AndNotCountWhenTheDatabaseFailsOnTheCode(CapturedOutput output) throws Exception {
+        AdminBrowser browser = browser();
+        assertThat(browser.loginAdmin(email, PASSWORD).statusCode()).isEqualTo(204);
+        clock.advance(java.time.Duration.ofSeconds(30));
+        String code = AdminMfaTestSupport.codeAt(secret, clock.instant());
+        // only what this test logs: a 6-digit number could appear by chance in earlier startup lines
+        int from = output.getAll().length();
+        doThrow(new DataAccessResourceFailureException("down for " + code))
+                .when(administrators)
+                .findTotp(any());
+        for (int i = 0; i < 6; i++) {
+            assertThat(browser.verifyMfa(code).statusCode()).isEqualTo(503);
+        }
+        reset(administrators);
+
+        assertThat(browser.verifyMfa(code).statusCode()).isEqualTo(204);
+        assertThat(output.getAll().substring(from))
+                .contains("MFA check unavailable")
+                .doesNotContain(code)
+                .doesNotContain(email);
+    }
+
+    @Test
+    @DisplayName("SEC-001: segredo que não decifra dá 503 e não conta como erro de código")
+    void shouldAnswer503WhenTheSecretDoesNotDecrypt() throws Exception {
+        String stored =
+                jdbc.queryForObject("select totp_secret from administrators where id = ?", String.class, adminId);
+        jdbc.update(
+                "update administrators set totp_secret = ? where id = ?",
+                "v1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+                adminId);
+        AdminBrowser browser = browser();
+        assertThat(browser.loginAdmin(email, PASSWORD).statusCode()).isEqualTo(204);
+        clock.advance(java.time.Duration.ofSeconds(30));
+        String code = AdminMfaTestSupport.codeAt(secret, clock.instant());
+        for (int i = 0; i < 6; i++) {
+            assertThat(browser.verifyMfa(code).statusCode()).isEqualTo(503);
+        }
+
+        jdbc.update("update administrators set totp_secret = ? where id = ?", stored, adminId);
+
+        assertThat(browser.verifyMfa(code).statusCode()).isEqualTo(204);
     }
 }

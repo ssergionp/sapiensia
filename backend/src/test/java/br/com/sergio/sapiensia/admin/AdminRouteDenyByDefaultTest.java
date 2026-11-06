@@ -3,6 +3,7 @@ package br.com.sergio.sapiensia.admin;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
+import br.com.sergio.sapiensia.security.SecretCipher;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -22,7 +23,11 @@ import org.springframework.web.bind.annotation.RestController;
  * A route under /api/admin that SecurityConfig knows nothing about must stay denied, even for an Administrator who
  * holds PANEL_ACCESS: each new panel feature adds its own capability and rule.
  */
-@Import({TestcontainersConfiguration.class, AdminRouteDenyByDefaultTest.ProbeConfig.class})
+@Import({
+    TestcontainersConfiguration.class,
+    AdminRouteDenyByDefaultTest.ProbeConfig.class,
+    AdminMfaTestSupport.ClockConfig.class
+})
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"test.isolated-context=admin-route-deny", "app.login-limit.ip-max-attempts=1000"})
@@ -55,6 +60,14 @@ class AdminRouteDenyByDefaultTest {
     @Autowired
     PasswordEncoder passwordEncoder;
 
+    @Autowired
+    SecretCipher cipher;
+
+    @Autowired
+    AdminMfaTestSupport.MutableClock clock;
+
+    private byte[] secret;
+
     private String adminEmail;
     private String customerEmail;
 
@@ -63,10 +76,13 @@ class AdminRouteDenyByDefaultTest {
         jdbc.update("delete from administrators");
         adminEmail = "painel-" + UUID.randomUUID() + "@example.com";
         customerEmail = "cliente-" + UUID.randomUUID() + "@example.com";
+        UUID adminId = UUID.randomUUID();
         jdbc.update(
-                "insert into administrators (email, password_hash) values (?, ?)",
+                "insert into administrators (id, email, password_hash) values (?, ?, ?)",
+                adminId,
                 adminEmail,
                 passwordEncoder.encode(PASSWORD));
+        secret = AdminMfaTestSupport.enableMfa(jdbc, cipher, adminId);
         jdbc.update(
                 "insert into customers (email, password_hash, email_confirmed_at) values (?, ?, now())",
                 customerEmail,
@@ -80,7 +96,10 @@ class AdminRouteDenyByDefaultTest {
         AdminBrowser customer = new AdminBrowser(port);
         AdminBrowser administrator = new AdminBrowser(port);
         assertThat(customer.loginCustomer(customerEmail, PASSWORD).statusCode()).isEqualTo(204);
-        assertThat(administrator.loginAdmin(adminEmail, PASSWORD).statusCode()).isEqualTo(204);
+        assertThat(administrator
+                        .loginAdminFully(adminEmail, PASSWORD, secret, clock)
+                        .statusCode())
+                .isEqualTo(204);
         assertThat(administrator.get("/api/admin/sessions/current").statusCode())
                 .isEqualTo(200);
 

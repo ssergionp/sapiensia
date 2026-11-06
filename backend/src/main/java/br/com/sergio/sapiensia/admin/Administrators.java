@@ -3,6 +3,7 @@ package br.com.sergio.sapiensia.admin;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.OptionalLong;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -78,6 +79,45 @@ class Administrators {
                         rs.getString("password_hash"),
                         rs.getInt("session_version")))
                 .optional();
+    }
+
+    /** The TOTP state of the account: the encrypted secret (null if none), whether it is active, the last step. */
+    record Totp(String secretCipher, boolean enabled, OptionalLong lastStep) {
+
+        // never the cipher text
+        @Override
+        public String toString() {
+            return "Totp[enabled=" + enabled + "]";
+        }
+    }
+
+    /** Empty when the row no longer exists. */
+    Optional<Totp> findTotp(UUID id) {
+        return jdbc.sql("select totp_secret, totp_enabled_at is not null as enabled, totp_last_step"
+                        + " from administrators where id = :id")
+                .param("id", id)
+                .query((rs, i) -> {
+                    long last = rs.getLong("totp_last_step");
+                    return new Totp(
+                            rs.getString("totp_secret"),
+                            rs.getBoolean("enabled"),
+                            rs.wasNull() ? OptionalLong.empty() : OptionalLong.of(last));
+                })
+                .optional();
+    }
+
+    /**
+     * Records {@code step} as the last accepted one, only if MFA is active and the step is greater than the last one:
+     * one conditional UPDATE, so of two requests with the same code the row lock lets exactly one through. Returns the
+     * number of rows changed (1 accepted, 0 refused).
+     */
+    int acceptStep(UUID id, long step) {
+        return jdbc.sql("update administrators set totp_last_step = :step where id = :id"
+                        + " and totp_enabled_at is not null"
+                        + " and (totp_last_step is null or totp_last_step < :step)")
+                .param("step", step)
+                .param("id", id)
+                .update();
     }
 
     /** The session version, for the filter that ends sessions opened before a password change. */

@@ -9,7 +9,6 @@ app:
     provider: file
   admin:
     email: admin@example.com
-    panel-login-enabled: true
   mfa:
     encryption-key: ${APP_MFA_ENCRYPTION_KEY:QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUE=} # gitleaks:allow
   # Vite dev server (default port), which serves the frontend pages

@@ -66,6 +66,25 @@ final class AdminBrowser {
         return post("/api/admin/sessions", "{\"email\":\"" + email + "\",\"password\":\"" + password + "\"}");
     }
 
+    /** The second step of the panel login: the 6-digit code of the authenticator app. */
+    HttpResponse<String> verifyMfa(String code) throws Exception {
+        return post("/api/admin/sessions/mfa", "{\"code\":\"" + code + "\"}");
+    }
+
+    /**
+     * Password, then the code of a fresh 30 s step (the clock moves one step first, since a step is accepted only
+     * once): ends with a full Administrator session. Returns the answer to the code.
+     */
+    HttpResponse<String> loginAdminFully(
+            String email, String password, byte[] secret, AdminMfaTestSupport.MutableClock clock) throws Exception {
+        clock.advance(java.time.Duration.ofSeconds(30));
+        HttpResponse<String> login = loginAdmin(email, password);
+        if (login.statusCode() != 204) {
+            throw new AssertionError("password step answered " + login.statusCode());
+        }
+        return verifyMfa(AdminMfaTestSupport.codeAt(secret, clock.instant()));
+    }
+
     HttpResponse<String> loginCustomer(String email, String password) throws Exception {
         return post("/api/sessions", "{\"email\":\"" + email + "\",\"password\":\"" + password + "\"}");
     }

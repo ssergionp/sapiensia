@@ -57,9 +57,8 @@ app:
     password-link-min-interval: PT1H
     # true (prod only): a blank or invalid e-mail stops the application
     required: false
-    # the panel login (POST /api/admin/sessions); off answers 404. Off by default and in prod until MFA (#15, ADR-0004);
-    # on in the local profile, in the tests and in the CI e2e (APP_ADMIN_PANEL_LOGIN_ENABLED=true)
-    panel-login-enabled: false
+    # how long the "MFA pending" state lasts after the correct password; then the code is refused and the login restarts
+    mfa-pending-ttl: PT5M
   mfa:
     # Base64 of 32 bytes (secret APP_MFA_ENCRYPTION_KEY); no default, so a missing or invalid value stops the application
     encryption-key: ${APP_MFA_ENCRYPTION_KEY}

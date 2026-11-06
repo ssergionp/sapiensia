@@ -2,6 +2,7 @@ package br.com.sergio.sapiensia.customer;
 
 import br.com.sergio.sapiensia.admin.AdministratorPrincipal;
 import br.com.sergio.sapiensia.admin.AdministratorSessions;
+import br.com.sergio.sapiensia.admin.PendingAdministrator;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -10,6 +11,7 @@ import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
@@ -48,14 +50,19 @@ public class SessionVersionFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         Authentication authentication = contextHolder.getContext().getAuthentication();
         Object who = authentication == null ? null : authentication.getPrincipal();
-        if (who instanceof CustomerUserDetailsService.CustomerPrincipal || who instanceof AdministratorPrincipal) {
+        if (who instanceof CustomerUserDetailsService.CustomerPrincipal
+                || who instanceof AdministratorPrincipal
+                || who instanceof PendingAdministrator) {
             int sessionVersion;
             Optional<Integer> current;
             try {
                 if (who instanceof AdministratorPrincipal admin) {
                     sessionVersion = admin.sessionVersion();
-                    OptionalInt version = administratorSessions.findSessionVersion(admin.id());
-                    current = version.isPresent() ? Optional.of(version.getAsInt()) : Optional.empty();
+                    current = administratorVersion(admin.id());
+                } else if (who instanceof PendingAdministrator pending) {
+                    // the "MFA pending" session too: a password change or a deleted row ends it before the code
+                    sessionVersion = pending.sessionVersion();
+                    current = administratorVersion(pending.id());
                 } else {
                     var customer = (CustomerUserDetailsService.CustomerPrincipal) who;
                     sessionVersion = customer.credentials().sessionVersion();
@@ -81,5 +88,10 @@ public class SessionVersionFilter extends OncePerRequestFilter {
             }
         }
         chain.doFilter(request, response);
+    }
+
+    private Optional<Integer> administratorVersion(UUID id) {
+        OptionalInt version = administratorSessions.findSessionVersion(id);
+        return version.isPresent() ? Optional.of(version.getAsInt()) : Optional.empty();
     }
 }
