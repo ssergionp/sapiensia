@@ -12,4 +12,11 @@ record AdminPasswordSetupRequest(
         @NotBlank(message = "PASSWORD_REQUIRED")
         @Size(min = 12, message = "PASSWORD_TOO_SHORT")
         @Size(max = 128, message = "PASSWORD_TOO_LONG")
-        String newPassword) {}
+        String newPassword) {
+
+    // never the link token or the password
+    @Override
+    public String toString() {
+        return "AdminPasswordSetupRequest[redacted]";
+    }
+}
