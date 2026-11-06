@@ -33,7 +33,7 @@ class PasswordResetTokens {
         return token;
     }
 
-    /** A random 32-byte token in Base64 URL form without padding (43 characters). Also used by the device cookie. */
+    /** Forwards to {@link Tokens#newToken}, the one generator; kept so the customer code and its tests keep this name. */
     static String newToken() {
         return Tokens.newToken();
     }

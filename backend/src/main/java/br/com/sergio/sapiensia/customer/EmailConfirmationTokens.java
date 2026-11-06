@@ -86,6 +86,7 @@ class EmailConfirmationTokens {
                 > 0;
     }
 
+    /** Forwards to {@link Tokens#hash}, the one hash; kept so the customer code and its tests keep this name. */
     static String hash(String token) {
         return Tokens.hash(token);
     }
