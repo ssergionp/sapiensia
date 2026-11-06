@@ -14,6 +14,7 @@ const ENROLL = "POST /api/admin/sessions/mfa/enrollment";
 const CONFIRM = "POST /api/admin/sessions/mfa/enrollment/confirmation";
 const VERIFY = "POST /api/admin/sessions/mfa";
 
+// nosemgrep: generic.secrets.security.detected-generic-secret.detected-generic-secret -- fake TOTP test key, not a secret
 const SECRET = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";
 const SECRET_GROUPED = "JBSW Y3DP EHPK 3PXP JBSW Y3DP EHPK 3PXP";
 const OTPAUTH = `otpauth://totp/SapiensIA:admin%40example.com?secret=${SECRET}&issuer=SapiensIA`;
@@ -396,6 +397,7 @@ describe("AdminMfaPage", () => {
   });
 
   test("409 when confirming replaces the key and the QR, clears the code and lets the user confirm the new enrollment", async () => {
+    // nosemgrep: generic.secrets.security.detected-generic-secret.detected-generic-secret -- fake TOTP test key, not a secret
     const newSecret = "MFRGGZDFMZTWQ2LKMFRGGZDFMZTWQ2LK";
     const newSecretGrouped = "MFRG GZDF MZTW Q2LK MFRG GZDF MZTW Q2LK";
     const newOtpauth = `otpauth://totp/SapiensIA:admin%40example.com?secret=${newSecret}&issuer=SapiensIA`;
