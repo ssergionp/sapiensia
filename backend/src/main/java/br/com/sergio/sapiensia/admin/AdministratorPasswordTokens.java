@@ -16,9 +16,18 @@ class AdministratorPasswordTokens {
     private final JdbcClient jdbc;
     private final Duration ttl;
 
+    /** The only place that reads {@code app.admin.password-link-ttl}: the e-mail states this same value. */
     AdministratorPasswordTokens(JdbcClient jdbc, @Value("${app.admin.password-link-ttl}") Duration ttl) {
+        if (ttl.compareTo(Duration.ofMinutes(1)) < 0) {
+            throw new IllegalStateException("app.admin.password-link-ttl must be at least 1 minute");
+        }
         this.jdbc = jdbc;
         this.ttl = ttl;
+    }
+
+    /** How long a new link stays valid. */
+    Duration ttl() {
+        return ttl;
     }
 
     /**

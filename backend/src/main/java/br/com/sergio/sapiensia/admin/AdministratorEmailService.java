@@ -30,18 +30,15 @@ class AdministratorEmailService {
     private final AdministratorPasswordTokens tokens;
     private final EmailSender sender;
     private final String publicBaseUrl;
-    private final Duration linkTtl;
 
     AdministratorEmailService(
             Administrators administrators,
             AdministratorPasswordTokens tokens,
             EmailSender sender,
-            @Value("${app.public-base-url}") String publicBaseUrl,
-            @Value("${app.admin.password-link-ttl}") Duration linkTtl) {
+            @Value("${app.public-base-url}") String publicBaseUrl) {
         this.administrators = administrators;
         this.tokens = tokens;
         this.sender = sender;
-        this.linkTtl = linkTtl;
         this.publicBaseUrl = publicBaseUrl.replaceAll("/+$", ""); // links append "/path"
         if (this.publicBaseUrl.isBlank()) {
             throw new IllegalStateException(
@@ -59,7 +56,7 @@ class AdministratorEmailService {
         administrators.findWithoutPassword().ifPresent(pending -> {
             String token = Tokens.newToken();
             String link = publicBaseUrl + "/painel/definir-senha#" + token;
-            sender.send(new EmailMessage(pending.email(), SUBJECT, text(link, linkTtl)));
+            sender.send(new EmailMessage(pending.email(), SUBJECT, text(link, tokens.ttl())));
             tokens.replaceWith(pending.id(), Tokens.hash(token));
         });
     }
@@ -69,12 +66,13 @@ class AdministratorEmailService {
         return TEXT.formatted(validity(ttl), link);
     }
 
+    /** Rounded up to whole minutes, so the text never promises more time than the link has. */
     private static String validity(Duration ttl) {
-        if (ttl.toMinutes() % 60 == 0) {
-            long hours = ttl.toHours();
+        long minutes = ttl.plusMinutes(1).minusNanos(1).toMinutes();
+        if (minutes % 60 == 0) {
+            long hours = minutes / 60;
             return hours == 1 ? "1 hora" : hours + " horas";
         }
-        long minutes = ttl.toMinutes();
         return minutes == 1 ? "1 minuto" : minutes + " minutos";
     }
 }

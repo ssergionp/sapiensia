@@ -1,6 +1,7 @@
 package br.com.sergio.sapiensia.admin;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import org.junit.jupiter.api.DisplayName;
@@ -36,5 +37,26 @@ class AdministratorEmailTextTest {
                 .contains("O link vale por 90 minutos e só pode ser usado uma vez.");
         assertThat(AdministratorEmailService.text(LINK, Duration.ofMinutes(1)))
                 .contains("O link vale por 1 minuto e só pode ser usado uma vez.");
+    }
+
+    @Test
+    @DisplayName("SEC-007: a validade do texto arredonda para cima em minutos inteiros")
+    void shouldRoundTheValidityUpToWholeMinutes() {
+        assertThat(AdministratorEmailService.text(LINK, Duration.ofMinutes(90)))
+                .contains("O link vale por 90 minutos e só pode ser usado uma vez.");
+        assertThat(AdministratorEmailService.text(LINK, Duration.ofSeconds(90)))
+                .contains("O link vale por 2 minutos e só pode ser usado uma vez.");
+        assertThat(AdministratorEmailService.text(LINK, Duration.ofMinutes(60).plusSeconds(1)))
+                .contains("O link vale por 61 minutos e só pode ser usado uma vez.");
+    }
+
+    @Test
+    @DisplayName("SEC-007: um app.admin.password-link-ttl menor que 1 minuto impede a subida")
+    void shouldRejectALinkTtlShorterThanOneMinute() {
+        assertThatThrownBy(() -> new AdministratorPasswordTokens(null, Duration.ofSeconds(59)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("app.admin.password-link-ttl");
+        assertThat(new AdministratorPasswordTokens(null, Duration.ofMinutes(1)).ttl())
+                .isEqualTo(Duration.ofMinutes(1));
     }
 }
