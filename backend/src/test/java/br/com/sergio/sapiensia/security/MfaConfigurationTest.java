@@ -13,6 +13,7 @@ import org.springframework.boot.test.context.ConfigDataApplicationContextInitial
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.env.StandardEnvironment;
 
 class MfaConfigurationTest {
 
@@ -37,7 +38,7 @@ class MfaConfigurationTest {
     }
 
     @Test
-    @DisplayName("SEC-003: the context starts with a 32-byte key")
+    @DisplayName("SEC-036: the context starts with a 32-byte key")
     void shouldStartWithA32ByteKey() {
         runner.withPropertyValues("app.mfa.encryption-key=" + key(32)).run(context -> {
             assertThat(context).hasNotFailed();
@@ -46,7 +47,7 @@ class MfaConfigurationTest {
     }
 
     @Test
-    @DisplayName("SEC-003: a blank, invalid, 16-byte or 31-byte key stops the context without showing the value")
+    @DisplayName("SEC-067: a blank, invalid, 16-byte or 31-byte key stops the context without showing the value")
     void shouldFailWithABadKey() {
         for (String bad : new String[] {"", "not base64 !!", key(16), key(31)}) {
             runner.withPropertyValues("app.mfa.encryption-key=" + bad).run(context -> {
@@ -61,7 +62,7 @@ class MfaConfigurationTest {
     }
 
     @Test
-    @DisplayName("SEC-003: an absent key stops the context")
+    @DisplayName("SEC-067: an absent key stops the context")
     void shouldFailWithoutAKey() {
         runner.run(context -> {
             assertThat(context).hasFailed();
@@ -70,7 +71,7 @@ class MfaConfigurationTest {
     }
 
     @Test
-    @DisplayName("SEC-003: the main application.yml has no default for the key and prod holds no key")
+    @DisplayName("SEC-067: the main application.yml has no default for the key and prod holds no key")
     void shouldKeepTheKeyOutOfTheFiles() throws IOException {
         String main = Files.readString(Path.of("src/main/resources/application.yml"));
         String prod = Files.readString(Path.of("src/main/resources/application-prod.yml"));
@@ -84,16 +85,19 @@ class MfaConfigurationTest {
      * environment, so an APP_MFA_ENCRYPTION_KEY set on a developer machine or in the CI cannot change the result.
      */
     private ApplicationContextRunner prodRunner(String variable) {
+        return prodFiles().withPropertyValues("APP_MFA_ENCRYPTION_KEY=" + variable);
+    }
+
+    private ApplicationContextRunner prodFiles() {
         return runner.withInitializer(new ConfigDataApplicationContextInitializer())
                 .withPropertyValues(
                         "spring.profiles.active=prod",
-                        "spring.config.location=classpath:/application.yml,classpath:/application-prod.yml",
-                        "APP_MFA_ENCRYPTION_KEY=" + variable);
+                        "spring.config.location=classpath:/application.yml,classpath:/application-prod.yml");
     }
 
     @Test
-    @DisplayName("SEC-003: with the prod profile and no usable APP_MFA_ENCRYPTION_KEY the context does not start")
-    void shouldFailInProdWithoutTheVariable() {
+    @DisplayName("SEC-067: the prod files with an invalid APP_MFA_ENCRYPTION_KEY value do not start")
+    void shouldFailInProdWithAnInvalidVariableValue() {
         // a literal that is not Base64: the placeholder in application.yml has no default, so it resolves to this
         prodRunner("not-a-key !!").run(context -> {
             assertThat(context).hasFailed();
@@ -102,7 +106,23 @@ class MfaConfigurationTest {
     }
 
     @Test
-    @DisplayName("SEC-003: control: the same prod files start with a valid APP_MFA_ENCRYPTION_KEY, so they are loaded")
+    @DisplayName("SEC-067: the prod files with no APP_MFA_ENCRYPTION_KEY at all do not start")
+    void shouldFailInProdWhenTheVariableIsAbsent() {
+        // the machine's environment and system properties are removed, so a key set on it or in the CI cannot leak in
+        prodFiles()
+                .withInitializer(context -> {
+                    var sources = context.getEnvironment().getPropertySources();
+                    sources.remove(StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME);
+                    sources.remove(StandardEnvironment.SYSTEM_PROPERTIES_PROPERTY_SOURCE_NAME);
+                })
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(failureChain(context.getStartupFailure())).contains("Invalid app.mfa.encryption-key");
+                });
+    }
+
+    @Test
+    @DisplayName("SEC-067: control: the same prod files start with a valid APP_MFA_ENCRYPTION_KEY, so they are loaded")
     void shouldStartInProdWithTheVariable() {
         String valid = key(32);
 

@@ -19,7 +19,7 @@ class SecretCipherTest {
     private final SecretCipher cipher = new SecretCipher(new MfaProperties(KEY));
 
     @Test
-    @DisplayName("SEC-003: round trip returns the original bytes")
+    @DisplayName("SEC-036: round trip returns the original bytes")
     void shouldRoundTrip() {
         String stored = cipher.encrypt(PLAIN, AAD);
 
@@ -28,7 +28,7 @@ class SecretCipherTest {
     }
 
     @Test
-    @DisplayName("SEC-003: stored format is v1 + Base64(nonce 12 || cipher text || tag 16)")
+    @DisplayName("SEC-036: stored format is v1 + Base64(nonce 12 || cipher text || tag 16)")
     void shouldUseTheDocumentedLayout() {
         String stored = cipher.encrypt(PLAIN, AAD);
 
@@ -37,13 +37,13 @@ class SecretCipherTest {
     }
 
     @Test
-    @DisplayName("SEC-003: two encryptions of the same value differ (fresh nonce)")
+    @DisplayName("SEC-036: two encryptions of the same value differ (fresh nonce)")
     void shouldUseAFreshNonceEachTime() {
         assertThat(cipher.encrypt(PLAIN, AAD)).isNotEqualTo(cipher.encrypt(PLAIN, AAD));
     }
 
     @Test
-    @DisplayName("SEC-003: a different AAD fails to decrypt")
+    @DisplayName("SEC-036: a different AAD fails to decrypt")
     void shouldRejectADifferentAad() {
         String stored = cipher.encrypt(PLAIN, AAD);
 
@@ -53,7 +53,7 @@ class SecretCipherTest {
     }
 
     @Test
-    @DisplayName("SEC-003: a tampered byte fails to decrypt")
+    @DisplayName("SEC-036: a tampered byte fails to decrypt")
     void shouldRejectATamperedValue() {
         String stored = cipher.encrypt(PLAIN, AAD);
         byte[] raw = Base64.getDecoder().decode(stored.substring(3));
@@ -66,7 +66,7 @@ class SecretCipherTest {
     }
 
     @Test
-    @DisplayName("SEC-003: another prefix, a too-short value, bad Base64 and null fail to decrypt")
+    @DisplayName("SEC-036: another prefix, a too-short value, bad Base64 and null fail to decrypt")
     void shouldRejectMalformedValues() {
         String stored = cipher.encrypt(PLAIN, AAD);
         String otherPrefix = "v2:" + stored.substring(3);
@@ -80,7 +80,7 @@ class SecretCipherTest {
     }
 
     @Test
-    @DisplayName("SEC-003: exception messages never carry the cipher text, the AAD or the key")
+    @DisplayName("SEC-036 / SEC-018: exception messages never carry the cipher text, the AAD or the key")
     void shouldNotLeakInMessages() {
         String stored = cipher.encrypt(PLAIN, AAD);
         Throwable failure = catchThrowable(() -> cipher.decrypt(stored, "other-aad"));
@@ -95,7 +95,7 @@ class SecretCipherTest {
     }
 
     @Test
-    @DisplayName("SEC-003: a null AAD is refused explicitly, on both directions")
+    @DisplayName("SEC-036: a null AAD is refused explicitly, on both directions")
     void shouldRejectANullAad() {
         String stored = cipher.encrypt(PLAIN, AAD);
 
@@ -108,7 +108,7 @@ class SecretCipherTest {
     }
 
     @Test
-    @DisplayName("SEC-003: MfaProperties.toString redacts the key")
+    @DisplayName("SEC-067 / SEC-018: MfaProperties.toString redacts the key")
     void shouldRedactTheKeyInToString() {
         assertThat(new MfaProperties(KEY).toString()).isEqualTo("MfaProperties[redacted]");
     }

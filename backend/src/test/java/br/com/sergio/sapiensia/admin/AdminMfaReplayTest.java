@@ -5,9 +5,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
 import br.com.sergio.sapiensia.security.SecretCipher;
 import br.com.sergio.sapiensia.security.Totp;
+import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -86,6 +88,34 @@ class AdminMfaReplayTest {
 
         assertThat(second.verifyMfa(code).statusCode()).isEqualTo(400);
         assertThat(second.get("/api/admin/sessions/current").statusCode()).isEqualTo(401);
+    }
+
+    @Test
+    @DisplayName("SEC-018: código errado, código já usado e código fora da janela recebem o mesmo 400 CODE_INVALID")
+    void shouldAnswerTheSameForAWrongAUsedAndAnOutOfWindowCode() throws Exception {
+        long step = Totp.stepAt(clock.instant());
+        String used = AdminMfaTestSupport.codeAt(secret, clock.instant());
+        assertThat(pendingBrowser().verifyMfa(used).statusCode()).isEqualTo(204);
+        Set<String> accepted =
+                Set.of(Totp.code(secret, step - 1, 6), Totp.code(secret, step, 6), Totp.code(secret, step + 1, 6));
+        long far = step - 3;
+        while (accepted.contains(Totp.code(secret, far, 6))) {
+            far--;
+        }
+        String outOfWindow = Totp.code(secret, far, 6);
+        String wrong = AdminMfaTestSupport.wrongCodeAt(secret, clock.instant());
+        AdminBrowser browser = pendingBrowser();
+
+        List<HttpResponse<String>> responses =
+                List.of(browser.verifyMfa(wrong), browser.verifyMfa(used), browser.verifyMfa(outOfWindow));
+
+        for (HttpResponse<String> response : responses) {
+            assertThat(response.statusCode()).isEqualTo(400);
+            assertThat(response.body())
+                    .contains("\"errors\":{\"code\":\"CODE_INVALID\"}")
+                    .isEqualTo(responses.get(0).body());
+        }
+        assertThat(browser.get("/api/admin/sessions/current").statusCode()).isEqualTo(401);
     }
 
     @Test

@@ -95,8 +95,9 @@ class AdminMfaLogTest {
     }
 
     @Test
-    @DisplayName("SEC-003: enrolling, confirming, logging in, a wrong code, a replay, a 429 lock and a start with a bad"
-            + " key leave no code, secret, key, cipher text or e-mail in the logs")
+    @DisplayName(
+            "SEC-018 / SEC-036: enrolling, confirming, logging in, a wrong code, a replay, a 429 lock and a start with a bad"
+                    + " key leave no code, secret, key, cipher text or e-mail in the logs")
     void shouldNotLeakSecretsOrCodesToTheLogs(CapturedOutput output) throws Exception {
         jdbc.update("delete from administrators");
         String email = "painel-log-" + UUID.randomUUID() + "@example.com";
@@ -205,7 +206,7 @@ class AdminMfaLogTest {
     }
 
     @Test
-    @DisplayName("SEC-003: toString of the MFA records and properties shows no code, secret, key or e-mail")
+    @DisplayName("SEC-018 / SEC-036: toString of the MFA records and properties shows no code, secret, key or e-mail")
     void shouldRedactToString() {
         String email = "alguem@example.com";
         byte[] secret = Totp.newSecret();
@@ -216,6 +217,8 @@ class AdminMfaLogTest {
         List<String> shown = List.of(
                 new MfaCodeRequest("123456").toString(),
                 new AdministratorMfa.Enrollment(base32, uri).toString(),
+                new AdministratorMfa.Started(new AdministratorMfa.Enrollment(base32, uri), "v1:cipher-text").toString(),
+                new Administrators.StoredTotp("v1:cipher-text", false).toString(),
                 new PendingAdministrator(id, email, 0, Instant.now()).toString(),
                 new AdministratorPrincipal(id, email, 0, EnumSet.allOf(Capability.class), Instant.now(), Instant.now())
                         .toString(),
@@ -227,6 +230,7 @@ class AdminMfaLogTest {
                     .doesNotContain(base32)
                     .doesNotContain(uri)
                     .doesNotContain(key)
+                    .doesNotContain("cipher-text")
                     .doesNotContain(email)
                     .doesNotContain(email.replace("@", "%40"));
         }
