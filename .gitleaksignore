@@ -20,3 +20,6 @@ ad9849015b70287c8ea86c31356fd19a93494903:backend/src/test/java/br/com/sergio/sap
 d442f9bc7b070150c87e1755053d2f2c723073d3:backend/src/test/java/br/com/sergio/sapiensia/admin/AdminPanelLoginDisabledTest.java:generic-api-key:26
 e16d507f1a2c3c7091a28bc5c84eec367b4f526a:backend/src/test/java/br/com/sergio/sapiensia/admin/AdminCustomerKeyCollisionTest.java:generic-api-key:23
 ec7b05dec5cffac1173d3863c24b951304cdf00c:backend/src/test/java/br/com/sergio/sapiensia/admin/AdministratorPasswordSetupTest.java:generic-api-key:137
+# The public RFC 6238 test secret (Base32 of "12345678901234567890") in TotpTest, flagged in the #15 commit that
+# introduced it (not a secret). The final line carries "// gitleaks:allow".
+0ebcf1b85b83b8ac5251faf5bfa8e55bc7006af5:backend/src/test/java/br/com/sergio/sapiensia/security/TotpTest.java:generic-api-key:110

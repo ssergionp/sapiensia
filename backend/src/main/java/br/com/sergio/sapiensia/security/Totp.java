@@ -7,6 +7,7 @@ import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.util.Locale;
 import java.util.OptionalLong;
 import java.util.function.LongFunction;
 import javax.crypto.Mac;
@@ -39,6 +40,9 @@ public final class Totp {
     }
 
     public static String code(byte[] secret, long step, int digits) {
+        if (digits < 1 || digits > 9) {
+            throw new IllegalArgumentException("digits must be between 1 and 9");
+        }
         try {
             Mac mac = Mac.getInstance("HmacSHA1");
             mac.init(new SecretKeySpec(secret, "HmacSHA1"));
@@ -53,7 +57,8 @@ public final class Totp {
             for (int i = 0; i < digits; i++) {
                 modulus *= 10;
             }
-            return String.format("%0" + digits + "d", binary % modulus);
+            // Locale.ROOT: a default locale with other digits (e.g. Arabic-Indic) would never match a typed code
+            return String.format(Locale.ROOT, "%0" + digits + "d", binary % modulus);
         } catch (GeneralSecurityException e) {
             throw new IllegalStateException("HmacSHA1 is not available", e);
         }

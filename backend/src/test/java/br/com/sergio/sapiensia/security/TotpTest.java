@@ -1,11 +1,13 @@
 package br.com.sergio.sapiensia.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.OptionalLong;
 import org.junit.jupiter.api.Test;
 
@@ -71,7 +73,8 @@ class TotpTest {
         bad.add(valid.substring(0, 3) + " " + valid.substring(3));
         bad.add(" " + valid.substring(0, 5));
         bad.add(valid.substring(0, 5) + " ");
-        bad.add("٠٠٠٠٠٠");
+        // the real valid code in Arabic-Indic digits: only the ASCII range check can reject it
+        bad.add(arabicIndic(valid));
         bad.add("+12345");
         for (String code : bad) {
             assertThat(Totp.matchingStep(RFC_SECRET, code, now))
@@ -107,7 +110,41 @@ class TotpTest {
         String uri = Totp.otpauthUri("SapiensIA", "john+tag@example.com", RFC_SECRET);
         assertThat(uri)
                 .isEqualTo("otpauth://totp/SapiensIA:john%2Btag%40example.com"
-                        + "?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+                        + "?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ" // gitleaks:allow
                         + "&issuer=SapiensIA&algorithm=SHA1&digits=6&period=30");
+    }
+
+    @Test
+    void toBase32StripsThePaddingOfAnInputThatNeedsIt() {
+        // 19 bytes = 152 bits = 31 Base32 characters, padded to 32 with one "="
+        assertThat(Totp.toBase32(new byte[19])).isEqualTo("A".repeat(31));
+    }
+
+    @Test
+    void codeUsesAsciiDigitsWhateverTheDefaultLocale() {
+        Locale before = Locale.getDefault(Locale.Category.FORMAT);
+        try {
+            Locale.setDefault(Locale.Category.FORMAT, Locale.forLanguageTag("ar-EG-u-nu-arab"));
+            assertThat(Totp.code(RFC_SECRET, 59L / 30, 6)).isEqualTo("287082");
+        } finally {
+            Locale.setDefault(Locale.Category.FORMAT, before);
+        }
+    }
+
+    @Test
+    void codeRefusesDigitsOutsideOneToNine() {
+        for (int digits : new int[] {0, -1, 10}) {
+            assertThatThrownBy(() -> Totp.code(RFC_SECRET, 1, digits))
+                    .as("digits %d", digits)
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+    }
+
+    private static String arabicIndic(String asciiDigits) {
+        StringBuilder out = new StringBuilder();
+        for (char c : asciiDigits.toCharArray()) {
+            out.append((char) ('٠' + (c - '0')));
+        }
+        return out.toString();
     }
 }
