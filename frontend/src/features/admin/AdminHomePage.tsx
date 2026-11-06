@@ -17,8 +17,9 @@ export default function AdminHomePage() {
     logout.mutate(undefined, {
       onSuccess: () => {
         navigate("/painel/entrar", { replace: true });
-        // Drop the cached administrator session so a later visit asks the server again.
-        queryClient.removeQueries({ queryKey: adminSessionQueryKey });
+        // Mark the cached administrator session as signed out; unlike removing the query,
+        // this cannot trigger a refetch while the observer is still mounted.
+        queryClient.setQueryData(adminSessionQueryKey, null);
       },
     });
   }
