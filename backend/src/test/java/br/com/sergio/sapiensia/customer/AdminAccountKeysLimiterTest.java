@@ -22,32 +22,39 @@ class AdminAccountKeysLimiterTest {
     @DisplayName("SEC-002: grafias do mesmo e-mail do painel contam no mesmo balde")
     void shouldCountEverySpellingOfAnAdminEmailInOneBucket() {
         LoginAttemptLimiter limiter = new LoginAttemptLimiter(PROPERTIES, Clock.systemUTC());
-        String[] spellings = {"Admin@X.com", " admin@x.com", "\tADMIN@x.com\t", "admin@x.com ", "admin@x.com"};
+        String[] spellings = {
+            "Admin@EXAMPLE.com",
+            " admin@example.com",
+            "\tADMIN@example.com\t",
+            "admin@example.com ",
+            "admin@example.com"
+        };
         for (String spelling : spellings) {
             assertThat(limiter.admit(adminKey(spelling), IP).allowed()).isTrue();
         }
 
         assertThat(limiter.trackedAccounts()).isEqualTo(1);
-        assertThat(limiter.admit(adminKey(" ADMIN@x.com"), IP).allowed()).isFalse();
+        assertThat(limiter.admit(adminKey(" ADMIN@example.com"), IP).allowed()).isFalse();
     }
 
     @Test
     @DisplayName("SEC-002: as chaves admin: obedecem ao mesmo teto de entradas do #11")
     void shouldApplyTheSameEntryCapToAdminKeys() {
         LoginAttemptLimiter limiter = new LoginAttemptLimiter(PROPERTIES, Clock.systemUTC(), 3);
-        for (String email : new String[] {"a@x.com", "b@x.com", "c@x.com"}) {
+        for (String email : new String[] {"a@example.com", "b@example.com", "c@example.com"}) {
             assertThat(limiter.admit(adminKey(email), IP).allowed()).isTrue();
         }
 
         // new keys are refused, whatever their spelling, and evict nobody
         for (int i = 0; i < 10; i++) {
-            assertThat(limiter.admit(adminKey(" Flood" + i + "@x.com"), IP).allowed())
+            assertThat(limiter.admit(adminKey(" Flood" + i + "@example.com"), IP)
+                            .allowed())
                     .isFalse();
         }
         assertThat(limiter.trackedAccounts()).isEqualTo(3);
         // a customer key is a new key too: the cap is shared
-        assertThat(limiter.admit("customer@x.com", IP).allowed()).isFalse();
+        assertThat(limiter.admit("customer@example.com", IP).allowed()).isFalse();
         // an already tracked key (another spelling of it) is still served
-        assertThat(limiter.admit(adminKey("\tA@X.com"), IP).allowed()).isTrue();
+        assertThat(limiter.admit(adminKey("\tA@EXAMPLE.com"), IP).allowed()).isTrue();
     }
 }

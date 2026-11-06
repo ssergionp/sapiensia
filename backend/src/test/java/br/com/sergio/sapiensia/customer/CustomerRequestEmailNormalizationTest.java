@@ -10,16 +10,17 @@ class CustomerRequestEmailNormalizationTest {
     @Test
     @DisplayName("O cadastro guarda o e-mail sem espaços nas pontas e em minúsculas, e não mexe na senha")
     void shouldNormalizeTheEmailOfTheRegistration() {
-        var request = new RegisterCustomerRequest(" \tCliente@X.com ", " Senha-Longa-123 ");
+        var request = new RegisterCustomerRequest(" \tCliente@EXAMPLE.com ", " Senha-Longa-123 ");
 
-        assertThat(request.email()).isEqualTo("cliente@x.com");
+        assertThat(request.email()).isEqualTo("cliente@example.com");
         assertThat(request.password()).isEqualTo(" Senha-Longa-123 ");
     }
 
     @Test
     @DisplayName("O pedido de recuperação usa o e-mail sem espaços nas pontas e em minúsculas")
     void shouldNormalizeTheEmailOfThePasswordResetRequest() {
-        assertThat(new RequestPasswordResetRequest(" \tCliente@X.com ").email()).isEqualTo("cliente@x.com");
+        assertThat(new RequestPasswordResetRequest(" \tCliente@EXAMPLE.com ").email())
+                .isEqualTo("cliente@example.com");
     }
 
     @Test
