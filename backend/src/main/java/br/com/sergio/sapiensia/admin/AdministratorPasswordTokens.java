@@ -1,6 +1,6 @@
 package br.com.sergio.sapiensia.admin;
 
-import br.com.sergio.sapiensia.customer.EmailConfirmationTokens;
+import br.com.sergio.sapiensia.security.Tokens;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.UUID;
@@ -66,7 +66,7 @@ class AdministratorPasswordTokens {
                         // a link never replaces a password that is already set, however it survived
                         + " where administrators.id = used.administrator_id and administrators.password_hash is null"
                         + " returning administrators.id")
-                .param("hash", EmailConfirmationTokens.hash(token))
+                .param("hash", Tokens.hash(token))
                 .param("passwordHash", passwordHash)
                 .query(UUID.class)
                 .optional();

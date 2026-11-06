@@ -6,7 +6,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
 
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
-import br.com.sergio.sapiensia.customer.EmailConfirmationTokens;
+import br.com.sergio.sapiensia.security.Tokens;
 import java.net.http.HttpResponse;
 import java.security.SecureRandom;
 import java.util.Base64;
@@ -315,7 +315,7 @@ class AdminSessionTest {
                 "insert into administrator_password_tokens (administrator_id, token_hash, expires_at)"
                         + " values (?, ?, now() + interval '1 hour')",
                 adminId,
-                EmailConfirmationTokens.hash(token));
+                Tokens.hash(token));
 
         HttpResponse<String> setup = browser()
                 .post(

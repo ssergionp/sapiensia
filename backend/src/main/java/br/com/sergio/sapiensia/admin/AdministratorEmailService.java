@@ -1,9 +1,8 @@
 package br.com.sergio.sapiensia.admin;
 
-import br.com.sergio.sapiensia.customer.EmailConfirmationTokens;
-import br.com.sergio.sapiensia.customer.PasswordResetTokens;
 import br.com.sergio.sapiensia.email.EmailMessage;
 import br.com.sergio.sapiensia.email.EmailSender;
+import br.com.sergio.sapiensia.security.Tokens;
 import java.time.Duration;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -58,10 +57,10 @@ class AdministratorEmailService {
      */
     void sendPasswordSetup() {
         administrators.findWithoutPassword().ifPresent(pending -> {
-            String token = PasswordResetTokens.newToken();
+            String token = Tokens.newToken();
             String link = publicBaseUrl + "/painel/definir-senha#" + token;
             sender.send(new EmailMessage(pending.email(), SUBJECT, text(link, linkTtl)));
-            tokens.replaceWith(pending.id(), EmailConfirmationTokens.hash(token));
+            tokens.replaceWith(pending.id(), Tokens.hash(token));
         });
     }
 

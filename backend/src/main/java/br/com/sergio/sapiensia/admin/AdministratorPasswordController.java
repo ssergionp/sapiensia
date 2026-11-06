@@ -2,7 +2,6 @@ package br.com.sergio.sapiensia.admin;
 
 import br.com.sergio.sapiensia.customer.InvalidConfirmationTokenException;
 import br.com.sergio.sapiensia.customer.PasswordCompromisedException;
-import br.com.sergio.sapiensia.customer.ResetPasswordRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.password.CompromisedPasswordChecker;
@@ -38,7 +37,7 @@ class AdministratorPasswordController {
      */
     @PostMapping("/password-setup")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void setPassword(@Valid @RequestBody ResetPasswordRequest request) {
+    void setPassword(@Valid @RequestBody AdminPasswordSetupRequest request) {
         if (compromisedPasswordChecker.check(request.newPassword()).isCompromised()) {
             throw new PasswordCompromisedException("newPassword");
         }

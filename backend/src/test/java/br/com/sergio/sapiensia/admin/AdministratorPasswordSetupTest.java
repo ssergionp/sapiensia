@@ -6,7 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
-import br.com.sergio.sapiensia.customer.EmailConfirmationTokens;
+import br.com.sergio.sapiensia.security.Tokens;
 import jakarta.servlet.http.Cookie;
 import java.security.SecureRandom;
 import java.util.ArrayList;
@@ -85,7 +85,7 @@ class AdministratorPasswordSetupTest {
                 "insert into administrator_password_tokens (administrator_id, token_hash, expires_at)"
                         + " values (?, ?, now() + cast(? as interval))",
                 adminId,
-                EmailConfirmationTokens.hash(linkToken),
+                Tokens.hash(linkToken),
                 validFor);
     }
 

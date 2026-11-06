@@ -5,8 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import br.com.sergio.sapiensia.RecordingEmailSender;
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
-import br.com.sergio.sapiensia.customer.EmailConfirmationTokens;
 import br.com.sergio.sapiensia.email.EmailMessage;
+import br.com.sergio.sapiensia.security.Tokens;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -81,7 +81,7 @@ class AdministratorBootstrapTest {
     }
 
     private boolean isValid(String token) {
-        return count("administrator_password_tokens where token_hash = '" + EmailConfirmationTokens.hash(token)
+        return count("administrator_password_tokens where token_hash = '" + Tokens.hash(token)
                         + "' and used_at is null and expires_at > now()")
                 == 1;
     }
@@ -262,7 +262,7 @@ class AdministratorBootstrapTest {
                 .doesNotContain(EMAIL)
                 .doesNotContain("Admin-Boot")
                 .doesNotContain(token)
-                .doesNotContain(EmailConfirmationTokens.hash(token));
+                .doesNotContain(Tokens.hash(token));
     }
 
     @Test
@@ -284,6 +284,6 @@ class AdministratorBootstrapTest {
                 .doesNotContain("Admin-Boot")
                 .doesNotContain("stored@example.com")
                 .doesNotContain(token)
-                .doesNotContain(EmailConfirmationTokens.hash(token));
+                .doesNotContain(Tokens.hash(token));
     }
 }
