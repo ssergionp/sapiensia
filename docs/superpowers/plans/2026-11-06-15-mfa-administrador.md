@@ -253,13 +253,68 @@ Rotas (todas só para o estado pendente, via `AdminMfaAccess`): `GET /api/admin/
 - [ ] **Step 4: `ci.yml`**: no passo "Start the system": gerar `MFA_KEY="$(openssl rand -base64 32)"`, mascarar com `echo "::add-mask::$MFA_KEY"` **antes** de qualquer uso, passar `-e APP_MFA_ENCRYPTION_KEY="$MFA_KEY"` ao `docker run`, **remover** `-e APP_ADMIN_PANEL_LOGIN_ENABLED=true` e o comentário dele. **`.env.example`:** remover a linha da trava, acrescentar `APP_MFA_ENCRYPTION_KEY=` (sem valor; um comentário diz "Base64 de 32 bytes; no local, o perfil local já tem uma chave fictícia").
 - [ ] **Step 5:** `-Dtest='AdminMfaLogTest'` verde; `git diff --check`; commit `docs: ADR-0004 for the Administrator MFA, CI key and log guard test`.
 
-## Tarefas de FRONTEND e e2e (só depois do OK aos textos)
+## Tarefas de FRONTEND e e2e (textos APROVADOS pelo Sérgio em 06/11/2026, exatamente como na seção "Textos que o usuário vê")
 
-### Task 6: telas
-`features/admin/AdminMfaPage.tsx` (+ teste), `api.ts`, `hooks.ts`, `schemas.ts`, `AdminLoginPage.tsx` (sucesso → `/painel/verificacao`), `App.tsx`, `qrcode.react` **4.2.0 exato (sem `^`)** com lockfile e `pnpm audit`. Textos: a lista fechada abaixo, depois de aprovada. Passos de TDD detalhados depois do OK.
+Regras de Task 6 e 7: TDD (teste visto falhar, depois o código); só testes direcionados (`cd frontend; pnpm exec vitest run <arquivo>`), nunca `just check`; sem dependência nova além de `qrcode.react` 4.2.0; reaproveitar `apiFetch`, as constantes de `features/session/messages.ts`, `LoginBlockedError`, os componentes `components/ui/{button,input,label}` e o estilo de `AdminLoginPage`; código, comentários e commits em inglês, textos do usuário em português exatamente como aprovados; nenhum segredo nem código TOTP em log, mensagem de erro, relatório ou trace.
 
-### Task 7: e2e com MFA
-`e2e/totp.ts` e `e2e/admin-panel.e2e.ts` (Risco h; condição g: segredo em `.tmp/e2e/admin-totp-secret.txt`, recusa fora de localhost, nada na saída, no relatório nem no trace). Depois, `just e2e` com um servidor de cada vez, e `/verificar-tela`.
+### Task 6: telas (`/painel/entrar` → `/painel/verificacao` → `/painel`)
+
+**Files:** Create `frontend/src/features/admin/AdminMfaPage.tsx`, `AdminMfaPage.test.tsx`; Modify `features/admin/api.ts`, `hooks.ts`, `schemas.ts`, `AdminLoginPage.tsx` (+ `AdminLoginPage.test.tsx`), `App.tsx` (+ `App.test.tsx` se precisar), `frontend/package.json` e `pnpm-lock.yaml` (`pnpm add qrcode.react@4.2.0 --save-exact`: a entrada em `dependencies` sem `^`; depois `pnpm audit` e relatar a saída; se o audit acusar algo no pacote novo, parar e relatar).
+
+**Contrato do backend (já implementado):** `GET /api/admin/sessions/mfa` → `200 {"enrolled": boolean}`; `POST /api/admin/sessions/mfa/enrollment` → `200 {"secret","otpauthUri"}` ou `409` (MFA já ativo); `POST /api/admin/sessions/mfa/enrollment/confirmation` e `POST /api/admin/sessions/mfa` com `{"code"}` → `204` (sessão completa) / `400` (código incorreto, vencido ou repetido) / `429` / `409` / `401` (pendência vencida ou inexistente); `403` para quem não é Administrador pendente (Cliente ou Administrador já completo). A confirmação só vale para a inscrição iniciada **na mesma sessão** (o `409` aparece quando a inscrição foi trocada por outra sessão).
+
+**Interfaces produzidas** (`features/admin/api.ts`, `hooks.ts`, `schemas.ts`):
+```ts
+fetchMfaStatus(): Promise<{ enrolled: boolean } | "expired" | "forbidden">   // 401 -> "expired", 403 -> "forbidden"
+startMfaEnrollment(): Promise<{ secret: string; otpauthUri: string } | "active">   // 409 -> "active"; 401 -> throws MfaExpiredError
+confirmMfaEnrollment(code: string): Promise<void>   // 204 ok; 400 MfaCodeRejectedError; 429 LoginBlockedError; 409 MfaConflictError; 401 MfaExpiredError
+verifyMfaCode(code: string): Promise<void>          // same mapping
+mfaCodeSchema  // zod: spaces removed first; then /^\d{6}$/ else "Digite os 6 dígitos do código."
+```
+
+**Comportamento da página** (`AdminMfaPage`, uma só tela com dois modos):
+- Ao abrir: `fetchMfaStatus`. Carregando → `Carregando…`. `"expired"` → o texto de tempo esgotado e o link `Voltar para a entrada` (para `/painel/entrar`). `"forbidden"` → `<Navigate to="/painel" replace />` (o `/painel` já mostra a tela de Cliente). Erro de rede ou outro status → `Não foi possível carregar esta página agora. Tente novamente.` (`role="alert"`).
+- `enrolled: true` → modo **verificação**. `enrolled: false` → modo **inscrição**: chama `startMfaEnrollment` **uma vez** (guarda com `useRef`, porque cada chamada troca o segredo no servidor; sem refetch ao focar a janela). Se responder `"active"` (409), volta para o modo verificação **sem mensagem**.
+- Inscrição: título, introdução, passo 1, o QR (`QRCodeSVG` de `qrcode.react`, `role="img"` com o nome acessível aprovado, tamanho fixo que cabe em 390 px), a alternativa e a chave em grupos de 4 caracteres (a chave **sempre visível**, com `[overflow-wrap:anywhere]` para quebrar linha em 390 px), passo 2, campo `Código` (`inputMode="numeric"`, `autoComplete="one-time-code"`), botão `Ativar e entrar` / `Ativando…`.
+- Verificação: título, instrução, campo `Código`, botão `Entrar` / `Entrando…`.
+- Envio: valida com `mfaCodeSchema` (o código colado com espaços, como `123 456`, é aceito: os espaços saem antes de validar); o botão fica desabilitado enquanto envia (sem duplo clique); `400` → `Código incorreto ou vencido. Confira o aplicativo e tente de novo.`; `429` → `LOGIN_BLOCKED`; `401` → o estado de tempo esgotado; outro erro → `LOGIN_UNEXPECTED_ERROR`. `409` na **confirmação** → o texto aprovado `A ativação foi interrompida. Leia o novo QR code e digite o código de novo.` e a página chama a inscrição de novo (QR novo; se der `409`, vai para a verificação sem mensagem). `409` na **verificação** (sem MFA ativo) → vai para a inscrição sem mensagem. `204` → atualiza o cache `adminSessionQueryKey` (como `useAdminLogin`) e navega para `/painel`.
+- `AdminLoginPage`: o sucesso navega para `/painel/verificacao`. `App.tsx`: rota `/painel/verificacao`.
+
+- [ ] **Step 1: testes que falham** (`AdminMfaPage.test.tsx`, no estilo de `AdminLoginPage.test.tsx`: `QueryClientProvider`, `MemoryRouter`, `vi.spyOn(globalThis, "fetch")` por URL)
+  - Inscrição: com `{enrolled:false}` e a inscrição `200`, mostra o título, a introdução, o passo 1, o QR (`getByRole("img", { name: "QR code para o aplicativo autenticador" })`), a chave em grupos de 4 e o campo `Código`; a inscrição é chamada **uma vez** (inclusive sob `React.StrictMode`).
+  - Inscrição, `409` ao iniciar → mostra a verificação, sem nenhuma mensagem.
+  - Verificação: com `{enrolled:true}` mostra título, instrução, campo e botão `Entrar`.
+  - Código: `12345` → `Digite os 6 dígitos do código.` e nenhum `fetch` de envio; `123 456` → envia `{"code":"123456"}`; sucesso `204` na confirmação ou na verificação → vai para `/painel` (rota de teste com `<p>painel</p>`); o botão fica desabilitado e com `Ativando…`/`Entrando…` enquanto envia; dois cliques rápidos geram **um** envio.
+  - Erros: `400` → a mensagem de código incorreto; `429` → `LOGIN_BLOCKED`; `401` no status e no envio → o texto de tempo esgotado e o link `Voltar para a entrada` com `href="/painel/entrar"`; `500` → `LOGIN_UNEXPECTED_ERROR`; falha de rede ao abrir → `Não foi possível carregar esta página agora. Tente novamente.`.
+  - `409` na confirmação → mostra `A ativação foi interrompida. Leia o novo QR code e digite o código de novo.` e chama a inscrição de novo; `409` na verificação → vai para a inscrição sem mensagem.
+  - `403` ao abrir → vai para `/painel`.
+  - O segredo e o código nunca vão para `console` nem para atributos além do QR e do texto da chave (um teste espiona `console.*`).
+  - `AdminLoginPage.test.tsx`: o sucesso agora navega para `/painel/verificacao` (ajustar a rota de teste e a asserção). `App.test.tsx`: `/painel/verificacao` renderiza a página nova.
+- [ ] **Step 2:** `pnpm exec vitest run src/features/admin src/App.test.tsx` e ver falhar pelos motivos certos.
+- [ ] **Step 3:** instalar `qrcode.react@4.2.0 --save-exact` (conferir `package.json` sem `^` e o lockfile alterado só pela dependência nova), `pnpm audit`, implementar `schemas.ts`, `api.ts`, `hooks.ts`, a página, a rota e a mudança do login.
+- [ ] **Step 4:** os mesmos testes verdes; `pnpm exec biome check .` e `pnpm exec tsc -b` (ou `pnpm build`) limpos.
+- [ ] **Step 5:** commit `feat: Administrator two-step verification screen` (o `package.json` e o lockfile no mesmo commit).
+
+### Task 7: e2e com MFA (condição g)
+
+**Files:** Create `frontend/e2e/totp.ts`; Modify `frontend/e2e/admin-panel.e2e.ts`.
+
+**Interfaces produzidas** (`e2e/totp.ts`, só `node:crypto`, sem dependência): `totpCode(secretBase32: string, step: number): string` (HMAC-SHA1, 6 dígitos, truncagem dinâmica; decodifica Base32 sem `=`), `currentStep(nowMs = Date.now()): number` (`Math.floor(nowMs/30000)`).
+
+**Comportamento do teste** (`SEC-001: o Administrador entra com senha e código e o Cliente é barrado`):
+- Recusa rodar se a URL base não for `localhost`/`127.0.0.1` (já existe; manter). `test.use({ trace: "off", screenshot: "off", video: "off" })` (já existe; manter) e `test.setTimeout(120_000)` (a espera pelo próximo passo de 30 s).
+- Arquivo do segredo: `.tmp/e2e/admin-totp-secret.json` na raiz do repositório (`E2E_ADMIN_TOTP_FILE` sobrescreve; a pasta é ignorada pelo git), com `{ "secret": "<BASE32>", "lastStep": <número> }`, criado com permissão `0o600`, ao lado do `admin-password.txt` que já existe.
+- Fluxo: (1) senha (como hoje: usa a senha guardada ou o link do outbox); depois do `Entrar` a página vai para `/painel/verificacao`. (2) **Sem arquivo e MFA ainda não ativo** (a página mostra `Ative a verificação em duas etapas`): ler a chave com `textContent()` do elemento da chave (sem `expect` que a compare), **trocar o texto dela no DOM por `[oculto]` com `page.evaluate` logo depois de lido** (para que nenhum instantâneo de falha a capture), tirar os espaços, gerar o código do passo atual, digitar com `fillSecret` (o `fill()` grava o valor no título do passo), clicar `Ativar e entrar`, esperar o cabeçalho `Painel do Administrador` e gravar `{secret, lastStep}`. (3) **Com arquivo**: a página mostra `Verificação em duas etapas`; antes de gerar o código, esperar o próximo passo se `currentStep() <= lastStep` (o servidor recusa um passo já usado); digitar o código; ao entrar, atualizar `lastStep`. (4) **MFA ativo e arquivo ausente** (a página mostra a verificação e não há arquivo): falhar com uma mensagem **sem segredo nem código** que aponta para o procedimento manual do ADR-0004 (apagar a linha em `administrators` e reiniciar a API; depois apagar `.tmp/e2e/admin-password.txt`). (5) Um código errado (o código de um passo 10 à frente, fora da janela) mostra `Código incorreto ou vencido. Confira o aplicativo e tente de novo.` e não entra. (6) `Sair`, entrar de novo com senha **e** código (próximo passo) chega ao painel. (7) Mantém a parte do Cliente barrado (`Esta área é só para o Administrador.`).
+- Nenhum `expect`, nome de passo, `throw` ou `console` do teste contém a chave, a URI ou um código.
+- Verificação de vazamento: depois do teste verde, **forçar uma falha** (por exemplo, com uma variável de ambiente de teste que aborte depois de ler a chave) e provar com `Select-String` que o segredo lido da tela **não aparece** em nenhum arquivo de `frontend/.tmp/e2e-results` nem de `frontend/.tmp/e2e-report`; remover o gancho de falha depois e relatar o comando e a saída.
+
+- [ ] **Step 1:** escrever `totp.ts` com um teste Vitest curto de unidade (`totp.test.ts` em `frontend/e2e/` **não** roda no Playwright: pôr o teste em `frontend/src/test/totp-e2e-helper.test.ts` importando `../../e2e/totp`) com os vetores do RFC 6238 (segredo ASCII `12345678901234567890` em Base32 `GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ`, 8 dígitos no RFC; aqui 6 dígitos: `287082` para o passo 1, `081804` para o passo 37037036, `050471` para o passo 37037037, `005924` para o passo 41152263, `279037` para o passo 66666666, `353130` para o passo 666666666): ver falhar, implementar, ver passar.
+- [ ] **Step 2:** reescrever `admin-panel.e2e.ts` como descrito.
+- [ ] **Step 3 (sistema de verdade, um servidor de cada vez):** seguir o `CLAUDE.md`: `just doctor`; o banco da **pasta principal** (`just db` lá, não na worktree); se a porta estiver ocupada por outro projeto, **parar e relatar** (não parar o banco dele); `just dev-back` na worktree, esperar o `/api/system/health`; `just dev-front`; `just e2e` (só o `admin-panel.e2e.ts` primeiro, depois a suíte inteira); encerrar os processos **pelo PID**, nunca com `pkill -f`. Se o Administrador do banco local já tiver MFA ativo e o arquivo não existir, usar o procedimento manual do ADR-0004 (apagar a linha em `administrators` **só no banco local de desenvolvimento** e reiniciar a API), registrando no relatório.
+- [ ] **Step 4:** commit `test: e2e login of the Administrator with the MFA code`.
+
+### Depois das Tasks 6 e 7 (controller, não subagente)
+`/verificar-tela` nas telas novas (1280 e 390 px: QR visível sem rolagem horizontal, chave manual quebrando linha, foco visível); `just check-resumo` completo (um só); `verificar-entrega`; antes de qualquer push (que só acontece com o OK expresso do Sérgio): gitleaks em modo **histórico** num clone temporário (como no #14) e Semgrep (o mesmo comando do CI), um de cada vez.
 
 ## Textos que o usuário vê (lista fechada, para aprovação)
 
@@ -296,6 +351,8 @@ Rotas (todas só para o estado pendente, via `AdminMfaAccess`): `GET /api/admin/
 | Botão / enquanto envia | `Entrar` / `Entrando…` |
 
 **No aplicativo autenticador do Administrador:** emissor `SapiensIA`, conta = o e-mail do Administrador.
+
+**Texto acrescentado e aprovado em 06/11/2026** (confirmação da inscrição respondida com `409`, quando a inscrição foi trocada por outra sessão): `A ativação foi interrompida. Leia o novo QR code e digite o código de novo.` A página chama a inscrição de novo. Se o MFA já estiver ativo quando a página chamar a inscrição, ela volta para a verificação **sem mensagem**.
 
 Nenhum texto muda em `/painel/entrar`, `/painel/definir-senha`, `/painel` nem no e-mail de primeiro acesso.
 
