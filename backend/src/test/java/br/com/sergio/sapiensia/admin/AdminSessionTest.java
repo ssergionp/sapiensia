@@ -303,8 +303,8 @@ class AdminSessionTest {
     }
 
     @Test
-    @DisplayName("SEC-006: depois de definir a senha de novo por um link, a sessão antiga do Administrador recebe 401")
-    void shouldEndTheSessionWhenThePasswordIsSetAgain() throws Exception {
+    @DisplayName("SEC-007: um link que sobrou não troca a senha já definida, e a sessão do Administrador continua")
+    void shouldRefuseALeftoverLinkOnceThePasswordIsSet() throws Exception {
         AdminBrowser browser = browser();
         assertThat(browser.loginAdmin(email, PASSWORD).statusCode()).isEqualTo(204);
         assertThat(browser.get(CURRENT).statusCode()).isEqualTo(200);
@@ -322,7 +322,22 @@ class AdminSessionTest {
                         "/api/admin/password-setup",
                         "{\"token\":\"" + token + "\",\"newPassword\":\"outra-senha-do-painel-9\"}");
 
-        assertThat(setup.statusCode()).isEqualTo(204);
+        assertThat(setup.statusCode()).isEqualTo(400);
+        assertThat(setup.body()).contains("TOKEN_INVALID");
+        assertThat(browser.get(CURRENT).statusCode()).isEqualTo(200);
+        assertThat(browser().loginAdmin(email, PASSWORD).statusCode()).isEqualTo(204);
+    }
+
+    @Test
+    @DisplayName(
+            "SEC-006: quando a session_version do Administrador sobe (definir a senha a sobe), a sessão antiga recebe 401")
+    void shouldEndTheSessionWhenTheSessionVersionChanges() throws Exception {
+        AdminBrowser browser = browser();
+        assertThat(browser.loginAdmin(email, PASSWORD).statusCode()).isEqualTo(204);
+        assertThat(browser.get(CURRENT).statusCode()).isEqualTo(200);
+
+        jdbc.update("update administrators set session_version = session_version + 1 where id = ?", adminId);
+
         assertThat(browser.get(CURRENT).statusCode()).isEqualTo(401);
     }
 
