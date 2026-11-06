@@ -23,7 +23,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
         properties = {"test.isolated-context=admin-panel-login-disabled", "app.admin.panel-login-enabled=false"})
 class AdminPanelLoginDisabledTest {
 
-    private static final String PASSWORD = "senha-do-painel-123";
+    private static final String PASSWORD = "senha-do-painel-123"; // gitleaks:allow
 
     @LocalServerPort
     int port;

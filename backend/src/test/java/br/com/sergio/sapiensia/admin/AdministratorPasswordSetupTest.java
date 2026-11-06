@@ -138,7 +138,7 @@ class AdministratorPasswordSetupTest {
     @DisplayName("SEC-007: reuso, link vencido e link desconhecido dão o mesmo 400 TOKEN_INVALID")
     void shouldAnswerTheSameForUsedExpiredAndUnknownLinks() throws Exception {
         assertThat(setPassword(token, NEW_PASSWORD).getResponse().getStatus()).isEqualTo(204);
-        MvcResult reused = setPassword(token, "outra-senha-9876");
+        MvcResult reused = setPassword(token, "outra-senha-9876"); // gitleaks:allow
 
         String expiredToken = newToken();
         insertLink(expiredToken, "-1 second");

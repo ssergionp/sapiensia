@@ -20,7 +20,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
         properties = "test.isolated-context=admin-customer-key-collision")
 class AdminCustomerKeyCollisionTest {
 
-    private static final String PASSWORD = "senha-do-painel-123";
+    private static final String PASSWORD = "senha-do-painel-123"; // gitleaks:allow
 
     @LocalServerPort
     int port;
