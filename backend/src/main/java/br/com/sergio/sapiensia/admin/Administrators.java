@@ -3,7 +3,6 @@ package br.com.sergio.sapiensia.admin;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.OptionalInt;
-import java.util.OptionalLong;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -81,28 +80,21 @@ class Administrators {
                 .optional();
     }
 
-    /** The TOTP state of the account: the encrypted secret (null if none), whether it is active, the last step. */
-    record Totp(String secretCipher, boolean enabled, OptionalLong lastStep) {
+    /** The stored TOTP state of the account: the encrypted secret (null if none) and whether it is active. */
+    record StoredTotp(String secretCipher, boolean enabled) {
 
         // never the cipher text
         @Override
         public String toString() {
-            return "Totp[enabled=" + enabled + "]";
+            return "StoredTotp[enabled=" + enabled + "]";
         }
     }
 
     /** Empty when the row no longer exists. */
-    Optional<Totp> findTotp(UUID id) {
-        return jdbc.sql("select totp_secret, totp_enabled_at is not null as enabled, totp_last_step"
-                        + " from administrators where id = :id")
+    Optional<StoredTotp> findTotp(UUID id) {
+        return jdbc.sql("select totp_secret, totp_enabled_at is not null as enabled from administrators where id = :id")
                 .param("id", id)
-                .query((rs, i) -> {
-                    long last = rs.getLong("totp_last_step");
-                    return new Totp(
-                            rs.getString("totp_secret"),
-                            rs.getBoolean("enabled"),
-                            rs.wasNull() ? OptionalLong.empty() : OptionalLong.of(last));
-                })
+                .query((rs, i) -> new StoredTotp(rs.getString("totp_secret"), rs.getBoolean("enabled")))
                 .optional();
     }
 

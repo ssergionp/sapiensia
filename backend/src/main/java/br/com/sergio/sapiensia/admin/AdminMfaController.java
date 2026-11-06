@@ -4,6 +4,7 @@ import br.com.sergio.sapiensia.customer.ClientIpResolver;
 import br.com.sergio.sapiensia.customer.PasswordLogin;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import java.time.Clock;
 import java.util.EnumSet;
 import org.springframework.http.HttpHeaders;
@@ -25,6 +26,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/admin/sessions/mfa")
 class AdminMfaController {
+
+    /** The cipher text of the enrollment started in this pending session (Ruling 3: no other secret confirms). */
+    private static final String STARTED_ENROLLMENT = AdminMfaController.class.getName() + ".startedEnrollment";
 
     private final AdministratorMfa mfa;
     private final PasswordLogin passwordLogin;
@@ -64,27 +68,38 @@ class AdminMfaController {
      * answer ever carries the secret.
      */
     @PostMapping("/enrollment")
-    ResponseEntity<AdministratorMfa.Enrollment> enroll(Authentication authentication) {
+    ResponseEntity<AdministratorMfa.Enrollment> enroll(Authentication authentication, HttpSession session) {
         return mfa.startEnrollment((PendingAdministrator) authentication.getPrincipal())
-                .map(enrollment -> ResponseEntity.ok()
-                        .header(HttpHeaders.CACHE_CONTROL, "no-store")
-                        .body(enrollment))
+                .map(started -> {
+                    // server-side only: the pending session is replaced at every login and at completion, so the
+                    // enrollment dies with it
+                    session.setAttribute(STARTED_ENROLLMENT, started.secretCipher());
+                    return ResponseEntity.ok()
+                            .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                            .body(started.enrollment());
+                })
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.CONFLICT).build());
     }
 
     /**
-     * 204 with a new session holding the full Administrator once the code confirms the pending secret; 400
-     * CODE_INVALID; 429 with Retry-After; 409 when MFA is already active or no enrollment was started.
+     * 204 with a new session holding the full Administrator once the code confirms the secret enrolled in this same
+     * session; 400 CODE_INVALID; 429 with Retry-After; 409 when MFA is already active, or no enrollment was started in
+     * this session, or another session has replaced it since.
      */
     @PostMapping("/enrollment/confirmation")
     ResponseEntity<Void> confirm(
             @RequestBody MfaCodeRequest body,
             Authentication authentication,
+            HttpSession session,
             HttpServletRequest request,
             HttpServletResponse response) {
         var pending = (PendingAdministrator) authentication.getPrincipal();
+        var startedCipher = (String) session.getAttribute(STARTED_ENROLLMENT);
         return answer(
-                pending, mfa.confirmEnrollment(pending, body.code(), clientIp.resolve(request)), request, response);
+                pending,
+                mfa.confirmEnrollment(pending, startedCipher, body.code(), clientIp.resolve(request)),
+                request,
+                response);
     }
 
     record EnrolledStatus(boolean enrolled) {}

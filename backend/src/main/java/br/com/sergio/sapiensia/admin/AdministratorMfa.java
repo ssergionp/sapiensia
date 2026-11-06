@@ -54,6 +54,19 @@ class AdministratorMfa {
         }
     }
 
+    /**
+     * A started enrollment: what goes to the authenticator app, and the cipher text stored for it, which the caller
+     * keeps server-side in the same pending session and gives back to {@link #confirmEnrollment}. {@code toString()}
+     * hides both.
+     */
+    record Started(Enrollment enrollment, String secretCipher) {
+
+        @Override
+        public String toString() {
+            return "Started[redacted]";
+        }
+    }
+
     /** One code check; its verdict is never LOCKED or UNAVAILABLE (those come from {@link #guarded}). */
     private interface Check {
         Verdict run(UUID id);
@@ -77,38 +90,47 @@ class AdministratorMfa {
     }
 
     boolean enrolled(UUID id) {
-        return administrators.findTotp(id).map(Administrators.Totp::enabled).orElse(false);
+        return administrators
+                .findTotp(id)
+                .map(Administrators.StoredTotp::enabled)
+                .orElse(false);
     }
 
     /**
      * Stores a new pending secret and returns it, or empty when MFA is already active (409): otherwise someone who
      * only knows the password could swap the authenticator. The conditional UPDATE is the real guard.
      */
-    Optional<Enrollment> startEnrollment(PendingAdministrator who) {
+    Optional<Started> startEnrollment(PendingAdministrator who) {
         byte[] secret = Totp.newSecret();
-        if (administrators.startEnrollment(who.id(), cipher.encrypt(secret, secretAad(who))) == 0) {
+        String secretCipher = cipher.encrypt(secret, secretAad(who));
+        if (administrators.startEnrollment(who.id(), secretCipher) == 0) {
             return Optional.empty();
         }
-        return Optional.of(new Enrollment(Totp.toBase32(secret), Totp.otpauthUri(ISSUER, who.email(), secret)));
+        return Optional.of(new Started(
+                new Enrollment(Totp.toBase32(secret), Totp.otpauthUri(ISSUER, who.email(), secret)), secretCipher));
     }
 
     /**
-     * Activates MFA when {@code code} matches the pending secret. Same limiter key and IP budget as {@link #verify}; a
-     * wrong code stays counted, an inactive or missing enrollment (NOT_ENROLLED) is not a code failure.
+     * Activates MFA when {@code code} matches the secret of the enrollment started in this same pending session
+     * ({@code startedCipher}, null when none was). A secret abandoned in another session, or replaced since by
+     * another enrollment, is worth nothing. Same limiter key and IP budget as {@link #verify}; a wrong code stays
+     * counted, an active MFA or a missing or replaced enrollment (NOT_ENROLLED) is not a code failure.
      */
-    Outcome confirmEnrollment(PendingAdministrator who, String code, String clientIp) {
+    Outcome confirmEnrollment(PendingAdministrator who, String startedCipher, String code, String clientIp) {
         return guarded(who, clientIp, id -> {
-            Optional<Administrators.Totp> totp = administrators.findTotp(id);
-            if (totp.isEmpty() || totp.get().enabled() || totp.get().secretCipher() == null) {
+            Optional<Administrators.StoredTotp> totp = administrators.findTotp(id);
+            if (startedCipher == null
+                    || totp.isEmpty()
+                    || totp.get().enabled()
+                    || !startedCipher.equals(totp.get().secretCipher())) {
                 return Verdict.NOT_ENROLLED;
             }
-            String secretCipher = totp.get().secretCipher();
-            OptionalLong step = Totp.matchingStep(cipher.decrypt(secretCipher, secretAad(who)), code, clock.instant());
+            OptionalLong step = Totp.matchingStep(cipher.decrypt(startedCipher, secretAad(who)), code, clock.instant());
             if (step.isEmpty()) {
                 return Verdict.REJECTED;
             }
             // 0 rows: activated or re-enrolled meanwhile, so not a code failure
-            return administrators.enable(id, secretCipher, step.getAsLong()) == 0
+            return administrators.enable(id, startedCipher, step.getAsLong()) == 0
                     ? Verdict.NOT_ENROLLED
                     : Verdict.ACCEPTED;
         });
@@ -116,7 +138,7 @@ class AdministratorMfa {
 
     Outcome verify(PendingAdministrator who, String code, String clientIp) {
         return guarded(who, clientIp, id -> {
-            Optional<Administrators.Totp> totp = administrators.findTotp(id);
+            Optional<Administrators.StoredTotp> totp = administrators.findTotp(id);
             if (totp.isEmpty() || !totp.get().enabled()) {
                 return Verdict.NOT_ENROLLED;
             }

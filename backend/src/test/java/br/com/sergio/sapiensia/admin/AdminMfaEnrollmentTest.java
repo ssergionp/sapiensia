@@ -235,6 +235,49 @@ class AdminMfaEnrollmentTest {
     }
 
     @Test
+    @DisplayName("SEC-001: um segredo abandonado em outra sessão não vale: 409, nada ativa e a tentativa não conta")
+    void shouldRefuseTheSecretAbandonedInAnotherSession() throws Exception {
+        byte[] abandoned = secretOf(pending().post(ENROLLMENT, "{}"));
+        AdminBrowser browser = pending();
+
+        HttpResponse<String> response = browser.post(CONFIRMATION, body(code(abandoned)));
+
+        assertThat(response.statusCode()).isEqualTo(409);
+        assertThat(jdbc.queryForObject(
+                        "select totp_enabled_at is null from administrators where id = ?", Boolean.class, adminId))
+                .isTrue();
+        assertThat(browser.get(CURRENT).statusCode()).isEqualTo(401);
+        // the 409 gave the attempt back: five wrong codes still answer 400, only then the account locks
+        byte[] own = secretOf(browser.post(ENROLLMENT, "{}"));
+        for (int i = 0; i < 5; i++) {
+            assertThat(browser.post(CONFIRMATION, body(AdminMfaTestSupport.wrongCodeAt(own, clock.instant())))
+                            .statusCode())
+                    .isEqualTo(400);
+        }
+        assertThat(browser.post(CONFIRMATION, body(code(own))).statusCode()).isEqualTo(429);
+    }
+
+    @Test
+    @DisplayName(
+            "SEC-001: quando outra sessão troca o segredo, a primeira não confirma o antigo; a segunda confirma o dela")
+    void shouldRefuseTheConfirmationOfASecretReplacedByAnotherSession() throws Exception {
+        AdminBrowser first = pending();
+        byte[] old = secretOf(first.post(ENROLLMENT, "{}"));
+        AdminBrowser second = pending();
+        byte[] replacing = secretOf(second.post(ENROLLMENT, "{}"));
+
+        assertThat(first.post(CONFIRMATION, body(code(old))).statusCode()).isEqualTo(409);
+        assertThat(jdbc.queryForObject(
+                        "select totp_enabled_at is null from administrators where id = ?", Boolean.class, adminId))
+                .isTrue();
+        assertThat(first.get(CURRENT).statusCode()).isEqualTo(401);
+
+        assertThat(second.post(CONFIRMATION, body(code(replacing))).statusCode())
+                .isEqualTo(204);
+        assertThat(second.get(CURRENT).statusCode()).isEqualTo(200);
+    }
+
+    @Test
     @DisplayName("SEC-001: as rotas POST do MFA sem o token CSRF dão 403 e nada muda")
     void shouldRefuseTheMfaPostRoutesWithoutTheCsrfToken() throws Exception {
         AdminBrowser browser = pending();
@@ -278,8 +321,9 @@ class AdminMfaEnrollmentTest {
     }
 
     @Test
-    @DisplayName("SEC-001: duas confirmações paralelas com o mesmo código: um 204 e a outra recusada")
-    void shouldActivateOnlyOnceWithParallelConfirmations() throws Exception {
+    @DisplayName("SEC-001: duas sessões confirmam juntas o mesmo código: só a que começou a inscrição ativa")
+    // the race on enable() itself is proven at SQL level by shouldEnableOnlyTheConfirmedSecretOnce
+    void shouldActivateOnlyFromTheEnrollingSessionWhenTwoSessionsConfirmTogether() throws Exception {
         AdminBrowser first = pending();
         AdminBrowser second = pending();
         byte[] secret = secretOf(first.post(ENROLLMENT, "{}"));
@@ -303,8 +347,7 @@ class AdminMfaEnrollmentTest {
             pool.shutdownNow();
         }
 
-        assertThat(statuses).filteredOn(s -> s == 204).hasSize(1);
-        assertThat(statuses).filteredOn(s -> s != 204).hasSize(1).allMatch(s -> s == 409 || s == 400);
+        assertThat(statuses).containsExactly(204, 409);
     }
 
     @Test
