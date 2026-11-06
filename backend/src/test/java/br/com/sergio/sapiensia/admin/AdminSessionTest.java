@@ -468,6 +468,30 @@ class AdminSessionTest {
     }
 
     @Test
+    @DisplayName("SEC-001: falha do banco ao ver o status ou iniciar o cadastro do MFA dá 503 e o log não traz segredo")
+    void shouldAnswer503WhenTheDatabaseFailsOnTheMfaStatusAndEnrollment(CapturedOutput output) throws Exception {
+        AdminBrowser browser = browser();
+        assertThat(browser.loginAdmin(email, PASSWORD).statusCode()).isEqualTo(204);
+        int from = output.getAll().length();
+        doThrow(new DataAccessResourceFailureException("down for " + email))
+                .when(administrators)
+                .findTotp(any());
+        doThrow(new DataAccessResourceFailureException("down for " + email))
+                .when(administrators)
+                .startEnrollment(any(), any());
+
+        assertThat(browser.get("/api/admin/sessions/mfa").statusCode()).isEqualTo(503);
+        assertThat(browser.post("/api/admin/sessions/mfa/enrollment", "{}").statusCode())
+                .isEqualTo(503);
+        reset(administrators);
+
+        assertThat(browser.get("/api/admin/sessions/mfa").statusCode()).isEqualTo(200);
+        assertThat(output.getAll().substring(from))
+                .contains("MFA check unavailable")
+                .doesNotContain(email);
+    }
+
+    @Test
     @DisplayName("SEC-001: segredo que não decifra dá 503 e não conta como erro de código")
     void shouldAnswer503WhenTheSecretDoesNotDecrypt() throws Exception {
         String stored =

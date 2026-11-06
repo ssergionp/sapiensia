@@ -89,11 +89,28 @@ class AdministratorMfa {
         return "administrator-totp:" + who.id();
     }
 
+    /** Thrown when the database or the cipher fails outside a code check; the controller answers 503. */
+    static class UnavailableException extends RuntimeException {
+        UnavailableException() {
+            super("MFA unavailable");
+        }
+    }
+
+    // only the class is logged: nothing about the secret, the key or the code
+    private static UnavailableException unavailable(RuntimeException e) {
+        log.error("MFA check unavailable ({})", e.getClass().getName());
+        return new UnavailableException();
+    }
+
     boolean enrolled(UUID id) {
-        return administrators
-                .findTotp(id)
-                .map(Administrators.StoredTotp::enabled)
-                .orElse(false);
+        try {
+            return administrators
+                    .findTotp(id)
+                    .map(Administrators.StoredTotp::enabled)
+                    .orElse(false);
+        } catch (DataAccessException | IllegalStateException e) {
+            throw unavailable(e);
+        }
     }
 
     /**
@@ -102,9 +119,14 @@ class AdministratorMfa {
      */
     Optional<Started> startEnrollment(PendingAdministrator who) {
         byte[] secret = Totp.newSecret();
-        String secretCipher = cipher.encrypt(secret, secretAad(who));
-        if (administrators.startEnrollment(who.id(), secretCipher) == 0) {
-            return Optional.empty();
+        String secretCipher;
+        try {
+            secretCipher = cipher.encrypt(secret, secretAad(who));
+            if (administrators.startEnrollment(who.id(), secretCipher) == 0) {
+                return Optional.empty();
+            }
+        } catch (DataAccessException | IllegalStateException e) {
+            throw unavailable(e);
         }
         return Optional.of(new Started(
                 new Enrollment(Totp.toBase32(secret), Totp.otpauthUri(ISSUER, who.email(), secret)), secretCipher));
@@ -167,9 +189,8 @@ class AdministratorMfa {
         try {
             verdict = check.run(who.id());
         } catch (DataAccessException | IllegalStateException e) {
-            // only the class is logged: nothing about the secret, the key or the code
             limiter.release(accountKey, admission);
-            log.error("MFA check unavailable ({})", e.getClass().getName());
+            unavailable(e);
             return Outcome.of(Verdict.UNAVAILABLE);
         } catch (RuntimeException e) {
             limiter.release(accountKey, admission);
