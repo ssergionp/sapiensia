@@ -105,7 +105,10 @@ public class CustomerService {
                 .consumeAndSetPassword(token, passwordHash)
                 .orElseThrow(InvalidConfirmationTokenException::new);
         // the owner proved they hold the e-mail: lift the account lockout (SEC-002), never the per-IP limit
-        customers.findEmailById(customerId).ifPresent(loginAttemptLimiter::releaseAccount);
+        customers
+                .findEmailById(customerId)
+                .ifPresent(
+                        email -> loginAttemptLimiter.releaseAccount(LoginAttemptLimiter.CUSTOMER_KEY_PREFIX + email));
         schedule(CustomerEmailTasks.PASSWORD_CHANGED_NOTICE, customerId);
     }
 

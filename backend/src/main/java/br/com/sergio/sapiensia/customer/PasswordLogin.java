@@ -43,8 +43,8 @@ public class PasswordLogin {
     }
 
     /**
-     * How one kind of account logs in. {@code accountKeyPrefix} separates the limiter's account keys ("" for
-     * customers, "admin:" for the panel); {@code subject} and {@code log} are only for the 503 log line.
+     * How one kind of account logs in. {@code accountKeyPrefix} separates the limiter's account keys
+     * ("customer:" for customers, "admin:" for the panel); {@code subject} and {@code log} are only for the 503 log line.
      */
     public record Variant(
             AuthenticationManager authenticationManager,
