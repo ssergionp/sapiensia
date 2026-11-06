@@ -1,8 +1,7 @@
 package br.com.sergio.sapiensia.customer;
 
-import java.security.SecureRandom;
+import br.com.sergio.sapiensia.security.Tokens;
 import java.time.Duration;
-import java.util.Base64;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,10 +12,6 @@ import org.springframework.transaction.annotation.Transactional;
 /** Stores and revokes password reset tokens. Only the SHA-256 hash of a token is persisted. */
 @Component
 class PasswordResetTokens {
-
-    private static final int TOKEN_BYTES = 32;
-
-    private static final SecureRandom RANDOM = new SecureRandom();
 
     private final JdbcClient jdbc;
     private final Duration ttl;
@@ -38,11 +33,9 @@ class PasswordResetTokens {
         return token;
     }
 
-    /** A random 32-byte token in Base64 URL form without padding (43 characters). Also used by the device cookie. */
+    /** Forwards to {@link Tokens#newToken}, the one generator; kept so the customer code and its tests keep this name. */
     static String newToken() {
-        byte[] bytes = new byte[TOKEN_BYTES];
-        RANDOM.nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        return Tokens.newToken();
     }
 
     /**

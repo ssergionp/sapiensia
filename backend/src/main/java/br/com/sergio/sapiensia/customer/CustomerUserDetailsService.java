@@ -2,7 +2,6 @@ package br.com.sergio.sapiensia.customer;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -28,7 +27,7 @@ class CustomerUserDetailsService implements UserDetailsService {
         // The account is always "enabled" here: an unconfirmed e-mail must be refused only after the password check,
         // otherwise the answer (and its timing) would differ from a wrong password.
         return customers
-                .findCredentialsByEmail(email.trim().toLowerCase(Locale.ROOT))
+                .findCredentialsByEmail(Emails.normalize(email))
                 .map(CustomerPrincipal::new)
                 .orElseThrow(() -> new UsernameNotFoundException("unknown customer"));
     }

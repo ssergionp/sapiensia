@@ -15,3 +15,8 @@
 ad9849015b70287c8ea86c31356fd19a93494903:backend/src/test/java/br/com/sergio/sapiensia/customer/PasswordResetConfirmationTest.java:generic-api-key:42
 ad9849015b70287c8ea86c31356fd19a93494903:backend/src/test/java/br/com/sergio/sapiensia/customer/PasswordResetConfirmationTest.java:generic-api-key:183
 ad9849015b70287c8ea86c31356fd19a93494903:backend/src/test/java/br/com/sergio/sapiensia/customer/PasswordResetConfirmationTest.java:generic-api-key:189
+# Fictional test passwords of the #14 branch (not secrets). The final lines carry "// gitleaks:allow"; these three are
+# the earlier commits that introduced them.
+d442f9bc7b070150c87e1755053d2f2c723073d3:backend/src/test/java/br/com/sergio/sapiensia/admin/AdminPanelLoginDisabledTest.java:generic-api-key:26
+e16d507f1a2c3c7091a28bc5c84eec367b4f526a:backend/src/test/java/br/com/sergio/sapiensia/admin/AdminCustomerKeyCollisionTest.java:generic-api-key:23
+ec7b05dec5cffac1173d3863c24b951304cdf00c:backend/src/test/java/br/com/sergio/sapiensia/admin/AdministratorPasswordSetupTest.java:generic-api-key:137

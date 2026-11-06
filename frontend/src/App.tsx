@@ -1,4 +1,7 @@
 import { Route, Routes } from "react-router";
+import AdminHomePage from "@/features/admin/AdminHomePage";
+import AdminLoginPage from "@/features/admin/AdminLoginPage";
+import SetAdminPasswordPage from "@/features/admin/SetAdminPasswordPage";
 import ConfirmEmailPage from "@/features/customer/ConfirmEmailPage";
 import ForgotPasswordPage from "@/features/customer/ForgotPasswordPage";
 import RegisterPage from "@/features/customer/RegisterPage";
@@ -15,6 +18,9 @@ export default function App() {
       <Route path="/confirmar-email" element={<ConfirmEmailPage />} />
       <Route path="/esqueci-senha" element={<ForgotPasswordPage />} />
       <Route path="/redefinir-senha" element={<ResetPasswordPage />} />
+      <Route path="/painel" element={<AdminHomePage />} />
+      <Route path="/painel/entrar" element={<AdminLoginPage />} />
+      <Route path="/painel/definir-senha" element={<SetAdminPasswordPage />} />
     </Routes>
   );
 }

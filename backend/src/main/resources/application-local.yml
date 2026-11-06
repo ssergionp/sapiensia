@@ -7,6 +7,9 @@ db-scheduler:
 app:
   email:
     provider: file
+  admin:
+    email: admin@example.com
+    panel-login-enabled: true
   # Vite dev server (default port), which serves the frontend pages
   public-base-url: http://localhost:5173
   # The e2e tests run against this profile and make every login from one IP

@@ -15,10 +15,10 @@ record RegisterCustomerRequest(
         @Size(max = 128, message = "PASSWORD_TOO_LONG")
         String password) {
 
-    // Surrounding spaces (autofill, paste) are not part of the e-mail; the password is never trimmed.
+    // Surrounding spaces (autofill, paste) and letter case are not part of the e-mail; the password is never trimmed.
     RegisterCustomerRequest {
         if (email != null) {
-            email = email.trim();
+            email = Emails.normalize(email);
         }
     }
 }

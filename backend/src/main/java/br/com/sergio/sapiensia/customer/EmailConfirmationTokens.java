@@ -1,12 +1,7 @@
 package br.com.sergio.sapiensia.customer;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
+import br.com.sergio.sapiensia.security.Tokens;
 import java.time.Duration;
-import java.util.Base64;
-import java.util.HexFormat;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,9 +15,6 @@ class EmailConfirmationTokens {
     /** A token with a reserved attempt: its customer's password hash and the attempts reserved so far, this one included. */
     record Pending(UUID tokenId, String passwordHash, int attempts) {}
 
-    private static final int TOKEN_BYTES = 32;
-
-    private final SecureRandom random = new SecureRandom();
     private final JdbcClient jdbc;
     private final Duration ttl;
 
@@ -33,9 +25,7 @@ class EmailConfirmationTokens {
 
     /** Creates a token for the customer and returns it in plain text; only its hash is stored. */
     String issue(UUID customerId) {
-        byte[] bytes = new byte[TOKEN_BYTES];
-        random.nextBytes(bytes);
-        String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        String token = Tokens.newToken();
         jdbc.sql("insert into email_confirmation_tokens (customer_id, token_hash, expires_at)"
                         + " values (:customerId, :hash, now() + make_interval(secs => :seconds))")
                 .param("customerId", customerId)
@@ -96,12 +86,8 @@ class EmailConfirmationTokens {
                 > 0;
     }
 
+    /** Forwards to {@link Tokens#hash}, the one hash; kept so the customer code and its tests keep this name. */
     static String hash(String token) {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(digest);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException(e);
-        }
+        return Tokens.hash(token);
     }
 }

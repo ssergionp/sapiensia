@@ -24,6 +24,11 @@ export default defineConfig({
   },
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
-    { name: "celular", use: { ...devices["Pixel 7"] } },
+    {
+      name: "celular",
+      use: { ...devices["Pixel 7"] },
+      // There is a single Administrator, so the panel e2e runs only on desktop.
+      testIgnore: "**/admin-panel.e2e.ts",
+    },
   ],
 });

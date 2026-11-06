@@ -10,10 +10,10 @@ record RequestPasswordResetRequest(
         @Size(max = 254, message = "EMAIL_INVALID")
         String email) {
 
-    // Surrounding spaces (autofill, paste) are not part of the e-mail.
+    // Surrounding spaces (autofill, paste) and letter case are not part of the e-mail.
     RequestPasswordResetRequest {
         if (email != null) {
-            email = email.trim();
+            email = Emails.normalize(email);
         }
     }
 }

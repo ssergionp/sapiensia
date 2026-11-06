@@ -7,19 +7,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoginBlockedError, LoginRejectedError } from "./api";
 import { useLogin } from "./hooks";
+import { LOGIN_BLOCKED, LOGIN_UNEXPECTED_ERROR } from "./messages";
 import { type LoginInput, loginSchema } from "./schemas";
 
 const LOGIN_FAILED =
   "E-mail ou senha incorretos, ou o e-mail ainda não foi confirmado.";
-const LOGIN_BLOCKED =
-  "Muitas tentativas de entrada. Aguarde alguns minutos e tente de novo.";
-const UNEXPECTED_ERROR =
-  "Não foi possível entrar agora. Tente novamente em instantes.";
 
 function failureMessage(error: Error): string {
   if (error instanceof LoginRejectedError) return LOGIN_FAILED;
   if (error instanceof LoginBlockedError) return LOGIN_BLOCKED;
-  return UNEXPECTED_ERROR;
+  return LOGIN_UNEXPECTED_ERROR;
 }
 
 export default function LoginPage() {

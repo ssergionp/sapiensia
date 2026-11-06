@@ -4,7 +4,6 @@ import com.github.kagkarlsson.scheduler.SchedulerClient;
 import com.github.kagkarlsson.scheduler.task.TaskInstance;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
@@ -60,7 +59,7 @@ public class CustomerService {
         if (compromisedPasswordChecker.check(rawPassword).isCompromised()) {
             throw new PasswordCompromisedException();
         }
-        String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
+        String normalizedEmail = Emails.normalize(email);
         // the password is hashed on every path, so the response time stays equal
         String passwordHash = passwordEncoder.encode(rawPassword);
         // a repeated e-mail inserts nothing (on conflict do nothing): no exception, so no e-mail in the database log
@@ -85,7 +84,7 @@ public class CustomerService {
      * the e-mail belongs to a confirmed account or not. Without an account the task gets a random id it will not find.
      */
     public void requestPasswordReset(String email) {
-        String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
+        String normalizedEmail = Emails.normalize(email);
         UUID customerId = customers.findConfirmedIdByEmail(normalizedEmail).orElseGet(UUID::randomUUID);
         schedule(CustomerEmailTasks.PASSWORD_RESET, customerId);
     }
@@ -106,7 +105,9 @@ public class CustomerService {
                 .consumeAndSetPassword(token, passwordHash)
                 .orElseThrow(InvalidConfirmationTokenException::new);
         // the owner proved they hold the e-mail: lift the account lockout (SEC-002), never the per-IP limit
-        customers.findEmailById(customerId).ifPresent(loginAttemptLimiter::releaseAccount);
+        customers
+                .findEmailById(customerId)
+                .ifPresent(email -> loginAttemptLimiter.releaseAccount(LoginAttemptLimiter.customerKey(email)));
         schedule(CustomerEmailTasks.PASSWORD_CHANGED_NOTICE, customerId);
     }
 

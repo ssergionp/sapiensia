@@ -55,18 +55,25 @@ export class ResetPasswordError extends Error {
   }
 }
 
-export async function resetPassword(input: {
-  token: string;
-  newPassword: string;
-}): Promise<void> {
-  const response = await apiFetch(
+export type ResetPasswordRequest = { token: string; newPassword: string };
+
+export function resetPassword(input: ResetPasswordRequest): Promise<void> {
+  return postPasswordSetup(
     "/api/customers/password-resets/confirmation",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
-    },
+    input,
   );
+}
+
+// Shared with the administrator first-access page: same body and same 400 format.
+export async function postPasswordSetup(
+  url: string,
+  input: ResetPasswordRequest,
+): Promise<void> {
+  const response = await apiFetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
   if (response.status === 204) return;
   if (response.status === 400) {
     const body: unknown = await response.json().catch(() => null);
