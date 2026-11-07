@@ -9,7 +9,9 @@ app:
     provider: file
   admin:
     email: admin@example.com
-    panel-login-enabled: true
+  mfa:
+    # fictitious key (32 identical bytes), local profile only: never a real secret, and prod has no default
+    encryption-key: ${APP_MFA_ENCRYPTION_KEY:QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUE=} # gitleaks:allow
   # Vite dev server (default port), which serves the frontend pages
   public-base-url: http://localhost:5173
   # The e2e tests run against this profile and make every login from one IP

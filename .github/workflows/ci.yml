@@ -49,16 +49,17 @@ jobs:
       - name: Build the image
         run: .github/ci-report.sh "Docker build" docker build -t app:ci .
       # APP_LOGIN_LIMIT_IP_MAX_ATTEMPTS is raised because all e2e requests come from one IP.
-      # APP_ADMIN_PANEL_LOGIN_ENABLED switches on the panel login, off in the prod profile until MFA (#15), only here.
       - name: Start the system
         run: |
+          MFA_KEY="$(openssl rand -base64 32)"
+          echo "::add-mask::$MFA_KEY"
           mkdir -p .tmp/outbox && chmod 777 .tmp/outbox
           docker run -d --name app --network host \
             -v "$PWD/.tmp/outbox:/outbox" \
             -e APP_EMAIL_PROVIDER=file -e APP_EMAIL_OUTBOX_DIR=/outbox \
             -e APP_PUBLIC_BASE_URL=http://localhost:8080 \
             -e APP_ADMIN_EMAIL=admin-e2e@example.com \
-            -e APP_ADMIN_PANEL_LOGIN_ENABLED=true \
+            -e APP_MFA_ENCRYPTION_KEY="$MFA_KEY" \
             -e DB_SCHEDULER_POLLING_INTERVAL=PT1S \
             -e APP_LOGIN_LIMIT_IP_MAX_ATTEMPTS=1000 \
             -e DB_URL=jdbc:postgresql://localhost:5432/app -e DB_USER=app -e DB_PASSWORD=app \

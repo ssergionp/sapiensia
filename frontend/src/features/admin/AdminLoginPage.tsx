@@ -37,7 +37,7 @@ export default function AdminLoginPage() {
   function onSubmit(values: LoginInput) {
     setFailure(null);
     mutation.mutate(values, {
-      onSuccess: () => navigate("/painel"),
+      onSuccess: () => navigate("/painel/verificacao"),
       onError: (error) => setFailure(failureMessage(error)),
     });
   }

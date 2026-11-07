@@ -27,6 +27,15 @@ final class AdminBrowser {
                 .orElse(null);
     }
 
+    /** Puts a cookie in the jar by hand: replays a session cookie that the server has since ended. */
+    void setCookie(String name, String value) {
+        HttpCookie cookie = new HttpCookie(name, value);
+        cookie.setPath("/");
+        // version 0 (Netscape style): version 1 would send a "$Version" attribute the server parses as a cookie
+        cookie.setVersion(0);
+        jar.getCookieStore().add(uri("/"), cookie);
+    }
+
     private URI uri(String path) {
         return URI.create("http://localhost:" + port + path);
     }
@@ -52,6 +61,17 @@ final class AdminBrowser {
                 HttpResponse.BodyHandlers.ofString());
     }
 
+    /** A POST that keeps the cookies but sends no X-XSRF-TOKEN header: what a cross-site form would send. */
+    HttpResponse<String> postWithoutCsrf(String path, String json) throws Exception {
+        ensureCsrfCookie();
+        return client.send(
+                HttpRequest.newBuilder(uri(path))
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString(json))
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+    }
+
     HttpResponse<String> delete(String path) throws Exception {
         ensureCsrfCookie();
         return client.send(
@@ -64,6 +84,25 @@ final class AdminBrowser {
 
     HttpResponse<String> loginAdmin(String email, String password) throws Exception {
         return post("/api/admin/sessions", "{\"email\":\"" + email + "\",\"password\":\"" + password + "\"}");
+    }
+
+    /** The second step of the panel login: the 6-digit code of the authenticator app. */
+    HttpResponse<String> verifyMfa(String code) throws Exception {
+        return post("/api/admin/sessions/mfa", "{\"code\":\"" + code + "\"}");
+    }
+
+    /**
+     * Password, then the code of a fresh 30 s step (the clock moves one step first, since a step is accepted only
+     * once): ends with a full Administrator session. Returns the answer to the code.
+     */
+    HttpResponse<String> loginAdminFully(
+            String email, String password, byte[] secret, AdminMfaTestSupport.MutableClock clock) throws Exception {
+        clock.advance(java.time.Duration.ofSeconds(30));
+        HttpResponse<String> login = loginAdmin(email, password);
+        if (login.statusCode() != 204) {
+            throw new AssertionError("password step answered " + login.statusCode());
+        }
+        return verifyMfa(AdminMfaTestSupport.codeAt(secret, clock.instant()));
     }
 
     HttpResponse<String> loginCustomer(String email, String password) throws Exception {

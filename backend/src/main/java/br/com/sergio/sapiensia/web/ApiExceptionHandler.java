@@ -1,5 +1,6 @@
 package br.com.sergio.sapiensia.web;
 
+import br.com.sergio.sapiensia.admin.InvalidMfaCodeException;
 import br.com.sergio.sapiensia.customer.IncorrectConfirmationPasswordException;
 import br.com.sergio.sapiensia.customer.InvalidConfirmationTokenException;
 import br.com.sergio.sapiensia.customer.PasswordCompromisedException;
@@ -57,6 +58,11 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(IncorrectConfirmationPasswordException.class)
     ResponseEntity<ProblemDetail> handleIncorrectConfirmationPassword() {
         return ResponseEntity.badRequest().body(problem(Map.of("password", "PASSWORD_INCORRECT")));
+    }
+
+    @ExceptionHandler(InvalidMfaCodeException.class)
+    ResponseEntity<ProblemDetail> handleInvalidMfaCode() {
+        return ResponseEntity.badRequest().body(problem(Map.of("code", "CODE_INVALID")));
     }
 
     private static ProblemDetail problem(Map<String, String> errors) {

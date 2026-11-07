@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
  * X-Forwarded-For. A value that is not a literal IP address falls back to the remote address.
  */
 @Component
-class ClientIpResolver {
+public class ClientIpResolver {
 
     private static final int MAX_IP_LENGTH = 45;
     private static final Pattern IPV4 =
@@ -26,7 +26,7 @@ class ClientIpResolver {
         this.headerName = properties.clientIpHeader();
     }
 
-    String resolve(HttpServletRequest request) {
+    public String resolve(HttpServletRequest request) {
         if (headerName != null && !headerName.isBlank()) {
             String value = request.getHeader(headerName);
             if (value != null && !value.isBlank()) {

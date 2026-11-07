@@ -124,15 +124,28 @@ public class PasswordLogin {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         limiter.recordSuccess(accountKey);
-        UserDetails principal = accepted.get().get();
+        startSession(accepted.get().get(), authentication, variant.sessionStrategy(), request, response);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Keeps {@code principal} in a new session: new session id (session fixation), new CSRF token and the saved security
+     * context, replacing whatever this browser had. {@code forStrategy} is the authentication handed to the session
+     * strategy. Used after the password and, for the panel, after the TOTP code.
+     */
+    public void startSession(
+            UserDetails principal,
+            Authentication forStrategy,
+            SessionAuthenticationStrategy strategy,
+            HttpServletRequest request,
+            HttpServletResponse response) {
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(
                 UsernamePasswordAuthenticationToken.authenticated(principal, null, principal.getAuthorities()));
-        // New session id and new CSRF token at login (session fixation). The token is issued here because
-        // CsrfAuthenticationStrategy only expires the old cookie, so the SPA would have no valid cookie for logout.
-        variant.sessionStrategy().onAuthentication(authentication, request, response);
+        // The token is issued here because CsrfAuthenticationStrategy only expires the old cookie, so the SPA would
+        // have no valid cookie for logout.
+        strategy.onAuthentication(forStrategy, request, response);
         csrfTokenRepository.saveToken(csrfTokenRepository.generateToken(request), request, response);
         securityContextRepository.saveContext(context, request, response);
-        return ResponseEntity.noContent().build();
     }
 }

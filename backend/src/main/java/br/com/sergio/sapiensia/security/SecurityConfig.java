@@ -1,19 +1,32 @@
 package br.com.sergio.sapiensia.security;
 
+import br.com.sergio.sapiensia.admin.AdminMfaAccess;
+import br.com.sergio.sapiensia.admin.AdministratorPrincipal;
 import br.com.sergio.sapiensia.admin.Capability;
+import br.com.sergio.sapiensia.admin.PendingAdministrator;
 import br.com.sergio.sapiensia.customer.SessionVersionFilter;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.authorization.AllRequiredFactorsAuthorizationManager;
+import org.springframework.security.authorization.AuthorityAuthorizationManager;
+import org.springframework.security.authorization.AuthorizationManager;
+import org.springframework.security.authorization.AuthorizationManagers;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.access.AccessDeniedHandlerImpl;
+import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfException;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
 import org.springframework.security.web.header.writers.DelegatingRequestMatcherHeaderWriter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
@@ -56,9 +69,47 @@ public class SecurityConfig {
         return registration;
     }
 
+    /**
+     * A panel route: the capability AND the password and TOTP factors. The factors are a second lock, independent of
+     * the capabilities (which only the full Administrator has). Not @EnableMultiFactorAuthentication: that would
+     * require the factors on the customer routes too.
+     */
+    static AuthorizationManager<RequestAuthorizationContext> panel(Capability capability) {
+        return AuthorizationManagers.allOf(
+                AuthorityAuthorizationManager.hasAuthority(capability.authority()),
+                AllRequiredFactorsAuthorizationManager.<RequestAuthorizationContext>builder()
+                        .requireFactor(factor -> factor.passwordAuthority())
+                        .requireFactor(factor -> factor.authority(AdministratorPrincipal.TOTP_AUTHORITY))
+                        .build());
+    }
+
+    /**
+     * A pending Administrator (password done, code missing) denied anywhere gets 401, like an anonymous visitor: the
+     * SPA then shows the login, not "this area is only for the Administrator". Everyone else keeps the usual 403, and
+     * so does a CSRF failure.
+     */
+    static AccessDeniedHandler accessDeniedHandler() {
+        AccessDeniedHandler forbidden = new AccessDeniedHandlerImpl();
+        return (request, response, exception) -> {
+            Authentication authentication = SecurityContextHolder.getContextHolderStrategy()
+                    .getContext()
+                    .getAuthentication();
+            if (!(exception instanceof CsrfException)
+                    && authentication != null
+                    && authentication.getPrincipal() instanceof PendingAdministrator) {
+                response.setStatus(HttpStatus.UNAUTHORIZED.value());
+                return;
+            }
+            forbidden.handle(request, response, exception);
+        };
+    }
+
     @Bean
     SecurityFilterChain securityFilterChain(
-            HttpSecurity http, CsrfTokenRepository csrfTokenRepository, SessionVersionFilter sessionVersionFilter)
+            HttpSecurity http,
+            CsrfTokenRepository csrfTokenRepository,
+            SessionVersionFilter sessionVersionFilter,
+            AdminMfaAccess adminMfaAccess)
             throws Exception {
         // right after the context is loaded from the session: ends sessions opened before a password change (SEC-006)
         http.addFilterAfter(sessionVersionFilter, SecurityContextHolderFilter.class);
@@ -86,11 +137,21 @@ public class SecurityConfig {
                         // the link token in the body is the credential; CSRF stays on
                         .requestMatchers(HttpMethod.POST, "/api/admin/password-setup")
                         .permitAll()
-                        // the panel: login is public (CSRF stays on); "who am I" needs the panel capability
+                        // the panel: the password step is public (CSRF stays on) and leaves the session "MFA
+                        // pending"; the code step accepts only that pending state, for app.admin.mfa-pending-ttl
                         .requestMatchers(HttpMethod.POST, "/api/admin/sessions")
                         .permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/admin/sessions/mfa")
+                        .access(adminMfaAccess)
+                        .requestMatchers(HttpMethod.GET, "/api/admin/sessions/mfa")
+                        .access(adminMfaAccess)
+                        .requestMatchers(HttpMethod.POST, "/api/admin/sessions/mfa/enrollment")
+                        .access(adminMfaAccess)
+                        .requestMatchers(HttpMethod.POST, "/api/admin/sessions/mfa/enrollment/confirmation")
+                        .access(adminMfaAccess)
+                        // every panel route: the capability AND both factors, two independent locks
                         .requestMatchers(HttpMethod.GET, "/api/admin/sessions/current")
-                        .hasAuthority(Capability.PANEL_ACCESS.authority())
+                        .access(panel(Capability.PANEL_ACCESS))
                         .requestMatchers("/api/**")
                         .denyAll()
                         .anyRequest()
@@ -100,7 +161,8 @@ public class SecurityConfig {
                 // nothing to redirect back to after a login, and the saved request would create a session for every
                 // anonymous visitor
                 .requestCache(cache -> cache.disable())
-                .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+                .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
+                        .accessDeniedHandler(accessDeniedHandler()))
                 .logout(logout -> logout.logoutRequestMatcher(
                                 PathPatternRequestMatcher.pathPattern(HttpMethod.DELETE, "/api/sessions/current"))
                         .logoutSuccessHandler(new HttpStatusReturningLogoutSuccessHandler(HttpStatus.NO_CONTENT))

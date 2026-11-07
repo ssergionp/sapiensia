@@ -2,7 +2,8 @@ package br.com.sergio.sapiensia.admin;
 
 import br.com.sergio.sapiensia.customer.Emails;
 import java.util.Collection;
-import java.util.EnumSet;
+import java.util.List;
+import java.util.UUID;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -20,17 +21,21 @@ class AdministratorUserDetailsService implements UserDetailsService {
         this.administrators = administrators;
     }
 
-    /** The loaded account: the principal for the session plus the hash the provider checks. */
-    record Loaded(AdministratorPrincipal principal, String passwordHash) implements UserDetails {
+    /**
+     * The loaded account: what the pending session needs plus the hash the provider checks. No authorities: a correct
+     * password alone grants nothing but the "MFA pending" state.
+     */
+    record Loaded(UUID id, String email, int sessionVersion, String passwordHash) implements UserDetails {
 
+        // never the e-mail or the hash
         @Override
         public String toString() {
-            return "Loaded[id=" + principal.id() + "]";
+            return "Loaded[id=" + id + "]";
         }
 
         @Override
         public Collection<? extends GrantedAuthority> getAuthorities() {
-            return principal.getAuthorities();
+            return List.of();
         }
 
         @Override
@@ -40,7 +45,7 @@ class AdministratorUserDetailsService implements UserDetailsService {
 
         @Override
         public String getUsername() {
-            return principal.email();
+            return email;
         }
     }
 
@@ -51,10 +56,7 @@ class AdministratorUserDetailsService implements UserDetailsService {
         return administrators
                 .findForLogin(Emails.normalize(email))
                 .filter(login -> login.passwordHash() != null)
-                .map(login -> new Loaded(
-                        new AdministratorPrincipal(
-                                login.id(), login.email(), login.sessionVersion(), EnumSet.allOf(Capability.class)),
-                        login.passwordHash()))
+                .map(login -> new Loaded(login.id(), login.email(), login.sessionVersion(), login.passwordHash()))
                 .orElseThrow(() -> new UsernameNotFoundException("unknown administrator"));
     }
 }

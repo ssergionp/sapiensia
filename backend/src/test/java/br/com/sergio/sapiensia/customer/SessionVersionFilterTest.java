@@ -7,9 +7,11 @@ import static org.mockito.Mockito.when;
 import br.com.sergio.sapiensia.admin.AdministratorPrincipal;
 import br.com.sergio.sapiensia.admin.AdministratorSessions;
 import br.com.sergio.sapiensia.admin.Capability;
+import br.com.sergio.sapiensia.admin.PendingAdministrator;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import java.time.Instant;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.UUID;
@@ -24,10 +26,12 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 
 class SessionVersionFilterTest {
 
     private static final String EMAIL = "secret-person@example.com";
+    private static final Instant NOW = Instant.parse("2026-11-06T12:00:00Z");
 
     @AfterEach
     void clearContext() {
@@ -67,7 +71,7 @@ class SessionVersionFilterTest {
                 .allSatisfy(event -> assertThat(event.getFormattedMessage()).doesNotContain(EMAIL));
     }
 
-    private static void authenticate(AdministratorPrincipal principal) {
+    private static void authenticate(UserDetails principal) {
         SecurityContextHolder.getContext()
                 .setAuthentication(
                         UsernamePasswordAuthenticationToken.authenticated(principal, null, principal.getAuthorities()));
@@ -79,7 +83,7 @@ class SessionVersionFilterTest {
         UUID id = UUID.randomUUID();
         AdministratorSessions sessions = mock(AdministratorSessions.class);
         when(sessions.findSessionVersion(id)).thenThrow(new DataAccessResourceFailureException("down for " + EMAIL));
-        authenticate(new AdministratorPrincipal(id, EMAIL, 0, Set.of(Capability.PANEL_ACCESS)));
+        authenticate(new AdministratorPrincipal(id, EMAIL, 0, Set.of(Capability.PANEL_ACCESS), NOW, NOW));
         MockFilterChain chain = new MockFilterChain();
         MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -95,7 +99,7 @@ class SessionVersionFilterTest {
     void shouldEndAnAdministratorSessionWithAStaleVersionOrNoRow() throws Exception {
         UUID id = UUID.randomUUID();
         AdministratorSessions sessions = mock(AdministratorSessions.class);
-        var principal = new AdministratorPrincipal(id, EMAIL, 1, Set.of(Capability.PANEL_ACCESS));
+        var principal = new AdministratorPrincipal(id, EMAIL, 1, Set.of(Capability.PANEL_ACCESS), NOW, NOW);
         for (OptionalInt stored : new OptionalInt[] {OptionalInt.of(2), OptionalInt.empty()}) {
             when(sessions.findSessionVersion(id)).thenReturn(stored);
             authenticate(principal);
@@ -110,6 +114,33 @@ class SessionVersionFilterTest {
         }
         when(sessions.findSessionVersion(id)).thenReturn(OptionalInt.of(1));
         authenticate(principal);
+
+        new SessionVersionFilter(mock(CustomerRepository.class), sessions)
+                .doFilter(new MockHttpServletRequest(), new MockHttpServletResponse(), new MockFilterChain());
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("SEC-006: sessão pendente do MFA com versão velha ou sem linha segue como anônima")
+    void shouldEndAPendingAdministratorSessionWithAStaleVersionOrNoRow() throws Exception {
+        UUID id = UUID.randomUUID();
+        AdministratorSessions sessions = mock(AdministratorSessions.class);
+        var pending = new PendingAdministrator(id, EMAIL, 1, NOW);
+        for (OptionalInt stored : new OptionalInt[] {OptionalInt.of(2), OptionalInt.empty()}) {
+            when(sessions.findSessionVersion(id)).thenReturn(stored);
+            authenticate(pending);
+            MockHttpServletRequest request = new MockHttpServletRequest();
+            MockHttpSession session = (MockHttpSession) request.getSession();
+
+            new SessionVersionFilter(mock(CustomerRepository.class), sessions)
+                    .doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+
+            assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+            assertThat(session.isInvalid()).isTrue();
+        }
+        when(sessions.findSessionVersion(id)).thenReturn(OptionalInt.of(1));
+        authenticate(pending);
 
         new SessionVersionFilter(mock(CustomerRepository.class), sessions)
                 .doFilter(new MockHttpServletRequest(), new MockHttpServletResponse(), new MockFilterChain());

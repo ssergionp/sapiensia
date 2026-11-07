@@ -79,3 +79,16 @@ test("a rota /entrar mostra a tela de login", () => {
   renderAt("/entrar");
   expect(screen.getByRole("heading", { name: "Entrar" })).toBeInTheDocument();
 });
+
+test("a rota /painel/verificacao mostra a tela de verificação em duas etapas", async () => {
+  vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    new Response(JSON.stringify({ enrolled: true }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }),
+  );
+  renderAt("/painel/verificacao");
+  expect(
+    await screen.findByRole("heading", { name: "Verificação em duas etapas" }),
+  ).toBeInTheDocument();
+});

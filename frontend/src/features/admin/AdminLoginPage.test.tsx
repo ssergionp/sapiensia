@@ -16,7 +16,7 @@ function renderPage(
       <MemoryRouter initialEntries={["/painel/entrar"]}>
         <Routes>
           <Route path="/painel/entrar" element={<AdminLoginPage />} />
-          <Route path="/painel" element={<p>painel</p>} />
+          <Route path="/painel/verificacao" element={<p>verificacao</p>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -93,7 +93,7 @@ describe("AdminLoginPage", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  test("204 envia para /api/admin/sessions e vai para /painel", async () => {
+  test("204 envia para /api/admin/sessions e vai para /painel/verificacao", async () => {
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(jsonResponse(204));
@@ -101,7 +101,7 @@ describe("AdminLoginPage", () => {
 
     await fillAndSubmit(" admin@example.com ", "uma senha");
 
-    expect(await screen.findByText("painel")).toBeInTheDocument();
+    expect(await screen.findByText("verificacao")).toBeInTheDocument();
     const logins = fetchSpy.mock.calls.filter(
       ([url]) => url === "/api/admin/sessions",
     );
@@ -124,7 +124,7 @@ describe("AdminLoginPage", () => {
 
     await fillAndSubmit("admin@example.com", "senha-do-painel-123");
 
-    expect(await screen.findByText("painel")).toBeInTheDocument();
+    expect(await screen.findByText("verificacao")).toBeInTheDocument();
     expect(client.getQueryState(sessionQueryKey)?.isInvalidated).toBe(true);
   });
 
