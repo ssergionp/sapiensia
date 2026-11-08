@@ -137,8 +137,12 @@ class AdminRecoveryCodesTest {
                 correlationId);
     }
 
+    /** The code-step rows of this Administrator; each password step writes its own row (AdminAuditTest covers it). */
     private long auditCount() {
-        return jdbc.queryForObject("select count(*) from audit_events where actor_id = ?", Long.class, adminId);
+        return jdbc.queryForObject(
+                "select count(*) from audit_events where actor_id = ? and action <> 'ADMIN_PASSWORD_LOGIN'",
+                Long.class,
+                adminId);
     }
 
     private boolean mfaActive() {

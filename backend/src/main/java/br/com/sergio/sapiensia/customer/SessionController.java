@@ -71,7 +71,8 @@ class SessionController {
                 LoginAttemptLimiter::customerKey,
                 "customer",
                 log,
-                this::acceptConfirmed);
+                this::acceptConfirmed,
+                PasswordLogin.WrongPassword.NONE);
     }
 
     /** 204 and the session cookie, or an empty 401 that is identical for every kind of failure. */
