@@ -1,6 +1,7 @@
 package br.com.sergio.sapiensia.audit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
 import java.net.URI;
@@ -14,6 +15,8 @@ import org.slf4j.MDC;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -74,7 +77,27 @@ class CorrelationIdFilterTest {
     @Test
     @DisplayName("SEC-065: shouldLeaveTheMdcCleanAfterTheRequest")
     void shouldLeaveTheMdcCleanAfterTheRequest() throws Exception {
-        send("GET", "/api/system/health", null);
+        // called directly: the server runs the filter on another thread, where this thread's MDC proves nothing
+        String[] insideTheChain = new String[1];
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        new CorrelationIdFilter().doFilter(new MockHttpServletRequest(), response, (req, res) -> {
+            insideTheChain[0] = MDC.get("correlationId");
+        });
+
+        assertThat(insideTheChain[0]).isNotNull();
+        assertThat(response.getHeader(HEADER)).isEqualTo(insideTheChain[0]);
+        assertThat(MDC.get("correlationId")).isNull();
+    }
+
+    @Test
+    @DisplayName("SEC-065: shouldLeaveTheMdcCleanWhenTheChainFails")
+    void shouldLeaveTheMdcCleanWhenTheChainFails() {
+        assertThatThrownBy(() -> new CorrelationIdFilter()
+                        .doFilter(new MockHttpServletRequest(), new MockHttpServletResponse(), (req, res) -> {
+                            throw new IllegalStateException("boom");
+                        }))
+                .isInstanceOf(IllegalStateException.class);
 
         assertThat(MDC.get("correlationId")).isNull();
     }

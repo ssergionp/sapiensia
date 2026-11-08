@@ -4,12 +4,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -80,19 +84,32 @@ class AuditLogTest {
     }
 
     @Test
-    @DisplayName("SEC-065: shouldNotFailTheCallerWhenRecordIndependentCannotInsert")
-    void shouldNotFailTheCallerWhenRecordIndependentCannotInsert() {
-        // an actor-less entry with a null action is not possible by type, so force the database to refuse the row
+    @DisplayName("SEC-065: shouldNotFailTheCallerAndLogOnlyTheExceptionClassWhenRecordIndependentCannotInsert")
+    void shouldLogOnlyTheExceptionClassWhenRecordIndependentCannotInsert() {
+        // a temporary trigger makes the database refuse the row; its message carries a marker that must not be logged
         jdbc.execute("create or replace function audit_test_refuse() returns trigger language plpgsql as $$ begin"
-                + " raise exception 'refused'; end $$");
+                + " raise exception 'MARKER-7f3a-refused'; end $$");
         jdbc.execute("create trigger audit_test_refuse before insert on audit_events for each row"
                 + " when (new.origin = '198.51.100.99') execute function audit_test_refuse()");
+        Logger logger = (Logger) LoggerFactory.getLogger(AuditLog.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        UUID actor = UUID.randomUUID();
         try {
-            auditLog.recordIndependent(entry(UUID.randomUUID(), "198.51.100.99"));
+            auditLog.recordIndependent(entry(actor, "198.51.100.99"));
         } finally {
+            logger.detachAppender(appender);
             jdbc.execute("drop trigger audit_test_refuse on audit_events");
             jdbc.execute("drop function audit_test_refuse()");
         }
+
+        assertThat(rows(actor)).isEmpty();
+        assertThat(appender.list).singleElement().satisfies(event -> {
+            assertThat(event.getFormattedMessage()).contains("org.springframework.");
+            assertThat(event.getFormattedMessage()).doesNotContain("MARKER-7f3a");
+            assertThat(event.getThrowableProxy()).isNull();
+        });
     }
 
     @Test
