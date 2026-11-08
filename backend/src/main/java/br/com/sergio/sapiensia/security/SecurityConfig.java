@@ -149,6 +149,8 @@ public class SecurityConfig {
                         .access(adminMfaAccess)
                         .requestMatchers(HttpMethod.POST, "/api/admin/sessions/mfa/enrollment/confirmation")
                         .access(adminMfaAccess)
+                        .requestMatchers(HttpMethod.POST, "/api/admin/sessions/mfa/recovery-code")
+                        .access(adminMfaAccess)
                         // every panel route: the capability AND both factors, two independent locks
                         .requestMatchers(HttpMethod.GET, "/api/admin/sessions/current")
                         .access(panel(Capability.PANEL_ACCESS))

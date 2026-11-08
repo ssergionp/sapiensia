@@ -138,6 +138,20 @@ class Administrators {
                 .update();
     }
 
+    /**
+     * Ends every session of the account (SEC-006): the version goes up, and the row stays locked until the current
+     * transaction ends. Returns the new version, empty when the row no longer exists.
+     */
+    OptionalInt incrementSessionVersion(UUID id) {
+        return jdbc.sql("update administrators set session_version = session_version + 1 where id = :id"
+                        + " returning session_version")
+                .param("id", id)
+                .query(Integer.class)
+                .optional()
+                .map(OptionalInt::of)
+                .orElseGet(OptionalInt::empty);
+    }
+
     /** The session version, for the filter that ends sessions opened before a password change. */
     OptionalInt findSessionVersion(UUID id) {
         return jdbc.sql("select session_version from administrators where id = :id")

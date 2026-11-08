@@ -243,6 +243,40 @@ class AdministratorMfa {
         });
     }
 
+    /**
+     * The login with a one-time recovery code instead of the TOTP. Same limiter and answers as {@link #verify}; a
+     * malformed code is a wrong code. In one transaction, in this order: the session version goes up (which locks the
+     * Administrator row, as the code regeneration does first, so the two never deadlock), the code is consumed by a
+     * conditional UPDATE (0 rows: used meanwhile, so rejected and everything rolls back) and the event is audited. The
+     * outcome carries the new session version, so every other session of the account ends (SEC-006).
+     */
+    Outcome recover(PendingAdministrator who, String code, String clientIp) {
+        return guarded(who.id(), AuditAction.ADMIN_RECOVERY_CODE_LOGIN, clientIp, id -> {
+            Optional<Administrators.StoredTotp> totp = administrators.findTotp(id);
+            if (totp.isEmpty() || !totp.get().enabled()) {
+                return Outcome.of(Verdict.NOT_ENROLLED);
+            }
+            Optional<UUID> match =
+                    RecoveryCodes.normalize(code).flatMap(n -> RecoveryCodes.matching(recoveryCodes.findUnused(id), n));
+            if (match.isEmpty()) {
+                return Outcome.of(Verdict.REJECTED);
+            }
+            return transaction.execute(status -> {
+                OptionalInt version = administrators.incrementSessionVersion(id);
+                if (version.isEmpty()) {
+                    return Outcome.of(Verdict.NOT_ENROLLED);
+                }
+                if (recoveryCodes.consume(match.get()) == 0) {
+                    status.setRollbackOnly();
+                    return Outcome.of(Verdict.REJECTED);
+                }
+                audit.recordInTransaction(
+                        entry(AuditAction.ADMIN_RECOVERY_CODE_LOGIN, AuditResult.SUCCESS, id, clientIp));
+                return Outcome.acceptedAt(version.getAsInt());
+            });
+        });
+    }
+
     private static AuditEntry entry(AuditAction action, AuditResult result, UUID id, String clientIp) {
         return new AuditEntry(action, result, id, AuditObject.ADMINISTRATOR, id, clientIp);
     }

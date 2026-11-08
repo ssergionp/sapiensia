@@ -58,6 +58,20 @@ class AdminMfaController {
         return answer(pending, mfa.verify(pending, body.code(), clientIp.resolve(request)), request, response);
     }
 
+    /**
+     * A one-time recovery code instead of the TOTP: the same answers as {@link #verify}, and the new session ends
+     * every other session of the account (SEC-006). Hyphens, spaces and lower case are accepted.
+     */
+    @PostMapping("/recovery-code")
+    ResponseEntity<?> recover(
+            @RequestBody MfaCodeRequest body,
+            Authentication authentication,
+            HttpServletRequest request,
+            HttpServletResponse response) {
+        var pending = (PendingAdministrator) authentication.getPrincipal();
+        return answer(pending, mfa.recover(pending, body.code(), clientIp.resolve(request)), request, response);
+    }
+
     /** Whether the Administrator already has an active authenticator (the SPA picks the enrollment or the code). */
     @GetMapping
     EnrolledStatus status(Authentication authentication) {

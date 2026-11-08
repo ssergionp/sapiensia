@@ -35,6 +35,7 @@ class AdminMfaBypassTest {
     private static final String MFA = "/api/admin/sessions/mfa";
     private static final String ENROLLMENT = MFA + "/enrollment";
     private static final String CONFIRMATION = ENROLLMENT + "/confirmation";
+    private static final String RECOVERY = MFA + "/recovery-code";
 
     enum State {
         ANONYMOUS,
@@ -138,7 +139,13 @@ class AdminMfaBypassTest {
                 Arguments.of(State.PENDING_EXPIRED, "GET", MFA, 401),
                 Arguments.of(State.PENDING_EXPIRED, "POST", ENROLLMENT, 401),
                 Arguments.of(State.PENDING_EXPIRED, "POST", CONFIRMATION, 401),
-                Arguments.of(State.FULL_ADMINISTRATOR, "GET", "/api/admin/qualquer-coisa", 403));
+                Arguments.of(State.FULL_ADMINISTRATOR, "GET", "/api/admin/qualquer-coisa", 403),
+                Arguments.of(State.ANONYMOUS, "POST", RECOVERY, 401),
+                Arguments.of(State.CUSTOMER, "POST", RECOVERY, 403),
+                Arguments.of(State.FULL_ADMINISTRATOR, "POST", RECOVERY, 403),
+                Arguments.of(State.PENDING_EXPIRED, "POST", RECOVERY, 401),
+                // open to the pending state: a wrong code is a code failure, not a denied route
+                Arguments.of(State.PENDING, "POST", RECOVERY, 400));
     }
 
     @ParameterizedTest(name = "{0} {1} {2} -> {3}")

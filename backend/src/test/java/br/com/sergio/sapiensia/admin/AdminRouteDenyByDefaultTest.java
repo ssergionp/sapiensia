@@ -112,7 +112,9 @@ class AdminRouteDenyByDefaultTest {
         assertThat(administrator.get("/api/admin/probe").statusCode())
                 .as("administrator probe")
                 .isEqualTo(403);
-        for (String path : new String[] {"/api/admin", "/api/administrators"}) {
+        // the recovery code route is open only to the pending state
+        for (String path :
+                new String[] {"/api/admin", "/api/administrators", "/api/admin/sessions/mfa/recovery-code"}) {
             assertThat(anonymous.post(path, "{}").statusCode())
                     .as("anonymous " + path)
                     .isEqualTo(401);
