@@ -38,7 +38,7 @@
 |---|---|---|
 | 1 | Citar o item exato do ASVS (versão e número) | D2 |
 | 2 | Falha em transação própria; sucesso na transação da ação | D6 |
-| 3 | `audit_events` não editável nem apagável, exceto retenção; mecanismo e teste | D6, V11, `AuditImmutabilityTest` |
+| 3 | `audit_events` não editável nem apagável, exceto retenção; mecanismo e teste | D6, V10, `AuditImmutabilityTest` |
 | 4 | Gerar de novo: sessão completa, replay guard do TOTP, evento de auditoria | D4 |
 | 5 | SEC-007 lido literalmente | abaixo |
 | 6 | Issue "trocar autenticador" e passo a passo em `docs/` | abaixo e Task 6 |
@@ -177,11 +177,11 @@ Quatro travas independentes:
 
 ---
 
-## 2. Migrations (próximo número livre: V10)
+## 2. Migrations (próximo número livre: V10 (auditoria, Task 1); V11 (códigos, Task 2))
 
 Criadas com a skill `nova-migration`, que confere a numeração na hora.
 
-**`V10__create_administrator_recovery_codes.sql`**
+**`V11__create_administrator_recovery_codes.sql`**
 
 ```sql
 create table administrator_recovery_codes (
@@ -194,7 +194,7 @@ create table administrator_recovery_codes (
 create index administrator_recovery_codes_administrator_id_idx on administrator_recovery_codes (administrator_id);
 ```
 
-**`V11__create_audit_events.sql`**
+**`V10__create_audit_events.sql`**
 
 ```sql
 create table audit_events (
@@ -320,7 +320,7 @@ Nenhuma rota nova recebe ID de objeto, então o teste negativo de `404` entre us
 
 ### Task 1: Auditoria e correlation ID (base)
 
-**Files:** criar `audit/*` (inclui `AuditProperties`), `V11__create_audit_events.sql` (tabela e gatilhos); alterar `application.yml`, `application.properties`. Test: `AuditLogTest` (parte do `AuditLog`), `AuditImmutabilityTest`, `AuditPropertiesTest`, `CorrelationIdFilterTest`, `AuditRetentionCleanupTest`.
+**Files:** criar `audit/*` (inclui `AuditProperties`), `V10__create_audit_events.sql` (tabela e gatilhos); alterar `application.yml`, `application.properties`. Test: `AuditLogTest` (parte do `AuditLog`), `AuditImmutabilityTest`, `AuditPropertiesTest`, `CorrelationIdFilterTest`, `AuditRetentionCleanupTest`.
 
 **Interfaces — Produces:** `AuditLog.recordInTransaction(AuditEntry)` (`MANDATORY`) e `AuditLog.recordIndependent(AuditEntry)` (`REQUIRES_NEW`, melhor esforço); `record AuditEntry(AuditAction action, AuditResult result, UUID actorId, AuditObject objectType, UUID objectId, String origin)`. O `AuditLog` lê o `correlationId` do MDC (UUID novo se não houver) e tira o sufixo `%zona` de um IPv6.
 
@@ -329,7 +329,7 @@ Nenhuma rota nova recebe ID de objeto, então o teste negativo de `404` entre us
 
 ### Task 2: Códigos de recuperação (ativação, uso, limite)
 
-**Files:** criar `RecoveryCodes`, `AdministratorRecoveryCodes`, `RecoveryCodeList`, `V10__...sql`; alterar `AdministratorMfa`, `AdminMfaController`, `Administrators`, `SecurityConfig`. Test: `RecoveryCodesTest`, `AdminRecoveryCodesTest`, `AdminMfaBypassTest`, `AdminMfaEnrollmentTest`, `AdminMfaLogTest`.
+**Files:** criar `RecoveryCodes`, `AdministratorRecoveryCodes`, `RecoveryCodeList`, `V11__...sql`; alterar `AdministratorMfa`, `AdminMfaController`, `Administrators`, `SecurityConfig`. Test: `RecoveryCodesTest`, `AdminRecoveryCodesTest`, `AdminMfaBypassTest`, `AdminMfaEnrollmentTest`, `AdminMfaLogTest`.
 
 **Interfaces — Consumes:** `AuditLog`. **Produces:** `POST /api/admin/sessions/mfa/recovery-code` (`{"code"}`, reusa `MfaCodeRequest`); confirmação `200 {"codes":[10 strings]}`; `AdministratorMfa.recover(PendingAdministrator, String code, String clientIp)` → `Outcome` com a nova versão de sessão; `RecoveryCodes.generate()`, `.normalize(String)` → `Optional<String>`, `.matching(List<Unused>, String)` → `Optional<UUID>`.
 
