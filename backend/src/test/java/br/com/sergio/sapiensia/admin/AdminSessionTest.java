@@ -118,7 +118,9 @@ class AdminSessionTest {
         assertThat(browser.cookie("XSRF-TOKEN")).isNotBlank().isNotEqualTo(xsrfBefore);
         HttpResponse<String> current = browser.get(CURRENT);
         assertThat(current.statusCode()).isEqualTo(200);
-        assertThat(current.body()).isEqualTo("{\"email\":\"" + email + "\",\"capabilities\":[\"PANEL_ACCESS\"]}");
+        assertThat(current.body())
+                .isEqualTo(
+                        "{\"email\":\"" + email + "\",\"capabilities\":[\"PANEL_ACCESS\",\"RECOVERY_CODES_MANAGE\"]}");
     }
 
     @Test
@@ -400,7 +402,9 @@ class AdminSessionTest {
                 .isEqualTo(204);
         HttpResponse<String> current = browser.get(CURRENT);
         assertThat(current.statusCode()).isEqualTo(200);
-        assertThat(current.body()).isEqualTo("{\"email\":\"" + email + "\",\"capabilities\":[\"PANEL_ACCESS\"]}");
+        assertThat(current.body())
+                .isEqualTo(
+                        "{\"email\":\"" + email + "\",\"capabilities\":[\"PANEL_ACCESS\",\"RECOVERY_CODES_MANAGE\"]}");
     }
 
     @Test

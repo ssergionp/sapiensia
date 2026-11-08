@@ -50,8 +50,8 @@ class AdministratorMfa {
     }
 
     /**
-     * {@code retryAfter} is set only for {@link Verdict#LOCKED}; {@code codes} only for an accepted activation (shown
-     * once); {@code sessionVersion} only when the accepted action changed it (the new session must carry it).
+     * {@code retryAfter} is set only for {@link Verdict#LOCKED}; {@code codes} only for an accepted activation or
+     * regeneration (shown once); {@code sessionVersion} only when the accepted action changed it (the new session must carry it).
      * {@code toString()} shows only the verdict.
      */
     record Outcome(Verdict verdict, Duration retryAfter, List<String> codes, OptionalInt sessionVersion) {
@@ -68,7 +68,7 @@ class AdministratorMfa {
             return new Outcome(Verdict.LOCKED, retryAfter, List.of(), OptionalInt.empty());
         }
 
-        static Outcome enabledWith(List<String> codes) {
+        static Outcome withCodes(List<String> codes) {
             return new Outcome(Verdict.ACCEPTED, null, codes, OptionalInt.empty());
         }
 
@@ -216,7 +216,7 @@ class AdministratorMfa {
                 recoveryCodes.replaceAll(
                         id, codes.stream().map(RecoveryCodes::hash).toList());
                 audit.recordInTransaction(entry(AuditAction.ADMIN_MFA_ENABLED, AuditResult.SUCCESS, id, clientIp));
-                return Outcome.enabledWith(codes);
+                return Outcome.withCodes(codes);
             });
         });
     }
@@ -273,6 +273,39 @@ class AdministratorMfa {
                 audit.recordInTransaction(
                         entry(AuditAction.ADMIN_RECOVERY_CODE_LOGIN, AuditResult.SUCCESS, id, clientIp));
                 return Outcome.acceptedAt(version.getAsInt());
+            });
+        });
+    }
+
+    /**
+     * A new set of recovery codes for the fully logged-in Administrator {@code id}, which also asks for a fresh TOTP
+     * code (a stolen session alone cannot swap the codes, SEC-008). Same limiter and answers as {@link #verify}; the
+     * code goes through the same replay guard, so the code of the login is refused. In one transaction, in this order:
+     * the step is accepted (which locks the Administrator row first, as the recovery code login does), every code of
+     * the account is replaced by 10 new ones (only their hashes) and the event is audited. The old codes die at once;
+     * the new ones are in the outcome and nowhere else.
+     */
+    Outcome regenerateCodes(UUID administratorId, String code, String clientIp) {
+        return guarded(administratorId, AuditAction.ADMIN_RECOVERY_CODES_REGENERATED, clientIp, id -> {
+            Optional<Administrators.StoredTotp> totp = administrators.findTotp(id);
+            if (totp.isEmpty() || !totp.get().enabled()) {
+                return Outcome.of(Verdict.NOT_ENROLLED);
+            }
+            byte[] secret = cipher.decrypt(totp.get().secretCipher(), secretAad(id));
+            OptionalLong step = Totp.matchingStep(secret, code, clock.instant());
+            if (step.isEmpty()) {
+                return Outcome.of(Verdict.REJECTED);
+            }
+            return transaction.execute(status -> {
+                if (administrators.acceptStep(id, step.getAsLong()) == 0) {
+                    return Outcome.of(Verdict.REJECTED);
+                }
+                List<String> codes = RecoveryCodes.generate();
+                recoveryCodes.replaceAll(
+                        id, codes.stream().map(RecoveryCodes::hash).toList());
+                audit.recordInTransaction(
+                        entry(AuditAction.ADMIN_RECOVERY_CODES_REGENERATED, AuditResult.SUCCESS, id, clientIp));
+                return Outcome.withCodes(codes);
             });
         });
     }

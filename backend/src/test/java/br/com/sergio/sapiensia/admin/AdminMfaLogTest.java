@@ -242,7 +242,7 @@ class AdminMfaLogTest {
                         .toString(),
                 new MfaProperties(key).toString(),
                 new RecoveryCodeList(List.of("ABCDEFGHIJKLMNOPQRSTUVWX")).toString(),
-                AdministratorMfa.Outcome.enabledWith(List.of("ABCDEFGHIJKLMNOPQRSTUVWX"))
+                AdministratorMfa.Outcome.withCodes(List.of("ABCDEFGHIJKLMNOPQRSTUVWX"))
                         .toString(),
                 new RecoveryCodes.Unused(id, RecoveryCodes.hash("ABCDEFGHIJKLMNOPQRSTUVWX")).toString());
 

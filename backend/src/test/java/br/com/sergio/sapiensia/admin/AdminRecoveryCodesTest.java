@@ -31,7 +31,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * ADR-0004 / SEC-065: the recovery codes shown once at the MFA activation, their one-time use, the shared limiter and
- * the audit trail of the actions (activation, TOTP login, recovery code login).
+ * the audit trail of the actions (activation, TOTP login, recovery code login, regeneration).
  */
 @Import({TestcontainersConfiguration.class, AdminMfaTestSupport.ClockConfig.class})
 @SpringBootTest(
@@ -45,6 +45,7 @@ class AdminRecoveryCodesTest {
     private static final String ENROLLMENT = MFA + "/enrollment";
     private static final String CONFIRMATION = ENROLLMENT + "/confirmation";
     private static final String RECOVERY = MFA + "/recovery-code";
+    private static final String REGENERATE = "/api/admin/recovery-codes";
     private static final Pattern SECRET = Pattern.compile("\"secret\":\"([A-Z2-7]{32})\"");
     private static final Pattern CODES =
             Pattern.compile("^\\{\"codes\":\\[(\"[A-Z2-7]{24}\"(,\"[A-Z2-7]{24}\"){9})]}$");
@@ -487,5 +488,174 @@ class AdminRecoveryCodesTest {
         assertThat(full.get(CURRENT).statusCode()).isEqualTo(200);
         // once the trail is back the same code works
         assertThat(recover(browser, code).statusCode()).isEqualTo(204);
+    }
+
+    private Long lastStep() {
+        return jdbc.queryForObject("select totp_last_step from administrators where id = ?", Long.class, adminId);
+    }
+
+    private List<String> unusedHashes() {
+        return jdbc.queryForList(
+                "select code_hash from administrator_recovery_codes where administrator_id = ? and used_at is null",
+                String.class,
+                adminId);
+    }
+
+    private HttpResponse<String> regenerate(AdminBrowser browser, String code) throws Exception {
+        return browser.post(REGENERATE, body(code));
+    }
+
+    @Test
+    @DisplayName("ADR-0004 / SEC-065: gerar de novo com TOTP devolve 10 códigos novos sem cache e os antigos morrem")
+    void shouldRegenerateTheCodesAndKillTheOldOnes() throws Exception {
+        AdminBrowser full = pending();
+        Activated activated = activate(full);
+        clock.advance(Duration.ofSeconds(30));
+
+        HttpResponse<String> first = regenerate(full, totp(activated.secret()));
+
+        assertThat(first.statusCode()).isEqualTo(200);
+        assertThat(first.headers().firstValue("Cache-Control")).hasValue("no-store");
+        List<String> renewed = codesOf(first);
+        assertThat(renewed).hasSize(10).doesNotHaveDuplicates().doesNotContainAnyElementsOf(activated.codes());
+        assertThat(unusedHashes())
+                .containsExactlyInAnyOrderElementsOf(
+                        renewed.stream().map(Tokens::hash).toList());
+        assertThat(storedCodes()).isEqualTo(10);
+        assertThat(auditOf(correlationId(first))).containsExactly("ADMIN_RECOVERY_CODES_REGENERATED SUCCESS");
+        assertThat(recover(pending(), activated.codes().getFirst()).statusCode())
+                .isEqualTo(400);
+
+        // a second regeneration in a row also leaves exactly 10, and kills the first batch
+        clock.advance(Duration.ofSeconds(30));
+        HttpResponse<String> second = regenerate(full, totp(activated.secret()));
+
+        assertThat(second.statusCode()).isEqualTo(200);
+        List<String> latest = codesOf(second);
+        assertThat(storedCodes()).isEqualTo(10);
+        assertThat(unusedHashes())
+                .containsExactlyInAnyOrderElementsOf(
+                        latest.stream().map(Tokens::hash).toList());
+        assertThat(recover(pending(), renewed.getFirst()).statusCode()).isEqualTo(400);
+        AdminBrowser withNewCode = pending();
+        assertThat(recover(withNewCode, latest.getFirst()).statusCode()).isEqualTo(204);
+        assertThat(withNewCode.get(CURRENT).statusCode()).isEqualTo(200);
+    }
+
+    @Test
+    @DisplayName("SEC-008: o mesmo código TOTP do login é recusado na geração (anti-replay) e os antigos ficam")
+    void shouldRefuseTheStepOfTheLoginForTheRegeneration() throws Exception {
+        Activated activated = activate(pending());
+        clock.advance(Duration.ofSeconds(30));
+        AdminBrowser browser = pending();
+        String code = totp(activated.secret());
+        assertThat(browser.verifyMfa(code).statusCode()).isEqualTo(204);
+        List<String> before = unusedHashes();
+        Long stepBefore = lastStep();
+
+        HttpResponse<String> replay = regenerate(browser, code);
+
+        assertThat(replay.statusCode()).isEqualTo(400);
+        assertThat(replay.body()).contains("\"errors\":{\"code\":\"CODE_INVALID\"}");
+        assertThat(auditOf(correlationId(replay))).containsExactly("ADMIN_RECOVERY_CODES_REGENERATED FAILURE");
+        assertThat(unusedHashes()).hasSize(10).containsExactlyInAnyOrderElementsOf(before);
+        assertThat(lastStep()).isEqualTo(stepBefore);
+        assertThat(recover(pending(), activated.codes().getFirst()).statusCode())
+                .isEqualTo(204);
+    }
+
+    @Test
+    @DisplayName("SEC-014: TOTP errado na geração mantém os códigos e soma no limite do MFA (4 + 1 dão 429)")
+    void shouldKeepTheCodesOnAWrongTotpAndShareTheLimit() throws Exception {
+        AdminBrowser full = pending();
+        Activated activated = activate(full);
+        List<String> before = unusedHashes();
+        AdminBrowser other = pending();
+        for (int i = 0; i < 4; i++) {
+            assertThat(recover(other, "ABCDEFGHIJKLMNOPQRSTUVW" + (char) ('A' + i))
+                            .statusCode())
+                    .isEqualTo(400);
+        }
+
+        HttpResponse<String> wrong =
+                regenerate(full, AdminMfaTestSupport.wrongCodeAt(activated.secret(), clock.instant()));
+
+        assertThat(wrong.statusCode()).isEqualTo(400);
+        assertThat(auditOf(correlationId(wrong))).containsExactly("ADMIN_RECOVERY_CODES_REGENERATED FAILURE");
+        assertThat(unusedHashes()).containsExactlyInAnyOrderElementsOf(before);
+        clock.advance(Duration.ofSeconds(30));
+        HttpResponse<String> locked = regenerate(full, totp(activated.secret()));
+        assertThat(locked.statusCode()).isEqualTo(429);
+        assertThat(locked.headers().firstValue("Retry-After")).isPresent();
+        assertThat(locked.body()).doesNotContain("\"codes\"");
+        assertThat(auditOf(correlationId(locked))).containsExactly("ADMIN_RECOVERY_CODES_REGENERATED BLOCKED");
+        assertThat(unusedHashes()).containsExactlyInAnyOrderElementsOf(before);
+    }
+
+    @Test
+    @DisplayName("SEC-014: código malformado na geração conta como erro")
+    void shouldCountAMalformedCodeOnTheRegeneration() throws Exception {
+        AdminBrowser full = pending();
+        Activated activated = activate(full);
+        for (String malformed : List.of("", "12345", "abcdef", "1234567", "12 456")) {
+            assertThat(regenerate(full, malformed).statusCode()).isEqualTo(400);
+        }
+        clock.advance(Duration.ofSeconds(30));
+
+        assertThat(regenerate(full, totp(activated.secret())).statusCode()).isEqualTo(429);
+        assertThat(storedCodes()).isEqualTo(10);
+    }
+
+    @Test
+    @DisplayName("ADR-0004: sem MFA ativo a geração dá 409, sem auditoria e sem mexer nos códigos")
+    void shouldAnswerConflictOnTheRegenerationWithoutActiveMfa() throws Exception {
+        AdminBrowser full = pending();
+        Activated activated = activate(full);
+        long audited = auditCount();
+        // the manual procedure of ADR-0004 clears the activation; the full session is still alive
+        jdbc.update("update administrators set totp_enabled_at = null where id = ?", adminId);
+        clock.advance(Duration.ofSeconds(30));
+
+        HttpResponse<String> response = regenerate(full, totp(activated.secret()));
+
+        assertThat(response.statusCode()).isEqualTo(409);
+        assertThat(auditCount()).isEqualTo(audited);
+        assertThat(storedCodes()).isEqualTo(10);
+    }
+
+    @Test
+    @DisplayName("SEC-065: sem a trilha a geração dá 503, os códigos antigos ficam e o passo não é aceito")
+    void shouldKeepTheOldCodesWhenTheRegenerationAuditFails() throws Exception {
+        AdminBrowser full = pending();
+        Activated activated = activate(full);
+        List<String> before = unusedHashes();
+        Long stepBefore = lastStep();
+        clock.advance(Duration.ofSeconds(30));
+        String code = totp(activated.secret());
+
+        HttpResponse<String> response = withSuccessAuditFailing(() -> regenerate(full, code));
+
+        assertThat(response.statusCode()).isEqualTo(503);
+        assertThat(response.body()).doesNotContain("\"codes\"");
+        assertThat(auditOf(correlationId(response))).isEmpty();
+        assertThat(unusedHashes()).containsExactlyInAnyOrderElementsOf(before);
+        assertThat(lastStep()).isEqualTo(stepBefore);
+        // once the trail is back the same code works: the step was not spent
+        assertThat(regenerate(full, code).statusCode()).isEqualTo(200);
+    }
+
+    @Test
+    @DisplayName("SEC-008: a geração exige o token CSRF e, sem ele, nada muda")
+    void shouldRequireTheCsrfTokenForTheRegeneration() throws Exception {
+        AdminBrowser full = pending();
+        Activated activated = activate(full);
+        List<String> before = unusedHashes();
+        clock.advance(Duration.ofSeconds(30));
+        String code = totp(activated.secret());
+
+        assertThat(full.postWithoutCsrf(REGENERATE, body(code)).statusCode()).isEqualTo(403);
+
+        assertThat(unusedHashes()).containsExactlyInAnyOrderElementsOf(before);
+        assertThat(regenerate(full, code).statusCode()).isEqualTo(200);
     }
 }
