@@ -54,48 +54,52 @@ function ProductList() {
     const { items, totalPages } = products.data;
     content = (
       <>
-        <table className="mt-4 w-full text-left text-sm">
-          <thead>
-            <tr>
-              <th scope="col" className="py-2 pr-4">
-                Título
-              </th>
-              <th scope="col" className="py-2 pr-4">
-                Categoria
-              </th>
-              <th scope="col" className="py-2 pr-4">
-                Preço
-              </th>
-              <th scope="col" className="py-2 pr-4">
-                Estado
-              </th>
-              <th scope="col" className="py-2">
-                Ações
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => (
-              <tr key={item.id} className="border-t">
-                <td className="py-2 pr-4 [overflow-wrap:anywhere]">
-                  {item.title}
-                </td>
-                <td className="py-2 pr-4">{CATEGORY_LABELS[item.category]}</td>
-                <td className="py-2 pr-4">{formatCents(item.priceCents)}</td>
-                <td className="py-2 pr-4">Rascunho</td>
-                <td className="py-2">
-                  <Link
-                    to={`/painel/produtos/${item.id}`}
-                    aria-label={`Editar ${item.title}`}
-                    className="underline"
-                  >
-                    Editar
-                  </Link>
-                </td>
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr>
+                <th scope="col" className="min-w-48 py-2 pr-4">
+                  Título
+                </th>
+                <th scope="col" className="py-2 pr-4">
+                  Categoria
+                </th>
+                <th scope="col" className="py-2 pr-4">
+                  Preço
+                </th>
+                <th scope="col" className="py-2 pr-4">
+                  Estado
+                </th>
+                <th scope="col" className="py-2">
+                  Ações
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={item.id} className="border-t">
+                  <td className="min-w-48 py-2 pr-4 [overflow-wrap:anywhere]">
+                    {item.title}
+                  </td>
+                  <td className="py-2 pr-4">
+                    {CATEGORY_LABELS[item.category]}
+                  </td>
+                  <td className="py-2 pr-4">{formatCents(item.priceCents)}</td>
+                  <td className="py-2 pr-4">Rascunho</td>
+                  <td className="py-2">
+                    <Link
+                      to={`/painel/produtos/${item.id}`}
+                      aria-label={`Editar ${item.title}`}
+                      className="underline"
+                    >
+                      Editar
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         <nav aria-label="Paginação" className="mt-4 flex items-center gap-4">
           <Button
             variant="outline"
