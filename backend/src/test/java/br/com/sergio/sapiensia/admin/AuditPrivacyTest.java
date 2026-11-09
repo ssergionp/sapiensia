@@ -19,15 +19,22 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Properties;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.bouncycastle.util.encoders.Base32;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.Banner;
+import org.springframework.boot.WebApplicationType;
+import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.boot.logging.LoggingSystem;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
@@ -35,6 +42,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.annotation.DirtiesContext;
 
 /**
  * Guard for ADR-0006 / SEC-036 / SEC-065: one long flow of the panel (and of the Customer login) with the noisiest log
@@ -42,6 +50,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * everything that must never be stored: e-mails, CPF, passwords, the link token, recovery codes, hashes, the TOTP
  * secret and codes, the encryption key and the cipher text. audit_events is append-only, so the rows are selected by
  * the correlation ids of this test's own requests. The exact column list of audit_events is fixed by AuditLogTest.
+ *
+ * <p>Logback is global to the JVM: this class configures its logging from scratch (so the ECS format applies even
+ * after another class configured it) and leaves the default logging behind (so its levels and format do not reach the
+ * classes that run after it, including those that reuse a cached context).
  */
 @ExtendWith(OutputCaptureExtension.class)
 @Import({TestcontainersConfiguration.class, AdminMfaTestSupport.ClockConfig.class})
@@ -58,6 +70,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
             "logging.level.org.springframework.web=DEBUG",
             "logging.level.br.com.sergio.sapiensia=TRACE"
         })
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class AuditPrivacyTest {
 
     private static final String PASSWORD = "senha-do-painel-9876"; // gitleaks:allow
@@ -89,6 +102,54 @@ class AuditPrivacyTest {
 
     @Autowired
     Environment environment;
+
+    /** The JVM system properties before this class; the logging setup writes some (the console format among them). */
+    private static Properties systemPropertiesBefore;
+
+    /**
+     * Spring Boot skips the logging setup when an earlier context already did it, so the ECS format and the levels of
+     * this class would be ignored. Marking the logging system as not initialized makes this class's context configure
+     * it from scratch.
+     */
+    @BeforeAll
+    static void configureTheLoggingFromScratch() {
+        systemPropertiesBefore = (Properties) System.getProperties().clone();
+        LoggingSystem.get(AuditPrivacyTest.class.getClassLoader()).cleanUp();
+    }
+
+    /**
+     * The logging setup keeps the console format in a system property (CONSOLE_LOG_STRUCTURED_FORMAT) that a later
+     * setup does not clear, and a cached context of another class never configures the logging again, so both would
+     * keep the ECS format and the TRACE levels of this class. Those system properties go back to what they were, then a
+     * bare application (no bean, no web server) configures the logging again from the same application files every
+     * test context reads, without the properties of this class.
+     */
+    @AfterAll
+    static void restoreTheDefaultLogging() {
+        // the logging setup names its system properties in upper case (CONSOLE_LOG_STRUCTURED_FORMAT,
+        // LOG_LEVEL_PATTERN)
+        for (String name : System.getProperties().stringPropertyNames()) {
+            if (name.matches("[A-Z_]+")) {
+                String before = systemPropertiesBefore.getProperty(name);
+                if (before == null) {
+                    System.clearProperty(name);
+                } else {
+                    System.setProperty(name, before);
+                }
+            }
+        }
+        LoggingSystem.get(AuditPrivacyTest.class.getClassLoader()).cleanUp();
+        new SpringApplicationBuilder(DefaultLogging.class)
+                .web(WebApplicationType.NONE)
+                .bannerMode(Banner.Mode.OFF)
+                .logStartupInfo(false)
+                .registerShutdownHook(false)
+                .run()
+                .close();
+    }
+
+    /** The only source of the bare application; not a configuration class, so @SpringBootTest does not pick it up. */
+    static class DefaultLogging {}
 
     /** The correlation ids the server returned for the requests of this test. */
     private final List<String> ids = new ArrayList<>();
