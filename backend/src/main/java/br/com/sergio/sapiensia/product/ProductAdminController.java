@@ -25,8 +25,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Products in the panel. Every rule is in SecurityConfig (panel(PRODUCTS_EDIT)): the capability and both factors are
- * checked before this code runs, so the answer to a denied request never depends on the Product.
+ * Products in the panel. Every rule is in SecurityConfig (panel(PRODUCTS_EDIT) for create, list, read and text edit;
+ * panel(PRODUCTS_PRICE) for the price change): the capability and both factors are checked before this code runs, so
+ * the answer to a denied request never depends on the Product.
  */
 @RestController
 @RequestMapping("/api/admin/products")
