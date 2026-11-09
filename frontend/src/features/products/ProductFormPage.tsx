@@ -329,6 +329,7 @@ function EditForms({
     resolver: priceResolver,
     defaultValues: { price: centsToInput(product.priceCents) },
   });
+  const saving = updateData.isPending || updatePrice.isPending;
   const [dataError, setDataError] = useState<SaveErrorKind | null>(null);
   const [priceError, setPriceError] = useState<SaveErrorKind | null>(null);
 
@@ -395,7 +396,7 @@ function EditForms({
               </p>
             )}
             <div>
-              <Button type="submit" disabled={updateData.isPending}>
+              <Button type="submit" disabled={saving}>
                 {updateData.isPending ? "Salvando…" : "Salvar dados"}
               </Button>
             </div>
@@ -415,7 +416,7 @@ function EditForms({
                 </p>
               )}
               <div>
-                <Button type="submit" disabled={updatePrice.isPending}>
+                <Button type="submit" disabled={saving}>
                   {updatePrice.isPending ? "Salvando…" : "Salvar preço"}
                 </Button>
               </div>

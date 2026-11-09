@@ -402,7 +402,7 @@ describe("ProductFormPage, edit", () => {
     });
   });
 
-  test("shows Salvando… and disables the button while a block saves", async () => {
+  test("shows Salvando… and disables both buttons while a block saves", async () => {
     api({ put: () => new Promise<Response>(() => {}) });
     await open();
     const user = userEvent.setup();
@@ -414,7 +414,7 @@ describe("ProductFormPage, edit", () => {
     ).toBeDisabled();
     expect(
       within(priceBlock()).getByRole("button", { name: "Salvar preço" }),
-    ).toBeEnabled();
+    ).toBeDisabled();
   });
 
   test("409 appears in the failed block only, keeps the text and Recarregar fetches the fresh Product", async () => {
