@@ -6,10 +6,12 @@ import br.com.sergio.sapiensia.TestcontainersConfiguration;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -32,6 +34,8 @@ class ProductSeedTest {
             UUID.fromString("00000000-0000-4000-8000-000000000103"),
             UUID.fromString("00000000-0000-4000-8000-000000000104"),
             UUID.fromString("00000000-0000-4000-8000-000000000105"));
+
+    private final List<String> createdSchemas = new ArrayList<>();
 
     @Autowired
     private DataSource dataSource;
@@ -95,9 +99,17 @@ class ProductSeedTest {
                 .isFalse();
     }
 
+    /** The shared database outlives this class: a schema left behind shows up in other tests' catalog queries. */
+    @AfterEach
+    void dropSchemas() {
+        createdSchemas.forEach(schema -> jdbc.execute("drop schema if exists " + schema + " cascade"));
+        createdSchemas.clear();
+    }
+
     private String newSchema() {
         String schema = "seed_" + UUID.randomUUID().toString().replace("-", "");
         jdbc.execute("create schema " + schema);
+        createdSchemas.add(schema);
         return schema;
     }
 
