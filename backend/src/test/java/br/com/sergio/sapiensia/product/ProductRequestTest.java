@@ -80,7 +80,8 @@ class ProductRequestTest {
     @ValueSource(
             strings = {
                 "\u202A", "\u202B", "\u202C", "\u202D", "\u202E", "\u2066", "\u2067", "\u2068", "\u2069", "\u200B",
-                "\u2060", "\uFEFF"
+                "\u2060", "\uFEFF", "\u200E", "\u200F", "\u061C", "\u00AD", "\u2061", "\u2062", "\u2063", "\u2064",
+                "\u206A", "\u206F", "\uFFF9", "\uFFFA", "\uFFFB", "\uDB40\uDC00", "\uDB40\uDC7F"
             })
     @DisplayName("SEC-013: bidi controls and invisible characters inside the text are invalid")
     void shouldRejectBidiAndInvisibleCharacters(String forbidden) {
