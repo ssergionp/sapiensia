@@ -21,8 +21,25 @@ final class ProductText {
         if (text == null) {
             return null;
         }
-        String cleaned = Normalizer.normalize(text, Normalizer.Form.NFC).strip();
+        String cleaned = stripSpaces(Normalizer.normalize(text, Normalizer.Form.NFC));
         return cleaned.codePoints().allMatch(ProductText::isInvisible) ? "" : cleaned;
+    }
+
+    /** {@code String.strip()} leaves NBSP and other Unicode space separators; this removes them too. */
+    private static String stripSpaces(String text) {
+        int start = 0;
+        int end = text.length();
+        while (start < end && isSpace(text.codePointAt(start))) {
+            start++;
+        }
+        while (end > start && isSpace(text.codePointBefore(end))) {
+            end -= Character.charCount(text.codePointBefore(end));
+        }
+        return text.substring(start, end);
+    }
+
+    private static boolean isSpace(int codePoint) {
+        return Character.isWhitespace(codePoint) || Character.isSpaceChar(codePoint);
     }
 
     private static boolean isInvisible(int codePoint) {

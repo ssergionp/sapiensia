@@ -122,6 +122,16 @@ class ProductRequestTest {
     }
 
     @Test
+    @DisplayName("SEC-013: Unicode space separators (NBSP, ideographic space) are stripped from both ends")
+    void shouldStripUnicodeSpaceSeparators() {
+        ProductRequest padded =
+                request("\u00A0\u3000Guia\u2007\u00A0", "\u00A0 texto \u202F\u00A0", ProductCategory.LAW, 500);
+
+        assertThat(padded.title()).isEqualTo("Guia");
+        assertThat(padded.description()).isEqualTo("texto");
+    }
+
+    @Test
     @DisplayName("SEC-013: text is normalized to NFC and stripped before it is validated")
     void shouldNormalizeToNfcAndStrip() {
         ProductRequest decomposed = request("  Café  ", "\n é \n", ProductCategory.LAW, 500);
