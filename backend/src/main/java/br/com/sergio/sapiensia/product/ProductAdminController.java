@@ -7,6 +7,8 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import java.net.URI;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +31,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/admin/products")
 class ProductAdminController {
+
+    private static final Logger log = LoggerFactory.getLogger(ProductAdminController.class);
 
     private final ProductAdminService service;
     private final ClientIpResolver clientIp;
@@ -84,7 +88,9 @@ class ProductAdminController {
 
     /** A database or audit failure: 503 without a body, like the other panel routes. */
     @ExceptionHandler({DataAccessException.class, TransactionException.class})
-    ResponseEntity<Void> unavailable() {
+    ResponseEntity<Void> unavailable(Exception e) {
+        // Only the class is logged, since the message could carry Product data.
+        log.error("Product panel unavailable: the database or audit write failed ({})", e.getClass().getName());
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
     }
 }

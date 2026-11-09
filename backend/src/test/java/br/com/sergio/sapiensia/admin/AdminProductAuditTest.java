@@ -235,6 +235,25 @@ class AdminProductAuditTest {
     }
 
     @Test
+    @DisplayName("SEC-018: o 503 do Produto registra só a classe do erro, sem mensagem nem dados")
+    void shouldLogOnlyTheErrorClassOn503(CapturedOutput output) throws Exception {
+        String title = "Titulo-secreto-" + UUID.randomUUID();
+        auditLog.failWrites(true);
+        HttpResponse<String> down;
+        try {
+            down = admin.post(PRODUCTS, json(title, "D", "LAW", 123_456));
+        } finally {
+            auditLog.failWrites(false);
+        }
+
+        assertThat(down.statusCode()).isEqualTo(503);
+        assertThat(output.getAll())
+                .contains("org.springframework.dao.DataAccessResourceFailureException")
+                .doesNotContain("audit writer is down")
+                .doesNotContain(title);
+    }
+
+    @Test
     @DisplayName("SEC-065: 400 e 404 e as leituras não gravam nada na trilha")
     void shouldNotAuditRefusalsAndReads() throws Exception {
         List<HttpResponse<String>> answers = List.of(
