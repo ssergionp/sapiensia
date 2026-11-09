@@ -57,6 +57,10 @@ final class RecoveryCodes {
         if (typed == null || typed.length() > MAX_INPUT_LENGTH) {
             return Optional.empty();
         }
+        // before toUpperCase, which folds some non-ASCII letters (dotless i, long s, sharp s) into A-Z
+        if (!typed.chars().allMatch(c -> c < 0x80)) {
+            return Optional.empty();
+        }
         String code = SEPARATORS.matcher(typed).replaceAll("").toUpperCase(Locale.ROOT);
         return FORMAT.matcher(code).matches() ? Optional.of(code) : Optional.empty();
     }

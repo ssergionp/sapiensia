@@ -77,8 +77,19 @@ class RecoveryCodesTest {
         assertThat(RecoveryCodes.normalize(typed)).isEmpty();
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"ı", "ſ", "ß", "１", " ", " ", "K"})
+    @DisplayName("ADR-0004: recusa caractere não ASCII, que o toUpperCase dobraria para A-Z ou que não é separador")
+    void shouldRefuseNonAsciiCharacters(String odd) {
+        // each one replaces a letter (or sits inside the code) of an otherwise valid code
+        assertThat(RecoveryCodes.normalize(CODE.substring(0, 8) + odd + CODE.substring(9)))
+                .isEmpty();
+        assertThat(RecoveryCodes.normalize(CODE.substring(0, 8) + odd + CODE.substring(8)))
+                .isEmpty();
+    }
+
     @Test
-    @DisplayName("ADR-0004: recusa entrada gigante, mesmo feita só de hífens e um código válido")
+    @DisplayName("ADR-0004: recusa entrada gigante,mesmo feita só de hífens e um código válido")
     void shouldRefuseAHugeInput() {
         assertThat(RecoveryCodes.normalize("-".repeat(10_000) + CODE)).isEmpty();
         assertThat(RecoveryCodes.normalize(CODE.repeat(1_000))).isEmpty();
