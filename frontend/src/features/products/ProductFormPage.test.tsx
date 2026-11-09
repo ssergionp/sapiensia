@@ -117,6 +117,25 @@ describe("ProductFormPage, create", () => {
     );
   });
 
+  test("invalid submit moves focus to the first field with an error", async () => {
+    mockApi(() => undefined);
+    renderProducts("/painel/produtos/novo");
+    const user = userEvent.setup();
+
+    await user.click(
+      await screen.findByRole("button", { name: "Criar Produto" }),
+    );
+    await screen.findByText("Digite o título.");
+    expect(screen.getByLabelText("Título")).toHaveFocus();
+
+    await user.type(screen.getByLabelText("Título"), "Guia novo");
+    await user.type(screen.getByLabelText("Descrição"), "Texto");
+    await user.selectOptions(screen.getByLabelText("Categoria"), "Finanças");
+    await user.click(screen.getByRole("button", { name: "Criar Produto" }));
+    await screen.findByText("Digite o preço.");
+    expect(screen.getByLabelText("Valor (R$)")).toHaveFocus();
+  });
+
   test.each([
     ["49.90", "Digite um preço válido, como 19,90."],
     ["4,99", "O preço mínimo é R$ 5,00."],
@@ -377,6 +396,20 @@ describe("ProductFormPage, edit", () => {
     expect(screen.getByLabelText("Título")).toHaveValue("Título salvo");
   });
 
+  test("editing again clears the Dados salvos. confirmation", async () => {
+    api();
+    await open();
+    const user = userEvent.setup();
+
+    await user.type(screen.getByLabelText("Título"), "!");
+    await user.click(screen.getByRole("button", { name: "Salvar dados" }));
+    expect(await screen.findByText("Dados salvos.")).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Título"), "?");
+
+    expect(screen.queryByText("Dados salvos.")).not.toBeInTheDocument();
+  });
+
   test("saving the price first keeps typed data and gives the data block the new version", async () => {
     const calls = api();
     await open();
@@ -587,7 +620,7 @@ describe("ProductFormPage, edit", () => {
     const block = priceBlock();
     expect(within(block).queryByRole("textbox")).not.toBeInTheDocument();
     expect(within(block).queryByRole("button")).not.toBeInTheDocument();
-    expect(normalizeSpaces(block.textContent)).toContain("R$ 19,90");
+    expect(normalizeSpaces(block.textContent)).toContain("Valor: R$ 19,90");
     expect(
       within(block).getByText("Você não tem permissão para alterar o preço."),
     ).toBeInTheDocument();

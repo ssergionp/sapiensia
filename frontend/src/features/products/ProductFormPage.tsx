@@ -248,6 +248,12 @@ function CreateProduct() {
     ]);
     if (!dataOk || !priceOk) {
       sending.current = false;
+      // Focus goes to the first field with an error, in screen order.
+      const firstData = (["title", "description", "category"] as const).find(
+        (name) => dataForm.getFieldState(name).invalid,
+      );
+      if (firstData) dataForm.setFocus(firstData);
+      else priceForm.setFocus("price");
       return;
     }
     const data = dataForm.getValues();
@@ -390,7 +396,12 @@ function EditForms({
           <h2 id="data-heading" className="mb-4 text-lg font-semibold">
             Dados do produto
           </h2>
-          <form onSubmit={saveData} noValidate className="grid gap-4">
+          <form
+            onSubmit={saveData}
+            onChange={() => updateData.isSuccess && updateData.reset()}
+            noValidate
+            className="grid gap-4"
+          >
             <DataFields form={dataForm} />
             <SaveError kind={dataError} onReload={reloadBoth} />
             {updateData.isSuccess && (
@@ -426,7 +437,7 @@ function EditForms({
             </form>
           ) : (
             <div className="grid gap-2">
-              <p>Valor (R$): {formatCents(product.priceCents)}</p>
+              <p>Valor: {formatCents(product.priceCents)}</p>
               <p className="text-sm text-muted-foreground">
                 {NO_PERMISSION_PRICE}
               </p>
