@@ -63,7 +63,13 @@ Os comandos abaixo são para o banco local de desenvolvimento (PowerShell, a par
 
    O bootstrap recria o Administrador a partir de `APP_ADMIN_EMAIL` e envia na hora o link para definir a senha.
 
-7. Abra o e-mail do link (no local, a pasta `.tmp/outbox`) e defina a senha nova em `/painel/definir-senha`.
+7. Abra o e-mail do link e defina a senha nova em `/painel/definir-senha`. No local, o e-mail é um arquivo na caixa de saída (`app.email.outbox-dir`, padrão `../.tmp/outbox` a partir de `backend/`, ou seja, `.tmp/outbox` na pasta principal; `APP_EMAIL_OUTBOX_DIR` muda o caminho).
+
+   ```powershell
+   Get-ChildItem .tmp/outbox | Sort-Object LastWriteTime -Descending | Select-Object -First 1 | Get-Content
+   ```
+
+   Mostra o e-mail mais recente da caixa de saída, com o link.
 8. Entre em `/painel/entrar` com a senha nova e refaça a inscrição do aplicativo autenticador (QR code ou chave).
 9. Na tela seguinte, guarde os 10 códigos novos em um gerenciador de senhas, marque a caixa e continue.
 10. Se você roda os testes de ponta a ponta, apague `.tmp/e2e/admin-password.txt` e `.tmp/e2e/admin-totp-secret.json` (guardam a senha e o segredo antigos) antes do próximo `just e2e`.
