@@ -131,6 +131,24 @@ describe("productDataSchema", () => {
     }
   });
 
+  test("rejects more invisible and formatting characters, keeps ZWJ and ZWNJ", () => {
+    const forbidden = [
+      0x200e, 0x200f, 0x061c, 0x00ad, 0x2061, 0x2064, 0x206a, 0x206f, 0xfff9,
+      0xfffb, 0xe0000, 0xe0041, 0xe007f,
+    ];
+    for (const code of forbidden) {
+      const text = `a${String.fromCodePoint(code)}b`;
+      expect(messageOf({ ...valid, title: text })).toBe(
+        "O título tem caracteres que não podem ser usados.",
+      );
+      expect(messageOf({ ...valid, description: text })).toBe(
+        "A descrição tem caracteres que não podem ser usados.",
+      );
+    }
+    expect(messageOf({ ...valid, title: "a‍b‌c" })).toBeNull();
+    expect(messageOf({ ...valid, description: "a‍b‌c" })).toBeNull();
+  });
+
   test("category is required", () => {
     expect(messageOf({ ...valid, category: "" })).toBe(
       "Selecione uma categoria.",

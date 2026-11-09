@@ -93,10 +93,14 @@ export const productPriceSchema = z.object({
 export type ProductPriceInput = z.infer<typeof productPriceSchema>;
 
 // Control characters (except \t \n \r in the description), lone surrogates, bidi controls and invisible characters.
-const TITLE_FORBIDDEN =
-  /[\p{Cc}\p{Cs}\u{202A}-\u{202E}\u{2066}-\u{2069}\u{200B}\u{2060}\u{FEFF}]/u;
-const DESCRIPTION_FORBIDDEN =
-  /[\p{Cs}\u{202A}-\u{202E}\u{2066}-\u{2069}\u{200B}\u{2060}\u{FEFF}]|(?![\t\n\r])\p{Cc}/u;
+// ZWJ (U+200D) and ZWNJ (U+200C) stay allowed. Mirrors ProductText.FORBIDDEN in the backend.
+const INVISIBLE =
+  "\\u{202A}-\\u{202E}\\u{2066}-\\u{2069}\\u{200B}\\u{2060}\\u{FEFF}\\u{200E}\\u{200F}\\u{061C}\\u{00AD}\\u{2061}-\\u{2064}\\u{206A}-\\u{206F}\\u{FFF9}-\\u{FFFB}\\u{E0000}-\\u{E007F}";
+const TITLE_FORBIDDEN = new RegExp(`[\\p{Cc}\\p{Cs}${INVISIBLE}]`, "u");
+const DESCRIPTION_FORBIDDEN = new RegExp(
+  `[\\p{Cs}${INVISIBLE}]|(?![\\t\\n\\r])\\p{Cc}`,
+  "u",
+);
 
 function textField(
   forbidden: RegExp,
