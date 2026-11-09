@@ -77,7 +77,7 @@ class ProductRequestTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"‪", "‫", "‬", "‭", "‮", "⁦", "⁧", "⁨", "⁩", "​", "⁠", "﻿"})
+    @ValueSource(strings = {"\u202A", "\u202B", "\u202C", "\u202D", "\u202E", "\u2066", "\u2067", "\u2068", "\u2069", "\u200B", "\u2060", "\uFEFF"})
     @DisplayName("SEC-013: bidi controls and invisible characters inside the text are invalid")
     void shouldRejectBidiAndInvisibleCharacters(String forbidden) {
         assertThat(codes(request("a" + forbidden + "b", "d", ProductCategory.LAW, 500)))
@@ -87,7 +87,7 @@ class ProductRequestTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"​", " ​ ", "‮", "﻿⁠", " ", "‎ ​", "　"})
+    @ValueSource(strings = {"\u200B", " \u200B ", "\u202E", "\uFEFF\u2060", " ", "‎ \u200B", "　"})
     @DisplayName("SEC-013: text with no visible character is required")
     void shouldRequireAVisibleCharacter(String invisible) {
         assertThat(codes(request(invisible, invisible, ProductCategory.LAW, 500)))

@@ -93,8 +93,10 @@ export const productPriceSchema = z.object({
 export type ProductPriceInput = z.infer<typeof productPriceSchema>;
 
 // Control characters (except \t \n \r in the description), lone surrogates, bidi controls and invisible characters.
-const TITLE_FORBIDDEN = /[\p{Cc}\p{Cs}‪-‮⁦-⁩​⁠﻿]/u;
-const DESCRIPTION_FORBIDDEN = /[\p{Cs}‪-‮⁦-⁩​⁠﻿]|(?![\t\n\r])\p{Cc}/u;
+const TITLE_FORBIDDEN =
+  /[\p{Cc}\p{Cs}\u{202A}-\u{202E}\u{2066}-\u{2069}\u{200B}\u{2060}\u{FEFF}]/u;
+const DESCRIPTION_FORBIDDEN =
+  /[\p{Cs}\u{202A}-\u{202E}\u{2066}-\u{2069}\u{200B}\u{2060}\u{FEFF}]|(?![\t\n\r])\p{Cc}/u;
 
 function textField(
   forbidden: RegExp,

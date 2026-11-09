@@ -103,7 +103,13 @@ describe("productDataSchema", () => {
     expect(messageOf({ ...valid, title: "a".repeat(121) })).toBe(
       "O título pode ter até 120 caracteres.",
     );
-    for (const bad of ["a\u0000b", "a\nb", "a‮b", "a​b", "a﻿b"]) {
+    for (const bad of [
+      "a\u0000b",
+      "a\nb",
+      "a\u202Eb",
+      "a\u200Bb",
+      "a\uFEFFb",
+    ]) {
       expect(messageOf({ ...valid, title: bad })).toBe(
         "O título tem caracteres que não podem ser usados.",
       );
@@ -118,7 +124,7 @@ describe("productDataSchema", () => {
     expect(messageOf({ ...valid, description: "a".repeat(5001) })).toBe(
       "A descrição pode ter até 5.000 caracteres.",
     );
-    for (const bad of ["a\u0000b", "a⁦b", "a⁠b", "a‪b"]) {
+    for (const bad of ["a\u0000b", "a\u2066b", "a\u2060b", "a\u202Ab"]) {
       expect(messageOf({ ...valid, description: bad })).toBe(
         "A descrição tem caracteres que não podem ser usados.",
       );

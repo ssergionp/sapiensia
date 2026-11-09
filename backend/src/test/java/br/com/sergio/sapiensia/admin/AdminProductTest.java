@@ -184,8 +184,8 @@ class AdminProductTest {
     @Test
     @DisplayName("SEC-013: bidi e caracteres invisíveis dão 400 com o código do campo e nada é gravado")
     void shouldAnswer400ForBidiAndInvisibleText() throws Exception {
-        HttpResponse<String> bidi = admin.post(PRODUCTS, json("a‮b", "D", "LAW", 500));
-        HttpResponse<String> invisible = admin.post(PRODUCTS, json("​", "D ⁠", "LAW", 500));
+        HttpResponse<String> bidi = admin.post(PRODUCTS, json("a\u202Eb", "D", "LAW", 500));
+        HttpResponse<String> invisible = admin.post(PRODUCTS, json("\u200B", "D \u2060", "LAW", 500));
 
         assertBadRequestWithoutInternals(bidi);
         assertThat((String) JsonPath.read(bidi.body(), "$.errors.title")).isEqualTo("TITLE_INVALID");
