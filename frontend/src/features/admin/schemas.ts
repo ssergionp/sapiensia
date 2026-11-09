@@ -29,3 +29,24 @@ export const mfaEnrollmentSchema = z.object({
   otpauthUri: z.string(),
 });
 export type MfaEnrollment = z.infer<typeof mfaEnrollmentSchema>;
+
+// Spaces and hyphens are removed and letters upper-cased first, so a code typed as "abcd-efgh ..." is accepted.
+export const recoveryCodeSchema = z.object({
+  code: z
+    .string()
+    .transform((value) => value.replace(/[\s-]/g, "").toUpperCase())
+    .pipe(
+      z
+        .string()
+        .regex(
+          /^[A-Z2-7]{24}$/,
+          "Digite o código de recuperação completo, com 24 letras e números.",
+        ),
+    ),
+});
+
+export type RecoveryCodeInput = z.input<typeof recoveryCodeSchema>;
+export type RecoveryCodeOutput = z.output<typeof recoveryCodeSchema>;
+
+// Mirrors the backend response that carries the recovery codes (enrollment confirmation and regeneration).
+export const recoveryCodesSchema = z.object({ codes: z.array(z.string()) });

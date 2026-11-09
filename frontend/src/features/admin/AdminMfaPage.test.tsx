@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { MemoryRouter, Route, Routes } from "react-router";
@@ -13,6 +13,23 @@ const STATUS = "GET /api/admin/sessions/mfa";
 const ENROLL = "POST /api/admin/sessions/mfa/enrollment";
 const CONFIRM = "POST /api/admin/sessions/mfa/enrollment/confirmation";
 const VERIFY = "POST /api/admin/sessions/mfa";
+const RECOVERY = "POST /api/admin/sessions/mfa/recovery-code";
+
+const CODES = Array.from({ length: 10 }, (_, i) =>
+  String.fromCharCode(65 + i).repeat(24),
+);
+const CONFIRMED = () => json(200, { codes: CODES });
+const CODES_WARNING =
+  "Estes códigos aparecem só agora. Guarde-os em um gerenciador de senhas ou em outro lugar seguro.";
+const CODES_TITLE = "Guarde seus códigos de recuperação";
+const SAVED_BOX = "Guardei meus códigos em um lugar seguro";
+const CONTINUE = "Continuar para o painel";
+const RECOVERY_TITLE = "Entrar com código de recuperação";
+const RECOVERY_LABEL = "Código de recuperação";
+const RECOVERY_WRONG =
+  "Código de recuperação incorreto ou já usado. Confira e tente de novo.";
+const RECOVERY_INVALID =
+  "Digite o código de recuperação completo, com 24 letras e números.";
 
 // nosemgrep: generic.secrets.security.detected-generic-secret.detected-generic-secret -- fake TOTP test key, not a secret
 const SECRET = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP";
@@ -214,11 +231,26 @@ describe("AdminMfaPage", () => {
     expect(JSON.parse(String(calls[0][1]?.body))).toEqual({ code: "123456" });
   });
 
-  test("confirming the enrollment with 204 goes to /painel", async () => {
-    const spy = mockApi({ ...enrollRoutes, [CONFIRM]: () => json(204) });
+  test("confirming the enrollment shows the recovery codes and only then goes to /painel", async () => {
+    const spy = mockApi({ ...enrollRoutes, [CONFIRM]: CONFIRMED });
     renderPage();
 
-    await typeCode("123456", "Ativar e entrar");
+    const user = await typeCode("123456", "Ativar e entrar");
+
+    expect(
+      await screen.findByRole("heading", { name: CODES_TITLE }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("painel")).not.toBeInTheDocument();
+    expect(screen.getByText(CODES_WARNING)).toBeInTheDocument();
+    const list = screen.getByRole("list", { name: "Códigos de recuperação" });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(10);
+    for (const code of CODES)
+      expect(within(list).getByText(code)).toBeVisible();
+    const button = screen.getByRole("button", { name: CONTINUE });
+    expect(button).toBeDisabled();
+    await user.click(screen.getByLabelText(SAVED_BOX));
+    expect(button).toBeEnabled();
+    await user.click(button);
 
     expect(await screen.findByText("painel")).toBeInTheDocument();
     const calls = callsTo(spy, CONFIRM);
@@ -239,39 +271,46 @@ describe("AdminMfaPage", () => {
       key: VERIFY,
       button: "Entrar",
     },
-  ])("session cache after the $path succeeds", ({ routes, key, button }) => {
-    test("refreshes the Administrator session and invalidates the Customer session before going to /painel", async () => {
-      const spy = mockApi({
-        ...routes,
-        [key]: () => json(204),
-        "GET /api/admin/sessions/current": () =>
-          json(200, { email: "admin@example.com", capabilities: [] }),
-      });
-      const client = new QueryClient({
-        defaultOptions: {
-          queries: { retry: false },
-          mutations: { retry: false },
-        },
-      });
-      client.setQueryData(sessionQueryKey, { email: "cliente@example.com" });
-      // The cached "no Administrator session" entry has no observer here, so give it the fetcher the app registers.
-      client.setQueryDefaults(adminSessionQueryKey, {
-        queryFn: fetchAdminSession,
-      });
-      client.setQueryData(adminSessionQueryKey, null);
-      renderPage({ client });
+  ])(
+    "session cache after the $path succeeds",
+    ({ path, routes, key, button }) => {
+      test("refreshes the Administrator session and invalidates the Customer session before going to /painel", async () => {
+        const spy = mockApi({
+          ...routes,
+          [key]: path === "confirmation" ? CONFIRMED : () => json(204),
+          "GET /api/admin/sessions/current": () =>
+            json(200, { email: "admin@example.com", capabilities: [] }),
+        });
+        const client = new QueryClient({
+          defaultOptions: {
+            queries: { retry: false },
+            mutations: { retry: false },
+          },
+        });
+        client.setQueryData(sessionQueryKey, { email: "cliente@example.com" });
+        // The cached "no Administrator session" entry has no observer here, so give it the fetcher the app registers.
+        client.setQueryDefaults(adminSessionQueryKey, {
+          queryFn: fetchAdminSession,
+        });
+        client.setQueryData(adminSessionQueryKey, null);
+        renderPage({ client });
 
-      await typeCode("123456", button);
+        const user = await typeCode("123456", button);
+        if (path === "confirmation") {
+          await user.click(await screen.findByLabelText(SAVED_BOX));
+          await user.click(screen.getByRole("button", { name: CONTINUE }));
+        }
 
-      expect(await screen.findByText("painel")).toBeInTheDocument();
-      expect(callsTo(spy, "GET /api/admin/sessions/current")).toHaveLength(1);
-      expect(client.getQueryData(adminSessionQueryKey)).toEqual({
-        email: "admin@example.com",
-        capabilities: [],
+        expect(await screen.findByText("painel")).toBeInTheDocument();
+        expect(callsTo(spy, "GET /api/admin/sessions/current")).toHaveLength(1);
+        expect(client.getQueryData(adminSessionQueryKey)).toEqual({
+          email: "admin@example.com",
+          capabilities: [],
+        });
+        expect(client.getQueryState(sessionQueryKey)?.isInvalidated).toBe(true);
       });
-      expect(client.getQueryState(sessionQueryKey)?.isInvalidated).toBe(true);
-    });
-  });
+    },
+  );
 
   test('disables the button and shows "Entrando…" while sending', async () => {
     mockApi({
@@ -413,7 +452,7 @@ describe("AdminMfaPage", () => {
       },
       [CONFIRM]: () => {
         confirmCalls += 1;
-        return confirmCalls === 1 ? json(409) : json(204);
+        return confirmCalls === 1 ? json(409) : CONFIRMED();
       },
     });
     renderPage();
@@ -430,6 +469,8 @@ describe("AdminMfaPage", () => {
 
     await user.type(screen.getByLabelText("Código"), "654321");
     await user.click(screen.getByRole("button", { name: "Ativar e entrar" }));
+    await user.click(await screen.findByLabelText(SAVED_BOX));
+    await user.click(screen.getByRole("button", { name: CONTINUE }));
 
     expect(await screen.findByText("painel")).toBeInTheDocument();
     const confirmations = callsTo(spy, CONFIRM);
@@ -507,5 +548,200 @@ describe("AdminMfaPage", () => {
         }
       }
     }
+  });
+  test("the codes are kept only in component state, not in the caches or the storages", async () => {
+    mockApi({ ...enrollRoutes, [CONFIRM]: CONFIRMED });
+    const { client } = renderPage();
+
+    await typeCode("123456", "Ativar e entrar");
+    await screen.findByRole("heading", { name: CODES_TITLE });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const dump = JSON.stringify([
+      client
+        .getQueryCache()
+        .getAll()
+        .map((q) => q.state.data),
+      client
+        .getMutationCache()
+        .getAll()
+        .map((m) => m.state.data),
+      { ...localStorage },
+      { ...sessionStorage },
+    ]);
+    expect(dump).not.toContain(CODES[0]);
+    expect(window.location.href).not.toContain(CODES[0]);
+  });
+
+  test("the codes screen survives the refresh of the Administrator session", async () => {
+    mockApi({
+      ...enrollRoutes,
+      [CONFIRM]: CONFIRMED,
+      "GET /api/admin/sessions/current": () =>
+        json(200, { email: "admin@example.com", capabilities: [] }),
+    });
+    renderPage();
+
+    await typeCode("123456", "Ativar e entrar");
+
+    expect(
+      await screen.findByRole("heading", { name: CODES_TITLE }),
+    ).toBeInTheDocument();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.getByRole("heading", { name: CODES_TITLE })).toBeVisible();
+  });
+
+  test("copies the codes and tells the user", async () => {
+    mockApi({ ...enrollRoutes, [CONFIRM]: CONFIRMED });
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText");
+    renderPage();
+    await user.type(await screen.findByLabelText("Código"), "123456");
+    await user.click(screen.getByRole("button", { name: "Ativar e entrar" }));
+
+    await user.click(
+      await screen.findByRole("button", { name: "Copiar códigos" }),
+    );
+
+    expect(writeText).toHaveBeenCalledWith(CODES.join("\n"));
+    expect(
+      await screen.findByText(
+        "Códigos copiados. Cole-os no seu gerenciador de senhas agora.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  test("tells the user when copying fails", async () => {
+    mockApi({ ...enrollRoutes, [CONFIRM]: CONFIRMED });
+    const user = userEvent.setup();
+    vi.spyOn(navigator.clipboard, "writeText").mockRejectedValue(
+      new Error("denied"),
+    );
+    renderPage();
+    await user.type(await screen.findByLabelText("Código"), "123456");
+    await user.click(screen.getByRole("button", { name: "Ativar e entrar" }));
+
+    await user.click(
+      await screen.findByRole("button", { name: "Copiar códigos" }),
+    );
+
+    expect(
+      await screen.findByText(
+        "Não foi possível copiar. Selecione os códigos e copie manualmente.",
+      ),
+    ).toHaveAttribute("role", "alert");
+  });
+
+  describe("recovery code login", () => {
+    async function openRecovery() {
+      const user = userEvent.setup();
+      await user.click(
+        await screen.findByRole("button", {
+          name: "Perdeu o celular? Use um código de recuperação",
+        }),
+      );
+      return user;
+    }
+
+    test("switches to the recovery form and back", async () => {
+      mockApi(verifyRoutes);
+      renderPage();
+
+      const user = await openRecovery();
+
+      expect(
+        screen.getByRole("heading", { name: RECOVERY_TITLE }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Digite um dos seus códigos de recuperação. Cada código só funciona uma vez.",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText(RECOVERY_LABEL)).toBeInTheDocument();
+      await user.click(
+        screen.getByRole("button", { name: "Usar o código do aplicativo" }),
+      );
+      expect(
+        screen.getByRole("heading", { name: "Verificação em duas etapas" }),
+      ).toBeInTheDocument();
+    });
+
+    test("offers the recovery option only on the verification screen", async () => {
+      mockApi(enrollRoutes);
+      renderPage();
+
+      await screen.findByRole("img", { name: QR_NAME });
+
+      expect(
+        screen.queryByRole("button", {
+          name: "Perdeu o celular? Use um código de recuperação",
+        }),
+      ).not.toBeInTheDocument();
+    });
+
+    test("normalizes spaces, hyphens and lower case before sending, then goes to /painel", async () => {
+      const spy = mockApi({ ...verifyRoutes, [RECOVERY]: () => json(204) });
+      renderPage();
+      const user = await openRecovery();
+
+      await user.type(
+        screen.getByLabelText(RECOVERY_LABEL),
+        "abcd-efgh 2jkl-mnop qrst-uvwx",
+      );
+      await user.click(screen.getByRole("button", { name: "Entrar" }));
+
+      expect(await screen.findByText("painel")).toBeInTheDocument();
+      const calls = callsTo(spy, RECOVERY);
+      expect(calls).toHaveLength(1);
+      expect(JSON.parse(String(calls[0][1]?.body))).toEqual({
+        code: "ABCDEFGH2JKLMNOPQRSTUVWX",
+      });
+    });
+
+    test("an incomplete code is not sent", async () => {
+      const spy = mockApi(verifyRoutes);
+      renderPage();
+      const user = await openRecovery();
+
+      await user.type(screen.getByLabelText(RECOVERY_LABEL), "ABCD-EFGH");
+      await user.click(screen.getByRole("button", { name: "Entrar" }));
+
+      expect(await screen.findByText(RECOVERY_INVALID)).toHaveAttribute(
+        "role",
+        "alert",
+      );
+      expect(callsTo(spy, RECOVERY)).toHaveLength(0);
+    });
+
+    test("400 shows the wrong or used code message", async () => {
+      mockApi({ ...verifyRoutes, [RECOVERY]: () => json(400) });
+      renderPage();
+      const user = await openRecovery();
+
+      await user.type(
+        screen.getByLabelText(RECOVERY_LABEL),
+        "ABCDEFGHJKLMNOPQRSTUVWXY",
+      );
+      await user.click(screen.getByRole("button", { name: "Entrar" }));
+
+      expect(await screen.findByText(RECOVERY_WRONG)).toHaveAttribute(
+        "role",
+        "alert",
+      );
+    });
+
+    test("429 shows the blocked message", async () => {
+      mockApi({ ...verifyRoutes, [RECOVERY]: () => json(429) });
+      renderPage();
+      const user = await openRecovery();
+
+      await user.type(
+        screen.getByLabelText(RECOVERY_LABEL),
+        "ABCDEFGHJKLMNOPQRSTUVWXY",
+      );
+      await user.click(screen.getByRole("button", { name: "Entrar" }));
+
+      expect(await screen.findByText(BLOCKED)).toHaveAttribute("role", "alert");
+    });
   });
 });

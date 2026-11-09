@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useLogout } from "@/features/session/hooks";
 import { LOGOUT_ERROR } from "@/features/session/messages";
 import { adminSessionQueryKey, useAdminSession } from "./hooks";
+import RecoveryCodesSection from "./RecoveryCodesSection";
 
 const LOAD_ERROR = "Não foi possível carregar o painel agora. Tente novamente.";
 
@@ -66,6 +67,7 @@ export default function AdminHomePage() {
         Você entrou como{" "}
         <span className="[overflow-wrap:anywhere]">{session.data.email}</span>.
       </p>
+      <RecoveryCodesSection />
       {logout.isError && (
         <p role="alert" className="mt-2 text-sm text-destructive">
           {LOGOUT_ERROR}

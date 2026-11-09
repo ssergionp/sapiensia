@@ -5,8 +5,10 @@ import {
   confirmMfaEnrollment,
   fetchAdminSession,
   fetchMfaStatus,
+  regenerateRecoveryCodes,
   setAdminPassword,
   verifyMfaCode,
+  verifyRecoveryCode,
 } from "./api";
 
 export const adminSessionQueryKey = ["admin-session"] as const;
@@ -45,14 +47,31 @@ export function useMfaStatus() {
   });
 }
 
-export function useMfaSubmit(mode: "enroll" | "verify") {
+// For "enroll" the recovery codes go to onCodes (component state) and never into the mutation result, so they
+// do not stay in the TanStack Query cache.
+export function useMfaSubmit(
+  mode: "enroll" | "verify" | "recovery",
+  onCodes?: (codes: string[]) => void,
+) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: mode === "enroll" ? confirmMfaEnrollment : verifyMfaCode,
+    mutationFn: async (code: string): Promise<void> => {
+      if (mode === "enroll") onCodes?.(await confirmMfaEnrollment(code));
+      else if (mode === "recovery") await verifyRecoveryCode(code);
+      else await verifyMfaCode(code);
+    },
     // The code completes the session, so refresh the cached sessions like the password login does.
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: sessionQueryKey });
       await queryClient.refetchQueries({ queryKey: adminSessionQueryKey });
+    },
+  });
+}
+
+export function useRegenerateRecoveryCodes(onCodes: (codes: string[]) => void) {
+  return useMutation({
+    mutationFn: async (code: string): Promise<void> => {
+      onCodes(await regenerateRecoveryCodes(code));
     },
   });
 }

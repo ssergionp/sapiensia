@@ -12,6 +12,7 @@ import {
   type MfaStatus,
   mfaEnrollmentSchema,
   mfaStatusSchema,
+  recoveryCodesSchema,
 } from "./schemas";
 
 // 400: the code is wrong, expired or already used.
@@ -64,13 +65,17 @@ export async function startMfaEnrollment(): Promise<MfaEnrollment | "active"> {
   return mfaEnrollmentSchema.parse(await response.json());
 }
 
-async function postMfaCode(path: string, code: string): Promise<void> {
+async function postMfaCode(
+  path: string,
+  code: string,
+  okStatus = 204,
+): Promise<Response> {
   const response = await apiFetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ code }),
   });
-  if (response.status === 204) return;
+  if (response.status === okStatus) return response;
   if (response.status === 400) throw new MfaCodeRejectedError();
   if (response.status === 429) throw new LoginBlockedError();
   if (response.status === 409) throw new MfaConflictError();
@@ -78,12 +83,27 @@ async function postMfaCode(path: string, code: string): Promise<void> {
   throw new Error(`Unexpected status ${response.status}`);
 }
 
-export function confirmMfaEnrollment(code: string): Promise<void> {
-  return postMfaCode("/api/admin/sessions/mfa/enrollment/confirmation", code);
+// The only moment the recovery codes are returned: callers must keep them in component state only.
+export async function confirmMfaEnrollment(code: string): Promise<string[]> {
+  const response = await postMfaCode(
+    "/api/admin/sessions/mfa/enrollment/confirmation",
+    code,
+    200,
+  );
+  return recoveryCodesSchema.parse(await response.json()).codes;
 }
 
-export function verifyMfaCode(code: string): Promise<void> {
-  return postMfaCode("/api/admin/sessions/mfa", code);
+export async function verifyMfaCode(code: string): Promise<void> {
+  await postMfaCode("/api/admin/sessions/mfa", code);
+}
+
+export async function verifyRecoveryCode(code: string): Promise<void> {
+  await postMfaCode("/api/admin/sessions/mfa/recovery-code", code);
+}
+
+export async function regenerateRecoveryCodes(code: string): Promise<string[]> {
+  const response = await postMfaCode("/api/admin/recovery-codes", code, 200);
+  return recoveryCodesSchema.parse(await response.json()).codes;
 }
 
 export async function adminLogin(input: LoginInput): Promise<void> {
