@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { vi } from "vitest";
 import { adminSessionQueryKey } from "@/features/admin/hooks";
 import ProductFormPage from "./ProductFormPage";
@@ -64,6 +64,16 @@ export function mockApi(handler: Handler, session: unknown = FULL) {
     });
 }
 
+// Exposes the current history state so tests can assert it was cleared.
+function LocationState() {
+  const location = useLocation();
+  return (
+    <output data-testid="location-state">
+      {JSON.stringify(location.state)}
+    </output>
+  );
+}
+
 export function renderProducts(
   path: string | { pathname: string; state?: unknown },
 ) {
@@ -73,6 +83,7 @@ export function renderProducts(
   const view = render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[path]}>
+        <LocationState />
         <Routes>
           <Route path="/painel" element={<p>painel</p>} />
           <Route path="/painel/produtos" element={<ProductListPage />} />

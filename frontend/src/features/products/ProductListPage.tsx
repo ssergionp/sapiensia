@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useLocation } from "react-router";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import AdminGuard from "@/features/admin/AdminGuard";
 import { ProductForbiddenError, ProductUnavailableError } from "./api";
@@ -25,7 +25,18 @@ function loadErrorMessage(error: unknown) {
 function ProductList() {
   const [page, setPage] = useState(0);
   const location = useLocation();
-  const created = (location.state as { created?: boolean } | null)?.created;
+  const navigate = useNavigate();
+  // Kept in component state so the notice survives clearing the history state.
+  const [created, setCreated] = useState(
+    () => (location.state as { created?: boolean } | null)?.created === true,
+  );
+  // Clear the router state so a reload of the list does not show the notice again.
+  useEffect(() => {
+    if ((location.state as { created?: boolean } | null)?.created) {
+      setCreated(true);
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }, [location.pathname, location.state, navigate]);
   const products = useProducts(page);
 
   let content: React.ReactNode;

@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import {
@@ -142,6 +142,25 @@ describe("ProductListPage", () => {
       "role",
       "status",
     );
+  });
+
+  test("the created notice stays while on the page but the history state is cleared", async () => {
+    mockApi(() => jsonResponse(200, { items: [], page: 0, totalPages: 0 }));
+    renderProducts({ pathname: "/painel/produtos", state: { created: true } });
+
+    expect(await screen.findByText("Produto criado.")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByTestId("location-state")).toHaveTextContent("null"),
+    );
+    expect(screen.getByText("Produto criado.")).toBeInTheDocument();
+  });
+
+  test("a reload of the list at the same URL (no history state) shows no notice", async () => {
+    mockApi(() => jsonResponse(200, { items: [], page: 0, totalPages: 0 }));
+    renderProducts({ pathname: "/painel/produtos", state: null });
+
+    await screen.findByText(/Nenhum Produto cadastrado/);
+    expect(screen.queryByText("Produto criado.")).not.toBeInTheDocument();
   });
 
   test("no created notice on a plain visit", async () => {
