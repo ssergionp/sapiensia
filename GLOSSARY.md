@@ -10,7 +10,7 @@ _Avoid_: Item, livro, curso
 
 **Rascunho**:
 Estado de um Produto que os clientes ainda não conseguem ver nem comprar. É o único estado em que um Produto é criado.
-_Avoid_: Esboço, inativo
+_Avoid_: Esboço
 
 **Catálogo**:
 A vitrine pública dos Produtos publicados, visível a qualquer visitante. Mostra capa, título, descrição, categoria e preço; não tem busca, filtros nem amostra grátis na Fase 1.
