@@ -126,7 +126,7 @@ describe("RecoveryCodesSection", () => {
     expect(JSON.parse(String(call?.[1]?.body))).toEqual({ code: "123456" });
     expect(
       screen.getByText(
-        "Os códigos anteriores não funcionam mais. Estes aparecem só agora. Guarde-os em um gerenciador de senhas ou em outro lugar seguro.",
+        "Os códigos anteriores não funcionam mais. Estes aparecem só agora. Guarde-os no seu gerenciador de senhas. Quem tiver um código e a sua senha entra no painel.",
       ),
     ).toBeInTheDocument();
     const list = screen.getByRole("list", { name: "Códigos de recuperação" });

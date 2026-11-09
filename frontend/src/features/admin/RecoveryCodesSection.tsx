@@ -31,7 +31,7 @@ const GENERAL_ERROR =
   "Não foi possível gerar novos códigos agora. Tente novamente.";
 const RESULT_TITLE = "Seus novos códigos de recuperação";
 const RESULT_WARNING =
-  "Os códigos anteriores não funcionam mais. Estes aparecem só agora. Guarde-os em um gerenciador de senhas ou em outro lugar seguro.";
+  "Os códigos anteriores não funcionam mais. Estes aparecem só agora. Guarde-os no seu gerenciador de senhas. Quem tiver um código e a sua senha entra no painel.";
 const DONE = "Concluir";
 
 function failureMessage(error: Error): string {

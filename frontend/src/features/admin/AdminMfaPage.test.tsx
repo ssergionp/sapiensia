@@ -20,7 +20,7 @@ const CODES = Array.from({ length: 10 }, (_, i) =>
 );
 const CONFIRMED = () => json(200, { codes: CODES });
 const CODES_WARNING =
-  "Estes códigos aparecem só agora. Guarde-os em um gerenciador de senhas ou em outro lugar seguro.";
+  "Estes códigos aparecem só agora. Guarde-os no seu gerenciador de senhas. Quem tiver um código e a sua senha entra no painel.";
 const CODES_TITLE = "Guarde seus códigos de recuperação";
 const SAVED_BOX = "Guardei meus códigos em um lugar seguro";
 const CONTINUE = "Continuar para o painel";

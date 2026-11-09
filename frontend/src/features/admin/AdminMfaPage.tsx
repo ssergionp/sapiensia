@@ -64,7 +64,7 @@ const CODES_TITLE = "Guarde seus códigos de recuperação";
 const CODES_INTRO =
   "Se você perder o celular, cada código abaixo permite entrar uma única vez no lugar do código do aplicativo.";
 const CODES_WARNING =
-  "Estes códigos aparecem só agora. Guarde-os em um gerenciador de senhas ou em outro lugar seguro.";
+  "Estes códigos aparecem só agora. Guarde-os no seu gerenciador de senhas. Quem tiver um código e a sua senha entra no painel.";
 const CODES_CONTINUE = "Continuar para o painel";
 
 const USE_RECOVERY = "Perdeu o celular? Use um código de recuperação";
