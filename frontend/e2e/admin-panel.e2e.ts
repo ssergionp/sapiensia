@@ -428,3 +428,117 @@ test("SEC-001: o Administrador entra com senha e código e o Cliente é barrado"
   await expect(customerPage.getByText(CUSTOMER_BLOCKED)).toBeVisible();
   await context.close();
 });
+
+// Logs in with the stored password and the stored TOTP secret (the Administrator already has the two-step
+// verification active, which the test above guarantees). Nothing secret goes into a step, a log or an error.
+async function loginWithStoredCredentials(page: Page) {
+  const password = await readStoredPassword();
+  const totp = await readStoredTotp();
+  if (password === null || totp === null) {
+    throw new Error(
+      "The stored Administrator password or two-step secret is missing: run the login test of this file first.",
+    );
+  }
+  expect(await tryPassword(page, password), "the password was refused").toBe(
+    true,
+  );
+  await waitForStepAfter(totp.lastStep);
+  const step = currentStep();
+  await writeStoredTotp({ secret: totp.secret, lastStep: step });
+  await enterCode(
+    page,
+    totpCode(totp.secret, step),
+    async () =>
+      await expect(
+        page.getByRole("heading", { name: "Painel do Administrador" }),
+      ).toBeVisible(),
+  );
+}
+
+test("FR-016 FR-018: o Administrador cria um Produto em rascunho, edita os dados e o preço", async ({
+  page,
+  baseURL,
+}) => {
+  test.setTimeout(120_000);
+  const host = new URL(baseURL ?? "").hostname;
+  if (host !== "localhost" && host !== "127.0.0.1") {
+    throw new Error(
+      "Refusing to run the administrator e2e outside localhost/127.0.0.1",
+    );
+  }
+  const stamp = Date.now();
+  const title = `E2E Produto ${stamp}`;
+  const newTitle = `E2E Produto ${stamp} editado`;
+
+  await loginWithStoredCredentials(page);
+
+  // Create.
+  await page.goto("/painel/produtos");
+  await page.getByRole("link", { name: "Novo Produto" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Novo Produto", exact: true }),
+  ).toBeVisible();
+  await page.getByLabel("Título").fill(title);
+  await page.getByLabel("Descrição").fill("Descrição do Produto de teste.");
+  await page.getByLabel("Categoria").selectOption({ label: "Tecnologia" });
+  await page.getByLabel("Valor (R$)").fill("19,90");
+  await page.getByRole("button", { name: "Criar Produto" }).click();
+
+  // The list shows the confirmation and the new draft Product.
+  await expect(page.getByText("Produto criado.")).toBeVisible();
+  const row = page.getByRole("row", { name: new RegExp(title) });
+  await expect(row.getByText("R$ 19,90")).toBeVisible();
+  await expect(row.getByText("Rascunho")).toBeVisible();
+
+  // Edit the data.
+  await page.getByRole("link", { name: `Editar ${title}` }).click();
+  await expect(
+    page.getByRole("heading", { name: "Editar Produto", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Título")).toHaveValue(title);
+  await page.getByLabel("Título").fill(newTitle);
+  await page.getByLabel("Descrição").fill("Descrição editada.");
+  await page.getByRole("button", { name: "Salvar dados" }).click();
+  await expect(page.getByText("Dados salvos.")).toBeVisible();
+
+  // Edit the price.
+  await page.getByLabel("Valor (R$)").fill("24,50");
+  await page.getByRole("button", { name: "Salvar preço" }).click();
+  await expect(page.getByText("Preço salvo.")).toBeVisible();
+
+  // Everything persisted.
+  await page.reload();
+  await expect(page.getByLabel("Título")).toHaveValue(newTitle);
+  await expect(page.getByLabel("Descrição")).toHaveValue("Descrição editada.");
+  await expect(page.getByLabel("Valor (R$)")).toHaveValue("24,50");
+
+  await page.goto("/painel/produtos");
+  const updated = page.getByRole("row", { name: new RegExp(newTitle) });
+  await expect(updated.getByText("R$ 24,50")).toBeVisible();
+  await expect(updated.getByText("Rascunho")).toBeVisible();
+});
+
+test("SEC-010 FR-016: sem sessão, as rotas de Produto do painel negam", async ({
+  playwright,
+  baseURL,
+}) => {
+  // A fresh request context has no cookies: a plain anonymous visitor against the real API.
+  const anonymous = await playwright.request.newContext({ baseURL });
+  try {
+    // Reads are denied by the authorization rules: 401 for an anonymous visitor.
+    for (const url of ["/api/admin/products", "/api/admin/products/1"]) {
+      expect((await anonymous.get(url)).status(), `GET ${url}`).toBe(401);
+    }
+    // Writes without a session never succeed: 401, or 403 when the CSRF check answers first.
+    const body = { data: { title: "x" } };
+    for (const response of [
+      await anonymous.post("/api/admin/products", body),
+      await anonymous.put("/api/admin/products/1", body),
+      await anonymous.put("/api/admin/products/1/price", body),
+    ]) {
+      expect([401, 403]).toContain(response.status());
+    }
+  } finally {
+    await anonymous.dispose();
+  }
+});

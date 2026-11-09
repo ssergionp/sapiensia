@@ -13,6 +13,8 @@ A Fase 1 vende um Produto por vez (venda avulsa, em reais), entregue como um PDF
 - **Conta obrigatória** para comprar e baixar; não há compra nem link de download como visitante.
 - **Download protegido**: link de 60 segundos emitido a cada clique, depois de conferir login e Acesso, com limite de 10 downloads por dia por Cliente e Produto, e registro mínimo (Cliente, Produto, data; sem IP completo). Marca d'água só se vendas reais mostrarem vazamento.
 - **Preço**: mudar o preço afeta só Pedidos novos; o valor do Pix é sempre o calculado no servidor.
+- **Limites do preço**: de R$ 5,00 a R$ 9.999,99, em reais (BRL), guardado em centavos inteiros (de 500 a 999999).
+- **Categoria do Produto**: é o tema, numa lista fechada: Saúde, Direito, Finanças, Segurança, Educação, Tecnologia, Negócios e Outros (códigos `HEALTH`, `LAW`, `FINANCE`, `SECURITY`, `EDUCATION`, `TECHNOLOGY`, `BUSINESS` e `OTHER`).
 - **Direitos da LGPD** atendidos por e-mail, à mão; apagar uma conta anonimiza os dados pessoais e mantém o registro do Pedido pelo prazo que o contador definir.
 
 ## Consequences

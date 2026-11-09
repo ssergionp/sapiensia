@@ -84,6 +84,51 @@ final class AdminBrowser {
                 HttpResponse.BodyHandlers.ofString());
     }
 
+    HttpResponse<String> put(String path, String json) throws Exception {
+        ensureCsrfCookie();
+        return client.send(
+                HttpRequest.newBuilder(uri(path))
+                        .header("Content-Type", "application/json")
+                        .header("X-XSRF-TOKEN", cookie("XSRF-TOKEN"))
+                        .PUT(HttpRequest.BodyPublishers.ofString(json))
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+    }
+
+    HttpResponse<String> patch(String path, String json) throws Exception {
+        ensureCsrfCookie();
+        return client.send(
+                HttpRequest.newBuilder(uri(path))
+                        .header("Content-Type", "application/json")
+                        .header("X-XSRF-TOKEN", cookie("XSRF-TOKEN"))
+                        .method("PATCH", HttpRequest.BodyPublishers.ofString(json))
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+    }
+
+    /** A PUT that keeps the cookies but sends no X-XSRF-TOKEN header. */
+    HttpResponse<String> putWithoutCsrf(String path, String json) throws Exception {
+        ensureCsrfCookie();
+        return client.send(
+                HttpRequest.newBuilder(uri(path))
+                        .header("Content-Type", "application/json")
+                        .PUT(HttpRequest.BodyPublishers.ofString(json))
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+    }
+
+    /** A POST with another Content-Type: what a client sending text/plain would do. */
+    HttpResponse<String> postWithContentType(String path, String body, String contentType) throws Exception {
+        ensureCsrfCookie();
+        return client.send(
+                HttpRequest.newBuilder(uri(path))
+                        .header("Content-Type", contentType)
+                        .header("X-XSRF-TOKEN", cookie("XSRF-TOKEN"))
+                        .POST(HttpRequest.BodyPublishers.ofString(body))
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+    }
+
     HttpResponse<String> delete(String path) throws Exception {
         ensureCsrfCookie();
         return client.send(
