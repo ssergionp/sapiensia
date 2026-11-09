@@ -61,6 +61,18 @@ final class AdminBrowser {
                 HttpResponse.BodyHandlers.ofString());
     }
 
+    /** A normal POST that also carries the given headers: what a client forging them would send. */
+    HttpResponse<String> postWithHeaders(String path, String json, java.util.Map<String, String> headers)
+            throws Exception {
+        ensureCsrfCookie();
+        HttpRequest.Builder builder = HttpRequest.newBuilder(uri(path))
+                .header("Content-Type", "application/json")
+                .header("X-XSRF-TOKEN", cookie("XSRF-TOKEN"))
+                .POST(HttpRequest.BodyPublishers.ofString(json));
+        headers.forEach(builder::header);
+        return client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
     /** A POST that keeps the cookies but sends no X-XSRF-TOKEN header: what a cross-site form would send. */
     HttpResponse<String> postWithoutCsrf(String path, String json) throws Exception {
         ensureCsrfCookie();
