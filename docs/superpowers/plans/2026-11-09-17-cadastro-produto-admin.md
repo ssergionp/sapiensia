@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** Plano aprovado com ajustes (decisões 1–5 e ajustes A–C, incorporados abaixo). Só o BACKEND (Tasks 1 a 3) está liberado. As telas (Task 4) só começam depois de aprovados os textos da seção 4, que ainda precisam ser refeitos para a categoria por tema e para a troca de preço separada. Sem push, PR nem merge sem OK expresso.
+**Status:** Plano aprovado com ajustes (decisões 1–5 e ajustes A–C, incorporados abaixo). Backend (Tasks 1 a 3) e telas (Task 4) implementados, com os textos da seção 4 aprovados; faltam a verificação final e a PR (Task 5). Sem push, PR nem merge sem OK expresso.
 
 **Goal:** O Administrador cria, lista e edita Produtos em rascunho (título, descrição, categoria por tema e preço em reais, guardado em centavos). Criar e editar texto exige `PRODUCTS_EDIT`; trocar o preço depois da criação exige `PRODUCTS_PRICE`. Tudo com auditoria e dados fictícios só no perfil local.
 
@@ -39,7 +39,7 @@
 - Nenhuma dependência nova.
 - Controller e repositório package-private; DTOs como `record`.
 - Toda classe de teste termina em `Test`; teste que prova requisito leva o ID no `@DisplayName`.
-- Sem `@MockitoBean` em teste de integração. Falha da auditoria se simula com gatilho no banco, como o `AdminAuditTest` faz.
+- Sem `@MockitoBean` em teste de integração. Falha da auditoria se simula com o `SwitchableAuditLog` (dublê de teste em `audit/`: grava como o `AuditLog` real até `failWrites(true)` ligar a falha), sem mexer no schema.
 - Valores em centavos nunca passam por `float` ou `double`, nem no backend nem no frontend.
 - Nenhum título, descrição ou preço em log. `AuditEntry` não tem texto livre.
 
@@ -138,7 +138,7 @@ Com a capacidade `PRODUCTS_PRICE` separada, a troca de preço ganha ação próp
 | `priceCents` | `@NotNull`, `@Min(500)`, `@Max(999999)` | `PRICE_REQUIRED`, `PRICE_TOO_LOW`, `PRICE_TOO_HIGH` |
 | `version` (nos dois `PUT`) | `@NotNull` | `VERSION_REQUIRED` |
 
-- Regex como classe de caracteres única (`[^\p{Cc}\p{Cs}]*` no título; `[[^\p{Cc}\p{Cs}][\t\n\r]]*` na descrição). Por quê: o `Pattern` do Java empilha recursão em `(a|b)*` e pode estourar a pilha num texto longo; a classe única não.
+- Regex como classe de caracteres única (`[^F]*` no título; `[[^F][\t\n\r]]*` na descrição), onde `F` é `ProductText.FORBIDDEN`: controles `\p{Cc}`, surrogates soltos `\p{Cs}`, controles bidi (`U+202A-202E`, `U+2066-2069`) e invisíveis (`U+200B`, `U+2060`, `U+FEFF`). Por quê: o `Pattern` do Java empilha recursão em `(a|b)*` e pode estourar a pilha num texto longo; a classe única não.
 - Categoria desconhecida, número gigante e tipo errado param no Jackson: `400` genérico, sem o mapa `errors`. A tela só envia valores válidos, então isso só acontece em chamada forjada.
 - Descrição é **texto puro**: o React escapa e nenhuma tela usa HTML. Sem sanitizador.
 - O schema Zod espelha estas regras e os códigos do backend viram as mensagens de campo.
@@ -298,7 +298,7 @@ Mais, nesse mesmo teste (ajuste C): a resposta negada é igual (status e corpo) 
 
 **Frontend (Vitest + Testing Library)**
 
-- `schemas.test.ts`: `49,90` vira 4990; `1.234,56` vira 123456; `5` vira 500; `49.90`, `1,234`, `abc`, `-1`, `4,99` e `10000` recusados; centavos voltam a `49,90` sem `float`.
+- `schemas.test.ts`: `49,90` vira 4990; `1234,56` vira 123456 (o separador de milhar, como em `1.234,56` ou `1.990,00`, é recusado DE PROPÓSITO, decisão M5: o parser continua recusando e o plano é que foi corrigido); `5` vira 500; `49.90`, `1,234`, `abc`, `-1`, `4,99` e `10000` recusados; centavos voltam a `49,90` sem `float`.
 - `ProductListPage.test.tsx`: carregando, erro, vazio, lista, paginação, aviso depois de salvar, `401` leva ao login, `403` mostra sem permissão.
 - `ProductFormPage.test.tsx`: mensagens por campo, botão desabilitado durante o envio, `409` mantém o digitado, `404`, código do servidor vira mensagem no campo.
 - `AdminHomePage.test.tsx`: link "Produtos" aparece só com a capacidade.
@@ -481,7 +481,7 @@ Nenhuma. O `<select>` é nativo, com as classes do `Input`, e o `textarea.tsx` �
 
 **O que depende da sua decisão**
 
-Decididas pelo Sérgio: categoria por tema, preço de R$ 5,00 a R$ 9.999,99, tamanhos 120/5.000, critério dos Pedidos cobrado no #24. Falta só: o seu OK nos **textos** da seção 4 (refeitos, com os blocos "Dados do produto" e "Preço").
+Decididas pelo Sérgio: categoria por tema, preço de R$ 5,00 a R$ 9.999,99, tamanhos 120/5.000, critério dos Pedidos cobrado no #24. Os textos da seção 4 (blocos "Dados do produto" e "Preço") foram aprovados. A lista não traz a descrição (`ProductListItem`); só o `GET` de um Produto a devolve.
 
 **Riscos**
 
