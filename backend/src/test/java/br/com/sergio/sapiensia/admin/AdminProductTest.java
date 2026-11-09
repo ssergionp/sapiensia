@@ -154,6 +154,24 @@ class AdminProductTest {
     }
 
     @Test
+    @DisplayName("FR-018: preço 500.9, \"1000\" e 1e3 dão 400 na criação e na troca de preço, e nada muda")
+    void shouldNotCoerceThePriceToAnInteger() throws Exception {
+        UUID id = existingProduct();
+        for (String price : new String[] {"500.9", "\"1000\"", "1e3"}) {
+            HttpResponse<String> created = admin.post(PRODUCTS, json("T", "D", "LAW", price));
+            assertThat(created.statusCode()).as("create " + price).isEqualTo(400);
+            assertBadRequestWithoutInternals(created);
+            HttpResponse<String> changed = admin.put(PRODUCTS + "/" + id + "/price", priceJson(price, 0));
+            assertThat(changed.statusCode()).as("price change " + price).isEqualTo(400);
+            assertBadRequestWithoutInternals(changed);
+        }
+        assertThat(count()).isEqualTo(1);
+        assertThat(jdbc.queryForMap("select price_cents, version from products where id = ?", id))
+                .containsEntry("price_cents", 4990)
+                .containsEntry("version", 0);
+    }
+
+    @Test
     @DisplayName("SEC-013: NUL e surrogate solto dão 400, nunca 500, e nada é gravado")
     void shouldAnswer400ForNulAndLoneSurrogate() throws Exception {
         for (String text : new String[] {"a\u0000b", "a\ud800b", "a\udc00"}) {

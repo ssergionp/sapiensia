@@ -1,6 +1,7 @@
 package br.com.sergio.sapiensia.product;
 
 import jakarta.validation.constraints.NotNull;
+import tools.jackson.databind.annotation.JsonDeserialize;
 
 /**
  * The body of a new Product (FR-016, FR-018). Text is normalized to NFC and stripped before it is validated and stored.
@@ -13,7 +14,7 @@ record ProductRequest(
         @ProductTitle String title,
         @ProductDescription String description,
         @NotNull(message = "CATEGORY_REQUIRED") ProductCategory category,
-        @ProductPrice Integer priceCents) {
+        @JsonDeserialize(using = StrictCentsDeserializer.class) @ProductPrice Integer priceCents) {
 
     ProductRequest {
         title = ProductText.clean(title);
