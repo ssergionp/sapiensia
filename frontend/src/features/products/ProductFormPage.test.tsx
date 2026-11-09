@@ -620,6 +620,22 @@ describe("ProductFormPage, edit", () => {
     expect(await screen.findByText("tela de entrada")).toBeInTheDocument();
   });
 
+  test("opening the edit page again refetches even with fresh cached data", async () => {
+    const calls = api();
+    const first = renderProducts("/painel/produtos/p1");
+    await screen.findByDisplayValue("Guia de saúde");
+    first.unmount();
+
+    renderProducts("/painel/produtos/p1", first.client);
+    await screen.findByDisplayValue("Guia de saúde");
+
+    await waitFor(() =>
+      expect(
+        calls.filter((c) => c.url === `${BASE}/p1` && c.method === "GET"),
+      ).toHaveLength(2),
+    );
+  });
+
   test("shows Carregando… while the Product loads", () => {
     vi.spyOn(globalThis, "fetch").mockReturnValue(new Promise(() => {}));
     renderProducts("/painel/produtos/p1");

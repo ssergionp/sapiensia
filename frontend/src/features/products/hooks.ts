@@ -56,6 +56,7 @@ export function useProduct(id: string | undefined) {
     enabled: id !== undefined,
     retry: false,
     staleTime: Number.POSITIVE_INFINITY,
+    refetchOnMount: "always",
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   });

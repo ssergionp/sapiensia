@@ -76,10 +76,10 @@ function LocationState() {
 
 export function renderProducts(
   path: string | { pathname: string; state?: unknown },
-) {
-  const client = new QueryClient({
+  client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
+  }),
+) {
   const view = render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[path]}>
