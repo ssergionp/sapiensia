@@ -2,7 +2,7 @@ import { currentStep, totpCode } from "./totp";
 
 // RFC 6238 secret "12345678901234567890" in Base32; 6 digits instead of the 8 of the RFC table.
 // nosemgrep: generic.secrets.security.detected-generic-secret.detected-generic-secret -- public RFC 6238 test secret, not a secret
-const SECRET = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+const SECRET = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"; // gitleaks:allow
 
 describe("e2e TOTP helper", () => {
   it.each([
