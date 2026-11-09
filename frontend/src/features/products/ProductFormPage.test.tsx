@@ -160,7 +160,7 @@ describe("ProductFormPage, create", () => {
     },
   );
 
-  test("creates with integer cents, then shows the list with the notice", async () => {
+  test("FR-016 FR-018: creates with integer cents, then shows the list with the notice", async () => {
     const posts: unknown[] = [];
     mockApi((url, init) => {
       if (url === BASE && init?.method === "POST") {
@@ -581,7 +581,7 @@ describe("ProductFormPage, edit", () => {
     ).toBeInTheDocument();
   });
 
-  test("a price below the minimum is refused client side", async () => {
+  test("FR-018: a price below the minimum is refused client side", async () => {
     const calls = api();
     await open();
     const user = userEvent.setup();
@@ -608,7 +608,7 @@ describe("ProductFormPage, edit", () => {
     await waitFor(() => expect(client.getQueryData(sessionKey)).toBeNull());
   });
 
-  test("without PRODUCTS_PRICE the price is read-only with the notice", async () => {
+  test("SEC-029: without PRODUCTS_PRICE the price is read-only with the notice", async () => {
     mockApi(
       (url) =>
         url === `${BASE}/p1` ? jsonResponse(200, product()) : undefined,

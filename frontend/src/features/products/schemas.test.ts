@@ -16,7 +16,7 @@ describe("parsePriceToCents", () => {
     ["9999,99", 999999],
     ["0019,90", 1990],
     ["  19,90  ", 1990],
-  ])("accepts %j as %i cents", (text, cents) => {
+  ])("FR-018: accepts %j as %i cents", (text, cents) => {
     expect(parsePriceToCents(text)).toEqual({ ok: true, cents });
   });
 
@@ -37,11 +37,14 @@ describe("parsePriceToCents", () => {
     ["1 9,90"],
     ["R$ 19,90"],
     ["19,90,1"],
-  ])("rejects %j as badly written", (text) => {
-    expect(parsePriceToCents(text)).toEqual({ ok: false, error: "invalid" });
-  });
+  ])(
+    "FR-018: rejects %j as badly written (a thousand separator such as 1.990,00 is refused on purpose)",
+    (text) => {
+      expect(parsePriceToCents(text)).toEqual({ ok: false, error: "invalid" });
+    },
+  );
 
-  test("49.90 is never read as 4990 reais", () => {
+  test("FR-018: 49.90 is never read as 4990 reais", () => {
     expect(parsePriceToCents("49.90")).not.toMatchObject({ ok: true });
   });
 
@@ -50,7 +53,7 @@ describe("parsePriceToCents", () => {
     expect(parsePriceToCents("   ")).toEqual({ ok: false, error: "required" });
   });
 
-  test("checks the range after parsing", () => {
+  test("FR-018: checks the range after parsing", () => {
     expect(parsePriceToCents("4,99")).toEqual({ ok: false, error: "low" });
     expect(parsePriceToCents("0")).toEqual({ ok: false, error: "low" });
     expect(parsePriceToCents("10000")).toEqual({ ok: false, error: "high" });
