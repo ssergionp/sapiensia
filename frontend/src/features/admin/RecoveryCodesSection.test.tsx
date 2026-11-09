@@ -168,13 +168,17 @@ describe("RecoveryCodesSection", () => {
 
     const button = await screen.findByRole("button", { name: "Gerando…" });
     await waitFor(() => expect(button).toBeDisabled());
+    expect(screen.getByRole("button", { name: "Cancelar" })).toBeDisabled();
   });
 
   test.each([
     { status: 400, message: WRONG_CODE },
     { status: 429, message: BLOCKED },
     { status: 500, message: GENERAL_ERROR },
-    { status: 401, message: GENERAL_ERROR },
+    {
+      status: 401,
+      message: "Sua sessão terminou. Entre de novo para continuar.",
+    },
   ])("$status shows the matching error", async ({ status, message }) => {
     mockApi(() => json(status));
     renderSection();

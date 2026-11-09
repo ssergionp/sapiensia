@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoginBlockedError } from "@/features/session/api";
 import { LOGIN_BLOCKED } from "@/features/session/messages";
-import { MfaCodeRejectedError } from "./api";
+import { MfaCodeRejectedError, MfaExpiredError } from "./api";
 import { useRegenerateRecoveryCodes } from "./hooks";
 import RecoveryCodesList from "./RecoveryCodesList";
 import {
@@ -34,7 +34,10 @@ const RESULT_WARNING =
   "Os códigos anteriores não funcionam mais. Estes aparecem só agora. Guarde-os no seu gerenciador de senhas. Quem tiver um código e a sua senha entra no painel.";
 const DONE = "Concluir";
 
+const SESSION_ENDED = "Sua sessão terminou. Entre de novo para continuar.";
+
 function failureMessage(error: Error): string {
+  if (error instanceof MfaExpiredError) return SESSION_ENDED;
   if (error instanceof MfaCodeRejectedError) return WRONG_CODE;
   if (error instanceof LoginBlockedError) return LOGIN_BLOCKED;
   return GENERAL_ERROR;
@@ -128,7 +131,12 @@ export default function RecoveryCodesSection() {
             <Button type="submit" disabled={regenerate.isPending}>
               {regenerate.isPending ? SUBMITTING : SUBMIT}
             </Button>
-            <Button type="button" variant="outline" onClick={close}>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={regenerate.isPending}
+              onClick={close}
+            >
               {CANCEL}
             </Button>
           </div>
