@@ -95,6 +95,17 @@ final class AdminBrowser {
                 HttpResponse.BodyHandlers.ofString());
     }
 
+    HttpResponse<String> patch(String path, String json) throws Exception {
+        ensureCsrfCookie();
+        return client.send(
+                HttpRequest.newBuilder(uri(path))
+                        .header("Content-Type", "application/json")
+                        .header("X-XSRF-TOKEN", cookie("XSRF-TOKEN"))
+                        .method("PATCH", HttpRequest.BodyPublishers.ofString(json))
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+    }
+
     /** A PUT that keeps the cookies but sends no X-XSRF-TOKEN header. */
     HttpResponse<String> putWithoutCsrf(String path, String json) throws Exception {
         ensureCsrfCookie();

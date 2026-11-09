@@ -99,6 +99,8 @@ class AdminProductAuthorizationTest {
 
     private static final Route[] DENIED_EVEN_FOR_ADMIN = {
         route("DELETE {id}", (b, id) -> b.delete(PRODUCTS + "/" + id)),
+        route("PATCH {id}", (b, id) -> b.patch(PRODUCTS + "/" + id, validUpdate(0))),
+        route("PATCH {id}/price", (b, id) -> b.patch(PRODUCTS + "/" + id + "/price", priceJson(5000, 0))),
         route("GET {id}/file", (b, id) -> b.get(PRODUCTS + "/" + id + "/file")),
         route("POST {id}/file", (b, id) -> b.post(PRODUCTS + "/" + id + "/file", "{}")),
     };
@@ -252,8 +254,8 @@ class AdminProductAuthorizationTest {
     }
 
     @Test
-    @DisplayName("SEC-010 SEC-020: DELETE e o arquivo do Produto dão 403 até para o Administrador completo")
-    void shouldKeepDeleteAndFileRoutesDenied() throws Exception {
+    @DisplayName("SEC-010 SEC-020: DELETE, PATCH e o arquivo do Produto dão 403 até para o Administrador completo")
+    void shouldKeepDeletePatchAndFileRoutesDenied() throws Exception {
         AdminBrowser admin = fullAdmin();
         int before = count();
 
