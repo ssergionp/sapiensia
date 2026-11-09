@@ -245,7 +245,9 @@ describe("AdminMfaPage", () => {
     const list = screen.getByRole("list", { name: "Códigos de recuperação" });
     expect(within(list).getAllByRole("listitem")).toHaveLength(10);
     for (const code of CODES)
-      expect(within(list).getByText(code)).toBeVisible();
+      expect(
+        within(list).getByText(code.match(/.{4}/g)?.join("-") ?? code),
+      ).toBeVisible();
     const button = screen.getByRole("button", { name: CONTINUE });
     expect(button).toBeDisabled();
     await user.click(screen.getByLabelText(SAVED_BOX));

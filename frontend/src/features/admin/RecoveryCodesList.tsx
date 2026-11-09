@@ -52,7 +52,7 @@ export default function RecoveryCodesList({
         className="mt-4 grid gap-1 font-mono text-lg [overflow-wrap:anywhere]"
       >
         {codes.map((code) => (
-          <li key={code}>{code}</li>
+          <li key={code}>{code.match(/.{1,4}/g)?.join("-") ?? code}</li>
         ))}
       </ol>
       <div className="mt-4">

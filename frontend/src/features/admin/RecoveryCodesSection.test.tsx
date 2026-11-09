@@ -214,6 +214,25 @@ describe("RecoveryCodesSection", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  test("shows each code in groups of 4 separated by hyphens", async () => {
+    mockApi(() => json(200, { codes: CODES }));
+    renderSection();
+    const user = await openForm();
+
+    await user.type(
+      screen.getByLabelText("Código do aplicativo autenticador"),
+      "123456",
+    );
+    await user.click(screen.getByRole("button", { name: "Confirmar e gerar" }));
+
+    const list = await screen.findByRole("list", {
+      name: "Códigos de recuperação",
+    });
+    const items = within(list).getAllByRole("listitem");
+    expect(items[0]).toHaveTextContent("AAAA-AAAA-AAAA-AAAA-AAAA-AAAA");
+    expect(items[9]).toHaveTextContent("JJJJ-JJJJ-JJJJ-JJJJ-JJJJ-JJJJ");
+  });
+
   test("the typed authenticator code does not stay in the mutation cache", async () => {
     mockApi(() => json(200, { codes: CODES }));
     const client = renderSection();
