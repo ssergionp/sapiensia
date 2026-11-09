@@ -55,9 +55,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
             // the production log format
             "logging.structured.format.console=ecs",
             "logging.level.org.springframework.security=TRACE",
-            // KNOWN FRAMEWORK LEAK, reported to the controller: at DEBUG this class logs "Failed to find user '<typed
-            // e-mail>'". Pinned to INFO (the production default) so the rest of the flow is still guarded.
-            "logging.level.org.springframework.security.authentication.dao.DaoAuthenticationProvider=INFO",
             "logging.level.org.springframework.web=DEBUG",
             "logging.level.br.com.sergio.sapiensia=TRACE"
         })

@@ -33,6 +33,9 @@ management:
     health:
       show-details: never
 logging:
+  level:
+    # at DEBUG/TRACE this logs the typed e-mail ("Failed to find user '<e-mail>'"), forbidden by ADR-0006
+    org.springframework.security.authentication.dao.DaoAuthenticationProvider: INFO
   pattern:
     # the correlation ID of the request (CorrelationIdFilter) on every console line; the prod JSON format has it as an MDC field
     correlation: "[%X{correlationId:-}] "
