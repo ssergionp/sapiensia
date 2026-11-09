@@ -214,6 +214,35 @@ describe("RecoveryCodesSection", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  test("the typed authenticator code does not stay in the mutation cache", async () => {
+    mockApi(() => json(200, { codes: CODES }));
+    const client = renderSection();
+    const user = await openForm();
+
+    await user.type(
+      screen.getByLabelText("Código do aplicativo autenticador"),
+      "654321",
+    );
+    await user.click(screen.getByRole("button", { name: "Confirmar e gerar" }));
+    await screen.findByRole("heading", {
+      name: "Seus novos códigos de recuperação",
+    });
+    await user.click(
+      screen.getByLabelText("Guardei meus códigos em um lugar seguro"),
+    );
+    await user.click(screen.getByRole("button", { name: "Concluir" }));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(
+      JSON.stringify(
+        client
+          .getMutationCache()
+          .getAll()
+          .map((m) => m.state.variables),
+      ),
+    ).not.toContain("654321");
+  });
+
   test("a network failure shows the general error", async () => {
     mockApi(() => Promise.reject(new TypeError("network")));
     renderSection();

@@ -59,6 +59,8 @@ export default function RecoveryCodesSection() {
     setAsking(false);
     setFailure(null);
     reset();
+    // Detach the finished mutation so gcTime: 0 can drop it (and the typed code) from the cache.
+    regenerate.reset();
   }
 
   function onSubmit(values: MfaCodeOutput) {

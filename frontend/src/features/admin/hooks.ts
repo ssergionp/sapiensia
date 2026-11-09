@@ -72,6 +72,8 @@ export function useMfaSubmit(
 export function useRegenerateRecoveryCodes(onCodes: (codes: string[]) => void) {
   const queryClient = useQueryClient();
   return useMutation({
+    // The typed authenticator code is the mutation variable: do not keep it in the cache after it settles.
+    gcTime: 0,
     mutationFn: async (code: string): Promise<void> => {
       onCodes(await regenerateRecoveryCodes(code));
     },
