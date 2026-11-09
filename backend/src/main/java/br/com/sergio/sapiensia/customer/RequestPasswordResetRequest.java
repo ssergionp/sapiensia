@@ -16,4 +16,10 @@ record RequestPasswordResetRequest(
             email = Emails.normalize(email);
         }
     }
+
+    // never the e-mail
+    @Override
+    public String toString() {
+        return "RequestPasswordResetRequest[redacted]";
+    }
 }

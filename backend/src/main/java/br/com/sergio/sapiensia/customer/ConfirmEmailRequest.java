@@ -8,4 +8,11 @@ record ConfirmEmailRequest(
         String token,
 
         @NotBlank(message = "PASSWORD_REQUIRED") @Size(max = 128, message = "PASSWORD_INCORRECT")
-        String password) {}
+        String password) {
+
+    // never the link token or the password
+    @Override
+    public String toString() {
+        return "ConfirmEmailRequest[redacted]";
+    }
+}

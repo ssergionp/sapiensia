@@ -21,4 +21,10 @@ record RegisterCustomerRequest(
             email = Emails.normalize(email);
         }
     }
+
+    // never the e-mail or the password
+    @Override
+    public String toString() {
+        return "RegisterCustomerRequest[redacted]";
+    }
 }
