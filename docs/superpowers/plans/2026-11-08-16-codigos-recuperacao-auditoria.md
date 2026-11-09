@@ -117,7 +117,7 @@ Tudo isso em uma transação com duas outras escritas, nesta ordem: (1) incremen
 
 ### D4. Gerar códigos de novo **[OK seu]**
 
-**Recomendação (com o ajuste 4):** entra no ticket, como `POST /api/admin/recovery-codes`. Exige **sessão completa** (senha e TOTP: `panel(Capability.RECOVERY_CODES_MANAGE)` confere a capacidade e os dois fatores, então uma sessão pendente recebe `403`) **e** um código TOTP atual no corpo, que passa pelo **mesmo replay guard** do login (`acceptStep`: passo maior que o último aceito, um `UPDATE` condicional que trava a linha). Na mesma transação: aceita o passo, apaga **todos** os códigos da conta, grava 10 novos e grava o evento `ADMIN_RECOVERY_CODES_REGENERATED`. Os antigos morrem na hora. Código errado ou repetido conta no mesmo limite do MFA e grava o evento `FAILURE` ou `BLOCKED` (D6).
+**Recomendação (com o ajuste 4):** entra no ticket, como `POST /api/admin/recovery-codes`. Exige **sessão completa** (senha e TOTP: `panel(Capability.RECOVERY_CODES_MANAGE)` confere a capacidade e os dois fatores, então uma sessão pendente recebe `401`, como em toda rota do painel; na tela, o `401` marca a sessão do painel como encerrada e o app leva sozinho a `/painel/entrar`, sem mensagem própria) **e** um código TOTP atual no corpo, que passa pelo **mesmo replay guard** do login (`acceptStep`: passo maior que o último aceito, um `UPDATE` condicional que trava a linha). Na mesma transação: aceita o passo, apaga **todos** os códigos da conta, grava 10 novos e grava o evento `ADMIN_RECOVERY_CODES_REGENERATED`. Os antigos morrem na hora. Código errado ou repetido conta no mesmo limite do MFA e grava o evento `FAILURE` ou `BLOCKED` (D6).
 
 **Motivo:** sem isso não há saída para (a) a resposta da ativação perdida na rede, (b) quem ativou o MFA antes do #16 e tem zero códigos, como o seu banco local, ou (c) quem usou vários. Exigir TOTP e não só a sessão impede que uma sessão roubada troque os códigos (SEC-008).
 
@@ -378,10 +378,11 @@ Nenhuma rota nova recebe ID de objeto, então o teste negativo de `404` entre us
 |---|---|
 | Título | Guarde seus códigos de recuperação |
 | Explicação | Se você perder o celular, cada código abaixo permite entrar uma única vez no lugar do código do aplicativo. |
-| Aviso | Estes códigos aparecem só agora. Guarde-os em um lugar seguro. |
+| Aviso | Estes códigos aparecem só agora. Guarde-os no seu gerenciador de senhas. Quem tiver um código e a sua senha entra no painel. |
 | Nome da lista (leitor de tela) | Códigos de recuperação |
+| Exibição | Cada código em grupos de 4 separados por hífen (ABCD-EFGH-...); a cópia continua sem hífen, um código por linha |
 | Botão | Copiar códigos |
-| Sucesso ao copiar | Códigos copiados. |
+| Sucesso ao copiar | Códigos copiados. Cole-os no seu gerenciador de senhas agora. |
 | Falha ao copiar | Não foi possível copiar. Selecione os códigos e copie manualmente. |
 | Caixa de confirmação | Guardei meus códigos em um lugar seguro |
 | Botão | Continuar para o painel |
@@ -415,8 +416,9 @@ Reaproveitados, sem mudança: "Entrar", "Entrando…", "Carregando…", `LOGIN_B
 | Erro de código | Código incorreto ou vencido. Aguarde o próximo código do aplicativo e tente de novo. |
 | Erro geral | Não foi possível gerar novos códigos agora. Tente novamente. |
 | Título depois de gerar | Seus novos códigos de recuperação |
-| Aviso depois de gerar | Os códigos anteriores não funcionam mais. Estes aparecem só agora. Guarde-os em um lugar seguro. |
+| Aviso depois de gerar | Os códigos anteriores não funcionam mais. Estes aparecem só agora. Guarde-os no seu gerenciador de senhas. Quem tiver um código e a sua senha entra no painel. |
 | Botão final | Concluir |
+| Sessão encerrada (`401`) | Sem texto: o app redireciona para `/painel/entrar` |
 
 Reaproveitados: `LOGIN_BLOCKED`, "Digite os 6 dígitos do código.", "Copiar códigos", as mensagens de copiar, a caixa de confirmação.
 
