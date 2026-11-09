@@ -172,6 +172,23 @@ class AdminProductTest {
     }
 
     @Test
+    @DisplayName("SEC-013: número no lugar de texto e número no lugar da categoria dão 400, nada é gravado")
+    void shouldNotCoerceScalarsOrNumericEnums() throws Exception {
+        String[] bodies = {
+            "{\"title\":123,\"description\":\"D\",\"category\":\"LAW\",\"priceCents\":500}",
+            "{\"title\":\"T\",\"description\":true,\"category\":\"LAW\",\"priceCents\":500}",
+            "{\"title\":\"T\",\"description\":\"D\",\"category\":0,\"priceCents\":500}",
+            "{\"title\":\"T\",\"description\":\"D\",\"category\":\"0\",\"priceCents\":500}"
+        };
+        for (String body : bodies) {
+            HttpResponse<String> response = admin.post(PRODUCTS, body);
+            assertThat(response.statusCode()).as(body).isEqualTo(400);
+            assertBadRequestWithoutInternals(response);
+        }
+        assertThat(count()).isZero();
+    }
+
+    @Test
     @DisplayName("SEC-013: NUL e surrogate solto dão 400, nunca 500, e nada é gravado")
     void shouldAnswer400ForNulAndLoneSurrogate() throws Exception {
         for (String text : new String[] {"a\u0000b", "a\ud800b", "a\udc00"}) {
