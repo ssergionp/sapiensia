@@ -149,6 +149,20 @@ describe("productDataSchema", () => {
     expect(messageOf({ ...valid, description: "a‍b‌c" })).toBeNull();
   });
 
+  test("limits count the NFC-normalized, trimmed text", () => {
+    const decomposed = "é"; // 2 UTF-16 units, 1 after NFC
+    expect(messageOf({ ...valid, title: decomposed.repeat(120) })).toBeNull();
+    expect(messageOf({ ...valid, title: decomposed.repeat(121) })).toBe(
+      "O título pode ter até 120 caracteres.",
+    );
+    expect(
+      messageOf({ ...valid, description: decomposed.repeat(5000) }),
+    ).toBeNull();
+    expect(messageOf({ ...valid, description: decomposed.repeat(5001) })).toBe(
+      "A descrição pode ter até 5.000 caracteres.",
+    );
+  });
+
   test("category is required", () => {
     expect(messageOf({ ...valid, category: "" })).toBe(
       "Selecione uma categoria.",

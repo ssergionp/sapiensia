@@ -110,7 +110,7 @@ function textField(
   return z.string().superRefine((value, ctx) => {
     if (value.trim() === "") {
       ctx.addIssue({ code: "custom", message: messages.required });
-    } else if (value.trim().length > max) {
+    } else if (value.normalize("NFC").trim().length > max) {
       ctx.addIssue({ code: "custom", message: messages.tooLong });
     } else if (forbidden.test(value)) {
       ctx.addIssue({ code: "custom", message: messages.invalid });
