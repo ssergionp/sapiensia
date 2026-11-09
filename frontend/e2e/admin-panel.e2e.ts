@@ -455,7 +455,7 @@ async function loginWithStoredCredentials(page: Page) {
   );
 }
 
-test("o Administrador cria um Produto em rascunho, edita os dados e o preço", async ({
+test("FR-016 FR-018: o Administrador cria um Produto em rascunho, edita os dados e o preço", async ({
   page,
   baseURL,
 }) => {
@@ -516,4 +516,29 @@ test("o Administrador cria um Produto em rascunho, edita os dados e o preço", a
   const updated = page.getByRole("row", { name: new RegExp(newTitle) });
   await expect(updated.getByText("R$ 24,50")).toBeVisible();
   await expect(updated.getByText("Rascunho")).toBeVisible();
+});
+
+test("SEC-010 FR-016: sem sessão, as rotas de Produto do painel negam", async ({
+  playwright,
+  baseURL,
+}) => {
+  // A fresh request context has no cookies: a plain anonymous visitor against the real API.
+  const anonymous = await playwright.request.newContext({ baseURL });
+  try {
+    // Reads are denied by the authorization rules: 401 for an anonymous visitor.
+    for (const url of ["/api/admin/products", "/api/admin/products/1"]) {
+      expect((await anonymous.get(url)).status(), `GET ${url}`).toBe(401);
+    }
+    // Writes without a session never succeed: 401, or 403 when the CSRF check answers first.
+    const body = { data: { title: "x" } };
+    for (const response of [
+      await anonymous.post("/api/admin/products", body),
+      await anonymous.put("/api/admin/products/1", body),
+      await anonymous.put("/api/admin/products/1/price", body),
+    ]) {
+      expect([401, 403]).toContain(response.status());
+    }
+  } finally {
+    await anonymous.dispose();
+  }
 });
