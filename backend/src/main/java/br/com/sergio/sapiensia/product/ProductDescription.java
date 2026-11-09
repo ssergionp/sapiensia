@@ -14,7 +14,9 @@ import java.lang.annotation.Target;
 /** The rules of a Product description (SEC-013), shared by the create and edit bodies. Tab and line breaks are allowed. */
 @NotBlank(message = "DESCRIPTION_REQUIRED")
 @Size(max = 5000, message = "DESCRIPTION_TOO_LONG")
-@Pattern(regexp = "[[^\\p{Cc}\\p{Cs}\\u202A-\\u202E\\u2066-\\u2069\\u200B\\u2060\\uFEFF][\\t\\n\\r]]*", message = "DESCRIPTION_INVALID")
+@Pattern(
+        regexp = "[[^\\p{Cc}\\p{Cs}\\u202A-\\u202E\\u2066-\\u2069\\u200B\\u2060\\uFEFF][\\t\\n\\r]]*",
+        message = "DESCRIPTION_INVALID")
 @Constraint(validatedBy = {})
 @Documented
 @Target({ElementType.RECORD_COMPONENT, ElementType.FIELD, ElementType.PARAMETER})

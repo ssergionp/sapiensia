@@ -14,7 +14,9 @@ record ProductRequest(
         @ProductTitle String title,
         @ProductDescription String description,
         @NotNull(message = "CATEGORY_REQUIRED") ProductCategory category,
-        @JsonDeserialize(using = StrictCentsDeserializer.class) @ProductPrice Integer priceCents) {
+
+        @JsonDeserialize(using = StrictCentsDeserializer.class) @ProductPrice
+        Integer priceCents) {
 
     ProductRequest {
         title = ProductText.clean(title);

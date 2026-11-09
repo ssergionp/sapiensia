@@ -90,7 +90,9 @@ class ProductAdminController {
     @ExceptionHandler({DataAccessException.class, TransactionException.class})
     ResponseEntity<Void> unavailable(Exception e) {
         // Only the class is logged, since the message could carry Product data.
-        log.error("Product panel unavailable: the database or audit write failed ({})", e.getClass().getName());
+        log.error(
+                "Product panel unavailable: the database or audit write failed ({})",
+                e.getClass().getName());
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
     }
 }

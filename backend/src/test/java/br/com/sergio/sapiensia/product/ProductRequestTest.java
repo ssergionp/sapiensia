@@ -77,11 +77,7 @@ class ProductRequestTest {
     }
 
     @ParameterizedTest
-    @ValueSource(
-            strings = {
-                "‪", "‫", "‬", "‭", "‮", "⁦", "⁧", "⁨", "⁩", "​",
-                "⁠", "﻿"
-            })
+    @ValueSource(strings = {"‪", "‫", "‬", "‭", "‮", "⁦", "⁧", "⁨", "⁩", "​", "⁠", "﻿"})
     @DisplayName("SEC-013: bidi controls and invisible characters inside the text are invalid")
     void shouldRejectBidiAndInvisibleCharacters(String forbidden) {
         assertThat(codes(request("a" + forbidden + "b", "d", ProductCategory.LAW, 500)))
