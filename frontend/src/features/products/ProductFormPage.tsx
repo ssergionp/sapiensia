@@ -29,6 +29,7 @@ import {
   CATEGORY_LABELS,
   NO_PERMISSION_PRICE,
   NO_PERMISSION_PRODUCTS,
+  PRODUCT_NOT_FOUND,
   SAVE_ERRORS,
   SERVER_FIELD_MESSAGES,
   SERVER_FIELD_NAMES,
@@ -460,7 +461,7 @@ function EditProduct({
       <main className="p-8">
         <p role="alert" className="text-destructive">
           {notFound
-            ? "Produto não encontrado."
+            ? PRODUCT_NOT_FOUND
             : forbidden
               ? NO_PERMISSION_PRODUCTS
               : "Não foi possível carregar o Produto agora. Tente novamente."}

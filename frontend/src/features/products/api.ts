@@ -63,10 +63,10 @@ export async function fetchProducts(page: number): Promise<ProductPage> {
 }
 
 export async function fetchProduct(id: string): Promise<Product> {
-  const response = await check(
-    await apiFetch(`/api/admin/products/${encodeURIComponent(id)}`),
-    200,
-  );
+  const raw = await apiFetch(`/api/admin/products/${encodeURIComponent(id)}`);
+  // The backend answers 400 when the id is not a number: for the user it is the same as no such Product.
+  if (raw.status === 400) throw new ProductNotFoundError();
+  const response = await check(raw, 200);
   return productSchema.parse(await response.json());
 }
 

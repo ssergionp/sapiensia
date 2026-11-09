@@ -48,3 +48,5 @@ export const SERVER_FIELD_NAMES: Record<string, string> = {
   category: "category",
   priceCents: "price",
 };
+
+export const PRODUCT_NOT_FOUND = "Produto não encontrado.";

@@ -602,6 +602,19 @@ describe("ProductFormPage, edit", () => {
     ).toBeInTheDocument();
   });
 
+  test("400 loading (id is not a number) shows Produto não encontrado.", async () => {
+    mockApi((url) =>
+      url === `${BASE}/abc`
+        ? jsonResponse(400, { message: "bad id" })
+        : undefined,
+    );
+    renderProducts("/painel/produtos/abc");
+
+    expect(
+      await screen.findByText("Produto não encontrado."),
+    ).toBeInTheDocument();
+  });
+
   test("other load errors show the load message", async () => {
     mockApi((url) => (url === `${BASE}/p1` ? jsonResponse(500) : undefined));
     renderProducts("/painel/produtos/p1");
