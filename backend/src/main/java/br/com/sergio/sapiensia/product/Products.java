@@ -17,10 +17,23 @@ class Products {
     private static final String COLUMNS =
             "id, title, description, category, price_cents, status, version, created_at, updated_at";
 
+    private static final String LIST_COLUMNS =
+            "id, title, category, price_cents, status, version, created_at, updated_at";
+
     private static final RowMapper<ProductResponse> MAPPER = (rs, i) -> new ProductResponse(
             rs.getObject("id", UUID.class),
             rs.getString("title"),
             rs.getString("description"),
+            ProductCategory.valueOf(rs.getString("category")),
+            rs.getInt("price_cents"),
+            ProductStatus.valueOf(rs.getString("status")),
+            rs.getInt("version"),
+            rs.getObject("created_at", OffsetDateTime.class).toInstant(),
+            rs.getObject("updated_at", OffsetDateTime.class).toInstant());
+
+    private static final RowMapper<ProductListItem> LIST_MAPPER = (rs, i) -> new ProductListItem(
+            rs.getObject("id", UUID.class),
+            rs.getString("title"),
             ProductCategory.valueOf(rs.getString("category")),
             rs.getInt("price_cents"),
             ProductStatus.valueOf(rs.getString("status")),
@@ -89,12 +102,12 @@ class Products {
     }
 
     /** Newest first; the id breaks ties so pages never repeat or skip a row. The offset is a long: no int overflow. */
-    List<ProductResponse> list(int page) {
-        return jdbc.sql("select " + COLUMNS + " from products order by created_at desc, id desc"
+    List<ProductListItem> list(int page) {
+        return jdbc.sql("select " + LIST_COLUMNS + " from products order by created_at desc, id desc"
                         + " limit :limit offset :offset")
                 .param("limit", PAGE_SIZE)
                 .param("offset", page * (long) PAGE_SIZE)
-                .query(MAPPER)
+                .query(LIST_MAPPER)
                 .list();
     }
 

@@ -246,6 +246,11 @@ class AdminProductTest {
         assertThat(firstTitles).hasSize(20).startsWith("P24", "P23").endsWith("P5");
         assertThat(secondTitles).containsExactly("P4", "P3", "P2", "P1", "P0");
         assertThat((Integer) JsonPath.read(second.body(), "$.page")).isEqualTo(1);
+        // the list carries no description: only the detail does
+        assertThat((List<?>) JsonPath.read(first.body(), "$.items[*].description"))
+                .isEmpty();
+        assertThat((List<?>) JsonPath.read(first.body(), "$.items[*].priceCents"))
+                .hasSize(20);
 
         for (String page : new String[] {"2", "2147483647"}) {
             HttpResponse<String> beyond = admin.get(PRODUCTS + "?page=" + page);
