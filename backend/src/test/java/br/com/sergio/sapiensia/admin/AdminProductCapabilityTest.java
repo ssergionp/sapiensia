@@ -1,13 +1,17 @@
 package br.com.sergio.sapiensia.admin;
 
 import static br.com.sergio.sapiensia.admin.AdminProductFixtures.PRODUCTS;
+import static br.com.sergio.sapiensia.admin.AdminProductFixtures.insertProduct;
+import static br.com.sergio.sapiensia.admin.AdminProductFixtures.priceJson;
 import static br.com.sergio.sapiensia.admin.AdminProductFixtures.validBody;
+import static br.com.sergio.sapiensia.admin.AdminProductFixtures.validUpdate;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
 import br.com.sergio.sapiensia.security.SecretCipher;
@@ -16,6 +20,7 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -103,6 +108,17 @@ class AdminProductCapabilityTest {
                 .getStatus();
     }
 
+    private int putStatus(Authentication authentication, String path, String body) throws Exception {
+        return mvc.perform(put(PRODUCTS + path)
+                        .with(authentication(authentication))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andReturn()
+                .getResponse()
+                .getStatus();
+    }
+
     private int count() {
         return jdbc.queryForObject("select count(*) from products", Integer.class);
     }
@@ -155,5 +171,46 @@ class AdminProductCapabilityTest {
         assertThat(createStatus(priceOnly)).isEqualTo(403);
         assertThat(listStatus(priceOnly)).isEqualTo(403);
         assertThat(count()).isZero();
+    }
+
+    @Test
+    @DisplayName("SEC-029: PRODUCTS_EDIT com os dois fatores edita o texto (200) mas não troca o preço (403)")
+    void shouldLetProductsEditChangeTextButNotPrice() throws Exception {
+        UUID id = insertProduct(jdbc);
+        Authentication editor = session(EnumSet.of(Capability.PRODUCTS_EDIT), true, true);
+
+        assertThat(putStatus(editor, "/" + id, validUpdate(0))).isEqualTo(200);
+        assertThat(putStatus(editor, "/" + id + "/price", priceJson(9000, 1))).isEqualTo(403);
+        assertThat(jdbc.queryForObject("select price_cents from products where id = ?", Integer.class, id))
+                .isEqualTo(4990);
+    }
+
+    @Test
+    @DisplayName("SEC-029: PRODUCTS_PRICE com os dois fatores troca o preço (200) mas não cria nem edita o texto (403)")
+    void shouldLetProductsPriceChangeOnlyThePrice() throws Exception {
+        UUID id = insertProduct(jdbc);
+        Authentication priceOnly = session(EnumSet.of(Capability.PRODUCTS_PRICE), true, true);
+
+        assertThat(createStatus(priceOnly)).isEqualTo(403);
+        assertThat(putStatus(priceOnly, "/" + id, validUpdate(0))).isEqualTo(403);
+        assertThat(putStatus(priceOnly, "/" + id + "/price", priceJson(9000, 0)))
+                .isEqualTo(200);
+        assertThat(jdbc.queryForMap("select title, price_cents from products where id = ?", id))
+                .containsEntry("title", "Original")
+                .containsEntry("price_cents", 9000);
+    }
+
+    @Test
+    @DisplayName("SEC-010 SEC-029: PRODUCTS_PRICE só com a senha, ou só com o TOTP, recebe 403 e o preço não muda")
+    void shouldDenyPriceChangeWithOneFactorOnly() throws Exception {
+        UUID id = insertProduct(jdbc);
+        String path = "/" + id + "/price";
+        Authentication passwordOnly = session(EnumSet.of(Capability.PRODUCTS_PRICE), true, false);
+        Authentication totpOnly = session(EnumSet.of(Capability.PRODUCTS_PRICE), false, true);
+
+        assertThat(putStatus(passwordOnly, path, priceJson(9000, 0))).isEqualTo(403);
+        assertThat(putStatus(totpOnly, path, priceJson(9000, 0))).isEqualTo(403);
+        assertThat(jdbc.queryForObject("select price_cents from products where id = ?", Integer.class, id))
+                .isEqualTo(4990);
     }
 }

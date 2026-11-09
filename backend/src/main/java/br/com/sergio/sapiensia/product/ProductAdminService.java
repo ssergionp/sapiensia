@@ -35,6 +35,43 @@ class ProductAdminService {
         return created;
     }
 
+    /**
+     * Edits title, description and category under the optimistic lock. SUCCESS is written in the same transaction (no
+     * trail, no change); a stale version writes FAILURE in its own transaction, which survives the rollback.
+     */
+    @Transactional
+    ProductResponse update(UUID id, ProductUpdateRequest request, UUID administratorId, String origin) {
+        return change(id, products.update(id, request), AuditAction.ADMIN_PRODUCT_UPDATED, administratorId, origin);
+    }
+
+    /** Changes the price under the same lock and the same audit rules, with its own action (SEC-029). */
+    @Transactional
+    ProductResponse changePrice(UUID id, ProductPriceRequest request, UUID administratorId, String origin) {
+        return change(
+                id,
+                products.updatePrice(id, request),
+                AuditAction.ADMIN_PRODUCT_PRICE_CHANGED,
+                administratorId,
+                origin);
+    }
+
+    private ProductResponse change(UUID id, int rows, AuditAction action, UUID administratorId, String origin) {
+        if (rows == 0) {
+            if (!products.exists(id)) {
+                throw new ProductNotFoundException();
+            }
+            audit.recordIndependent(entry(action, AuditResult.FAILURE, administratorId, id, origin));
+            throw new ProductVersionConflictException();
+        }
+        audit.recordInTransaction(entry(action, AuditResult.SUCCESS, administratorId, id, origin));
+        return products.find(id).orElseThrow(ProductNotFoundException::new);
+    }
+
+    private static AuditEntry entry(
+            AuditAction action, AuditResult result, UUID administratorId, UUID id, String origin) {
+        return new AuditEntry(action, result, administratorId, AuditObject.PRODUCT, id, origin);
+    }
+
     @Transactional(readOnly = true)
     ProductResponse get(UUID id) {
         return products.find(id).orElseThrow(ProductNotFoundException::new);

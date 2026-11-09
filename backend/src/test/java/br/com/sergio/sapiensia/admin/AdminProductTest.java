@@ -3,7 +3,10 @@ package br.com.sergio.sapiensia.admin;
 import static br.com.sergio.sapiensia.admin.AdminProductFixtures.PASSWORD;
 import static br.com.sergio.sapiensia.admin.AdminProductFixtures.PRODUCTS;
 import static br.com.sergio.sapiensia.admin.AdminProductFixtures.json;
+import static br.com.sergio.sapiensia.admin.AdminProductFixtures.priceJson;
+import static br.com.sergio.sapiensia.admin.AdminProductFixtures.updateJson;
 import static br.com.sergio.sapiensia.admin.AdminProductFixtures.validBody;
+import static br.com.sergio.sapiensia.admin.AdminProductFixtures.validUpdate;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
@@ -249,6 +252,168 @@ class AdminProductTest {
 
         for (String id : new String[] {"abc", "123", "00000000-0000-0000-0000-00000000000g"}) {
             assertBadRequestWithoutInternals(admin.get(PRODUCTS + "/" + id));
+        }
+    }
+
+    private UUID existingProduct() {
+        return AdminProductFixtures.insertProduct(jdbc);
+    }
+
+    @Test
+    @DisplayName("FR-016: editar muda título, descrição e categoria, sobe a versão e mantém status, preço e criação")
+    void shouldEditTheTextAndBumpTheVersion() throws Exception {
+        UUID id = existingProduct();
+        var before = jdbc.queryForMap("select created_at, updated_at from products where id = ?", id);
+
+        HttpResponse<String> response =
+                admin.put(PRODUCTS + "/" + id, updateJson("  Café novo  ", "Texto novo.", "LAW", 0));
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat((String) JsonPath.read(response.body(), "$.id")).isEqualTo(id.toString());
+        assertThat((String) JsonPath.read(response.body(), "$.title")).isEqualTo("Café novo");
+        assertThat((String) JsonPath.read(response.body(), "$.description")).isEqualTo("Texto novo.");
+        assertThat((String) JsonPath.read(response.body(), "$.category")).isEqualTo("LAW");
+        assertThat((Integer) JsonPath.read(response.body(), "$.version")).isEqualTo(1);
+        assertThat((String) JsonPath.read(response.body(), "$.status")).isEqualTo("DRAFT");
+        assertThat((Integer) JsonPath.read(response.body(), "$.priceCents")).isEqualTo(4990);
+        var after = jdbc.queryForMap("select created_at, updated_at from products where id = ?", id);
+        assertThat(after.get("created_at")).isEqualTo(before.get("created_at"));
+        assertThat(after.get("updated_at")).isNotEqualTo(before.get("updated_at"));
+        assertThat(admin.get(PRODUCTS + "/" + id).body()).isEqualTo(response.body());
+    }
+
+    @Test
+    @DisplayName("SEC-029: priceCents mandado no PUT do texto é ignorado")
+    void shouldIgnoreThePriceOnTheTextEdit() throws Exception {
+        UUID id = existingProduct();
+        String body = validUpdate(0).replaceFirst("\\{", "{\"priceCents\":999999,");
+
+        HttpResponse<String> response = admin.put(PRODUCTS + "/" + id, body);
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat((Integer) JsonPath.read(response.body(), "$.priceCents")).isEqualTo(4990);
+        assertThat(jdbc.queryForObject("select price_cents from products where id = ?", Integer.class, id))
+                .isEqualTo(4990);
+    }
+
+    @Test
+    @DisplayName("SEC-012: id, status e createdAt mandados no PUT são ignorados")
+    void shouldIgnoreExtraFieldsOnEdit() throws Exception {
+        UUID id = existingProduct();
+        UUID forged = UUID.randomUUID();
+        String body = validUpdate(0)
+                .replaceFirst(
+                        "\\{",
+                        "{\"id\":\"" + forged + "\",\"status\":\"PUBLISHED\",\"createdAt\":\"2000-01-01T00:00:00Z\",");
+
+        HttpResponse<String> response = admin.put(PRODUCTS + "/" + id, body);
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat((String) JsonPath.read(response.body(), "$.id")).isEqualTo(id.toString());
+        assertThat((String) JsonPath.read(response.body(), "$.status")).isEqualTo("DRAFT");
+        assertThat((String) JsonPath.read(response.body(), "$.createdAt")).doesNotStartWith("2000");
+        assertThat(jdbc.queryForObject("select count(*) from products where id = ?", Integer.class, forged))
+                .isZero();
+    }
+
+    @Test
+    @DisplayName("SEC-029: a rota do preço muda só o preço e sobe a versão")
+    void shouldChangeOnlyThePrice() throws Exception {
+        UUID id = existingProduct();
+
+        HttpResponse<String> response = admin.put(PRODUCTS + "/" + id + "/price", priceJson(12_345, 0));
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat((Integer) JsonPath.read(response.body(), "$.priceCents")).isEqualTo(12_345);
+        assertThat((Integer) JsonPath.read(response.body(), "$.version")).isEqualTo(1);
+        assertThat((String) JsonPath.read(response.body(), "$.title")).isEqualTo("Original");
+        assertThat((String) JsonPath.read(response.body(), "$.description")).isEqualTo("Descricao original");
+        assertThat((String) JsonPath.read(response.body(), "$.category")).isEqualTo("FINANCE");
+        assertThat((String) JsonPath.read(response.body(), "$.status")).isEqualTo("DRAFT");
+    }
+
+    @Test
+    @DisplayName("FR-018: preço 499, 0, negativo, 1000000 ou ausente dá 400 com o código e nada muda")
+    void shouldRefuseABadPriceChange() throws Exception {
+        UUID id = existingProduct();
+        record Case(String body, String code) {}
+        List<Case> cases = List.of(
+                new Case(priceJson(499, 0), "PRICE_TOO_LOW"),
+                new Case(priceJson(0, 0), "PRICE_TOO_LOW"),
+                new Case(priceJson(-1, 0), "PRICE_TOO_LOW"),
+                new Case(priceJson(1_000_000, 0), "PRICE_TOO_HIGH"),
+                new Case(priceJson("null", 0), "PRICE_REQUIRED"));
+
+        for (Case c : cases) {
+            HttpResponse<String> response = admin.put(PRODUCTS + "/" + id + "/price", c.body());
+            assertThat(response.statusCode()).as(c.code()).isEqualTo(400);
+            assertThat((String) JsonPath.read(response.body(), "$.errors.priceCents"))
+                    .isEqualTo(c.code());
+        }
+        assertBadRequestWithoutInternals(admin.put(PRODUCTS + "/" + id + "/price", priceJson("49.9", 0)));
+        assertThat(jdbc.queryForMap("select price_cents, version from products where id = ?", id))
+                .containsEntry("price_cents", 4990)
+                .containsEntry("version", 0);
+    }
+
+    @Test
+    @DisplayName("SEC-013: o PUT do texto devolve o código de cada campo inválido, inclusive VERSION_REQUIRED")
+    void shouldAnswerTheErrorCodeOfEachFieldOnEdit() throws Exception {
+        UUID id = existingProduct();
+        record Case(String body, String field, String code) {}
+        List<Case> cases = List.of(
+                new Case(updateJson("", "D", "LAW", 0), "title", "TITLE_REQUIRED"),
+                new Case(updateJson("a".repeat(121), "D", "LAW", 0), "title", "TITLE_TOO_LONG"),
+                new Case(updateJson("a\u0001b", "D", "LAW", 0), "title", "TITLE_INVALID"),
+                new Case(updateJson("T", " ", "LAW", 0), "description", "DESCRIPTION_REQUIRED"),
+                new Case(updateJson("T", "a".repeat(5001), "LAW", 0), "description", "DESCRIPTION_TOO_LONG"),
+                new Case(updateJson("T", "a\u001bb", "LAW", 0), "description", "DESCRIPTION_INVALID"),
+                new Case(updateJson("T", "D", null, 0), "category", "CATEGORY_REQUIRED"),
+                new Case(updateJson("T", "D", "LAW", "null"), "version", "VERSION_REQUIRED"));
+
+        for (Case c : cases) {
+            HttpResponse<String> response = admin.put(PRODUCTS + "/" + id, c.body());
+            assertThat(response.statusCode()).as(c.code()).isEqualTo(400);
+            assertThat((String) JsonPath.read(response.body(), "$.errors." + c.field()))
+                    .as(c.code())
+                    .isEqualTo(c.code());
+        }
+        assertThat(admin.put(PRODUCTS + "/" + id + "/price", "{\"priceCents\":5000}")
+                        .statusCode())
+                .isEqualTo(400);
+        assertBadRequestWithoutInternals(admin.put(PRODUCTS + "/" + id, "{not json"));
+        assertThat(jdbc.queryForMap("select title, version from products where id = ?", id))
+                .containsEntry("title", "Original")
+                .containsEntry("version", 0);
+    }
+
+    @Test
+    @DisplayName("FR-016: PUT com ID inexistente dá 404 e com ID malformado dá 400, nas duas rotas")
+    void shouldAnswer404ForUnknownIdAndBadRequestForMalformedIdOnPut() throws Exception {
+        assertThat(admin.put(PRODUCTS + "/" + UUID.randomUUID(), validUpdate(0)).statusCode())
+                .isEqualTo(404);
+        assertThat(admin.put(PRODUCTS + "/" + UUID.randomUUID() + "/price", priceJson(5000, 0))
+                        .statusCode())
+                .isEqualTo(404);
+        assertBadRequestWithoutInternals(admin.put(PRODUCTS + "/abc", validUpdate(0)));
+        assertBadRequestWithoutInternals(admin.put(PRODUCTS + "/abc/price", priceJson(5000, 0)));
+    }
+
+    @Test
+    @DisplayName("SEC-018: sem o banco os dois PUT dão 503 sem corpo")
+    void shouldAnswer503OnPutWhenTheDatabaseFails() throws Exception {
+        UUID id = existingProduct();
+        jdbc.execute("alter table products rename to products_off");
+        try {
+            HttpResponse<String> text = admin.put(PRODUCTS + "/" + id, validUpdate(0));
+            HttpResponse<String> price = admin.put(PRODUCTS + "/" + id + "/price", priceJson(5000, 0));
+
+            assertThat(text.statusCode()).isEqualTo(503);
+            assertThat(text.body()).isEmpty();
+            assertThat(price.statusCode()).isEqualTo(503);
+            assertThat(price.body()).isEmpty();
+        } finally {
+            jdbc.execute("alter table products_off rename to products");
         }
     }
 

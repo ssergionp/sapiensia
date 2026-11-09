@@ -39,6 +39,28 @@ final class AdminProductFixtures {
         return json("Guia de Pix", "Passo a passo para receber por Pix.", "FINANCE", 4990);
     }
 
+    /** The body of the text edit: no price, the version the client read. */
+    static String updateJson(String title, String description, String category, Object version) {
+        return "{\"title\":" + quote(title) + ",\"description\":" + quote(description) + ",\"category\":"
+                + quote(category) + ",\"version\":" + version + "}";
+    }
+
+    static String validUpdate(int version) {
+        return updateJson("Guia de Pix 2", "Texto novo.", "LAW", version);
+    }
+
+    static String priceJson(Object priceCents, Object version) {
+        return "{\"priceCents\":" + priceCents + ",\"version\":" + version + "}";
+    }
+
+    /** Inserts a Product directly and returns its id (version 0, DRAFT, price 4990). */
+    static UUID insertProduct(JdbcTemplate jdbc) {
+        return jdbc.queryForObject(
+                "insert into products (title, description, category, price_cents)"
+                        + " values ('Original', 'Descricao original', 'FINANCE', 4990) returning id",
+                UUID.class);
+    }
+
     private static String quote(String value) {
         if (value == null) {
             return "null";

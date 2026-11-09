@@ -53,6 +53,41 @@ class Products {
                 .optional();
     }
 
+    /**
+     * Replaces title, description and category if the stored version is the one the client read, and bumps it. Returns
+     * the rows changed: 0 means no such Product or a stale version (see {@link #exists}). Status, price and created_at
+     * are never touched.
+     */
+    int update(UUID id, ProductUpdateRequest request) {
+        return jdbc.sql("update products set title = :title, description = :description, category = :category,"
+                        + " version = version + 1, updated_at = now() where id = :id and version = :version")
+                .param("title", request.title())
+                .param("description", request.description())
+                .param("category", request.category().name())
+                .param("id", id)
+                .param("version", request.version())
+                .update();
+    }
+
+    /** Same lock as {@link #update}, for the price only. */
+    int updatePrice(UUID id, ProductPriceRequest request) {
+        return jdbc.sql("update products set price_cents = :priceCents, version = version + 1, updated_at = now()"
+                        + " where id = :id and version = :version")
+                .param("priceCents", request.priceCents())
+                .param("id", id)
+                .param("version", request.version())
+                .update();
+    }
+
+    /** Tells a missing Product (404) from a stale version (409) after an update changed no row. */
+    boolean exists(UUID id) {
+        return jdbc.sql("select count(*) from products where id = :id")
+                        .param("id", id)
+                        .query(Long.class)
+                        .single()
+                > 0;
+    }
+
     /** Newest first; the id breaks ties so pages never repeat or skip a row. The offset is a long: no int overflow. */
     List<ProductResponse> list(int page) {
         return jdbc.sql("select " + COLUMNS + " from products order by created_at desc, id desc"

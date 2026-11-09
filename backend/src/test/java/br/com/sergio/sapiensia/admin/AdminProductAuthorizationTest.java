@@ -2,7 +2,9 @@ package br.com.sergio.sapiensia.admin;
 
 import static br.com.sergio.sapiensia.admin.AdminProductFixtures.PASSWORD;
 import static br.com.sergio.sapiensia.admin.AdminProductFixtures.PRODUCTS;
+import static br.com.sergio.sapiensia.admin.AdminProductFixtures.priceJson;
 import static br.com.sergio.sapiensia.admin.AdminProductFixtures.validBody;
+import static br.com.sergio.sapiensia.admin.AdminProductFixtures.validUpdate;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
@@ -70,20 +72,16 @@ class AdminProductAuthorizationTest {
     }
 
     /** A call on one route; the argument is the id used in the path ({id} routes only). */
-    private record Route(
-            String name, Function<AdminBrowser, Function<UUID, HttpResponse<String>>> call, boolean byId) {}
+    private record Route(String name, Function<AdminBrowser, Function<UUID, HttpResponse<String>>> call) {}
 
-    private static Route route(String name, boolean byId, Call call) {
-        return new Route(
-                name,
-                browser -> id -> {
-                    try {
-                        return call.send(browser, id);
-                    } catch (Exception e) {
-                        throw new AssertionError(e);
-                    }
-                },
-                byId);
+    private static Route route(String name, Call call) {
+        return new Route(name, browser -> id -> {
+            try {
+                return call.send(browser, id);
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+        });
     }
 
     @FunctionalInterface
@@ -92,15 +90,17 @@ class AdminProductAuthorizationTest {
     }
 
     private static final Route[] ROUTES = {
-        route("GET list", false, (b, id) -> b.get(PRODUCTS)),
-        route("GET {id}", true, (b, id) -> b.get(PRODUCTS + "/" + id)),
-        route("POST", false, (b, id) -> b.post(PRODUCTS, validBody())),
+        route("GET list", (b, id) -> b.get(PRODUCTS)),
+        route("GET {id}", (b, id) -> b.get(PRODUCTS + "/" + id)),
+        route("POST", (b, id) -> b.post(PRODUCTS, validBody())),
+        route("PUT {id}", (b, id) -> b.put(PRODUCTS + "/" + id, validUpdate(0))),
+        route("PUT {id}/price", (b, id) -> b.put(PRODUCTS + "/" + id + "/price", priceJson(5000, 0))),
     };
 
     private static final Route[] DENIED_EVEN_FOR_ADMIN = {
-        route("DELETE {id}", true, (b, id) -> b.delete(PRODUCTS + "/" + id)),
-        route("GET {id}/file", true, (b, id) -> b.get(PRODUCTS + "/" + id + "/file")),
-        route("POST {id}/file", true, (b, id) -> b.post(PRODUCTS + "/" + id + "/file", "{}")),
+        route("DELETE {id}", (b, id) -> b.delete(PRODUCTS + "/" + id)),
+        route("GET {id}/file", (b, id) -> b.get(PRODUCTS + "/" + id + "/file")),
+        route("POST {id}/file", (b, id) -> b.post(PRODUCTS + "/" + id + "/file", "{}")),
     };
 
     private AdminBrowser anonymous() {
@@ -192,6 +192,40 @@ class AdminProductAuthorizationTest {
         assertDenied(expiredPending(), 401, "expired pending");
 
         assertThat(count()).isEqualTo(before);
+    }
+
+    @Test
+    @DisplayName("SEC-017: PUT sem o token CSRF dá 403 nas duas rotas e nada muda")
+    void shouldRefuseAPutWithoutCsrfToken() throws Exception {
+        AdminBrowser admin = fullAdmin();
+
+        assertThat(admin.putWithoutCsrf(PRODUCTS + "/" + existing, validUpdate(0))
+                        .statusCode())
+                .isEqualTo(403);
+        assertThat(admin.putWithoutCsrf(PRODUCTS + "/" + existing + "/price", priceJson(5000, 0))
+                        .statusCode())
+                .isEqualTo(403);
+        assertThat(jdbc.queryForMap("select title, price_cents, version from products where id = ?", existing))
+                .containsEntry("title", "Existente")
+                .containsEntry("price_cents", 500)
+                .containsEntry("version", 0);
+    }
+
+    @Test
+    @DisplayName("SEC-010 FR-016: o Administrador completo edita (200) e troca o preço (200); 404 para ID inexistente")
+    void shouldLetTheFullAdministratorEdit() throws Exception {
+        AdminBrowser admin = fullAdmin();
+
+        assertThat(admin.put(PRODUCTS + "/" + existing, validUpdate(0)).statusCode())
+                .isEqualTo(200);
+        assertThat(admin.put(PRODUCTS + "/" + existing + "/price", priceJson(5000, 1))
+                        .statusCode())
+                .isEqualTo(200);
+        assertThat(admin.put(PRODUCTS + "/" + UUID.randomUUID(), validUpdate(0)).statusCode())
+                .isEqualTo(404);
+        assertThat(admin.put(PRODUCTS + "/" + UUID.randomUUID() + "/price", priceJson(5000, 0))
+                        .statusCode())
+                .isEqualTo(404);
     }
 
     @Test

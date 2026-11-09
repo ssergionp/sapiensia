@@ -157,12 +157,16 @@ public class SecurityConfig {
                         // also asks for a fresh TOTP code in the body, checked by the controller (SEC-008)
                         .requestMatchers(HttpMethod.POST, "/api/admin/recovery-codes")
                         .access(panel(Capability.RECOVERY_CODES_MANAGE))
-                        // Products (#17): one segment after /products, so /products/{id}/file stays denied; PUT comes
-                        // with the edit ticket step
+                        // Products (#17): one segment after /products, so /products/{id}/file stays denied. The price
+                        // has its own capability (SEC-029): PRODUCTS_EDIT cannot change it.
                         .requestMatchers(HttpMethod.GET, "/api/admin/products", "/api/admin/products/*")
                         .access(panel(Capability.PRODUCTS_EDIT))
                         .requestMatchers(HttpMethod.POST, "/api/admin/products")
                         .access(panel(Capability.PRODUCTS_EDIT))
+                        .requestMatchers(HttpMethod.PUT, "/api/admin/products/*")
+                        .access(panel(Capability.PRODUCTS_EDIT))
+                        .requestMatchers(HttpMethod.PUT, "/api/admin/products/*/price")
+                        .access(panel(Capability.PRODUCTS_PRICE))
                         .requestMatchers("/api/**")
                         .denyAll()
                         .anyRequest()

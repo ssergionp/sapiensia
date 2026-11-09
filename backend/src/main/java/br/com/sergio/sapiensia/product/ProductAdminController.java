@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -57,6 +58,28 @@ class ProductAdminController {
     @GetMapping("/{id}")
     ProductResponse get(@PathVariable UUID id) {
         return service.get(id);
+    }
+
+    /** 200 with the Product; 400 per field; 404; 409 when the version is stale. The price is not part of this body. */
+    @PutMapping("/{id}")
+    ProductResponse update(
+            @PathVariable UUID id,
+            @Valid @RequestBody ProductUpdateRequest body,
+            Authentication authentication,
+            HttpServletRequest request) {
+        var administrator = (AdministratorPrincipal) authentication.getPrincipal();
+        return service.update(id, body, administrator.id(), clientIp.resolve(request));
+    }
+
+    /** Same answers as the text edit, for the price only (SEC-029). */
+    @PutMapping("/{id}/price")
+    ProductResponse changePrice(
+            @PathVariable UUID id,
+            @Valid @RequestBody ProductPriceRequest body,
+            Authentication authentication,
+            HttpServletRequest request) {
+        var administrator = (AdministratorPrincipal) authentication.getPrincipal();
+        return service.changePrice(id, body, administrator.id(), clientIp.resolve(request));
     }
 
     /** A database or audit failure: 503 without a body, like the other panel routes. */
