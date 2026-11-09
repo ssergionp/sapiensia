@@ -5,7 +5,7 @@ import { vi } from "vitest";
 import { adminSessionQueryKey } from "@/features/admin/hooks";
 import ProductFormPage from "./ProductFormPage";
 import ProductListPage from "./ProductListPage";
-import type { Product } from "./schemas";
+import type { Product, ProductListItem } from "./schemas";
 
 // Test helpers shared by the product screen tests.
 
@@ -42,6 +42,14 @@ export function product(overrides: Partial<Product> = {}): Product {
     updatedAt: "2026-01-01T00:00:00Z",
     ...overrides,
   };
+}
+
+// A list item has no description (ProductListItem in the backend).
+export function listItem(
+  overrides: Partial<ProductListItem> = {},
+): ProductListItem {
+  const { description: _description, ...item } = product();
+  return { ...item, ...overrides };
 }
 
 type Handler = (

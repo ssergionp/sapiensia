@@ -28,8 +28,13 @@ export const productSchema = z.object({
 
 export type Product = z.infer<typeof productSchema>;
 
+// Mirrors ProductListItem in the backend: the list has no description.
+export const productListItemSchema = productSchema.omit({ description: true });
+
+export type ProductListItem = z.infer<typeof productListItemSchema>;
+
 export const productPageSchema = z.object({
-  items: z.array(productSchema),
+  items: z.array(productListItemSchema),
   page: z.number().int(),
   totalPages: z.number().int(),
 });

@@ -4,9 +4,9 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import {
   EDIT_ONLY,
   jsonResponse,
+  listItem,
   mockApi,
   normalizeSpaces,
-  product,
   renderProducts,
 } from "./testing";
 
@@ -29,8 +29,8 @@ describe("ProductListPage", () => {
       url === LIST
         ? jsonResponse(200, {
             items: [
-              product(),
-              product({
+              listItem(),
+              listItem({
                 id: "p2",
                 title: "Outro",
                 category: "LAW",
@@ -77,7 +77,7 @@ describe("ProductListPage", () => {
   test("renders the description as plain text elsewhere: title with markup is escaped", async () => {
     mockApi(() =>
       jsonResponse(200, {
-        items: [product({ title: "<b>negrito</b>" })],
+        items: [listItem({ title: "<b>negrito</b>" })],
         page: 0,
         totalPages: 1,
       }),
@@ -105,13 +105,13 @@ describe("ProductListPage", () => {
       calls.push(url);
       if (url === LIST)
         return jsonResponse(200, {
-          items: [product()],
+          items: [listItem()],
           page: 0,
           totalPages: 2,
         });
       if (url === "/api/admin/products?page=1")
         return jsonResponse(200, {
-          items: [product({ id: "p9", title: "Segunda página" })],
+          items: [listItem({ id: "p9", title: "Segunda página" })],
           page: 1,
           totalPages: 2,
         });
@@ -242,7 +242,7 @@ describe("ProductListPage", () => {
 
   test("EDIT_ONLY can list", async () => {
     mockApi(
-      () => jsonResponse(200, { items: [product()], page: 0, totalPages: 1 }),
+      () => jsonResponse(200, { items: [listItem()], page: 0, totalPages: 1 }),
       EDIT_ONLY,
     );
     renderProducts("/painel/produtos");
