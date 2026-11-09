@@ -456,6 +456,38 @@ describe("ProductFormPage, edit", () => {
     expect(screen.queryByText(CONFLICT)).not.toBeInTheDocument();
   });
 
+  test("a failed Recarregar keeps the conflict warning, the typed text and the form", async () => {
+    let gets = 0;
+    api({
+      get: () => {
+        gets += 1;
+        return gets === 1 ? jsonResponse(200, product()) : jsonResponse(500);
+      },
+      put: () => jsonResponse(409),
+    });
+    await open();
+    const user = userEvent.setup();
+
+    await user.type(screen.getByLabelText("Título"), " digitado");
+    await user.click(screen.getByRole("button", { name: "Salvar dados" }));
+    await within(dataBlock()).findByText(CONFLICT);
+
+    await user.click(
+      within(dataBlock()).getByRole("button", { name: "Recarregar" }),
+    );
+
+    await waitFor(() => expect(gets).toBe(2));
+    expect(await within(dataBlock()).findByText(CONFLICT)).toBeInTheDocument();
+    expect(screen.getByLabelText("Título")).toHaveValue(
+      "Guia de saúde digitado",
+    );
+    expect(
+      screen.queryByText(
+        "Não foi possível carregar o Produto agora. Tente novamente.",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
   test.each([
     [403, FORBIDDEN],
     [503, UNAVAILABLE],

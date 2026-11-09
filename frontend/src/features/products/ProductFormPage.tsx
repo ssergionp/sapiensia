@@ -335,8 +335,10 @@ function EditForms({
 
   // Fetches the current Product and replaces what is in both blocks with it.
   async function reloadBoth() {
-    const fresh = await reload();
-    const current = (fresh as { data?: Product }).data ?? product;
+    const fresh = (await reload()) as { isError?: boolean; data?: Product };
+    // A failed fetch keeps the conflict warning and what the user typed.
+    if (fresh.isError || !fresh.data) return;
+    const current = fresh.data;
     dataForm.reset({
       title: current.title,
       description: current.description,
@@ -451,7 +453,7 @@ function EditProduct({
       </main>
     );
   }
-  if (product.isError) {
+  if (product.isError && product.data === undefined) {
     const notFound = product.error instanceof ProductNotFoundError;
     const forbidden = product.error instanceof ProductForbiddenError;
     return (
