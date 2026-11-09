@@ -16,5 +16,9 @@ public record AuditProperties(Duration retention) {
         if (retention == null || retention.compareTo(MIN_RETENTION) < 0) {
             throw new IllegalArgumentException("app.audit.retention must be at least " + MIN_RETENTION);
         }
+        // the cleanup cuts at a UTC day boundary, like the trigger
+        if (retention.toNanos() % Duration.ofDays(1).toNanos() != 0) {
+            throw new IllegalArgumentException("app.audit.retention must be a whole number of days");
+        }
     }
 }

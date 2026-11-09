@@ -26,6 +26,13 @@ class AuditPropertiesTest {
     }
 
     @Test
+    @DisplayName("SEC-037: shouldRejectARetentionThatIsNotWholeDays")
+    void shouldRejectARetentionThatIsNotWholeDays() {
+        assertThatThrownBy(() -> new AuditProperties(Duration.ofDays(365).plusHours(1)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     @DisplayName("SEC-037: shouldRejectAMissingRetention")
     void shouldRejectAMissingRetention() {
         assertThatThrownBy(() -> new AuditProperties(null)).isInstanceOf(IllegalArgumentException.class);

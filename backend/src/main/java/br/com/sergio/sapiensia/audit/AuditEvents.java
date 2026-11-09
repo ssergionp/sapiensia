@@ -34,10 +34,12 @@ class AuditEvents {
                 .update();
     }
 
-    /** The cutoff is computed by the database clock, the same one the trigger uses. */
+    /** Same cutoff as the trigger (V12): start of the current UTC day minus whole days, whatever the session time zone. */
     int deleteOlderThan(Duration retention) {
-        return jdbc.sql("delete from audit_events where occurred_at < now() - make_interval(secs => :seconds)")
-                .param("seconds", retention.toMillis() / 1000.0)
+        return jdbc.sql(
+                        "delete from audit_events where occurred_at <"
+                                + " (date_trunc('day', now() at time zone 'UTC') - make_interval(days => :days)) at time zone 'UTC'")
+                .param("days", (int) retention.toDays())
                 .update();
     }
 }
