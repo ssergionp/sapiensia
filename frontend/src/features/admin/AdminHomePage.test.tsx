@@ -1,5 +1,9 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import {
+  focusManager,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, describe, expect, test, vi } from "vitest";
@@ -7,6 +11,7 @@ import AdminHomePage from "./AdminHomePage";
 
 const ADMIN_URL = "/api/admin/sessions/current";
 const LOGOUT_URL = "/api/sessions/current";
+const RECOVERY_URL = "/api/admin/recovery-codes";
 const LOGOUT_ERROR = "Não foi possível sair agora. Tente novamente.";
 const LONG_EMAIL = `${"a".repeat(64)}@${"b".repeat(63)}.${"c".repeat(63)}.${"d".repeat(55)}.com`;
 
@@ -138,6 +143,64 @@ describe("AdminHomePage", () => {
         ([url, init]) => url === LOGOUT_URL && init?.method === "DELETE",
       ),
     ).toHaveLength(1);
+  });
+
+  async function generateCodes(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(
+      await screen.findByRole("button", { name: "Gerar novos códigos" }),
+    );
+    await user.type(
+      screen.getByLabelText("Código do aplicativo autenticador"),
+      "123456",
+    );
+    await user.click(screen.getByRole("button", { name: "Confirmar e gerar" }));
+  }
+
+  test("401 ao gerar códigos leva a /painel/entrar", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input) === ADMIN_URL) return jsonResponse(200, ADMIN_BODY);
+      if (String(input) === RECOVERY_URL) return jsonResponse(401);
+      return jsonResponse(200);
+    });
+    renderPage();
+
+    await generateCodes(userEvent.setup());
+
+    expect(await screen.findByText("tela de entrada")).toBeInTheDocument();
+  });
+
+  test("a refetch of the session that fails does not hide the new codes", async () => {
+    let sessionFails = false;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input) === ADMIN_URL) {
+        return sessionFails ? jsonResponse(500) : jsonResponse(200, ADMIN_BODY);
+      }
+      if (String(input) === RECOVERY_URL) {
+        return jsonResponse(200, { codes: ["A".repeat(24)] });
+      }
+      return jsonResponse(200);
+    });
+    renderPage();
+
+    await generateCodes(userEvent.setup());
+    await screen.findByRole("heading", {
+      name: "Seus novos códigos de recuperação",
+    });
+    sessionFails = true;
+    act(() => {
+      focusManager.setFocused(false);
+      focusManager.setFocused(true);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(
+      screen.getByRole("heading", { name: "Seus novos códigos de recuperação" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Não foi possível carregar o painel agora. Tente novamente.",
+      ),
+    ).not.toBeInTheDocument();
   });
 
   test("falha ao sair mostra a mensagem e mantém a sessão", async () => {

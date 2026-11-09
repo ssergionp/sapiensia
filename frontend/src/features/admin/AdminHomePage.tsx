@@ -33,7 +33,8 @@ export default function AdminHomePage() {
     );
   }
 
-  if (session.isError) {
+  // A failed background refetch keeps the previous data; it must not replace a screen that shows one-time codes.
+  if (session.isError && session.data === undefined) {
     return (
       <main className="p-8">
         <p role="alert" className="text-destructive">
