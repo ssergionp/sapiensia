@@ -166,7 +166,7 @@ class AdminMfaBypassTest {
 
         HttpResponse<String> response = switch (method) {
             case "GET" -> browser.get(path);
-            case "POST" -> browser.post(path, "{\"code\":\"000000\"}");
+            case "POST" -> browser.post(path, "{\"code\":\"" + wrongCode() + "\"}");
             case "DELETE" -> browser.delete(path);
             default -> throw new IllegalArgumentException(method);
         };
@@ -185,10 +185,28 @@ class AdminMfaBypassTest {
     void shouldRefuseTheRegenerationWithoutTheCsrfToken(State state) throws Exception {
         AdminBrowser browser = browserIn(state);
 
-        HttpResponse<String> response = browser.postWithoutCsrf(REGENERATE, "{\"code\":\"000000\"}");
+        HttpResponse<String> response = browser.postWithoutCsrf(REGENERATE, "{\"code\":\"" + wrongCode() + "\"}");
 
         assertThat(response.statusCode()).isEqualTo(403);
         assertThat(response.body()).doesNotContain("\"codes\"");
+    }
+
+    @ParameterizedTest(name = "{0} without CSRF -> 403")
+    @EnumSource(
+            value = State.class,
+            names = {"ANONYMOUS", "CUSTOMER", "PENDING", "FULL_ADMINISTRATOR"})
+    @DisplayName("SEC-008: o código de recuperação sem o token CSRF dá 403 em qualquer estado")
+    void shouldRefuseTheRecoveryCodeWithoutTheCsrfToken(State state) throws Exception {
+        AdminBrowser browser = browserIn(state);
+
+        HttpResponse<String> response = browser.postWithoutCsrf(RECOVERY, "{\"code\":\"" + wrongCode() + "\"}");
+
+        assertThat(response.statusCode()).isEqualTo(403);
+    }
+
+    /** A 6-digit code that is not valid now (a fixed "000000" would be valid once in a million runs). */
+    private String wrongCode() {
+        return AdminMfaTestSupport.wrongCodeAt(secret, clock.instant());
     }
 
     @Test
