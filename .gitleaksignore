@@ -25,3 +25,6 @@ ec7b05dec5cffac1173d3863c24b951304cdf00c:backend/src/test/java/br/com/sergio/sap
 0ebcf1b85b83b8ac5251faf5bfa8e55bc7006af5:backend/src/test/java/br/com/sergio/sapiensia/security/TotpTest.java:generic-api-key:110
 # The public RFC 6238 test secret in a file that only exists in the history (9772ffe, deleted in 8ee78dc). Not a secret.
 9772ffe0f2288e3cd903fea9f2d1fee2c45f7e9f:frontend/src/test/totp-e2e-helper.test.ts:generic-api-key:4
+# The public RFC 6238 test secret in the e2e TOTP helper test, flagged in the #15 squash commit on main (not a secret).
+# The final line carries "// gitleaks:allow".
+9f1c87ebee81de965e72ba50bfe1dd80affe283e:frontend/e2e/totp.test.ts:generic-api-key:5

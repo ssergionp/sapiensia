@@ -112,7 +112,9 @@ class AdminRouteDenyByDefaultTest {
         assertThat(administrator.get("/api/admin/probe").statusCode())
                 .as("administrator probe")
                 .isEqualTo(403);
-        for (String path : new String[] {"/api/admin", "/api/administrators"}) {
+        // the recovery code route is open only to the pending state
+        for (String path :
+                new String[] {"/api/admin", "/api/administrators", "/api/admin/sessions/mfa/recovery-code"}) {
             assertThat(anonymous.post(path, "{}").statusCode())
                     .as("anonymous " + path)
                     .isEqualTo(401);
@@ -123,5 +125,19 @@ class AdminRouteDenyByDefaultTest {
                     .as("administrator " + path)
                     .isEqualTo(403);
         }
+        // the regeneration has its own rule (RECOVERY_CODES_MANAGE): only the full Administrator reaches it, and a
+        // missing code is a code failure
+        String regenerate = "/api/admin/recovery-codes";
+        assertThat(anonymous.post(regenerate, "{}").statusCode())
+                .as("anonymous")
+                .isEqualTo(401);
+        assertThat(customer.post(regenerate, "{}").statusCode()).as("customer").isEqualTo(403);
+        assertThat(administrator.post(regenerate, "{}").statusCode())
+                .as("administrator")
+                .isEqualTo(400);
+        assertThat(anonymous.get(regenerate).statusCode()).as("anonymous GET").isEqualTo(401);
+        assertThat(administrator.get(regenerate).statusCode())
+                .as("administrator GET")
+                .isEqualTo(403);
     }
 }

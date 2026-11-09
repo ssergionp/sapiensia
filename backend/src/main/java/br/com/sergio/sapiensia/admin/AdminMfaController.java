@@ -49,13 +49,27 @@ class AdminMfaController {
      * with Retry-After while locked; 409 when the account has no active MFA; 503 when the check cannot be made.
      */
     @PostMapping
-    ResponseEntity<Void> verify(
+    ResponseEntity<?> verify(
             @RequestBody MfaCodeRequest body,
             Authentication authentication,
             HttpServletRequest request,
             HttpServletResponse response) {
         var pending = (PendingAdministrator) authentication.getPrincipal();
         return answer(pending, mfa.verify(pending, body.code(), clientIp.resolve(request)), request, response);
+    }
+
+    /**
+     * A one-time recovery code instead of the TOTP: the same answers as {@link #verify}, and the new session ends
+     * every other session of the account (SEC-006). Hyphens, spaces and lower case are accepted.
+     */
+    @PostMapping("/recovery-code")
+    ResponseEntity<?> recover(
+            @RequestBody MfaCodeRequest body,
+            Authentication authentication,
+            HttpServletRequest request,
+            HttpServletResponse response) {
+        var pending = (PendingAdministrator) authentication.getPrincipal();
+        return answer(pending, mfa.recover(pending, body.code(), clientIp.resolve(request)), request, response);
     }
 
     /** Whether the Administrator already has an active authenticator (the SPA picks the enrollment or the code). */
@@ -83,12 +97,13 @@ class AdminMfaController {
     }
 
     /**
-     * 204 with a new session holding the full Administrator once the code confirms the secret enrolled in this same
-     * session; 400 CODE_INVALID; 429 with Retry-After; 409 when MFA is already active, or no enrollment was started in
-     * this session, or another session has replaced it since.
+     * 200 with the 10 recovery codes (shown only here, never cached) and a new session holding the full Administrator
+     * once the code confirms the secret enrolled in this same session; 400 CODE_INVALID; 429 with Retry-After; 409
+     * when MFA is already active, or no enrollment was started in this session, or another session has replaced it
+     * since; 503 when the activation cannot be made or audited (then nothing is activated).
      */
     @PostMapping("/enrollment/confirmation")
-    ResponseEntity<Void> confirm(
+    ResponseEntity<?> confirm(
             @RequestBody MfaCodeRequest body,
             Authentication authentication,
             HttpSession session,
@@ -110,7 +125,7 @@ class AdminMfaController {
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
     }
 
-    private ResponseEntity<Void> answer(
+    private ResponseEntity<?> answer(
             PendingAdministrator pending,
             AdministratorMfa.Outcome outcome,
             HttpServletRequest request,
@@ -120,7 +135,8 @@ class AdminMfaController {
                 var principal = new AdministratorPrincipal(
                         pending.id(),
                         pending.email(),
-                        pending.sessionVersion(),
+                        // a recovery code ends the other sessions: the new one carries the new version
+                        outcome.sessionVersion().orElse(pending.sessionVersion()),
                         EnumSet.allOf(Capability.class),
                         pending.passwordVerifiedAt(),
                         clock.instant());
@@ -130,7 +146,11 @@ class AdminMfaController {
                         sessionStrategy,
                         request,
                         response);
-                yield ResponseEntity.noContent().build();
+                yield outcome.codes().isEmpty()
+                        ? ResponseEntity.noContent().build()
+                        : ResponseEntity.ok()
+                                .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                                .body(new RecoveryCodeList(outcome.codes()));
             }
             case REJECTED -> throw new InvalidMfaCodeException();
             case NOT_ENROLLED -> ResponseEntity.status(HttpStatus.CONFLICT).build();

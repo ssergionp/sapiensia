@@ -40,6 +40,20 @@ const VERIFY_TITLE = "Verificação em duas etapas";
 const WRONG_CODE =
   "Código incorreto ou vencido. Confira o aplicativo e tente de novo.";
 const HIDDEN = "[oculto]";
+const CODES_TITLE = "Guarde seus códigos de recuperação";
+const CODES_CONTINUE = "Continuar para o painel";
+const CODES_SAVED = "Guardei meus códigos em um lugar seguro";
+const CODES_LIST = "Códigos de recuperação";
+const USE_RECOVERY = "Perdeu o celular? Use um código de recuperação";
+const RECOVERY_TITLE = "Entrar com código de recuperação";
+const RECOVERY_LABEL = "Código de recuperação";
+const RECOVERY_WRONG =
+  "Código de recuperação incorreto ou já usado. Confira e tente de novo.";
+const REGENERATE = "Gerar novos códigos";
+const REGENERATE_LABEL = "Código do aplicativo autenticador";
+const REGENERATE_SUBMIT = "Confirmar e gerar";
+const REGENERATED_TITLE = "Seus novos códigos de recuperação";
+const REGENERATED_DONE = "Concluir";
 
 // Playwright records the value of locator.fill() in the step title, and the HTML report keeps steps even with
 // trace off. Setting the value from the page keeps the password and the codes out of every step and call log.
@@ -172,7 +186,7 @@ async function enterCode(
   code: string,
   outcome: () => Promise<void>,
 ) {
-  const field = page.getByLabel("Código");
+  const field = page.getByLabel("Código", { exact: true });
   try {
     await fillSecret(field, code);
     await page
@@ -202,12 +216,87 @@ async function readAndHideKey(page: Page): Promise<string> {
   return secret;
 }
 
+// Reads the recovery codes from the list and hides them in the DOM in the same call, so that no failure snapshot has
+// them. The codes stay only in the memory of the test.
+async function readAndHideCodes(page: Page): Promise<string[]> {
+  const items = await page
+    .getByRole("list", { name: CODES_LIST })
+    .getByRole("listitem")
+    .evaluateAll((els, hidden) => {
+      const values = els.map((el) => el.textContent ?? "");
+      for (const el of els) el.textContent = hidden;
+      return values;
+    }, HIDDEN);
+  const codes = items.map((c) => c.replace(/[\s-]/g, ""));
+  if (codes.length !== 10 || !codes.every((c) => /^[A-Z2-7]{24}$/.test(c))) {
+    throw new Error("The recovery codes on the screen are not 10 valid codes");
+  }
+  return codes;
+}
+
+// Confirms that the codes were saved (the button is disabled until then) and clicks the final button.
+async function acknowledgeCodes(page: Page, doneLabel: string) {
+  const done = page.getByRole("button", { name: doneLabel, exact: true });
+  await expect(done).toBeDisabled();
+  await page.getByLabel(CODES_SAVED).check();
+  await expect(done).toBeEnabled();
+  await done.click();
+}
+
+// Password, then the recovery code instead of the app code. Whatever happens, the field is cleared at the end.
+async function recoveryLogin(
+  page: Page,
+  password: string,
+  code: string,
+  outcome: () => Promise<void>,
+) {
+  expect(await tryPassword(page, password), "the password was refused").toBe(
+    true,
+  );
+  await page.getByRole("button", { name: USE_RECOVERY }).click();
+  await expect(
+    page.getByRole("heading", { name: RECOVERY_TITLE, exact: true }),
+  ).toBeVisible();
+  const field = page.getByLabel(RECOVERY_LABEL, { exact: true });
+  try {
+    await fillSecret(field, code);
+    await page.getByRole("button", { name: "Entrar", exact: true }).click();
+    await outcome();
+  } finally {
+    await clearSecret(field);
+  }
+}
+
+// In the panel: confirms with a fresh app code and returns the 10 new recovery codes.
+async function regenerateCodes(page: Page, secret: string): Promise<string[]> {
+  const stored = await readStoredTotp();
+  await waitForStepAfter(stored?.lastStep ?? 0);
+  const step = currentStep();
+  await writeStoredTotp({ secret, lastStep: step });
+  await page.getByRole("button", { name: REGENERATE, exact: true }).click();
+  const field = page.getByLabel(REGENERATE_LABEL, { exact: true });
+  try {
+    await fillSecret(field, totpCode(secret, step));
+    await page
+      .getByRole("button", { name: REGENERATE_SUBMIT, exact: true })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: REGENERATED_TITLE, exact: true }),
+    ).toBeVisible();
+  } finally {
+    await clearSecret(field);
+  }
+  const codes = await readAndHideCodes(page);
+  await acknowledgeCodes(page, REGENERATED_DONE);
+  return codes;
+}
+
 test("SEC-001: o Administrador entra com senha e código e o Cliente é barrado", async ({
   page,
   baseURL,
   browser,
 }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(300_000);
   const host = new URL(baseURL ?? "").hostname;
   if (host !== "localhost" && host !== "127.0.0.1") {
     throw new Error(
@@ -247,7 +336,16 @@ test("SEC-001: o Administrador entra com senha e código e o Cliente é barrado"
     // Saved before the click, so a failure after the activation does not lose the secret. If the activation
     // does not happen, the next run sees the enrollment page again and overwrites it.
     await writeStoredTotp({ secret, lastStep: step });
-    await enterCode(page, totpCode(secret, step), panelShown);
+    // The recovery codes come first; the button to the panel stays disabled until they are confirmed as saved.
+    await enterCode(page, totpCode(secret, step), async () => {
+      await expect(
+        page.getByRole("heading", { name: CODES_TITLE, exact: true }),
+      ).toBeVisible();
+      const enrollmentCodes = await readAndHideCodes(page);
+      expect(new Set(enrollmentCodes).size).toBe(10);
+      await acknowledgeCodes(page, CODES_CONTINUE);
+      await panelShown();
+    });
   } else {
     // 3. MFA active: the stored secret is needed.
     const totp = await readStoredTotp();
@@ -278,6 +376,38 @@ test("SEC-001: o Administrador entra com senha e código e o Cliente é barrado"
   const nextStep = currentStep();
   await writeStoredTotp({ secret, lastStep: nextStep });
   await enterCode(page, totpCode(secret, nextStep), panelShown);
+  await page.getByRole("button", { name: "Sair" }).click();
+  await expect(page).toHaveURL(/\/painel\/entrar$/);
+
+  // 6b. Recovery codes. New codes from the panel (needs a fresh app code), then each code works once.
+  expect(await tryPassword(page, password), "the password was refused").toBe(
+    true,
+  );
+  await waitForStepAfter((await readStoredTotp())?.lastStep ?? 0);
+  const loginStep = currentStep();
+  await writeStoredTotp({ secret, lastStep: loginStep });
+  await enterCode(page, totpCode(secret, loginStep), panelShown);
+  const firstCodes = await regenerateCodes(page, secret);
+
+  // A recovery code opens the panel; the same code does not work a second time.
+  await page.getByRole("button", { name: "Sair" }).click();
+  await expect(page).toHaveURL(/\/painel\/entrar$/);
+  await recoveryLogin(page, password, firstCodes[0], panelShown);
+  await page.getByRole("button", { name: "Sair" }).click();
+  await expect(page).toHaveURL(/\/painel\/entrar$/);
+  const rejected = async () => {
+    await expect(page.getByText(RECOVERY_WRONG)).toBeVisible();
+    await expect(painel).toBeHidden();
+  };
+  await recoveryLogin(page, password, firstCodes[0], rejected);
+
+  // New codes from the panel: the old ones stop working and a new one works.
+  await recoveryLogin(page, password, firstCodes[1], panelShown);
+  const secondCodes = await regenerateCodes(page, secret);
+  await page.getByRole("button", { name: "Sair" }).click();
+  await expect(page).toHaveURL(/\/painel\/entrar$/);
+  await recoveryLogin(page, password, firstCodes[2], rejected);
+  await recoveryLogin(page, password, secondCodes[0], panelShown);
   await page.getByRole("button", { name: "Sair" }).click();
   await expect(page).toHaveURL(/\/painel\/entrar$/);
 

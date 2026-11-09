@@ -143,7 +143,7 @@ class AdminMfaEnrollmentTest {
         assertThat(second).isNotEqualTo(first);
 
         assertThat(browser.post(CONFIRMATION, body(code(first))).statusCode()).isEqualTo(400);
-        assertThat(browser.post(CONFIRMATION, body(code(second))).statusCode()).isEqualTo(204);
+        assertThat(browser.post(CONFIRMATION, body(code(second))).statusCode()).isEqualTo(200);
     }
 
     @Test
@@ -174,7 +174,7 @@ class AdminMfaEnrollmentTest {
 
         HttpResponse<String> response = browser.post(CONFIRMATION, body(code));
 
-        assertThat(response.statusCode()).isEqualTo(204);
+        assertThat(response.statusCode()).isEqualTo(200);
         assertThat(browser.cookie("JSESSIONID")).isNotBlank().isNotEqualTo(pendingSession);
         assertThat(browser.cookie("XSRF-TOKEN")).isNotBlank().isNotEqualTo(pendingXsrf);
         assertThat(browser.get(CURRENT).statusCode()).isEqualTo(200);
@@ -273,7 +273,7 @@ class AdminMfaEnrollmentTest {
         assertThat(first.get(CURRENT).statusCode()).isEqualTo(401);
 
         assertThat(second.post(CONFIRMATION, body(code(replacing))).statusCode())
-                .isEqualTo(204);
+                .isEqualTo(200);
         assertThat(second.get(CURRENT).statusCode()).isEqualTo(200);
     }
 
@@ -295,7 +295,7 @@ class AdminMfaEnrollmentTest {
         assertThat(browser.postWithoutCsrf(MFA, body(code)).statusCode()).isEqualTo(403);
         assertThat(browser.get(CURRENT).statusCode()).isEqualTo(401);
         // the same session and the same code still work with the token: nothing was spent
-        assertThat(browser.post(CONFIRMATION, body(code)).statusCode()).isEqualTo(204);
+        assertThat(browser.post(CONFIRMATION, body(code)).statusCode()).isEqualTo(200);
     }
 
     @Test
@@ -347,7 +347,7 @@ class AdminMfaEnrollmentTest {
             pool.shutdownNow();
         }
 
-        assertThat(statuses).containsExactly(204, 409);
+        assertThat(statuses).containsExactly(200, 409);
     }
 
     @Test

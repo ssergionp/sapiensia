@@ -32,6 +32,13 @@ management:
   endpoint:
     health:
       show-details: never
+logging:
+  level:
+    # at DEBUG/TRACE this logs the typed e-mail ("Failed to find user '<e-mail>'"), forbidden by ADR-0006
+    org.springframework.security.authentication.dao.DaoAuthenticationProvider: INFO
+  pattern:
+    # the correlation ID of the request (CorrelationIdFilter) on every console line; the prod JSON format has it as an MDC field
+    correlation: "[%X{correlationId:-}] "
 app:
   email:
     from: "SapiensIA <nao-responda@sapiensia.app.br>"
@@ -59,6 +66,9 @@ app:
     required: false
     # how long the "MFA pending" state lasts after the correct password; then the code is refused and the login restarts
     mfa-pending-ttl: PT5M
+  audit:
+    # audit events older than this are deleted by the daily cleanup; never below P365D (the database trigger floor)
+    retention: P365D
   mfa:
     # Base64 of 32 bytes (secret APP_MFA_ENCRYPTION_KEY); no default, so a missing or invalid value stops the application
     encryption-key: ${APP_MFA_ENCRYPTION_KEY}

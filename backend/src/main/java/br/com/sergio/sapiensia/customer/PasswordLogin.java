@@ -44,6 +44,18 @@ public class PasswordLogin {
     }
 
     /**
+     * Told of a wrong password (or unknown account) of an attempt the limiter admitted; never of a lock (429) or of an
+     * input refused before the limiter. It gets no e-mail on purpose: the typed text is untrusted.
+     */
+    @FunctionalInterface
+    public interface WrongPassword {
+        void notice(HttpServletRequest request);
+
+        /** For an account kind that does nothing with it (the Customer). */
+        WrongPassword NONE = request -> {};
+    }
+
+    /**
      * How one kind of account logs in. {@code accountKey} turns the typed e-mail into the limiter's account key, with a
      * prefix of its own and the e-mail normalized ({@link LoginAttemptLimiter#customerKey} for customers, "admin:" for
      * the panel); {@code subject} and {@code log} are only for the 503 log line.
@@ -54,7 +66,8 @@ public class PasswordLogin {
             UnaryOperator<String> accountKey,
             String subject,
             Logger log,
-            AfterPassword afterPassword) {}
+            AfterPassword afterPassword,
+            WrongPassword wrongPassword) {}
 
     private final LoginAttemptLimiter limiter;
     private final ClientIpResolver clientIp;
@@ -112,6 +125,7 @@ public class PasswordLogin {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
         } catch (AuthenticationException e) {
             // a wrong password keeps the failure that was reserved for it
+            variant.wrongPassword().notice(request);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         } catch (RuntimeException e) {
             // an unexpected error is not a failure of the account: give the reserved place back
@@ -119,7 +133,14 @@ public class PasswordLogin {
             throw e;
         }
         // checked after the password, so a wrong password and a refused account cost and answer the same
-        Optional<Supplier<UserDetails>> accepted = variant.afterPassword().accept(authentication, request, response);
+        Optional<Supplier<UserDetails>> accepted;
+        try {
+            accepted = variant.afterPassword().accept(authentication, request, response);
+        } catch (RuntimeException e) {
+            // e.g. the panel's audit is down (503): not a failure of the account, so the reserved place goes back
+            limiter.release(accountKey, admission);
+            throw e;
+        }
         if (accepted.isEmpty()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }

@@ -91,10 +91,11 @@ class AdminSessionTest {
         return customerEmail;
     }
 
-    private static Map<String, String> headersWithoutDate(HttpResponse<?> response) {
+    // Date and X-Correlation-Id change on every response by design; every other header must be identical
+    private static Map<String, String> headersWithoutPerRequestValues(HttpResponse<?> response) {
         Map<String, String> headers = new TreeMap<>();
         response.headers().map().forEach((name, values) -> {
-            if (!name.equalsIgnoreCase("date")) {
+            if (!name.equalsIgnoreCase("date") && !name.equalsIgnoreCase("x-correlation-id")) {
                 headers.put(name.toLowerCase(), String.join(",", values));
             }
         });
@@ -117,7 +118,9 @@ class AdminSessionTest {
         assertThat(browser.cookie("XSRF-TOKEN")).isNotBlank().isNotEqualTo(xsrfBefore);
         HttpResponse<String> current = browser.get(CURRENT);
         assertThat(current.statusCode()).isEqualTo(200);
-        assertThat(current.body()).isEqualTo("{\"email\":\"" + email + "\",\"capabilities\":[\"PANEL_ACCESS\"]}");
+        assertThat(current.body())
+                .isEqualTo(
+                        "{\"email\":\"" + email + "\",\"capabilities\":[\"PANEL_ACCESS\",\"RECOVERY_CODES_MANAGE\"]}");
     }
 
     @Test
@@ -152,7 +155,7 @@ class AdminSessionTest {
             assertThat(response.statusCode()).isEqualTo(401);
             assertThat(response.body()).isEmpty();
             assertThat(response.headers().allValues("Set-Cookie")).isEmpty();
-            assertThat(headersWithoutDate(response)).isEqualTo(headersWithoutDate(wrongEmail));
+            assertThat(headersWithoutPerRequestValues(response)).isEqualTo(headersWithoutPerRequestValues(wrongEmail));
         }
         assertThat(a.cookie("JSESSIONID")).isNull();
     }
@@ -399,7 +402,9 @@ class AdminSessionTest {
                 .isEqualTo(204);
         HttpResponse<String> current = browser.get(CURRENT);
         assertThat(current.statusCode()).isEqualTo(200);
-        assertThat(current.body()).isEqualTo("{\"email\":\"" + email + "\",\"capabilities\":[\"PANEL_ACCESS\"]}");
+        assertThat(current.body())
+                .isEqualTo(
+                        "{\"email\":\"" + email + "\",\"capabilities\":[\"PANEL_ACCESS\",\"RECOVERY_CODES_MANAGE\"]}");
     }
 
     @Test

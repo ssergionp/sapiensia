@@ -14,6 +14,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -35,6 +36,8 @@ class AdminMfaBypassTest {
     private static final String MFA = "/api/admin/sessions/mfa";
     private static final String ENROLLMENT = MFA + "/enrollment";
     private static final String CONFIRMATION = ENROLLMENT + "/confirmation";
+    private static final String RECOVERY = MFA + "/recovery-code";
+    private static final String REGENERATE = "/api/admin/recovery-codes";
 
     enum State {
         ANONYMOUS,
@@ -138,7 +141,21 @@ class AdminMfaBypassTest {
                 Arguments.of(State.PENDING_EXPIRED, "GET", MFA, 401),
                 Arguments.of(State.PENDING_EXPIRED, "POST", ENROLLMENT, 401),
                 Arguments.of(State.PENDING_EXPIRED, "POST", CONFIRMATION, 401),
-                Arguments.of(State.FULL_ADMINISTRATOR, "GET", "/api/admin/qualquer-coisa", 403));
+                Arguments.of(State.FULL_ADMINISTRATOR, "GET", "/api/admin/qualquer-coisa", 403),
+                Arguments.of(State.ANONYMOUS, "POST", RECOVERY, 401),
+                Arguments.of(State.CUSTOMER, "POST", RECOVERY, 403),
+                Arguments.of(State.FULL_ADMINISTRATOR, "POST", RECOVERY, 403),
+                Arguments.of(State.PENDING_EXPIRED, "POST", RECOVERY, 401),
+                // open to the pending state: a wrong code is a code failure, not a denied route
+                Arguments.of(State.PENDING, "POST", RECOVERY, 400),
+                // the regeneration needs the full login (capability and both factors) plus a fresh code
+                Arguments.of(State.ANONYMOUS, "POST", REGENERATE, 401),
+                Arguments.of(State.CUSTOMER, "POST", REGENERATE, 403),
+                // a pending Administrator denied anywhere gets 401 (SecurityConfig.accessDeniedHandler)
+                Arguments.of(State.PENDING, "POST", REGENERATE, 401),
+                Arguments.of(State.PENDING_EXPIRED, "POST", REGENERATE, 401),
+                // reached: a wrong code is a code failure, not a denied route
+                Arguments.of(State.FULL_ADMINISTRATOR, "POST", REGENERATE, 400));
     }
 
     @ParameterizedTest(name = "{0} {1} {2} -> {3}")
@@ -149,7 +166,7 @@ class AdminMfaBypassTest {
 
         HttpResponse<String> response = switch (method) {
             case "GET" -> browser.get(path);
-            case "POST" -> browser.post(path, "{\"code\":\"000000\"}");
+            case "POST" -> browser.post(path, "{\"code\":\"" + wrongCode() + "\"}");
             case "DELETE" -> browser.delete(path);
             default -> throw new IllegalArgumentException(method);
         };
@@ -158,6 +175,38 @@ class AdminMfaBypassTest {
         if (expected != 200) {
             assertThat(response.body()).doesNotContain(email).doesNotContain("PANEL_ACCESS");
         }
+    }
+
+    @ParameterizedTest(name = "{0} without CSRF -> 403")
+    @EnumSource(
+            value = State.class,
+            names = {"ANONYMOUS", "CUSTOMER", "PENDING", "FULL_ADMINISTRATOR"})
+    @DisplayName("SEC-008: a geração de códigos sem o token CSRF dá 403 em qualquer estado")
+    void shouldRefuseTheRegenerationWithoutTheCsrfToken(State state) throws Exception {
+        AdminBrowser browser = browserIn(state);
+
+        HttpResponse<String> response = browser.postWithoutCsrf(REGENERATE, "{\"code\":\"" + wrongCode() + "\"}");
+
+        assertThat(response.statusCode()).isEqualTo(403);
+        assertThat(response.body()).doesNotContain("\"codes\"");
+    }
+
+    @ParameterizedTest(name = "{0} without CSRF -> 403")
+    @EnumSource(
+            value = State.class,
+            names = {"ANONYMOUS", "CUSTOMER", "PENDING", "FULL_ADMINISTRATOR"})
+    @DisplayName("SEC-008: o código de recuperação sem o token CSRF dá 403 em qualquer estado")
+    void shouldRefuseTheRecoveryCodeWithoutTheCsrfToken(State state) throws Exception {
+        AdminBrowser browser = browserIn(state);
+
+        HttpResponse<String> response = browser.postWithoutCsrf(RECOVERY, "{\"code\":\"" + wrongCode() + "\"}");
+
+        assertThat(response.statusCode()).isEqualTo(403);
+    }
+
+    /** A 6-digit code that is not valid now (a fixed "000000" would be valid once in a million runs). */
+    private String wrongCode() {
+        return AdminMfaTestSupport.wrongCodeAt(secret, clock.instant());
     }
 
     @Test

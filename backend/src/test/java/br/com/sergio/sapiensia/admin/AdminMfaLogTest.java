@@ -61,6 +61,7 @@ class AdminMfaLogTest {
     private static final String CONFIRMATION = ENROLLMENT + "/confirmation";
     private static final Pattern SECRET = Pattern.compile("\"secret\":\"([A-Z2-7]{32})\"");
     private static final Pattern OTPAUTH = Pattern.compile("\"otpauthUri\":\"([^\"]+)\"");
+    private static final Pattern RECOVERY_CODE = Pattern.compile("\"([A-Z2-7]{24})\"");
 
     @LocalServerPort
     int port;
@@ -128,7 +129,14 @@ class AdminMfaLogTest {
         String otpauth = uriMatcher.group(1);
         String confirmCode = AdminMfaTestSupport.codeAt(secret, clock.instant());
         codes.add(confirmCode);
-        assertThat(first.post(CONFIRMATION, body(confirmCode)).statusCode()).isEqualTo(204);
+        HttpResponse<String> confirmation = first.post(CONFIRMATION, body(confirmCode));
+        assertThat(confirmation.statusCode()).isEqualTo(200);
+        Matcher recoveryMatcher = RECOVERY_CODE.matcher(confirmation.body());
+        List<String> recoveryCodes = new ArrayList<>();
+        while (recoveryMatcher.find()) {
+            recoveryCodes.add(recoveryMatcher.group(1));
+        }
+        assertThat(recoveryCodes).hasSize(10);
 
         // a correct login on a fresh step
         clock.advance(Duration.ofSeconds(30));
@@ -173,6 +181,12 @@ class AdminMfaLogTest {
         forbidden.put("the Administrator e-mail", email);
         forbidden.put("the Administrator e-mail, URL-encoded", email.replace("@", "%40"));
         forbidden.put("the password", PASSWORD);
+        for (int i = 0; i < recoveryCodes.size(); i++) {
+            String recoveryCode = recoveryCodes.get(i);
+            forbidden.put("recovery code " + i, recoveryCode);
+            forbidden.put("recovery code " + i + " in lower case", recoveryCode.toLowerCase(java.util.Locale.ROOT));
+            forbidden.put("the hash of recovery code " + i, RecoveryCodes.hash(recoveryCode));
+        }
 
         String flow = output.getAll();
         assertThat(flow).as("the flow logged something").isNotBlank();
@@ -226,11 +240,17 @@ class AdminMfaLogTest {
                 new PendingAdministrator(id, email, 0, Instant.now()).toString(),
                 new AdministratorPrincipal(id, email, 0, EnumSet.allOf(Capability.class), Instant.now(), Instant.now())
                         .toString(),
-                new MfaProperties(key).toString());
+                new MfaProperties(key).toString(),
+                new RecoveryCodeList(List.of("ABCDEFGHIJKLMNOPQRSTUVWX")).toString(),
+                AdministratorMfa.Outcome.withCodes(List.of("ABCDEFGHIJKLMNOPQRSTUVWX"))
+                        .toString(),
+                new RecoveryCodes.Unused(id, RecoveryCodes.hash("ABCDEFGHIJKLMNOPQRSTUVWX")).toString());
 
         for (String text : shown) {
             assertThat(text)
                     .doesNotContain("123456")
+                    .doesNotContain("ABCDEFGHIJKLMNOPQRSTUVWX")
+                    .doesNotContain(RecoveryCodes.hash("ABCDEFGHIJKLMNOPQRSTUVWX"))
                     .doesNotContain(base32)
                     .doesNotContain(uri)
                     .doesNotContain(key)

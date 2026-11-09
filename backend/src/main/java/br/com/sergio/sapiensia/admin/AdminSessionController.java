@@ -1,5 +1,11 @@
 package br.com.sergio.sapiensia.admin;
 
+import br.com.sergio.sapiensia.audit.AuditAction;
+import br.com.sergio.sapiensia.audit.AuditEntry;
+import br.com.sergio.sapiensia.audit.AuditLog;
+import br.com.sergio.sapiensia.audit.AuditObject;
+import br.com.sergio.sapiensia.audit.AuditResult;
+import br.com.sergio.sapiensia.customer.ClientIpResolver;
 import br.com.sergio.sapiensia.customer.Emails;
 import br.com.sergio.sapiensia.customer.PasswordLogin;
 import jakarta.servlet.http.HttpServletRequest;
@@ -13,6 +19,8 @@ import java.util.Optional;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -21,6 +29,10 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.authentication.session.SessionFixationProtectionStrategy;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionException;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -42,11 +54,23 @@ class AdminSessionController {
 
     private final PasswordLogin passwordLogin;
     private final PasswordLogin.Variant loginVariant;
+    private final AuditLog audit;
+    private final ClientIpResolver clientIp;
+    private final TransactionTemplate transaction;
     private final Clock clock;
 
     AdminSessionController(
-            Administrators administrators, PasswordEncoder passwordEncoder, PasswordLogin passwordLogin, Clock clock) {
+            Administrators administrators,
+            PasswordEncoder passwordEncoder,
+            PasswordLogin passwordLogin,
+            AuditLog audit,
+            ClientIpResolver clientIp,
+            PlatformTransactionManager transactionManager,
+            Clock clock) {
         this.passwordLogin = passwordLogin;
+        this.audit = audit;
+        this.clientIp = clientIp;
+        this.transaction = new TransactionTemplate(transactionManager);
         this.clock = clock;
         DaoAuthenticationProvider provider =
                 new DaoAuthenticationProvider(new AdministratorUserDetailsService(administrators));
@@ -57,7 +81,15 @@ class AdminSessionController {
                 AdminSessionController::accountKey,
                 "administrator",
                 log,
-                this::accept);
+                this::accept,
+                // nobody is identified: the typed e-mail may be a Customer's, or even the password in the wrong field
+                request -> audit.recordIndependent(new AuditEntry(
+                        AuditAction.ADMIN_PASSWORD_LOGIN,
+                        AuditResult.FAILURE,
+                        null,
+                        null,
+                        null,
+                        clientIp.resolve(request))));
     }
 
     /**
@@ -87,11 +119,30 @@ class AdminSessionController {
         return passwordLogin.login(loginVariant, login.email(), login.password(), request, response);
     }
 
-    private Optional<Supplier<UserDetails>> accept(
+    Optional<Supplier<UserDetails>> accept(
             Authentication authentication, HttpServletRequest request, HttpServletResponse response) {
         var loaded = (AdministratorUserDetailsService.Loaded) authentication.getPrincipal();
+        // the step writes nothing else, so its event gets a short transaction of its own, before the pending session
+        // is opened: without the trail there is no session (503)
+        try {
+            transaction.executeWithoutResult(status -> audit.recordInTransaction(new AuditEntry(
+                    AuditAction.ADMIN_PASSWORD_LOGIN,
+                    AuditResult.SUCCESS,
+                    loaded.id(),
+                    AuditObject.ADMINISTRATOR,
+                    loaded.id(),
+                    clientIp.resolve(request))));
+        } catch (DataAccessException | TransactionException | IllegalStateException e) {
+            log.error("Login unavailable: the audit failed ({})", e.getClass().getName());
+            throw new AuditUnavailableException();
+        }
         return Optional.of(
                 () -> new PendingAdministrator(loaded.id(), loaded.email(), loaded.sessionVersion(), clock.instant()));
+    }
+
+    @ExceptionHandler(AuditUnavailableException.class)
+    ResponseEntity<Void> auditUnavailable() {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
     }
 
     @GetMapping("/current")
