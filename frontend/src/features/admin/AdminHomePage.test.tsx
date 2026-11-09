@@ -194,7 +194,9 @@ describe("AdminHomePage", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     expect(
-      screen.getByRole("heading", { name: "Seus novos códigos de recuperação" }),
+      screen.getByRole("heading", {
+        name: "Seus novos códigos de recuperação",
+      }),
     ).toBeInTheDocument();
     expect(
       screen.queryByText(
