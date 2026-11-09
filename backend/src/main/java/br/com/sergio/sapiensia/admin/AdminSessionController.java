@@ -119,7 +119,7 @@ class AdminSessionController {
         return passwordLogin.login(loginVariant, login.email(), login.password(), request, response);
     }
 
-    private Optional<Supplier<UserDetails>> accept(
+    Optional<Supplier<UserDetails>> accept(
             Authentication authentication, HttpServletRequest request, HttpServletResponse response) {
         var loaded = (AdministratorUserDetailsService.Loaded) authentication.getPrincipal();
         // the step writes nothing else, so its event gets a short transaction of its own, before the pending session
@@ -132,7 +132,7 @@ class AdminSessionController {
                     AuditObject.ADMINISTRATOR,
                     loaded.id(),
                     clientIp.resolve(request))));
-        } catch (DataAccessException | TransactionException e) {
+        } catch (DataAccessException | TransactionException | IllegalStateException e) {
             log.error("Login unavailable: the audit failed ({})", e.getClass().getName());
             throw new AuditUnavailableException();
         }
