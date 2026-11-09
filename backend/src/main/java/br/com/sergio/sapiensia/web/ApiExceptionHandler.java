@@ -5,6 +5,7 @@ import br.com.sergio.sapiensia.customer.IncorrectConfirmationPasswordException;
 import br.com.sergio.sapiensia.customer.InvalidConfirmationTokenException;
 import br.com.sergio.sapiensia.customer.PasswordCompromisedException;
 import br.com.sergio.sapiensia.customer.WrongPasswordLimitReachedException;
+import br.com.sergio.sapiensia.product.ProductNotFoundException;
 import java.util.Map;
 import java.util.TreeMap;
 import org.springframework.http.HttpHeaders;
@@ -63,6 +64,11 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(InvalidMfaCodeException.class)
     ResponseEntity<ProblemDetail> handleInvalidMfaCode() {
         return ResponseEntity.badRequest().body(problem(Map.of("code", "CODE_INVALID")));
+    }
+
+    @ExceptionHandler(ProductNotFoundException.class)
+    ResponseEntity<Void> handleProductNotFound() {
+        return ResponseEntity.notFound().build();
     }
 
     private static ProblemDetail problem(Map<String, String> errors) {

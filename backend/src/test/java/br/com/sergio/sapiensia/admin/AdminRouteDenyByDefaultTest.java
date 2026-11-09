@@ -140,4 +140,39 @@ class AdminRouteDenyByDefaultTest {
                 .as("administrator GET")
                 .isEqualTo(403);
     }
+
+    @Test
+    @DisplayName("SEC-010: DELETE, PUT, o arquivo e rotas mais fundas de Produto seguem negados ao Administrador")
+    void shouldKeepTheRestOfTheProductRoutesDenied() throws Exception {
+        AdminBrowser anonymous = new AdminBrowser(port);
+        AdminBrowser administrator = new AdminBrowser(port);
+        assertThat(administrator
+                        .loginAdminFully(adminEmail, PASSWORD, secret, clock)
+                        .statusCode())
+                .isEqualTo(204);
+        String id = UUID.randomUUID().toString();
+        String product = "/api/admin/products/" + id;
+
+        assertThat(anonymous.delete(product).statusCode())
+                .as("anonymous DELETE")
+                .isEqualTo(401);
+        assertThat(administrator.delete(product).statusCode())
+                .as("administrator DELETE")
+                .isEqualTo(403);
+        assertThat(administrator.delete("/api/admin/products").statusCode())
+                .as("administrator DELETE list")
+                .isEqualTo(403);
+        assertThat(administrator.get(product + "/file").statusCode())
+                .as("file GET")
+                .isEqualTo(403);
+        assertThat(administrator.post(product + "/file", "{}").statusCode())
+                .as("file POST")
+                .isEqualTo(403);
+        assertThat(administrator.put(product + "/file", "{}").statusCode())
+                .as("file PUT")
+                .isEqualTo(403);
+        assertThat(administrator.post(product, "{}").statusCode())
+                .as("POST by id")
+                .isEqualTo(403);
+    }
 }

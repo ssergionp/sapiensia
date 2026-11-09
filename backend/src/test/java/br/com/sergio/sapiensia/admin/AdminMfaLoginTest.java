@@ -117,7 +117,8 @@ class AdminMfaLoginTest {
         assertThat(current.statusCode()).isEqualTo(200);
         assertThat(current.body())
                 .isEqualTo(
-                        "{\"email\":\"" + email + "\",\"capabilities\":[\"PANEL_ACCESS\",\"RECOVERY_CODES_MANAGE\"]}");
+                        "{\"email\":\"" + email
+                                + "\",\"capabilities\":[\"PANEL_ACCESS\",\"RECOVERY_CODES_MANAGE\",\"PRODUCTS_EDIT\",\"PRODUCTS_PRICE\"]}");
     }
 
     @Test
