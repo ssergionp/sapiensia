@@ -10,6 +10,8 @@ import static br.com.sergio.sapiensia.admin.AdminProductFixtures.validUpdate;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
+import br.com.sergio.sapiensia.audit.SwitchableAuditLog;
+import br.com.sergio.sapiensia.audit.SwitchableAuditLogConfig;
 import br.com.sergio.sapiensia.security.SecretCipher;
 import com.jayway.jsonpath.JsonPath;
 import java.net.http.HttpResponse;
@@ -33,7 +35,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
  * SEC-065: the audit trail of Product actions. audit_events is append-only, so every check filters by the correlation
  * id of its own request.
  */
-@Import({TestcontainersConfiguration.class, AdminMfaTestSupport.ClockConfig.class})
+@Import({TestcontainersConfiguration.class, AdminMfaTestSupport.ClockConfig.class, SwitchableAuditLogConfig.class})
 @ExtendWith(OutputCaptureExtension.class)
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
@@ -54,6 +56,9 @@ class AdminProductAuditTest {
 
     @Autowired
     AdminMfaTestSupport.MutableClock clock;
+
+    @Autowired
+    SwitchableAuditLog auditLog;
 
     private AdminBrowser admin;
     private UUID adminId;
@@ -196,6 +201,33 @@ class AdminProductAuditTest {
         assertThat(price.body()).isEmpty();
         assertThat(rowsOf(correlationId(text))).isEmpty();
         assertThat(rowsOf(correlationId(price))).isEmpty();
+        assertThat(jdbc.queryForMap("select title, price_cents, version from products where id = ?", id))
+                .containsEntry("title", "Original")
+                .containsEntry("price_cents", 4990)
+                .containsEntry("version", 0);
+    }
+
+    @Test
+    @DisplayName("SEC-018 SEC-065: se o gravador da trilha falha, criar, editar e trocar o preço dão 503 sem corpo")
+    void shouldAnswer503WhenTheAuditWriterFails() throws Exception {
+        UUID id = AdminProductFixtures.insertProduct(jdbc);
+        auditLog.failWrites(true);
+        HttpResponse<String> create;
+        HttpResponse<String> text;
+        HttpResponse<String> price;
+        try {
+            create = admin.post(PRODUCTS, validBody());
+            text = admin.put(PRODUCTS + "/" + id, validUpdate(0));
+            price = admin.put(PRODUCTS + "/" + id + "/price", priceJson(7777, 0));
+        } finally {
+            auditLog.failWrites(false);
+        }
+
+        assertThat(List.of(create, text, price)).allSatisfy(answer -> {
+            assertThat(answer.statusCode()).isEqualTo(503);
+            assertThat(answer.body()).isEmpty();
+        });
+        assertThat(count()).isEqualTo(1);
         assertThat(jdbc.queryForMap("select title, price_cents, version from products where id = ?", id))
                 .containsEntry("title", "Original")
                 .containsEntry("price_cents", 4990)

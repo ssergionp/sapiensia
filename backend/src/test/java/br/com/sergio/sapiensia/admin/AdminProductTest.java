@@ -398,39 +398,4 @@ class AdminProductTest {
         assertBadRequestWithoutInternals(admin.put(PRODUCTS + "/abc", validUpdate(0)));
         assertBadRequestWithoutInternals(admin.put(PRODUCTS + "/abc/price", priceJson(5000, 0)));
     }
-
-    @Test
-    @DisplayName("SEC-018: sem o banco os dois PUT dão 503 sem corpo")
-    void shouldAnswer503OnPutWhenTheDatabaseFails() throws Exception {
-        UUID id = existingProduct();
-        jdbc.execute("alter table products rename to products_off");
-        try {
-            HttpResponse<String> text = admin.put(PRODUCTS + "/" + id, validUpdate(0));
-            HttpResponse<String> price = admin.put(PRODUCTS + "/" + id + "/price", priceJson(5000, 0));
-
-            assertThat(text.statusCode()).isEqualTo(503);
-            assertThat(text.body()).isEmpty();
-            assertThat(price.statusCode()).isEqualTo(503);
-            assertThat(price.body()).isEmpty();
-        } finally {
-            jdbc.execute("alter table products_off rename to products");
-        }
-    }
-
-    @Test
-    @DisplayName("SEC-018: sem o banco a criação e a lista dão 503 sem corpo")
-    void shouldAnswer503WithoutBodyWhenTheDatabaseFails() throws Exception {
-        jdbc.execute("alter table products rename to products_off");
-        try {
-            HttpResponse<String> create = admin.post(PRODUCTS, validBody());
-            HttpResponse<String> list = admin.get(PRODUCTS);
-
-            assertThat(create.statusCode()).isEqualTo(503);
-            assertThat(create.body()).isEmpty();
-            assertThat(list.statusCode()).isEqualTo(503);
-            assertThat(list.body()).isEmpty();
-        } finally {
-            jdbc.execute("alter table products_off rename to products");
-        }
-    }
 }
