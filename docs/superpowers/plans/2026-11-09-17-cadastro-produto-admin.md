@@ -369,62 +369,107 @@ Fluxo: login com senha e TOTP (reusa `tryPassword`, `waitForStepAfter` e `enterC
 
 ## 4. Textos novos que o usuário vê (para aprovar)
 
-> **Pendente de revisão antes da aprovação:** as categorias abaixo ainda são as do rascunho antigo (tipo de conteúdo) e a tela de edição ainda salva o preço junto. Pelas decisões 1 e A, os rótulos passam a ser Saúde · Direito · Finanças · Segurança · Educação · Tecnologia · Negócios · Outros, e o preço é trocado por uma ação própria. Os textos dessa ação serão propostos depois do backend. Nenhuma tela é escrita até a aprovação.
+**Decisões que valem para todas as telas**
 
-**Painel**
+- A tela de um Produto tem **dois blocos independentes**: "Dados do produto" (título, descrição, categoria; botão "Salvar dados") e "Preço" (valor em reais; botão "Salvar preço"). Cada botão grava só o seu bloco.
+- Categorias aprovadas: Saúde · Direito · Finanças · Segurança · Educação · Tecnologia · Negócios · Outros.
+- O preço aparece em reais com vírgula (ex.: R$ 19,90) e é gravado em centavos (19,90 vira 1990).
+- O Produto tem **um número de versão só**. Salvar um bloco aumenta esse número, e a tela passa a usar o número novo nos dois blocos (sem apagar o que a pessoa já digitou no outro). Por isso salvar os dois blocos em sequência não dá conflito; o conflito só aparece se outra janela mexer no Produto.
+- Quem tem a permissão de editar mas não a de preço vê o bloco "Preço" só para leitura, com um aviso.
+
+**Painel e lista (`/painel/produtos`)**
 
 | Onde | Texto |
 |---|---|
 | Link no painel | Produtos |
-
-**Lista (`/painel/produtos`)**
-
-| Onde | Texto |
-|---|---|
-| Título | Produtos |
+| Título da página | Produtos |
 | Link | Novo Produto |
 | Link | Voltar ao painel |
 | Colunas | Título · Categoria · Preço · Estado · Ações |
+| Preço na linha | R$ 19,90 |
 | Estado | Rascunho |
-| Link na linha | Editar (para leitor de tela: "Editar {título}") |
-| Lista vazia | Nenhum Produto cadastrado ainda. |
+| Link na linha | Editar (leitor de tela: "Editar {título}") |
+| Carregando | Carregando… |
+| Lista vazia | Nenhum Produto cadastrado ainda. Use "Novo Produto" para criar o primeiro. |
 | Erro ao carregar | Não foi possível carregar os Produtos agora. Tente novamente. |
 | Sem permissão | Você não tem permissão para gerenciar Produtos. |
+| Indisponível (503) | O sistema está indisponível no momento. Tente novamente em alguns instantes. |
 | Paginação | Anterior · Próxima · Página {n} de {total} |
 | Nome da paginação (leitor de tela) | Paginação |
 | Confirmação | Produto criado. |
-| Confirmação | Alterações salvas. |
 
-**Formulário (`/painel/produtos/novo` e `/painel/produtos/:id`)**
+**Novo Produto (`/painel/produtos/novo`)**
 
 | Onde | Texto |
 |---|---|
-| Título ao criar | Novo Produto |
-| Título ao editar | Editar Produto |
-| Aviso | Este Produto fica em rascunho e não aparece no Catálogo. |
-| Rótulos | Título · Descrição · Categoria · Preço (R$) |
+| Título da página | Novo Produto |
+| Mensagem do rascunho | Este Produto começa como rascunho: os clientes ainda não conseguem vê-lo nem comprá-lo. |
+| Bloco | Dados do produto |
+| Bloco | Preço |
+| Botões | Criar Produto · Cancelar |
+| Enviando | Criando… |
+
+(Na criação os dois blocos aparecem juntos e há um botão só; os rótulos, ajudas e validações são os mesmos da tela de edição, abaixo.)
+
+**Editar Produto (`/painel/produtos/:id`)**
+
+| Onde | Texto |
+|---|---|
+| Título da página | Editar Produto |
+| Link | Voltar para Produtos |
+| Mensagem do rascunho | Este Produto está em rascunho: os clientes ainda não conseguem vê-lo nem comprá-lo. |
+| Carregando | Carregando… |
+| Erro ao carregar | Não foi possível carregar o Produto agora. Tente novamente. |
+| Não encontrado | Produto não encontrado. |
+
+*Bloco "Dados do produto"*
+
+| Onde | Texto |
+|---|---|
+| Título do bloco | Dados do produto |
+| Rótulo | Título |
+| Rótulo | Descrição |
+| Rótulo | Categoria |
 | Primeira opção | Selecione uma categoria |
-| Categorias | (ver nota acima) |
-| Ajuda do preço | Use vírgula nos centavos. Exemplo: 49,90. |
-| Botões | Salvar · Cancelar |
+| Opções | Saúde · Direito · Finanças · Segurança · Educação · Tecnologia · Negócios · Outros |
+| Ajuda do título | Até 120 caracteres. |
+| Ajuda da descrição | Até 5.000 caracteres. |
+| Botão | Salvar dados |
 | Enviando | Salvando… |
+| Salvo | Dados salvos. |
 | Título vazio | Digite o título. |
 | Título longo | O título pode ter até 120 caracteres. |
-| Título inválido | O título tem caracteres inválidos. |
+| Título inválido | O título tem caracteres que não podem ser usados. |
 | Descrição vazia | Digite a descrição. |
 | Descrição longa | A descrição pode ter até 5.000 caracteres. |
-| Descrição inválida | A descrição tem caracteres inválidos. |
+| Descrição inválida | A descrição tem caracteres que não podem ser usados. |
 | Sem categoria | Selecione uma categoria. |
+
+*Bloco "Preço"*
+
+| Onde | Texto |
+|---|---|
+| Título do bloco | Preço |
+| Rótulo | Valor (R$) |
+| Ajuda | Use vírgula nos centavos. Exemplo: 19,90. O mínimo é R$ 5,00 e o máximo é R$ 9.999,99. |
+| Botão | Salvar preço |
+| Enviando | Salvando… |
+| Salvo | Preço salvo. |
 | Preço vazio | Digite o preço. |
-| Preço mal escrito | Digite um preço válido, como 49,90. |
+| Preço mal escrito | Digite um preço válido, como 19,90. |
 | Preço baixo | O preço mínimo é R$ 5,00. |
 | Preço alto | O preço máximo é R$ 9.999,99. |
-| Versão velha (`409`) | Este Produto foi alterado em outra aba ou aparelho. O que você digitou não foi salvo. Recarregue para ver a versão atual. |
-| Botão do `409` | Recarregar |
-| Não encontrado | Produto não encontrado. |
-| Link do não encontrado | Voltar para Produtos |
-| Erro ao carregar | Não foi possível carregar o Produto agora. Tente novamente. |
-| Erro ao salvar | Não foi possível salvar o Produto agora. Tente novamente. |
+| Sem permissão para o preço | Você não tem permissão para alterar o preço. |
+
+*Erros ao salvar (valem para os dois blocos; aparecem dentro do bloco que falhou, sem apagar o que foi digitado)*
+
+| Onde | Texto |
+|---|---|
+| Conflito de versão (409) | Este Produto foi alterado em outra janela. O que você digitou não foi salvo. Recarregue a página para ver a versão atual. |
+| Botão do conflito | Recarregar |
+| Sem permissão (403) | Você não tem permissão para fazer esta alteração. |
+| Indisponível (503) | O sistema está indisponível no momento e nada foi salvo. Tente novamente em alguns instantes. |
+| Erro inesperado | Não foi possível salvar agora. Tente novamente. |
 
 Reaproveitados, sem mudança: "Carregando…", "Não foi possível carregar o painel agora. Tente novamente." e "Esta área é só para o Administrador." Sessão encerrada (`401`) não tem texto: o app vai para `/painel/entrar`.
 
@@ -436,7 +481,7 @@ Nenhuma. O `<select>` é nativo, com as classes do `Input`, e o `textarea.tsx` �
 
 **O que depende da sua decisão**
 
-Decididas pelo Sérgio: categoria por tema, preço de R$ 5,00 a R$ 9.999,99, tamanhos 120/5.000, critério dos Pedidos cobrado no #24. Falta só: **textos** da seção 4 (refeitos) e o desenho da tela de troca de preço.
+Decididas pelo Sérgio: categoria por tema, preço de R$ 5,00 a R$ 9.999,99, tamanhos 120/5.000, critério dos Pedidos cobrado no #24. Falta só: o seu OK nos **textos** da seção 4 (refeitos, com os blocos "Dados do produto" e "Preço").
 
 **Riscos**
 
