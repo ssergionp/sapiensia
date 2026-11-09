@@ -5,6 +5,7 @@ import {
   confirmMfaEnrollment,
   fetchAdminSession,
   fetchMfaStatus,
+  MfaExpiredError,
   regenerateRecoveryCodes,
   setAdminPassword,
   verifyMfaCode,
@@ -69,9 +70,16 @@ export function useMfaSubmit(
 }
 
 export function useRegenerateRecoveryCodes(onCodes: (codes: string[]) => void) {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (code: string): Promise<void> => {
       onCodes(await regenerateRecoveryCodes(code));
+    },
+    // A 401 means the panel session ended: mark it as signed out (like the sign-out does) so the page redirects.
+    onError: (error) => {
+      if (error instanceof MfaExpiredError) {
+        queryClient.setQueryData(adminSessionQueryKey, null);
+      }
     },
   });
 }

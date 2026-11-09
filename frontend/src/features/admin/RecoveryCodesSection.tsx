@@ -34,10 +34,7 @@ const RESULT_WARNING =
   "Os códigos anteriores não funcionam mais. Estes aparecem só agora. Guarde-os no seu gerenciador de senhas. Quem tiver um código e a sua senha entra no painel.";
 const DONE = "Concluir";
 
-const SESSION_ENDED = "Sua sessão terminou. Entre de novo para continuar.";
-
 function failureMessage(error: Error): string {
-  if (error instanceof MfaExpiredError) return SESSION_ENDED;
   if (error instanceof MfaCodeRejectedError) return WRONG_CODE;
   if (error instanceof LoginBlockedError) return LOGIN_BLOCKED;
   return GENERAL_ERROR;
@@ -67,7 +64,12 @@ export default function RecoveryCodesSection() {
   function onSubmit(values: MfaCodeOutput) {
     setFailure(null);
     regenerate.mutate(values.code, {
-      onError: (error) => setFailure(failureMessage(error)),
+      // On 401 the hook already marked the session as ended and the page redirects; no message here.
+      onError: (error) => {
+        if (!(error instanceof MfaExpiredError)) {
+          setFailure(failureMessage(error));
+        }
+      },
     });
   }
 

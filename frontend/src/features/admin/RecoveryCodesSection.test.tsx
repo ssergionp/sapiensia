@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, test, vi } from "vitest";
+import { adminSessionQueryKey } from "./hooks";
 import RecoveryCodesSection from "./RecoveryCodesSection";
 
 const REGENERATE = "POST /api/admin/recovery-codes";
@@ -175,10 +176,6 @@ describe("RecoveryCodesSection", () => {
     { status: 400, message: WRONG_CODE },
     { status: 429, message: BLOCKED },
     { status: 500, message: GENERAL_ERROR },
-    {
-      status: 401,
-      message: "Sua sessão terminou. Entre de novo para continuar.",
-    },
   ])("$status shows the matching error", async ({ status, message }) => {
     mockApi(() => json(status));
     renderSection();
@@ -194,6 +191,27 @@ describe("RecoveryCodesSection", () => {
     expect(
       screen.getByRole("button", { name: "Confirmar e gerar" }),
     ).toBeEnabled();
+  });
+
+  test("401 marks the admin session as ended so the app redirects to the sign-in", async () => {
+    mockApi(() => json(401));
+    const client = renderSection();
+    client.setQueryData(adminSessionQueryKey, {
+      email: "admin@example.com",
+      capabilities: [],
+    });
+    const user = await openForm();
+
+    await user.type(
+      screen.getByLabelText("Código do aplicativo autenticador"),
+      "123456",
+    );
+    await user.click(screen.getByRole("button", { name: "Confirmar e gerar" }));
+
+    await waitFor(() =>
+      expect(client.getQueryData(adminSessionQueryKey)).toBeNull(),
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   test("a network failure shows the general error", async () => {
