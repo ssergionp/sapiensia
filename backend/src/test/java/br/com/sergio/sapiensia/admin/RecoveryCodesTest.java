@@ -89,7 +89,7 @@ class RecoveryCodesTest {
     }
 
     @Test
-    @DisplayName("ADR-0004: recusa entrada gigante,mesmo feita só de hífens e um código válido")
+    @DisplayName("ADR-0004: recusa entrada gigante, mesmo feita só de hífens e um código válido")
     void shouldRefuseAHugeInput() {
         assertThat(RecoveryCodes.normalize("-".repeat(10_000) + CODE)).isEmpty();
         assertThat(RecoveryCodes.normalize(CODE.repeat(1_000))).isEmpty();

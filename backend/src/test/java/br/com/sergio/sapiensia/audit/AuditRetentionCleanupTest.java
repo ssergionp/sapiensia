@@ -91,22 +91,30 @@ class AuditRetentionCleanupTest {
                 SingleConnectionDataSource single = new SingleConnectionDataSource(connection, true)) {
             JdbcTemplate session = new JdbcTemplate(single);
             session.execute("set time zone '" + zone + "'");
-            OffsetDateTime cutoff = session.queryForObject(
-                    "select (date_trunc('day', now() at time zone 'UTC') - interval '365 days') at time zone 'UTC'",
-                    OffsetDateTime.class);
-            UUID justBefore = insertAt(session, cutoff, "-1 second");
-            UUID justAfter = insertAt(session, cutoff, "+1 second");
-
-            // the trigger refuses the row above the boundary
-            assertThatThrownBy(() -> session.update("delete from audit_events where actor_id = ?", justAfter))
-                    .rootCause()
-                    .hasMessageContaining("append-only");
-
-            new AuditEvents(JdbcClient.create(single)).deleteOlderThan(Duration.ofDays(365));
-
-            assertThat(count(session, justBefore)).isZero();
-            assertThat(count(session, justAfter)).isEqualTo(1);
+            try {
+                assertBoundary(session, single);
+            } finally {
+                session.execute("reset time zone");
+            }
         }
+    }
+
+    private void assertBoundary(JdbcTemplate session, SingleConnectionDataSource single) {
+        OffsetDateTime cutoff = session.queryForObject(
+                "select (date_trunc('day', now() at time zone 'UTC') - interval '365 days') at time zone 'UTC'",
+                OffsetDateTime.class);
+        UUID justBefore = insertAt(session, cutoff, "-1 second");
+        UUID justAfter = insertAt(session, cutoff, "+1 second");
+
+        // the trigger refuses the row above the boundary
+        assertThatThrownBy(() -> session.update("delete from audit_events where actor_id = ?", justAfter))
+                .rootCause()
+                .hasMessageContaining("append-only");
+
+        new AuditEvents(JdbcClient.create(single)).deleteOlderThan(Duration.ofDays(365));
+
+        assertThat(count(session, justBefore)).isZero();
+        assertThat(count(session, justAfter)).isEqualTo(1);
     }
 
     private UUID insertAt(JdbcTemplate session, OffsetDateTime cutoff, String offset) {
