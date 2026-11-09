@@ -76,6 +76,18 @@ describe("money display", () => {
     expect(centsToInput(999999)).toBe("9999,99");
   });
 
+  test.each([
+    [1, "0,01", "R$ 0,01"],
+    [5, "0,05", "R$ 0,05"],
+    [99, "0,99", "R$ 0,99"],
+    [100, "1,00", "R$ 1,00"],
+    [123456789, "1234567,89", "R$ 1.234.567,89"],
+    [Number.MAX_SAFE_INTEGER, "90071992547409,91", "R$ 90.071.992.547.409,91"],
+  ])("cents %i is written exactly", (cents, input, display) => {
+    expect(centsToInput(cents)).toBe(input);
+    expect(formatCents(cents).replace(/\s/g, " ")).toBe(display);
+  });
+
   test("the field text round-trips", () => {
     for (const cents of [500, 1990, 1905, 4990, 123456, 999999]) {
       expect(parsePriceToCents(centsToInput(cents))).toEqual({

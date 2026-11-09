@@ -60,19 +60,18 @@ export function parsePriceToCents(text: string): PriceParseResult {
 
 // "19,90" from 1990, by integer math.
 export function centsToInput(cents: number): string {
-  const reais = Math.trunc(cents / 100);
   const rest = cents % 100;
+  const reais = (cents - rest) / 100;
   return `${reais},${rest < 10 ? "0" : ""}${rest}`;
 }
 
-const currency = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-});
+const grouping = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
 
-// Display only: the division is never used to compute or send a value.
+// "R$ 19,90" from 1990: the reais and the cents are split by integer math, so no float rounding shows up.
 export function formatCents(cents: number): string {
-  return currency.format(cents / 100);
+  const rest = cents % 100;
+  const reais = (cents - rest) / 100;
+  return `R$ ${grouping.format(reais)},${rest < 10 ? "0" : ""}${rest}`;
 }
 
 export const PRICE_MESSAGES = {
