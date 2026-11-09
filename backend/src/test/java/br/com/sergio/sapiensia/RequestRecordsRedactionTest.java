@@ -26,7 +26,8 @@ class RequestRecordsRedactionTest {
     private static final Set<String> SENSITIVE_WORDS = Set.of("email", "password", "token", "code", "secret");
 
     @Test
-    @DisplayName("ADR-0006 / SEC-036: every request record with an e-mail, password, token or code redacts its toString")
+    @DisplayName(
+            "ADR-0006 / SEC-036: every request record with an e-mail, password, token or code redacts its toString")
     void shouldRedactToStringOfEveryRequestRecordWithSensitiveFields() throws Exception {
         Set<Class<?>> requestRecords = requestRecords();
         // the scan is not vacuous

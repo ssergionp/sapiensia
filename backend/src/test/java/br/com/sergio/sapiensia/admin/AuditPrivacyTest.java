@@ -76,6 +76,8 @@ class AuditPrivacyTest {
     private static final String PASSWORD = "senha-do-painel-9876"; // gitleaks:allow
     private static final String WRONG_PASSWORD = "senha-errada-do-painel-5432"; // gitleaks:allow
     private static final String CUSTOMER_EMAIL = "cliente-privado@example.com";
+    private static final String NEW_CUSTOMER_EMAIL = "cliente-novo-privado@example.com";
+    private static final String CUSTOMER_PASSWORD = "senha-do-cliente-4321"; // gitleaks:allow
     private static final String CPF_MASKED = "123.456.789-09"; // fictitious
     private static final String CPF_DIGITS = "12345678909";
     private static final String SESSIONS = "/api/admin/sessions";
@@ -254,6 +256,7 @@ class AuditPrivacyTest {
                 adminId,
                 Tokens.hash(token));
         clock.advance(Duration.ofMinutes(1));
+        String customerToken = Tokens.newToken();
 
         // the link: a wrong use, a right use, then the used link again
         AdminBrowser setup = new AdminBrowser(port);
@@ -285,6 +288,27 @@ class AuditPrivacyTest {
         assertThat(seen(typing.loginCustomer(CPF_MASKED, CPF_DIGITS)).statusCode())
                 .isEqualTo(401);
 
+        // the public Customer requests: the typed e-mail, password and link token must not reach the DEBUG log
+        AdminBrowser publicCustomer = new AdminBrowser(port);
+        assertThat(post(publicCustomer, "/api/customers/password-resets", "{\"email\":\"" + NEW_CUSTOMER_EMAIL + "\"}")
+                        .statusCode())
+                .isEqualTo(202);
+        assertThat(post(publicCustomer, "/api/customers", loginBody(NEW_CUSTOMER_EMAIL, CUSTOMER_PASSWORD))
+                        .statusCode())
+                .isEqualTo(202);
+        assertThat(post(
+                                publicCustomer,
+                                "/api/customers/email-confirmations",
+                                "{\"token\":\"" + customerToken + "\",\"password\":\"" + CUSTOMER_PASSWORD + "\"}")
+                        .statusCode())
+                .isEqualTo(400);
+        assertThat(post(
+                                publicCustomer,
+                                "/api/customers/password-resets/confirmation",
+                                "{\"token\":\"" + customerToken + "\",\"newPassword\":\"" + CUSTOMER_PASSWORD + "\"}")
+                        .statusCode())
+                .isEqualTo(400);
+
         // forged headers: the correlation id and both IP headers carry a Customer e-mail
         Map<String, String> forgedHeaders = Map.of(
                 "X-Correlation-Id", CUSTOMER_EMAIL, "X-Forwarded-For", CUSTOMER_EMAIL, "X-Client-Ip", CUSTOMER_EMAIL);
@@ -293,7 +317,7 @@ class AuditPrivacyTest {
         assertThat(forged.statusCode()).isEqualTo(401);
         assertThat(correlationId(forged)).isNotEqualTo(CUSTOMER_EMAIL);
         assertThat(UUID.fromString(correlationId(forged))).isNotNull();
-        assertThat(actionsOf(correlationId(forged))).containsExactly("ADMIN_PASSWORD_LOGIN FAILURE " + "none");
+        assertThat(actionsOf(correlationId(forged))).containsExactly("ADMIN_PASSWORD_LOGIN FAILURE none");
         HttpResponse<String> forgedOk =
                 seen(typing.postWithHeaders(SESSIONS, loginBody(adminEmail, PASSWORD), forgedHeaders));
         assertThat(forgedOk.statusCode()).isEqualTo(204);
@@ -373,11 +397,22 @@ class AuditPrivacyTest {
 
         String cipherText =
                 jdbc.queryForObject("select totp_secret from administrators where id = ?", String.class, adminId);
+        String adminPasswordHash =
+                jdbc.queryForObject("select password_hash from administrators where id = ?", String.class, adminId);
         String key = environment.getProperty("app.mfa.encryption-key");
 
         Map<String, String> forbidden = new LinkedHashMap<>();
         forbidden.put("the Customer e-mail", CUSTOMER_EMAIL);
         forbidden.put("the Customer e-mail, URL-encoded", CUSTOMER_EMAIL.replace("@", "%40"));
+        forbidden.put("the new Customer e-mail", NEW_CUSTOMER_EMAIL);
+        forbidden.put("the new Customer e-mail, URL-encoded", NEW_CUSTOMER_EMAIL.replace("@", "%40"));
+        forbidden.put("the new Customer password", CUSTOMER_PASSWORD);
+        forbidden.put("the Customer link token", customerToken);
+        forbidden.put("the hash of the Customer link token", Tokens.hash(customerToken));
+        forbidden.put("the hash of the Administrator password", adminPasswordHash);
+        forbidden.put("the hash of the wrong link token", Tokens.hash(wrongToken));
+        forbidden.put("the hash of the never issued recovery code", RecoveryCodes.hash(neverIssued));
+        forbidden.put("the Base32 secret in lower case", base32.toLowerCase(Locale.ROOT));
         forbidden.put("the Administrator e-mail", adminEmail);
         forbidden.put("the Administrator e-mail, URL-encoded", adminEmail.replace("@", "%40"));
         forbidden.put("the masked CPF", CPF_MASKED);
