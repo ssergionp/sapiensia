@@ -1,0 +1,99 @@
+import {
+  keepPreviousData,
+  type QueryClient,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { adminSessionQueryKey } from "@/features/admin/hooks";
+import {
+  createProduct,
+  fetchProduct,
+  fetchProducts,
+  ProductSessionEndedError,
+  updateProduct,
+  updateProductPrice,
+} from "./api";
+import type { Product } from "./schemas";
+
+export const productsQueryKey = ["admin-products"] as const;
+export const productQueryKey = (id: string) => ["admin-product", id] as const;
+
+// A 401 means the panel session ended: mark it as signed out (like the sign-out does) so the page redirects.
+function endSessionOn401(queryClient: QueryClient) {
+  return (error: unknown) => {
+    if (error instanceof ProductSessionEndedError) {
+      queryClient.setQueryData(adminSessionQueryKey, null);
+    }
+  };
+}
+
+async function guard<T>(queryClient: QueryClient, call: Promise<T>) {
+  try {
+    return await call;
+  } catch (error) {
+    endSessionOn401(queryClient)(error);
+    throw error;
+  }
+}
+
+export function useProducts(page: number) {
+  const queryClient = useQueryClient();
+  return useQuery({
+    queryKey: [...productsQueryKey, page],
+    queryFn: () => guard(queryClient, fetchProducts(page)),
+    placeholderData: keepPreviousData,
+    retry: false,
+  });
+}
+
+// The version of the loaded Product is what the saves send, so a background refetch must not swap it silently.
+export function useProduct(id: string | undefined) {
+  const queryClient = useQueryClient();
+  return useQuery({
+    queryKey: productQueryKey(id ?? ""),
+    queryFn: () => guard(queryClient, fetchProduct(id ?? "")),
+    enabled: id !== undefined,
+    retry: false,
+    staleTime: Number.POSITIVE_INFINITY,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
+}
+
+export function useCreateProduct() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: createProduct,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: productsQueryKey }),
+    onError: endSessionOn401(queryClient),
+  });
+}
+
+// Both saves return the whole Product: the cache takes it, so both blocks use the new version.
+export function useUpdateProduct(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Parameters<typeof updateProduct>[1]) =>
+      updateProduct(id, input),
+    onSuccess: (saved: Product) => {
+      queryClient.setQueryData(productQueryKey(id), saved);
+      void queryClient.invalidateQueries({ queryKey: productsQueryKey });
+    },
+    onError: endSessionOn401(queryClient),
+  });
+}
+
+export function useUpdateProductPrice(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Parameters<typeof updateProductPrice>[1]) =>
+      updateProductPrice(id, input),
+    onSuccess: (saved: Product) => {
+      queryClient.setQueryData(productQueryKey(id), saved);
+      void queryClient.invalidateQueries({ queryKey: productsQueryKey });
+    },
+    onError: endSessionOn401(queryClient),
+  });
+}

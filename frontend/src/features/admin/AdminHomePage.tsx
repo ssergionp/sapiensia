@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import { useLogout } from "@/features/session/hooks";
 import { LOGOUT_ERROR } from "@/features/session/messages";
@@ -32,6 +32,13 @@ export default function AdminHomePage() {
             Você entrou como{" "}
             <span className="[overflow-wrap:anywhere]">{admin.email}</span>.
           </p>
+          {admin.capabilities.includes("PRODUCTS_EDIT") && (
+            <p className="mt-4">
+              <Link to="/painel/produtos" className="underline">
+                Produtos
+              </Link>
+            </p>
+          )}
           <RecoveryCodesSection />
           {logout.isError && (
             <p role="alert" className="mt-2 text-sm text-destructive">
