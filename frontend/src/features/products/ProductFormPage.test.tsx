@@ -12,7 +12,7 @@ import {
 
 const BASE = "/api/admin/products";
 const CONFLICT =
-  "Este Produto foi alterado em outra janela. O que você digitou não foi salvo. Recarregue a página para ver a versão atual.";
+  "Este Produto foi alterado em outra janela. O que você digitou não foi salvo. Use Recarregar para ver a versão atual.";
 const FORBIDDEN = "Você não tem permissão para fazer esta alteração.";
 const UNAVAILABLE =
   "O sistema está indisponível no momento e nada foi salvo. Tente novamente em alguns instantes.";

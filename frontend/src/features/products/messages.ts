@@ -20,7 +20,7 @@ export const UNAVAILABLE_LOAD =
 
 export const SAVE_ERRORS = {
   conflict:
-    "Este Produto foi alterado em outra janela. O que você digitou não foi salvo. Recarregue a página para ver a versão atual.",
+    "Este Produto foi alterado em outra janela. O que você digitou não foi salvo. Use Recarregar para ver a versão atual.",
   forbidden: "Você não tem permissão para fazer esta alteração.",
   unavailable:
     "O sistema está indisponível no momento e nada foi salvo. Tente novamente em alguns instantes.",

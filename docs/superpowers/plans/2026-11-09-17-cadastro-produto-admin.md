@@ -465,7 +465,7 @@ Fluxo: login com senha e TOTP (reusa `tryPassword`, `waitForStepAfter` e `enterC
 
 | Onde | Texto |
 |---|---|
-| Conflito de versão (409) | Este Produto foi alterado em outra janela. O que você digitou não foi salvo. Recarregue a página para ver a versão atual. |
+| Conflito de versão (409) | Este Produto foi alterado em outra janela. O que você digitou não foi salvo. Use Recarregar para ver a versão atual. |
 | Botão do conflito | Recarregar |
 | Sem permissão (403) | Você não tem permissão para fazer esta alteração. |
 | Indisponível (503) | O sistema está indisponível no momento e nada foi salvo. Tente novamente em alguns instantes. |
