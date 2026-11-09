@@ -76,6 +76,36 @@ class ProductRequestTest {
         assertThat(codes(request("t", "a\udc00b", ProductCategory.LAW, 500))).containsExactly("DESCRIPTION_INVALID");
     }
 
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "‪", "‫", "‬", "‭", "‮", "⁦", "⁧", "⁨", "⁩", "​",
+                "⁠", "﻿"
+            })
+    @DisplayName("SEC-013: bidi controls and invisible characters inside the text are invalid")
+    void shouldRejectBidiAndInvisibleCharacters(String forbidden) {
+        assertThat(codes(request("a" + forbidden + "b", "d", ProductCategory.LAW, 500)))
+                .containsExactly("TITLE_INVALID");
+        assertThat(codes(request("t", "a" + forbidden + "b", ProductCategory.LAW, 500)))
+                .containsExactly("DESCRIPTION_INVALID");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"​", " ​ ", "‮", "﻿⁠", " ", "‎ ​", "　"})
+    @DisplayName("SEC-013: text with no visible character is required")
+    void shouldRequireAVisibleCharacter(String invisible) {
+        assertThat(codes(request(invisible, invisible, ProductCategory.LAW, 500)))
+                .containsExactlyInAnyOrder("TITLE_REQUIRED", "DESCRIPTION_REQUIRED");
+    }
+
+    @Test
+    @DisplayName("SEC-013: a zero width joiner in an emoji sequence is accepted")
+    void shouldAcceptAZeroWidthJoiner() {
+        String family = "👨‍👩‍👧";
+        assertThat(codes(request("Guia " + family, "d " + family, ProductCategory.LAW, 500)))
+                .isEmpty();
+    }
+
     @Test
     @DisplayName("SEC-013: a valid surrogate pair (emoji) is accepted")
     void shouldAcceptASurrogatePair() {

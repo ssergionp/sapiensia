@@ -164,6 +164,21 @@ class AdminProductTest {
     }
 
     @Test
+    @DisplayName("SEC-013: bidi e caracteres invisíveis dão 400 com o código do campo e nada é gravado")
+    void shouldAnswer400ForBidiAndInvisibleText() throws Exception {
+        HttpResponse<String> bidi = admin.post(PRODUCTS, json("a‮b", "D", "LAW", 500));
+        HttpResponse<String> invisible = admin.post(PRODUCTS, json("​", "D ⁠", "LAW", 500));
+
+        assertBadRequestWithoutInternals(bidi);
+        assertThat((String) JsonPath.read(bidi.body(), "$.errors.title")).isEqualTo("TITLE_INVALID");
+        assertBadRequestWithoutInternals(invisible);
+        assertThat((String) JsonPath.read(invisible.body(), "$.errors.title")).isEqualTo("TITLE_REQUIRED");
+        assertThat((String) JsonPath.read(invisible.body(), "$.errors.description"))
+                .isEqualTo("DESCRIPTION_INVALID");
+        assertThat(count()).isZero();
+    }
+
+    @Test
     @DisplayName("SEC-013: categoria desconhecida e corpo que não é JSON dão 400 genérico")
     void shouldAnswer400ForUnknownCategoryAndMalformedJson() throws Exception {
         assertBadRequestWithoutInternals(admin.post(PRODUCTS, json("T", "D", "COMICS", 500)));

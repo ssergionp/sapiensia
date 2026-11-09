@@ -19,7 +19,7 @@ import java.lang.annotation.Target;
  */
 @NotBlank(message = "TITLE_REQUIRED")
 @Size(max = 120, message = "TITLE_TOO_LONG")
-@Pattern(regexp = "[^\\p{Cc}\\p{Cs}]*", message = "TITLE_INVALID")
+@Pattern(regexp = "[^\\p{Cc}\\p{Cs}\\u202A-\\u202E\\u2066-\\u2069\\u200B\\u2060\\uFEFF]*", message = "TITLE_INVALID")
 @Constraint(validatedBy = {})
 @Documented
 @Target({ElementType.RECORD_COMPONENT, ElementType.FIELD, ElementType.PARAMETER})
