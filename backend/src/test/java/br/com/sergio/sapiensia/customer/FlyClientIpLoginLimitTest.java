@@ -62,15 +62,17 @@ class FlyClientIpLoginLimitTest {
                 .header("Cookie", "XSRF-TOKEN=" + csrf)
                 .header("X-XSRF-TOKEN", csrf)
                 .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString("{\"email\":\"" + UUID.randomUUID()
-                        + "@example.com\",\"password\":\"senhaerrada123\"}"));
+                .POST(HttpRequest.BodyPublishers.ofString(
+                        "{\"email\":\"" + UUID.randomUUID() + "@example.com\",\"password\":\"senhaerrada123\"}"));
         if (forwardedFor != null) {
             builder.header("X-Forwarded-For", forwardedFor);
         }
         if (flyClientIp != null) {
             builder.header("Fly-Client-IP", flyClientIp);
         }
-        return boundClient.send(builder.build(), HttpResponse.BodyHandlers.ofString()).statusCode();
+        return boundClient
+                .send(builder.build(), HttpResponse.BodyHandlers.ofString())
+                .statusCode();
     }
 
     @Test
@@ -87,7 +89,9 @@ class FlyClientIpLoginLimitTest {
     @DisplayName("SEC-014: a different forged X-Forwarded-For on each attempt does not escape the limit")
     void shouldNotLetForgedXForwardedForEscapeTheLimit() throws Exception {
         for (int i = 1; i <= IP_LIMIT; i++) {
-            assertThat(login("127.0.0.12", "198.51.100." + i, null)).as("attempt %d", i).isEqualTo(401);
+            assertThat(login("127.0.0.12", "198.51.100." + i, null))
+                    .as("attempt %d", i)
+                    .isEqualTo(401);
         }
 
         assertThat(login("127.0.0.12", "198.51.100.200", null)).isEqualTo(429);
@@ -97,7 +101,9 @@ class FlyClientIpLoginLimitTest {
     @DisplayName("SEC-014: a valid Fly-Client-IP is the address counted, whatever X-Forwarded-For says")
     void shouldCountOnFlyClientIpWhenPresent() throws Exception {
         for (int i = 1; i <= IP_LIMIT; i++) {
-            assertThat(login("127.0.0.13", "198.51.100." + i, "203.0.113.50")).as("attempt %d", i).isEqualTo(401);
+            assertThat(login("127.0.0.13", "198.51.100." + i, "203.0.113.50"))
+                    .as("attempt %d", i)
+                    .isEqualTo(401);
         }
 
         assertThat(login("127.0.0.13", "198.51.100.99", "203.0.113.50")).isEqualTo(429);
@@ -108,7 +114,9 @@ class FlyClientIpLoginLimitTest {
     @DisplayName("SEC-014: an invalid Fly-Client-IP falls back to the connection address, never X-Forwarded-For")
     void shouldFallBackToConnectionAddressWhenFlyClientIpIsInvalid() throws Exception {
         for (int i = 1; i <= IP_LIMIT; i++) {
-            assertThat(login("127.0.0.14", "198.51.100." + i, "not-an-ip")).as("attempt %d", i).isEqualTo(401);
+            assertThat(login("127.0.0.14", "198.51.100." + i, "not-an-ip"))
+                    .as("attempt %d", i)
+                    .isEqualTo(401);
         }
 
         assertThat(login("127.0.0.14", "198.51.100.200", "not-an-ip")).isEqualTo(429);

@@ -18,6 +18,7 @@ class ConnectionAddressRecorder implements ServletRequestListener {
 
     @Override
     public void requestInitialized(ServletRequestEvent event) {
-        event.getServletRequest().setAttribute(ATTRIBUTE, event.getServletRequest().getRemoteAddr());
+        event.getServletRequest()
+                .setAttribute(ATTRIBUTE, event.getServletRequest().getRemoteAddr());
     }
 }

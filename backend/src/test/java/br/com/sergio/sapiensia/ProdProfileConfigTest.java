@@ -54,7 +54,8 @@ class ProdProfileConfigTest {
     }
 
     @Test
-    @DisplayName("SEC-022: prod profile fails to resolve the database settings when DB_URL, DB_USER or DB_PASSWORD is missing")
+    @DisplayName(
+            "SEC-022: prod profile fails to resolve the database settings when DB_URL, DB_USER or DB_PASSWORD is missing")
     void prodProfileFailsWithoutDatabaseVariables() throws IOException {
         StandardEnvironment missing = environment(Map.of());
         for (String key : DB_KEYS) {
