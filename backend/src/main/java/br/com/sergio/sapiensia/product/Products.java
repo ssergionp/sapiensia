@@ -29,7 +29,34 @@ class Products {
             ProductStatus.valueOf(rs.getString("status")),
             rs.getInt("version"),
             rs.getObject("created_at", OffsetDateTime.class).toInstant(),
-            rs.getObject("updated_at", OffsetDateTime.class).toInstant());
+            rs.getObject("updated_at", OffsetDateTime.class).toInstant(),
+            null);
+
+    private static final String FIND_SQL = "select p.id, p.title, p.description, p.category, p.price_cents, p.status,"
+            + " p.version, p.created_at, p.updated_at, f.size_bytes, f.page_count, f.uploaded_at"
+            + " from products p left join product_files f on f.product_id = p.id where p.id = :id";
+
+    /** Same as MAPPER plus the current file, when there is one (columns of the left join). */
+    private static final RowMapper<ProductResponse> MAPPER_WITH_FILE = (rs, i) -> {
+        ProductResponse product = MAPPER.mapRow(rs, i);
+        OffsetDateTime uploadedAt = rs.getObject("uploaded_at", OffsetDateTime.class);
+        if (uploadedAt == null) {
+            return product;
+        }
+        ProductFileInfo file =
+                new ProductFileInfo(rs.getLong("size_bytes"), rs.getInt("page_count"), uploadedAt.toInstant());
+        return new ProductResponse(
+                product.id(),
+                product.title(),
+                product.description(),
+                product.category(),
+                product.priceCents(),
+                product.status(),
+                product.version(),
+                product.createdAt(),
+                product.updatedAt(),
+                file);
+    };
 
     private static final RowMapper<ProductListItem> LIST_MAPPER = (rs, i) -> new ProductListItem(
             rs.getObject("id", UUID.class),
@@ -60,10 +87,7 @@ class Products {
     }
 
     Optional<ProductResponse> find(UUID id) {
-        return jdbc.sql("select " + COLUMNS + " from products where id = :id")
-                .param("id", id)
-                .query(MAPPER)
-                .optional();
+        return jdbc.sql(FIND_SQL).param("id", id).query(MAPPER_WITH_FILE).optional();
     }
 
     /**

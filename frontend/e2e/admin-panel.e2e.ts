@@ -9,6 +9,7 @@ import {
   uniqueEmail,
   waitForMessage,
 } from "./outbox";
+import { buildPdf } from "./pdf";
 import { currentStep, totpCode } from "./totp";
 
 // Real API, database and e-mail outbox (files): no page.route() and no mocks.
@@ -516,6 +517,76 @@ test("FR-016 FR-018: o Administrador cria um Produto em rascunho, edita os dados
   const updated = page.getByRole("row", { name: new RegExp(newTitle) });
   await expect(updated.getByText("R$ 24,50")).toBeVisible();
   await expect(updated.getByText("Rascunho")).toBeVisible();
+});
+
+test("SEC-043 FR-034: o Administrador envia o PDF do Produto e o substitui; arquivo falso é recusado", async ({
+  page,
+  baseURL,
+}) => {
+  test.setTimeout(120_000);
+  const host = new URL(baseURL ?? "").hostname;
+  if (host !== "localhost" && host !== "127.0.0.1") {
+    throw new Error(
+      "Refusing to run the administrator e2e outside localhost/127.0.0.1",
+    );
+  }
+  const title = `E2E Arquivo ${Date.now()}`;
+
+  await loginWithStoredCredentials(page);
+
+  // Create a draft Product through the UI and open its edit page.
+  await page.goto("/painel/produtos");
+  await page.getByRole("link", { name: "Novo Produto" }).click();
+  await page.getByLabel("Título").fill(title);
+  await page.getByLabel("Descrição").fill("Produto de teste do arquivo.");
+  await page.getByLabel("Categoria").selectOption({ label: "Tecnologia" });
+  await page.getByLabel("Valor (R$)").fill("19,90");
+  await page.getByRole("button", { name: "Criar Produto" }).click();
+  await expect(page.getByText("Produto criado.")).toBeVisible();
+  await page.getByRole("link", { name: `Editar ${title}` }).click();
+  await expect(
+    page.getByRole("heading", { name: "Editar Produto", exact: true }),
+  ).toBeVisible();
+
+  const input = page.getByLabel("Arquivo PDF");
+  const send = page.getByRole("button", { name: "Enviar arquivo" });
+  const sent = page.getByText("Arquivo enviado.");
+  const current = page.getByText(/^Arquivo atual: 1 página,/);
+
+  // A valid 1-page PDF.
+  await input.setInputFiles({
+    name: "produto.pdf",
+    mimeType: "application/pdf",
+    buffer: buildPdf("primeiro"),
+  });
+  await send.click();
+  await expect(sent).toBeVisible();
+  await expect(current).toBeVisible();
+
+  // It persisted.
+  await page.reload();
+  await expect(current).toBeVisible();
+
+  // A text file named .pdf passes the browser check and is refused by the server.
+  await input.setInputFiles({
+    name: "falso.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from("isto não é um PDF"),
+  });
+  await send.click();
+  await expect(
+    page.getByText("O arquivo não é um PDF. Envie um arquivo PDF."),
+  ).toBeVisible();
+
+  // Another valid PDF replaces the first one.
+  await input.setInputFiles({
+    name: "produto-2.pdf",
+    mimeType: "application/pdf",
+    buffer: buildPdf("segundo"),
+  });
+  await send.click();
+  await expect(sent).toBeVisible();
+  await expect(current).toBeVisible();
 });
 
 test("SEC-010 FR-016: sem sessão, as rotas de Produto do painel negam", async ({

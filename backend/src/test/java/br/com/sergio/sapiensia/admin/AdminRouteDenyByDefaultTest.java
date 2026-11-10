@@ -142,7 +142,7 @@ class AdminRouteDenyByDefaultTest {
     }
 
     @Test
-    @DisplayName("SEC-010: DELETE, PUT, o arquivo e rotas mais fundas de Produto seguem negados ao Administrador")
+    @DisplayName("SEC-010: DELETE, PUT, GET e PATCH do arquivo e rotas mais fundas de Produto seguem negados")
     void shouldKeepTheRestOfTheProductRoutesDenied() throws Exception {
         AdminBrowser anonymous = new AdminBrowser(port);
         AdminBrowser administrator = new AdminBrowser(port);
@@ -165,11 +165,25 @@ class AdminRouteDenyByDefaultTest {
         assertThat(administrator.get(product + "/file").statusCode())
                 .as("file GET")
                 .isEqualTo(403);
-        assertThat(administrator.post(product + "/file", "{}").statusCode())
-                .as("file POST")
+        assertThat(administrator.delete(product + "/file").statusCode())
+                .as("file DELETE")
                 .isEqualTo(403);
         assertThat(administrator.put(product + "/file", "{}").statusCode())
                 .as("file PUT")
+                .isEqualTo(403);
+        assertThat(administrator.patch(product + "/file", "{}").statusCode())
+                .as("file PATCH")
+                .isEqualTo(403);
+        // POST is open only by the PRODUCTS_FILE rule (#18): the full Administrator gets past the lock, and a JSON
+        // body is then refused by the route itself (415), while an anonymous caller stops at the lock (401)
+        assertThat(anonymous.post(product + "/file", "{}").statusCode())
+                .as("anonymous file POST")
+                .isEqualTo(401);
+        assertThat(administrator.post(product + "/file", "{}").statusCode())
+                .as("file POST with JSON")
+                .isEqualTo(415);
+        assertThat(administrator.post(product + "/file/x", "{}").statusCode())
+                .as("deeper than /file")
                 .isEqualTo(403);
         assertThat(administrator.post(product, "{}").statusCode())
                 .as("POST by id")
