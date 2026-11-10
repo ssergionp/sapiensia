@@ -226,10 +226,10 @@ Faça antes o "Passo zero". O padrão para cada segredo: copie o valor do Bitwar
 18. **[AGENTE]** Faça o deploy.
 
     ```powershell
-    fly deploy -c fly.homolog.toml --image app:local --local-only --ha=false
+    fly deploy -c fly.homolog.toml --image app:local --local-only --ha=false --wait-timeout 10m
     ```
 
-    Envia a imagem local ao registro do Fly.io e cria **uma** máquina. Sem `--ha=false` o Fly.io cria duas, e com duas as sessões e os limites se dividem. Se o flyctl não aceitar a imagem local, o caminho alternativo é `fly auth docker`, depois `docker tag app:local registry.fly.io/sapiensia-homolog:<sha>`, `docker push registry.fly.io/sapiensia-homolog:<sha>` e `fly deploy -c fly.homolog.toml --image registry.fly.io/sapiensia-homolog:<sha> --ha=false`.
+    Envia a imagem local ao registro do Fly.io e cria **uma** máquina. O `--wait-timeout 10m` dá tempo à primeira subida, que no `shared-cpu-1x` pode passar de 60 s (o `grace_period` do Fly é limitado a 60 s). Sem `--ha=false` o Fly.io cria duas, e com duas as sessões e os limites se dividem. Se o flyctl não aceitar a imagem local, o caminho alternativo é `fly auth docker`, depois `docker tag app:local registry.fly.io/sapiensia-homolog:<sha>`, `docker push registry.fly.io/sapiensia-homolog:<sha>` e `fly deploy -c fly.homolog.toml --image registry.fly.io/sapiensia-homolog:<sha> --ha=false`.
 
 19. **[AGENTE]** Leia o log da subida.
 
