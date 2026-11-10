@@ -21,6 +21,21 @@
 - Push, PR e merge só com o OK do responsável.
 - Subagentes sempre com `model: sonnet`.
 
+## Decisões aprovadas pelo responsável (10/11/2026)
+
+Plano aprovado. Agora só as Tarefas 1 e 2 (subagentes sonnet). **Tarefa 3 (deploy), qualquer comando do Fly.io e qualquer instalação ficam parados até o responsável autorizar** (ele cadastra o cartão no site do Fly.io antes).
+
+1. Cartão: o responsável cadastra no site. 2. Máquina de 1 GB. 3. Desligamento automático com `stop` (não `suspend`). 4. Endereço `https://sapiensia-homolog.fly.dev` (se o nome do app não estiver livre, propor outro e parar). 5. Remetente `SapiensIA <nao-responda@homolog.sapiensia.app.br>` (texto aprovado). 6. `sslmode=require` agora; `verify-full` fica para o #47. 7. Usuário do banco fica para o #47. 8. Se a prova do `X-Forwarded-For` mostrar algo diferente do esperado, parar e trazer ao responsável antes de mudar código. 9. `APP_ADMIN_EMAIL` é definido só pelo responsável no `fly secrets set`; o valor nunca passa por esta sessão nem entra em arquivo. 10 a 13: como estão na seção 6.
+
+Ajustes obrigatórios (a a e):
+- **a.** O runbook manda limpar o histórico da área de transferência do Windows (Win+V > limpar tudo) ou desligá-lo, e configurar o Bitwarden para limpar a área de transferência sozinho, **antes** de copiar qualquer segredo.
+- **b.** Antes de instalar o flyctl: versão com mais de 7 dias de publicada (mesma regra das dependências), mostrada ao responsável. Conferido em 10/11/2026: `0.5.6` (09/11), `0.5.5` (05/11), `0.5.4` (04/11) e `0.5.3` (03/11) têm menos de 7 dias ou estão no limite; a mais recente com folga é **`0.5.2` (02/11/2026)**, disponível no winget. Instalar com `winget install --id Fly-io.flyctl -e --version 0.5.2`.
+- **c.** `Fly-Client-IP` ausente: cair no endereço da conexão, **nunca** no `X-Forwarded-For`. Documentar e testar os dois casos (com e sem o cabeçalho). O e2e do CI não manda o cabeçalho e precisa continuar passando.
+- **d.** O #18 está em outra worktree e vai mexer em `application.yml`: não tocar em `product`, Storage nem migrations; antes do push, `git merge origin/main` (nunca rebase, nunca push forçado), sem perder as linhas do #18.
+- **e.** O perfil `prod` remove o padrão do banco (localhost, usuário `app`, senha `app`) e falha ao subir se `DB_URL`, `DB_USER` ou `DB_PASSWORD` faltarem, com teste.
+
+Execução: um só `just check-resumo` completo por vez neste computador. Antes do check completo ou do `just imagem`, avisar o responsável e esperar a confirmação de que a sessão do #18 não está rodando o dela; enquanto isso, só os testes afetados. PR com `Refs #7` (não `Closes`: o deploy falta), texto em inglês, `gh pr checks --watch`, sem merge.
+
 ## Review Focus
 
 1. **Cabeçalho forjado pelo cliente:** `Fly-Client-IP` ou `X-Forwarded-For` falsos não podem mudar o IP que o limite de login e a auditoria enxergam. Coberto pela Tarefa 4, passo 4 (prova na homologação).
@@ -61,7 +76,7 @@ Levantado de `application.yml`, `application-prod.yml`, `Dockerfile`, `ci.yml` e
 ### Padrões perigosos em prod, hoje
 
 1. **`DB_URL`, `DB_USER`, `DB_PASSWORD`** têm padrão no `application.yml` (`localhost:5433`, usuário `app`, senha `app`). Faltando o segredo, a aplicação tenta o banco local com uma senha versionada em vez de parar com erro claro. **Tarefa 1** remove o padrão no perfil `prod`.
-2. **`app.login-limit.client-ip-header`** está vazio: atrás do proxy todos dividem um limite de 20 tentativas (#56). E, com `server.forward-headers-strategy: framework`, o endereço de fallback (`getRemoteAddr`) vem do `X-Forwarded-For`, cujo primeiro valor é escrito pelo cliente: hoje o limite por IP é forjável. **Tarefa 1** liga `Fly-Client-IP`; a **Tarefa 4** prova que nenhum dos dois cabeçalhos forjados passa.
+2. **`app.login-limit.client-ip-header`** está vazio: atrás do proxy todos dividem um limite de 20 tentativas (#56), porque o sistema usa o endereço da conexão, que é o do proxy. **Correção (10/11/2026):** a versão anterior deste plano dizia que, com `server.forward-headers-strategy: framework`, o `getRemoteAddr()` passaria a vir do `X-Forwarded-For`. Isso **não foi verificado** e provavelmente é falso (o `ForwardedHeaderFilter` do Spring trata esquema, host e porta, não o endereço remoto). A **Tarefa 1** tem um teste com essa estratégia ligada que decide; se ele mostrar que o `X-Forwarded-For` vaza para o endereço remoto, a Tarefa 1 para e o responsável decide (decisão 8). A **Tarefa 1** liga `Fly-Client-IP`, e a **Tarefa 4** prova na homologação que nenhum dos dois cabeçalhos forjados passa.
 3. **`app.email.from`** aponta para um domínio não verificado no Resend da homologação (não é falha de segurança, mas quebra o primeiro acesso). **Tarefa 2** define `APP_EMAIL_FROM`.
 4. **`RESEND_API_KEY:`** tem padrão vazio, mas a aplicação recusa subir com ele vazio: seguro.
 
@@ -127,7 +142,7 @@ primary_region = "gru"
 Legenda: **[AGENTE]** roda nesta sessão · **[RESPONSÁVEL]** você digita numa aba comum do PowerShell, na pasta da worktree, nunca neste chat.
 
 ### 4.1 Preparação
-1. **[RESPONSÁVEL]** `winget install --id Fly-io.flyctl -e` — instala o flyctl (confirmo o ID do pacote antes, com `winget search flyctl`). Feche e abra o terminal.
+1. **[RESPONSÁVEL]** `winget install --id Fly-io.flyctl -e --version 0.5.2` — instala o flyctl na versão de 02/11/2026 (mais de 7 dias de publicada; conferida em `winget show --id Fly-io.flyctl -e --versions` e nas releases do GitHub). Feche e abra o terminal. Só depois da autorização da Tarefa 3.
 2. **[AGENTE]** `fly version` — confirma que o flyctl está no PATH.
 3. **[RESPONSÁVEL]** `fly auth login` — abre o navegador para entrar na conta do Fly.io (com a 2FA).
 4. **[AGENTE]** `fly auth whoami` — mostra a conta logada (só o e-mail da conta).
@@ -138,6 +153,8 @@ Legenda: **[AGENTE]** roda nesta sessão · **[RESPONSÁVEL]** você digita numa
 7. **[AGENTE]** `fly ips list -a sapiensia-homolog` — deve mostrar só IPv6 e IPv4 compartilhado (sem IPv4 dedicado, que custa US$ 2/mês). Os IPs aparecem no primeiro deploy.
 
 ### 4.3 Segredos (só o responsável)
+**Antes de copiar qualquer segredo (ajuste a):** limpe o histórico da área de transferência do Windows (Win+V > "Limpar tudo") ou desligue o histórico (Configurações > Sistema > Área de Transferência); e configure o Bitwarden para limpar a área de transferência sozinho (Configurações > Opções > "Limpar área de transferência", por exemplo 30 segundos).
+
 Padrão para cada segredo: copiar do Bitwarden (o valor vai para a área de transferência) e rodar o comando, que lê a área de transferência sem o valor aparecer na tela nem no histórico do PowerShell. `--stage` grava sem reiniciar nada.
 
 8. **[RESPONSÁVEL]** gerar a chave do MFA e copiá-la (não aparece na tela):
@@ -184,7 +201,7 @@ Padrão para cada segredo: copiar do Bitwarden (o valor vai para a área de tran
 5. **Remetente da homologação.** O padrão é `SapiensIA <nao-responda@sapiensia.app.br>`, mas só `homolog.sapiensia.app.br` está verificado no Resend. Proponho `SapiensIA <nao-responda@homolog.sapiensia.app.br>` (texto que o usuário lê). Aprova?
 6. **SSL do banco.** `sslmode=require` agora, `verify-full` (certificado do Supabase dentro da imagem) como item do #47. Aprova?
 7. **Usuário do banco.** A aplicação usa o `postgres` do Supabase (dono das tabelas, roda o Flyway). Um papel próprio com menos poder atende melhor o "escopo mínimo" do SEC-022, mas mexe em migrations e em RLS; proponho deixar para o #47. Aprova?
-8. **`X-Forwarded-For` no fallback.** Achado da leitura: com `forward-headers-strategy: framework`, `getRemoteAddr()` passa a vir do primeiro valor do `X-Forwarded-For`, escrito pelo cliente. Com o `Fly-Client-IP` ligado isso só pesa se o cabeçalho faltar, e o Fly.io sempre o põe. Se a prova da Tarefa 4 mostrar o contrário, paro e trago para você antes de mudar o código.
+8. **`X-Forwarded-For` no fallback.** Hipótese da primeira leitura (marcada como **não verificada** e provavelmente falsa, ver seção 1): `getRemoteAddr()` viria do `X-Forwarded-For`. O teste da Tarefa 1 decide; se a prova na homologação ou o teste mostrarem algo diferente do esperado, paro e trago para o responsável antes de mudar código (aprovado).
 9. **`APP_ADMIN_EMAIL`.** Qual caixa recebe o primeiro acesso da homologação? Você só digita no `fly secrets set`; não preciso saber o valor.
 10. **Portas.** Nenhuma porta local muda: a imagem escuta 8080 dentro do container e o Fly.io publica 443. `just imagem` não sobe container. Nada a decidir, só registro.
 11. **Contas que faltam.** Para este ticket, nenhuma: Fly.io, Supabase e Resend estão prontos. R2 e Asaas ainda não têm código que os use; os segredos do Storage dependem do merge do #18.
@@ -224,10 +241,30 @@ void prodProfileHasNoDatabaseDefaults() {
 }
 ```
 
-- [ ] **Step 2: Run to verify it fails** — `cd backend; .\mvnw.cmd test -Dtest=ProdProfileConfigTest` → FAIL (`null` nos dois testes).
-- [ ] **Step 3: Implement** — acrescentar ao `application-prod.yml` o bloco `spring.datasource` com as três chaves sem padrão (comentário: "no default: a missing value stops the application") e `app.login-limit.client-ip-header: Fly-Client-IP` (comentário: "Fly Proxy overwrites it; proven on staging (#7); never X-Forwarded-For").
-- [ ] **Step 4: Run to verify it passes** — mesmo comando → PASS.
-- [ ] **Step 5: `just check-resumo`** → verde (o CI e2e usa `-e DB_URL ...`, então continua subindo).
+  Dois testes a mais no mesmo arquivo (ajustes c e e):
+
+```java
+@Test
+@DisplayName("SEC-022: prod profile fails to resolve the database settings when DB_URL, DB_USER or DB_PASSWORD is missing")
+void prodProfileFailsWithoutDatabaseVariables() {
+    // load application-prod.yml into a StandardEnvironment WITHOUT the three variables:
+    // getRequiredProperty("spring.datasource.url" / ".username" / ".password") must each throw
+    // IllegalArgumentException ("Could not resolve placeholder"); with the three set, each returns the value
+}
+
+@Test
+@DisplayName("SEC-014: without Fly-Client-IP the client IP is the connection address, never X-Forwarded-For")
+void shouldFallBackToConnectionAddressWhenFlyClientIpIsMissing() {
+    // in ClientIpResolverTest: resolver("Fly-Client-IP"), request with X-Forwarded-For=203.0.113.8 and Forwarded
+    // headers but NO Fly-Client-IP -> resolve(request) equals request.getRemoteAddr()
+}
+```
+
+  E um teste HTTP real (padrão de `LoginIpWindowTest`/Testcontainers, sem mocks) com `server.forward-headers-strategy=framework`, `app.login-limit.client-ip-header=Fly-Client-IP`: `GET`/`POST` com `X-Forwarded-For` forjado e sem `Fly-Client-IP` conta no endereço da conexão (o limite de IP chega a `429` depois de `ip-max-attempts` tentativas com `X-Forwarded-For` diferentes); com `Fly-Client-IP` válido, conta nele. **Se esse teste mostrar que o `X-Forwarded-For` altera o endereço da conexão, PARAR e trazer ao responsável (decisão 8), sem mudar código.**
+- [ ] **Step 2: Run to verify it fails** — `cd backend; .\mvnw.cmd test -Dtest=ProdProfileConfigTest` → FAIL (`null` nos testes do YAML). Só os testes afetados; nada de `just check-resumo` completo sem avisar o responsável.
+- [ ] **Step 3: Implement** — acrescentar ao `application-prod.yml` o bloco `spring.datasource` com as três chaves sem padrão (comentário: "no default: a missing value stops the application") e `app.login-limit.client-ip-header: Fly-Client-IP` (comentário: "Fly Proxy sets it; when it is absent the connection address is used, never X-Forwarded-For; proven on staging (#7)"). Não tocar em `application.yml`, `product`, Storage nem migrations.
+- [ ] **Step 4: Run to verify it passes** — `-Dtest=ProdProfileConfigTest,ClientIpResolverTest` mais o teste HTTP novo → PASS.
+- [ ] **Step 5: `just check-resumo`** → só com a confirmação do responsável de que a sessão do #18 não roda o dela; o implementador **não** roda o check completo: devolve a lista dos testes rodados. O CI e2e continua subindo: ele passa `-e DB_URL ...` e não manda `Fly-Client-IP`, então cai no endereço da conexão.
 - [ ] **Step 6: Commit** — `git add` dos dois arquivos; `fix: no database defaults and Fly-Client-IP in the prod profile (#7, #56)`.
 
 ### Task 2: `fly.homolog.toml` e runbook da homologação (subagente sonnet)
@@ -239,7 +276,7 @@ void prodProfileHasNoDatabaseDefaults() {
 - Modify: `docs/runbooks/recuperar-acesso-administrador.md` (a frase "pelo caminho aprovado de acesso ao banco (#7)" passa a apontar para o SQL Editor do Supabase e `fly machine restart`)
 
 - [ ] **Step 1:** criar `fly.homolog.toml` com o conteúdo da seção 2. Verificação: `fly config validate -c fly.homolog.toml` **só depois do login (Tarefa 3)**; aqui, conferir que não há segredo: `Select-String -Path fly.homolog.toml -Pattern 'PASSWORD|KEY|@gmail|postgres\.'` → nenhuma linha.
-- [ ] **Step 2:** criar o runbook com: a tabela de nomes da seção 1 (sem valores), o padrão `fly secrets set NOME="$(Get-Clipboard)" --stage`, o roteiro 4.3 a 4.5, `--ha=false` em todo deploy, como religar o Supabase pausado, como ver custo (`fly dashboard` > Billing) e como desligar tudo (`fly scale count 0 -a sapiensia-homolog`).
+- [ ] **Step 2:** criar o runbook com: a tabela de nomes da seção 1 (sem valores), a **limpeza do histórico da área de transferência e a limpeza automática do Bitwarden antes de copiar qualquer segredo** (ajuste a), a instalação do flyctl na versão `0.5.2` com a regra dos 7 dias (ajuste b), o padrão `fly secrets set NOME="$(Get-Clipboard)" --stage`, o roteiro 4.3 a 4.5, `--ha=false` em todo deploy, uma seção **"Fly-Client-IP ausente"** (cai no endereço da conexão, nunca no `X-Forwarded-For`; efeito: todos dividem o limite do IP do proxy; como conferir) (ajuste c), como religar o Supabase pausado, como ver custo (`fly dashboard` > Billing) e como desligar tudo (`fly scale count 0 -a sapiensia-homolog`). O runbook é comando por linha com uma frase do que cada um faz (CLAUDE.md global).
 - [ ] **Step 3:** `git grep -n -i -E "password=|apikey|re_[A-Za-z0-9]{8}"` nos arquivos novos → nenhuma linha.
 - [ ] **Step 4: Commit** — `chore: Fly.io config and runbook for the staging app (#7)`.
 
