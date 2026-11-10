@@ -4,6 +4,7 @@ import java.nio.file.Path;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -19,6 +20,7 @@ public class SwitchableProductFileStorage implements ProductFileStorage {
     private volatile boolean failingPuts;
     private volatile boolean failingDeletes;
     private volatile CyclicBarrier gate;
+    private volatile Pause pause;
 
     SwitchableProductFileStorage(ProductFileStorage delegate) {
         this.delegate = delegate;
@@ -44,6 +46,10 @@ public class SwitchableProductFileStorage implements ProductFileStorage {
         }
         delegate.put(key, file, sizeBytes);
         keys.add(key);
+        Pause held = pause;
+        if (held != null) {
+            held.hold();
+        }
         CyclicBarrier barrier = gate;
         if (barrier != null) {
             try {
@@ -63,6 +69,46 @@ public class SwitchableProductFileStorage implements ProductFileStorage {
      */
     public void gatePuts(int parties) {
         this.gate = parties > 0 ? new CyclicBarrier(parties) : null;
+    }
+
+    /** A put that has stored its object and now waits: the test sees it arrive, then lets it go. */
+    public static final class Pause {
+
+        private final CountDownLatch reached = new CountDownLatch(1);
+        private final CountDownLatch released = new CountDownLatch(1);
+
+        void hold() {
+            reached.countDown();
+            try {
+                if (!released.await(20, TimeUnit.SECONDS)) {
+                    throw new ProductFileStorageException("pause never released");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new ProductFileStorageException("pause interrupted");
+            }
+        }
+
+        /** Waits until a put is held; false if none arrived in time. */
+        public boolean awaitReached() throws InterruptedException {
+            return reached.await(20, TimeUnit.SECONDS);
+        }
+
+        public void release() {
+            released.countDown();
+        }
+    }
+
+    /** Makes the next puts wait, after storing, until the returned {@link Pause} is released. */
+    public Pause pausePuts() {
+        Pause created = new Pause();
+        this.pause = created;
+        return created;
+    }
+
+    /** Stops pausing puts. */
+    public void resumePuts() {
+        this.pause = null;
     }
 
     @Override

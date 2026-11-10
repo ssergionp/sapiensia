@@ -187,14 +187,16 @@ class ProductFileControllerTest {
     }
 
     @Test
-    @DisplayName("SEC-043: cada recusa vira 400 com o código, e FILE_TOO_LARGE vira 413")
+    @DisplayName("SEC-043: cada recusa vira 400 com o código, FILE_TOO_LARGE vira 413 e PUBLISHED_BEFORE vira 409")
     void shouldMapRejectionsToTheErrorCode() {
         for (ProductFileRejection reason : ProductFileRejection.values()) {
             var answer = controller.rejected(new ProductFileRejectedException(reason));
 
-            HttpStatus expected = reason == ProductFileRejection.FILE_TOO_LARGE
-                    ? HttpStatus.PAYLOAD_TOO_LARGE
-                    : HttpStatus.BAD_REQUEST;
+            HttpStatus expected = switch (reason) {
+                case FILE_TOO_LARGE -> HttpStatus.PAYLOAD_TOO_LARGE;
+                case PUBLISHED_BEFORE -> HttpStatus.CONFLICT;
+                default -> HttpStatus.BAD_REQUEST;
+            };
             assertThat(answer.getStatusCode()).isEqualTo(expected);
             ProblemDetail body = answer.getBody();
             assertThat(body.getProperties()).containsEntry("errors", java.util.Map.of("file", reason.name()));

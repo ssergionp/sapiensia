@@ -50,7 +50,7 @@ class ProductFileController {
     }
 
     /**
-     * 200 with the Product; 400 {"errors":{"file":CODE}}; 413 FILE_TOO_LARGE; 404; 503 without a body. The part is
+     * 200 with the Product; 400 {"errors":{"file":CODE}}; 413 FILE_TOO_LARGE; 409 PUBLISHED_BEFORE; 404; 503 without a body. The part is
      * copied to a temporary file that is always deleted, whatever the outcome.
      */
     @PostMapping(path = "/{id}/file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -106,9 +106,11 @@ class ProductFileController {
     /** The service or this controller refused the file: 400 with the code, or 413 for a size refusal. */
     @ExceptionHandler(ProductFileRejectedException.class)
     ResponseEntity<ProblemDetail> rejected(ProductFileRejectedException e) {
-        HttpStatus status = e.reason() == ProductFileRejection.FILE_TOO_LARGE
-                ? HttpStatus.PAYLOAD_TOO_LARGE
-                : HttpStatus.BAD_REQUEST;
+        HttpStatus status = switch (e.reason()) {
+            case FILE_TOO_LARGE -> HttpStatus.PAYLOAD_TOO_LARGE;
+            case PUBLISHED_BEFORE -> HttpStatus.CONFLICT;
+            default -> HttpStatus.BAD_REQUEST;
+        };
         return ResponseEntity.status(status).body(problem(status, e.reason()));
     }
 
