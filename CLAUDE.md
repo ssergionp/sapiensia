@@ -31,7 +31,7 @@ Plataforma web para criar e revisar e-books, cartilhas, tutoriais e checklists c
 - frontend/: React. Código por funcionalidade em src/features/<funcionalidade>/; componentes shadcn em src/components/ui; testes de ponta a ponta em e2e/ (arquivos `*.e2e.ts`).
 - backend/.../security/SecurityConfig.java: rotas de /api negadas por padrão, CSRF para a SPA e cabeçalhos de segurança. backend/.../web/SpaConfig.java: a API serve o build do React.
 - Dockerfile: imagem única (React dentro do jar), perfil `prod` (application-prod.yml). Health check em /api/system/health.
-- docs/: decisões em docs/adr/; passo a passo operacional em docs/runbooks/ (recuperar o acesso do Administrador); convenções das skills do Pocock em docs/agents/.
+- docs/: decisões em docs/adr/; passo a passo operacional em docs/runbooks/ (recuperar o acesso do Administrador; homologação no Fly.io); convenções das skills do Pocock em docs/agents/.
 - scripts/: novo-projeto.ps1 (usado uma vez, na criação), escolher-portas.ps1 (portas do banco e da API), verificar-ambiente.ps1 (just doctor), check-resumo.ps1 (just check-resumo) e limpar-ticket.ps1 (just limpar-ticket).
 - .claude/: hooks (Biome depois de cada edição; check antes de encerrar a resposta numa branch de ticket) e a skill verificar-entrega.
 

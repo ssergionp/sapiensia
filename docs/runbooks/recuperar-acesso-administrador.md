@@ -13,7 +13,7 @@ Procedimento manual do ADR-0004 (`docs/adr/0004-identidade-e-mfa.md`). Não há 
 
 ## Passos
 
-Os comandos abaixo são para o banco local de desenvolvimento (PowerShell, a partir da pasta principal do projeto). Em homologação e produção, rode o mesmo SQL no banco do ambiente pelo caminho aprovado de acesso ao banco (#7) e reinicie a aplicação pelo Fly.io.
+Os comandos abaixo são para o banco local de desenvolvimento (PowerShell, a partir da pasta principal do projeto). Em homologação e produção, rode o mesmo SQL no banco do ambiente, pelo SQL Editor do projeto Supabase `sapiensia-homolog` (veja `docs/runbooks/homologacao-fly.md`), e reinicie a aplicação com `fly machine restart <id da máquina> -a sapiensia-homolog` (o id vem de `fly machine list -a sapiensia-homolog`).
 
 1. Descubra o PID da API, para ela não recriar nada no meio do caminho.
 
