@@ -38,7 +38,7 @@ Regras que valem para tudo aqui:
 
 ## Passo zero: antes de copiar qualquer segredo
 
-1. **[RESPONSÁVEL]** Limpe o histórico da área de transferência do Windows: tecle Win+V e clique em "Limpar tudo". Ou desligue o histórico em Configurações > Sistema > Área de Transferência.
+1. **[RESPONSÁVEL]** **Desligue o histórico da área de transferência do Windows** (Configurações > Sistema > Área de Transferência) antes de copiar qualquer segredo; depois dos segredos, religue-o se quiser. Limpar o histórico uma vez antes **não** protege o que for copiado depois, porque o histórico continua gravando. Alternativa, se preferir manter o histórico ligado: tecle Win+V e clique em "Limpar tudo" **de novo depois do último segredo** (e rode o `Set-Clipboard -Value $null` do passo 14).
 2. **[RESPONSÁVEL]** No Bitwarden, ligue a limpeza automática da área de transferência: Configurações > Opções > "Limpar área de transferência", por exemplo 30 segundos.
 
 ## 1. Preparação
@@ -138,17 +138,47 @@ Faça antes o "Passo zero". O padrão para cada segredo: copie o valor do Bitwar
 
    Mesmo padrão, com o nome do segredo trocado.
 
-10. **[RESPONSÁVEL]** Repita o passo 9 para `DB_URL`, `DB_USER`, `RESEND_API_KEY` e `APP_ADMIN_EMAIL`: copie o valor, rode `fly secrets set NOME="$(Get-Clipboard)" --stage -a sapiensia-homolog` trocando `NOME`. Um comando por segredo.
+10. **[RESPONSÁVEL]** Copie `DB_URL` do Bitwarden e grave.
 
-11. **[RESPONSÁVEL]** Limpe a área de transferência.
+    ```powershell
+    fly secrets set DB_URL="$(Get-Clipboard)" --stage -a sapiensia-homolog
+    ```
+
+    Grava a URL do banco (sem usuário e senha) como segredo do app.
+
+11. **[RESPONSÁVEL]** Copie `DB_USER` do Bitwarden e grave.
+
+    ```powershell
+    fly secrets set DB_USER="$(Get-Clipboard)" --stage -a sapiensia-homolog
+    ```
+
+    Grava o usuário do banco como segredo do app.
+
+12. **[RESPONSÁVEL]** Copie `RESEND_API_KEY` do Bitwarden e grave.
+
+    ```powershell
+    fly secrets set RESEND_API_KEY="$(Get-Clipboard)" --stage -a sapiensia-homolog
+    ```
+
+    Grava a chave de envio do Resend como segredo do app.
+
+13. **[RESPONSÁVEL]** Copie a caixa de e-mail do Administrador de onde você a guarda e grave `APP_ADMIN_EMAIL`.
+
+    ```powershell
+    fly secrets set APP_ADMIN_EMAIL="$(Get-Clipboard)" --stage -a sapiensia-homolog
+    ```
+
+    Grava a caixa que recebe o link de primeiro acesso como segredo do app; o valor nunca entra em arquivo nem no chat.
+
+14. **[RESPONSÁVEL]** Limpe a área de transferência.
 
     ```powershell
     Set-Clipboard -Value $null
     ```
 
-    Esvazia a área de transferência.
+    Esvazia a área de transferência. Se o histórico do Windows ficou ligado durante os segredos, tecle também Win+V e clique em "Limpar tudo" agora; se foi desligado, religue-o se quiser.
 
-12. **[AGENTE]** Confira os nomes.
+15. **[AGENTE]** Confira os nomes.
 
     ```powershell
     fly secrets list -a sapiensia-homolog
@@ -158,7 +188,7 @@ Faça antes o "Passo zero". O padrão para cada segredo: copie o valor do Bitwar
 
 ## 5. Imagem e deploy
 
-13. **[AGENTE]** Gere a imagem.
+16. **[AGENTE]** Gere a imagem.
 
     ```powershell
     just imagem
@@ -166,7 +196,7 @@ Faça antes o "Passo zero". O padrão para cada segredo: copie o valor do Bitwar
 
     Gera a imagem `app:local` com o `Dockerfile`, a mesma do CI.
 
-14. **[AGENTE]** Valide o arquivo de configuração.
+17. **[AGENTE]** Valide o arquivo de configuração.
 
     ```powershell
     fly config validate -c fly.homolog.toml
@@ -174,7 +204,7 @@ Faça antes o "Passo zero". O padrão para cada segredo: copie o valor do Bitwar
 
     Confere o `fly.homolog.toml`; deve responder que a configuração é válida.
 
-15. **[AGENTE]** Faça o deploy.
+18. **[AGENTE]** Faça o deploy.
 
     ```powershell
     fly deploy -c fly.homolog.toml --image app:local --local-only --ha=false
@@ -182,7 +212,7 @@ Faça antes o "Passo zero". O padrão para cada segredo: copie o valor do Bitwar
 
     Envia a imagem local ao registro do Fly.io e cria **uma** máquina. Sem `--ha=false` o Fly.io cria duas, e com duas as sessões e os limites se dividem. Se o flyctl não aceitar a imagem local, o caminho alternativo é `fly auth docker`, depois `docker tag app:local registry.fly.io/sapiensia-homolog:<sha>`, `docker push registry.fly.io/sapiensia-homolog:<sha>` e `fly deploy -c fly.homolog.toml --image registry.fly.io/sapiensia-homolog:<sha> --ha=false`.
 
-16. **[AGENTE]** Leia o log da subida.
+19. **[AGENTE]** Leia o log da subida.
 
     ```powershell
     fly logs -a sapiensia-homolog --no-tail
@@ -192,7 +222,7 @@ Faça antes o "Passo zero". O padrão para cada segredo: copie o valor do Bitwar
 
 ## 6. Conferências
 
-17. **[AGENTE]** Confira que há uma só máquina.
+20. **[AGENTE]** Confira que há uma só máquina.
 
     ```powershell
     fly machine list -a sapiensia-homolog
@@ -200,7 +230,7 @@ Faça antes o "Passo zero". O padrão para cada segredo: copie o valor do Bitwar
 
     Exatamente uma máquina, região `gru`, tamanho `shared-cpu-1x:1024MB`.
 
-18. **[AGENTE]** Confira o health check.
+21. **[AGENTE]** Confira o health check.
 
     ```powershell
     curl.exe -sS https://sapiensia-homolog.fly.dev/api/system/health
@@ -214,7 +244,7 @@ Faça antes o "Passo zero". O padrão para cada segredo: copie o valor do Bitwar
 
     O check deve estar `passing`.
 
-19. **[AGENTE]** Confira o `Referrer-Policy`.
+22. **[AGENTE]** Confira o `Referrer-Policy`.
 
     ```powershell
     curl.exe -sSI https://sapiensia-homolog.fly.dev/redefinir-senha
