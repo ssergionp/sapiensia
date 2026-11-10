@@ -145,6 +145,8 @@ class ProductSeedTest {
     @SpringBootTest(
             properties = {
                 "app.email.resend.api-key=re_test_fictitious",
+                "app.storage.supabase.url=http://localhost:1",
+                "app.storage.supabase.secret-key=test-secret-not-real",
                 "app.public-base-url=http://localhost:5173",
                 "app.admin.email=admin@example.com"
             })

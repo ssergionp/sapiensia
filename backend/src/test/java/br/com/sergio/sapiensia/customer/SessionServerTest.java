@@ -32,7 +32,12 @@ import org.springframework.test.context.ActiveProfiles;
 @ActiveProfiles("prod")
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = {"APP_PUBLIC_BASE_URL=http://localhost:5173", "RESEND_API_KEY=test-key"})
+        properties = {
+            "APP_PUBLIC_BASE_URL=http://localhost:5173",
+            "RESEND_API_KEY=test-key",
+            "APP_STORAGE_SUPABASE_URL=http://localhost:1",
+            "APP_STORAGE_SUPABASE_SECRET_KEY=test-secret-not-real"
+        })
 class SessionServerTest {
 
     private static final String PASSWORD = "senhalongaok";

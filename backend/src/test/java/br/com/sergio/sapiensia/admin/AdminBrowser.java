@@ -129,6 +129,18 @@ final class AdminBrowser {
                 HttpResponse.BodyHandlers.ofString());
     }
 
+    /** A POST of a multipart body (see {@link UploadBodies}), with or without the CSRF header. */
+    HttpResponse<String> postMultipart(String path, UploadBodies.Upload upload, boolean withCsrf) throws Exception {
+        ensureCsrfCookie();
+        HttpRequest.Builder builder = HttpRequest.newBuilder(uri(path))
+                .header("Content-Type", upload.contentType())
+                .POST(upload.publisher());
+        if (withCsrf) {
+            builder.header("X-XSRF-TOKEN", cookie("XSRF-TOKEN"));
+        }
+        return client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
     HttpResponse<String> delete(String path) throws Exception {
         ensureCsrfCookie();
         return client.send(

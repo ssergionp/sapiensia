@@ -22,12 +22,12 @@ import org.apache.pdfbox.pdmodel.interactive.action.PDActionURI;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationLink;
 
 /** Builds PDFs in memory for the tests; nothing is ever read from a committed file. */
-final class TestPdfs {
+public final class TestPdfs {
 
     private TestPdfs() {}
 
     /** A valid PDF with {@code n} blank pages. */
-    static byte[] pages(int n) {
+    public static byte[] pages(int n) {
         try (PDDocument doc = new PDDocument()) {
             for (int i = 0; i < n; i++) {
                 doc.addPage(new PDPage(PDRectangle.A4));

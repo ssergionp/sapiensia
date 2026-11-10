@@ -8,6 +8,14 @@ server:
       cookie:
         http-only: true
 spring:
+  servlet:
+    multipart:
+      # 50 MB per file (52,428,800 bytes) and 51 MB per request: Tomcat cuts the body while receiving (SEC-043).
+      # file-size-threshold 0 writes the part straight to disk; resolve-lazily lets the controller answer 413.
+      max-file-size: 50MB
+      max-request-size: 51MB
+      file-size-threshold: 0
+      resolve-lazily: true
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5433/app}
     username: ${DB_USER:app}

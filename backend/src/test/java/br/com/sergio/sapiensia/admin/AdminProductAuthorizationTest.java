@@ -102,7 +102,8 @@ class AdminProductAuthorizationTest {
         route("PATCH {id}", (b, id) -> b.patch(PRODUCTS + "/" + id, validUpdate(0))),
         route("PATCH {id}/price", (b, id) -> b.patch(PRODUCTS + "/" + id + "/price", priceJson(5000, 0))),
         route("GET {id}/file", (b, id) -> b.get(PRODUCTS + "/" + id + "/file")),
-        route("POST {id}/file", (b, id) -> b.post(PRODUCTS + "/" + id + "/file", "{}")),
+        route("PUT {id}/file", (b, id) -> b.put(PRODUCTS + "/" + id + "/file", "{}")),
+        route("DELETE {id}/file", (b, id) -> b.delete(PRODUCTS + "/" + id + "/file")),
     };
 
     private AdminBrowser anonymous() {
@@ -254,7 +255,7 @@ class AdminProductAuthorizationTest {
     }
 
     @Test
-    @DisplayName("SEC-010 SEC-020: DELETE, PATCH e o arquivo do Produto dão 403 até para o Administrador completo")
+    @DisplayName("SEC-010 SEC-020: DELETE, PATCH e GET/PUT/DELETE do arquivo dão 403 até para o Administrador completo")
     void shouldKeepDeletePatchAndFileRoutesDenied() throws Exception {
         AdminBrowser admin = fullAdmin();
         int before = count();
