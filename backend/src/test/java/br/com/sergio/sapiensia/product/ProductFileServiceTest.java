@@ -117,7 +117,7 @@ class ProductFileServiceTest {
     }
 
     @Test
-    @DisplayName("first upload writes one row and one object and returns the file info")
+    @DisplayName("SEC-047: first upload writes one row and one object and returns the file info")
     void shouldStoreFirstUpload() throws Exception {
         Path file = pdf(2);
         ProductResponse response = upload(productId, file);
@@ -132,7 +132,7 @@ class ProductFileServiceTest {
     }
 
     @Test
-    @DisplayName("a Product without file has file null")
+    @DisplayName("SEC-047: a Product without file has file null")
     void shouldReturnNullFileWhenNone() {
         assertThat(products.find(productId))
                 .get()
@@ -141,7 +141,7 @@ class ProductFileServiceTest {
     }
 
     @Test
-    @DisplayName("uma só versão atual: the second upload swaps the row and deletes the previous object")
+    @DisplayName("SEC-047: uma só versão atual: the second upload swaps the row and deletes the previous object")
     void shouldSwapRowAndDeleteOldObject() throws Exception {
         upload(productId, pdf(1));
         String oldKey = rowKeys().get(0);
@@ -154,7 +154,7 @@ class ProductFileServiceTest {
     }
 
     @Test
-    @DisplayName("storage put failure throws and leaves the database unchanged")
+    @DisplayName("SEC-047: storage put failure throws and leaves the database unchanged")
     void shouldLeaveDatabaseUnchangedWhenPutFails() throws Exception {
         storage.failPuts(true);
 
@@ -166,7 +166,8 @@ class ProductFileServiceTest {
     }
 
     @Test
-    @DisplayName("audit failure during the swap deletes the new object and keeps the old row and object")
+    @DisplayName(
+            "SEC-047 SEC-065: audit failure during the swap deletes the new object and keeps the old row and object")
     void shouldCompensateWhenSwapFails() throws Exception {
         upload(productId, pdf(1));
         String oldKey = rowKeys().get(0);
@@ -181,7 +182,7 @@ class ProductFileServiceTest {
     }
 
     @Test
-    @DisplayName("failing to delete the old object does not change the result and logs no key or name")
+    @DisplayName("SEC-047: failing to delete the old object does not change the result and logs no key or name")
     void shouldIgnoreOldDeleteFailure(CapturedOutput output) throws Exception {
         upload(productId, pdf(1));
         String oldKey = rowKeys().get(0);
@@ -200,7 +201,7 @@ class ProductFileServiceTest {
     }
 
     @Test
-    @DisplayName("two concurrent uploads leave one row and exactly one object")
+    @DisplayName("SEC-047: two concurrent uploads leave one row and exactly one object")
     void shouldLeaveOneRowAndOneObjectOnConcurrentUploads() throws Exception {
         Path first = pdf(1);
         Path second = pdf(2);
@@ -241,7 +242,7 @@ class ProductFileServiceTest {
     }
 
     @Test
-    @DisplayName("upload refuses to run inside a caller's transaction and stores nothing")
+    @DisplayName("SEC-047: upload refuses to run inside a caller's transaction and stores nothing")
     void shouldRefuseToRunInsideTransaction() throws Exception {
         Path file = pdf(1);
         TransactionTemplate outer = new TransactionTemplate(transactionManager);
@@ -254,7 +255,7 @@ class ProductFileServiceTest {
     }
 
     @Test
-    @DisplayName("a nonexistent Product throws ProductNotFoundException and stores nothing")
+    @DisplayName("SEC-047: a nonexistent Product throws ProductNotFoundException and stores nothing")
     void shouldNotStoreForMissingProduct() throws Exception {
         UUID missing = UUID.randomUUID();
 

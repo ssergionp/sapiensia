@@ -208,6 +208,33 @@ class PdfFileValidatorTest {
     }
 
     @Test
+    @DisplayName("SEC-047: chamador interrompido antes de a tarefa começar não deixa o validador ocupado para sempre")
+    void interruptedCallerNeverLeaksThePermit() throws Exception {
+        PdfFileValidator quick = new PdfFileValidator(1000, Duration.ofSeconds(30), file -> {
+            throw new IOException("stub opener never returns a document");
+        });
+        Path file = write(TestPdfs.pages(1));
+        for (int i = 0; i < 100; i++) {
+            // get() fails at once, so the task is usually cancelled before the worker starts it
+            Thread.currentThread().interrupt();
+            assertThat(quick.check(file, "a.pdf", PDF)).isEqualTo(rejected(ProductFileRejection.FILE_INVALID));
+            assertThat(Thread.interrupted()).isTrue();
+            // A worker that did start may still be finishing: wait briefly. A leaked permit never frees up.
+            long deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos();
+            PdfCheck next = null;
+            while (next == null) {
+                try {
+                    next = quick.check(file, "a.pdf", PDF);
+                } catch (ValidatorBusyException busy) {
+                    assertThat(System.nanoTime()).as("validator stayed busy").isLessThan(deadline);
+                    Thread.sleep(5);
+                }
+            }
+            assertThat(next).isEqualTo(rejected(ProductFileRejection.FILE_INVALID));
+        }
+    }
+
+    @Test
     @DisplayName("SEC-046 SEC-047: PDF com /URI, /GoToR, /Launch e JavaScript não abre conexão na validação")
     void activeContentOpensNoConnection() throws Exception {
         AtomicInteger accepted = new AtomicInteger();

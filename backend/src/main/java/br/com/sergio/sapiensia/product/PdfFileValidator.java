@@ -15,6 +15,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.pdfbox.io.RandomAccessReadBufferedFile;
 import org.apache.pdfbox.pdfparser.PDFParser;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -91,35 +92,57 @@ public class PdfFileValidator {
             throw new ValidatorBusyException();
         }
         RandomAccessReadBufferedFile source;
-        Future<PdfCheck> future;
         try {
             source = new RandomAccessReadBufferedFile(file);
-            RandomAccessReadBufferedFile opened = source;
-            future = executor.submit(() -> {
-                try {
-                    return inspect(opened);
-                } finally {
-                    permit.release();
-                }
-            });
         } catch (IOException | RuntimeException e) {
             permit.release();
+            return reject(ProductFileRejection.FILE_INVALID);
+        }
+        // The permit is released exactly once: by the worker, or by the caller when the task was cancelled before
+        // the worker ever started it (then the worker's finally never runs).
+        AtomicBoolean started = new AtomicBoolean();
+        AtomicBoolean released = new AtomicBoolean();
+        Runnable releaseOnce = () -> {
+            if (released.compareAndSet(false, true)) {
+                permit.release();
+            }
+        };
+        Future<PdfCheck> future;
+        try {
+            future = executor.submit(() -> {
+                started.set(true);
+                try {
+                    return inspect(source);
+                } finally {
+                    releaseOnce.run();
+                }
+            });
+        } catch (RuntimeException e) {
+            closeQuietly(source);
+            releaseOnce.run();
             return reject(ProductFileRejection.FILE_INVALID);
         }
         try {
             return future.get(timeout.toNanos(), TimeUnit.NANOSECONDS);
         } catch (TimeoutException e) {
-            future.cancel(true);
-            // Closing the file makes the parser fail on its next read.
-            closeQuietly(source);
+            abandon(future, started, releaseOnce, source);
             return reject(ProductFileRejection.FILE_INVALID);
         } catch (InterruptedException e) {
-            future.cancel(true);
-            closeQuietly(source);
+            abandon(future, started, releaseOnce, source);
             Thread.currentThread().interrupt();
             return reject(ProductFileRejection.FILE_INVALID);
         } catch (ExecutionException e) {
             return reject(ProductFileRejection.FILE_INVALID);
+        }
+    }
+
+    private static void abandon(
+            Future<PdfCheck> future, AtomicBoolean started, Runnable releaseOnce, RandomAccessReadBufferedFile source) {
+        boolean cancelled = future.cancel(true);
+        // Closing the file makes the parser fail on its next read.
+        closeQuietly(source);
+        if (cancelled && !started.get()) {
+            releaseOnce.run();
         }
     }
 
