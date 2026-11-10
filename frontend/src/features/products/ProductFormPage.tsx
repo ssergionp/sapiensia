@@ -34,6 +34,7 @@ import {
   SERVER_FIELD_MESSAGES,
   SERVER_FIELD_NAMES,
 } from "./messages";
+import ProductFileSection from "./ProductFileSection";
 import {
   centsToInput,
   formatCents,
@@ -444,6 +445,7 @@ function EditForms({
             </div>
           )}
         </section>
+        <ProductFileSection product={product} />
       </div>
     </main>
   );

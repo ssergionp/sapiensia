@@ -38,6 +38,7 @@ export function product(overrides: Partial<Product> = {}): Product {
     priceCents: 1990,
     status: "DRAFT",
     version: 3,
+    file: null,
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
     ...overrides,
@@ -48,7 +49,7 @@ export function product(overrides: Partial<Product> = {}): Product {
 export function listItem(
   overrides: Partial<ProductListItem> = {},
 ): ProductListItem {
-  const { description: _description, ...item } = product();
+  const { description: _description, file: _file, ...item } = product();
   return { ...item, ...overrides };
 }
 

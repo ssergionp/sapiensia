@@ -4,7 +4,30 @@ import {
   formatCents,
   parsePriceToCents,
   productDataSchema,
+  productPageSchema,
 } from "./schemas";
+
+describe("productPageSchema", () => {
+  test("a list item without file or description parses (the backend list has neither)", () => {
+    const page = productPageSchema.parse({
+      items: [
+        {
+          id: "p1",
+          title: "Guia",
+          category: "HEALTH",
+          priceCents: 1990,
+          status: "DRAFT",
+          version: 1,
+          createdAt: "2026-01-01T00:00:00Z",
+          updatedAt: "2026-01-01T00:00:00Z",
+        },
+      ],
+      page: 0,
+      totalPages: 1,
+    });
+    expect(page.items).toHaveLength(1);
+  });
+});
 
 describe("parsePriceToCents", () => {
   test.each([
