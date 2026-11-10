@@ -23,7 +23,9 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
 @Import(TestcontainersConfiguration.class)
-@SpringBootTest
+// Own context: the csrf() shortcut replaces the CSRF repository of the shared context for good, and then the tests
+// that need the real XSRF-TOKEN cookie (CustomerControllerTest) fail whenever this class runs before them.
+@SpringBootTest(properties = "test.isolated-context=email-confirmation-controller")
 class EmailConfirmationControllerTest {
 
     private static final String PASSWORD = "senhalongaok";
