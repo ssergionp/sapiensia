@@ -13,6 +13,56 @@ export const PRODUCT_CATEGORIES = [
 
 export type ProductCategory = (typeof PRODUCT_CATEGORIES)[number];
 
+// Mirrors the file summary of ProductResponse: never a key or a URL.
+export const productFileSchema = z.object({
+  sizeBytes: z.number().int(),
+  pageCount: z.number().int(),
+  uploadedAt: z.string(),
+});
+
+export type ProductFile = z.infer<typeof productFileSchema>;
+
+// Codes of the "file" field in a 400/413 answer of the file upload.
+export const FILE_REJECTION_CODES = [
+  "FILE_REQUIRED",
+  "FILE_EMPTY",
+  "FILE_TOO_LARGE",
+  "FILE_NOT_PDF",
+  "FILE_INVALID",
+  "FILE_ENCRYPTED",
+  "FILE_TOO_MANY_PAGES",
+] as const;
+
+export type ProductFileRejectionCode = (typeof FILE_REJECTION_CODES)[number];
+
+// 50 MB, base 1024. The same limit the backend enforces.
+export const MAX_FILE_BYTES = 52_428_800;
+
+// "3,4 MB" from bytes: one decimal, comma, base 1024.
+export function formatFileSize(bytes: number): string {
+  const tenths = Math.round((bytes * 10) / (1024 * 1024));
+  return `${Math.floor(tenths / 10)},${tenths % 10} MB`;
+}
+
+const brasiliaParts = new Intl.DateTimeFormat("pt-BR", {
+  timeZone: "America/Sao_Paulo",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+// "09/11/2026 às 14:32" in Brasilia time, whatever the zone of the browser.
+export function formatUploadedAt(iso: string): string {
+  const parts: Record<string, string> = {};
+  for (const part of brasiliaParts.formatToParts(new Date(iso))) {
+    parts[part.type] = part.value;
+  }
+  return `${parts.day}/${parts.month}/${parts.year} às ${parts.hour}:${parts.minute}`;
+}
+
 // Mirrors ProductResponse and ProductPage in the backend.
 export const productSchema = z.object({
   id: z.string(),
@@ -22,6 +72,7 @@ export const productSchema = z.object({
   priceCents: z.number().int(),
   status: z.string(),
   version: z.number().int(),
+  file: productFileSchema.nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -29,7 +80,10 @@ export const productSchema = z.object({
 export type Product = z.infer<typeof productSchema>;
 
 // Mirrors ProductListItem in the backend: the list has no description.
-export const productListItemSchema = productSchema.omit({ description: true });
+export const productListItemSchema = productSchema.omit({
+  description: true,
+  file: true,
+});
 
 export type ProductListItem = z.infer<typeof productListItemSchema>;
 

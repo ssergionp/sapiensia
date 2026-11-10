@@ -12,3 +12,4 @@ O PostgreSQL fica no Supabase Free (São Paulo) e os Arquivos do produto no Supa
 - Os arquivos ficam fora do banco, então perder o banco não apaga os PDFs.
 - O gate de lançamento exige um teste de restauração feito de verdade, na homologação.
 - Se as vendas crescerem, migrar para backup contínuo (plano pago do Supabase) é uma decisão de custo a reabrir.
+- Os Arquivos do produto passam pelo adaptador `ProductFileStorage` (Supabase Storage em produção, disco no local, no CI e nos testes; o perfil `prod` não sobe com o de disco). O nome do objeto é gerado pelo servidor (`products/<id do Produto>/<UUID>.pdf`), o bucket `product-files` é privado e nenhuma URL pública é gerada nem guardada. Falhas entre o envio ao Storage e a gravação no banco, ou ao apagar o arquivo anterior, podem deixar objetos órfãos, nunca um Produto apontando para um objeto que não existe (#18).

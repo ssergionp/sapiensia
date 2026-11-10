@@ -1,4 +1,4 @@
-import type { ProductCategory } from "./schemas";
+import type { ProductCategory, ProductFileRejectionCode } from "./schemas";
 
 export const CATEGORY_LABELS: Record<ProductCategory, string> = {
   HEALTH: "Saúde",
@@ -50,3 +50,24 @@ export const SERVER_FIELD_NAMES: Record<string, string> = {
 };
 
 export const PRODUCT_NOT_FOUND = "Produto não encontrado.";
+
+export const FILE_MESSAGES: Record<ProductFileRejectionCode, string> = {
+  FILE_REQUIRED: "Selecione um arquivo PDF.",
+  FILE_EMPTY: "O arquivo está vazio.",
+  FILE_TOO_LARGE: "O arquivo passa de 50 MB. Envie um PDF menor.",
+  FILE_NOT_PDF: "O arquivo não é um PDF. Envie um arquivo PDF.",
+  FILE_INVALID:
+    "Não foi possível ler este PDF. Ele pode estar corrompido. Gere o PDF de novo e tente outra vez.",
+  FILE_ENCRYPTED:
+    "O PDF está protegido por senha. Envie uma versão sem proteção.",
+  FILE_TOO_MANY_PAGES:
+    "O PDF passa de 1.000 páginas. Envie um arquivo com até 1.000 páginas.",
+};
+
+export const FILE_UPLOAD_ERRORS = {
+  forbidden: "Você não tem permissão para enviar o arquivo do Produto.",
+  unavailable:
+    "O sistema está indisponível no momento e o arquivo não foi enviado. Tente novamente em alguns instantes.",
+  unexpected:
+    "Não foi possível enviar o arquivo. Verifique a conexão e tente novamente.",
+} as const;

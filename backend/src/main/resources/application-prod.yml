@@ -27,6 +27,16 @@ app:
     resend:
       # secret from the platform (RESEND_API_KEY); blank makes the application refuse to start
       api-key: ${RESEND_API_KEY:}
+  storage:
+    # the disk provider refuses to start in prod
+    provider: supabase
+    supabase:
+      # project address from the platform (APP_STORAGE_SUPABASE_URL); no default, so a missing value stops the application
+      url: ${APP_STORAGE_SUPABASE_URL}
+      # secret key from the platform (APP_STORAGE_SUPABASE_SECRET_KEY); blank makes the application refuse to start
+      secret-key: ${APP_STORAGE_SUPABASE_SECRET_KEY:}
+      # private bucket, created by hand in the Supabase panel
+      bucket: product-files
   admin:
     # a blank or invalid APP_ADMIN_EMAIL stops the application
     required: true

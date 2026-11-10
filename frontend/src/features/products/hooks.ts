@@ -13,6 +13,7 @@ import {
   ProductSessionEndedError,
   updateProduct,
   updateProductPrice,
+  uploadProductFile,
 } from "./api";
 import type { Product } from "./schemas";
 
@@ -78,6 +79,19 @@ export function useUpdateProduct(id: string) {
   return useMutation({
     mutationFn: (input: Parameters<typeof updateProduct>[1]) =>
       updateProduct(id, input),
+    onSuccess: (saved: Product) => {
+      queryClient.setQueryData(productQueryKey(id), saved);
+      void queryClient.invalidateQueries({ queryKey: productsQueryKey });
+    },
+    onError: endSessionOn401(queryClient),
+  });
+}
+
+// The answer is the whole Product: the cache takes it, so the "Arquivo atual" line and the version are current.
+export function useUploadProductFile(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => uploadProductFile(id, file),
     onSuccess: (saved: Product) => {
       queryClient.setQueryData(productQueryKey(id), saved);
       void queryClient.invalidateQueries({ queryKey: productsQueryKey });

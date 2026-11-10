@@ -167,6 +167,10 @@ public class SecurityConfig {
                         .access(panel(Capability.PRODUCTS_EDIT))
                         .requestMatchers(HttpMethod.PUT, "/api/admin/products/*/price")
                         .access(panel(Capability.PRODUCTS_PRICE))
+                        // the PDF of a Product (#18): POST only (Tomcat parses multipart on POST); GET, PUT and DELETE
+                        // on /file stay denied. The lock is checked before the body is read.
+                        .requestMatchers(HttpMethod.POST, "/api/admin/products/*/file")
+                        .access(panel(Capability.PRODUCTS_FILE))
                         .requestMatchers("/api/**")
                         .denyAll()
                         .anyRequest()

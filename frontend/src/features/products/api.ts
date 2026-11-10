@@ -1,7 +1,9 @@
 import { apiFetch } from "@/lib/api";
 import {
+  FILE_REJECTION_CODES,
   type Product,
   type ProductCategory,
+  type ProductFileRejectionCode,
   type ProductPage,
   productPageSchema,
   productSchema,
@@ -44,6 +46,49 @@ async function check(response: Response, ok: number): Promise<Response> {
     }
   }
   throw new Error(`Unexpected status ${response.status}`);
+}
+
+// 400/413 with a known code in errors.file.
+export class ProductFileRejectedError extends Error {
+  readonly code: ProductFileRejectionCode;
+  constructor(code: ProductFileRejectionCode) {
+    super("Product file rejected");
+    this.code = code;
+  }
+}
+
+// The browser sets the multipart Content-Type (with the boundary) itself: apiFetch adds only the CSRF header.
+export async function uploadProductFile(
+  id: string,
+  file: File,
+): Promise<Product> {
+  const form = new FormData();
+  form.append("file", file);
+  const raw = await apiFetch(
+    `/api/admin/products/${encodeURIComponent(id)}/file`,
+    {
+      method: "POST",
+      body: form,
+    },
+  );
+  if (raw.status === 400 || raw.status === 413) {
+    const body: unknown = await raw.json().catch(() => null);
+    const code =
+      typeof body === "object" &&
+      body !== null &&
+      "errors" in body &&
+      typeof body.errors === "object" &&
+      body.errors !== null &&
+      "file" in body.errors
+        ? body.errors.file
+        : null;
+    if ((FILE_REJECTION_CODES as readonly unknown[]).includes(code)) {
+      throw new ProductFileRejectedError(code as ProductFileRejectionCode);
+    }
+    throw new Error(`Unexpected status ${raw.status}`);
+  }
+  const response = await check(raw, 200);
+  return productSchema.parse(await response.json());
 }
 
 function sendJson(method: string, body: unknown): RequestInit {

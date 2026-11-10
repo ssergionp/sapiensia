@@ -13,4 +13,5 @@ record ProductResponse(
         ProductStatus status,
         int version,
         Instant createdAt,
-        Instant updatedAt) {}
+        Instant updatedAt,
+        ProductFileInfo file) {}
