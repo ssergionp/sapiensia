@@ -189,4 +189,33 @@ class AdminRouteDenyByDefaultTest {
                 .as("POST by id")
                 .isEqualTo(403);
     }
+
+    @Test
+    @DisplayName("SEC-010: PUT e DELETE de /publication abrem só pela regra PRODUCTS_PUBLISH; os demais verbos negam")
+    void shouldOpenThePublicationRoutesOnlyForPutAndDelete() throws Exception {
+        AdminBrowser anonymous = new AdminBrowser(port);
+        AdminBrowser administrator = new AdminBrowser(port);
+        assertThat(administrator
+                        .loginAdminFully(adminEmail, PASSWORD, secret, clock)
+                        .statusCode())
+                .isEqualTo(204);
+        String publication = "/api/admin/products/" + UUID.randomUUID() + "/publication";
+
+        assertThat(anonymous.put(publication, "").statusCode())
+                .as("anonymous PUT")
+                .isEqualTo(401);
+        assertThat(anonymous.delete(publication).statusCode())
+                .as("anonymous DELETE")
+                .isEqualTo(401);
+        // the full Administrator gets past the lock: an unknown Product is the route's own 404
+        assertThat(administrator.put(publication, "").statusCode()).as("PUT").isEqualTo(404);
+        assertThat(administrator.delete(publication).statusCode()).as("DELETE").isEqualTo(404);
+        assertThat(administrator.get(publication).statusCode()).as("GET").isEqualTo(403);
+        assertThat(administrator.post(publication, "{}").statusCode())
+                .as("POST")
+                .isEqualTo(403);
+        assertThat(administrator.patch(publication, "{}").statusCode())
+                .as("PATCH")
+                .isEqualTo(403);
+    }
 }
