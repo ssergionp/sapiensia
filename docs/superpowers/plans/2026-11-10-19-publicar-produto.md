@@ -2,15 +2,17 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** Decisões aprovadas em 10/11/2026. Os textos (D8) ainda aguardam aprovação, e nada é implementado antes dela.
+**Status:** APROVADO em 10/11/2026.
 
-**Decisões aprovadas:** D1, D2, D3, D4, D5, D6, D7 e D9 como estão na seção 9. D8 está pendente.
+**Decisões aprovadas:** D1 a D9 como estão na seção 9. D8: os 25 textos da seção 7 estão aprovados exatamente como escritos, e a fonte única deles é `frontend/src/features/products/messages.ts`.
+
+**Nota para o #22:** quando a reautenticação chegar, o #22 troca o texto da confirmação de publicação e a frase de bloqueio do arquivo (os textos 10 e 25 da lista aprovada), tirando a parte "que ainda não está disponível".
 
 **Ajustes obrigatórios (aprovação de 10/11/2026):**
 - A1 Conferido no spec: FR-011 diz "validações requeridas", e a história 48 da spec #5 define essa validação como "só conseguir publicar se ele tiver Arquivo do produto". Preço, título, descrição e categoria já são validados ao criar e editar (DTO e checks do banco), então todo Produto salvo é válido. **Publicar exige só o arquivo**, sem erro novo. A capa (história 45) ainda não existe no modelo e fica para o ticket que a criar.
 - A2 A V15 deixa os Produtos existentes em `DRAFT` com `first_published_at` nulo, e há um teste de migração (Task 1).
 - A3 `PRODUCTS_PUBLISH` entra no único perfil do Administrador, com os testes de capacidade e de sessão atualizados como no `PRODUCTS_FILE` (Task 2).
-- A4 Execução por subagentes em sonnet. **Só um comando pesado por vez no computador** (`just check-resumo`, `just imagem`, `just e2e` e a suíte inteira do Maven): antes de cada um, avisar e esperar o OK. Testes de uma classe só (`-Dtest=...`) e o Vitest de um arquivo não precisam de OK. Sem `force`, sem `reset --hard` e sem merge.
+- A4 Execução por subagentes em sonnet. **Só um comando pesado por vez no computador** (`just check-resumo`, `just imagem`, `just e2e` e a suíte inteira do Maven). Eles rodam sem pedir OK (liberado em 10/11/2026), mas, se algum falhar por falta de recurso ou porta ocupada, a execução para e o caso é relatado. Sem `force`, sem `reset --hard` e sem merge.
 
 **Goal:** O Administrador publica um Produto que tem Arquivo do produto e o despublica depois. Publicar sem arquivo é recusado. O Produto guarda que já foi publicado, e a troca do arquivo de um Produto que já foi publicado fica bloqueada até o #22.
 
