@@ -236,14 +236,13 @@ class AdminProductFileUploadTest {
     @DisplayName("SEC-047: nome com NUL recusado pelo Tomcat dá 400 FILE_NOT_PDF e nenhum pedaço dele vai a nenhum log")
     void shouldLogNoFragmentOfAFileNameWithANul(CapturedOutput output) throws Exception {
         HttpResponse<String> response =
-                upload("frag-alpha-7741\u0000frag-omega-7741.pdf", "application/pdf", TestPdfs.pages(1));
+                upload("fragalphaqzx\u0000fragomegaqzx.pdf", "application/pdf", TestPdfs.pages(1));
 
         assertThat(response.statusCode()).isEqualTo(400);
         assertThat(response.body()).contains("\"errors\":{\"file\":\"FILE_NOT_PDF\"}");
         assertThat(output.getAll())
-                .doesNotContain("frag-alpha")
-                .doesNotContain("frag-omega")
-                .doesNotContain("7741")
+                .doesNotContain("fragalphaqzx")
+                .doesNotContain("fragomegaqzx")
                 .doesNotContain("Invalid file name")
                 .doesNotContain("InvalidFileNameException");
         assertNothingStored();
