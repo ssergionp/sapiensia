@@ -22,6 +22,8 @@ Regras que valem para tudo aqui:
 | `APP_MFA_ENCRYPTION_KEY` | Gerada pelo responsável (32 bytes em Base64), guardada no Bitwarden antes do `fly secrets set` | Trocar inutiliza o MFA gravado (ADR-0004); um backup restaurado precisa da mesma chave |
 | `RESEND_API_KEY` | Resend > API Keys (chave só de envio, no Bitwarden) | Só da homologação; a produção terá outra (SEC-071) |
 | `APP_ADMIN_EMAIL` | Escolha do responsável: a caixa que recebe o link de primeiro acesso | Dado pessoal: só no `fly secrets set`, nunca em arquivo |
+| `APP_STORAGE_SUPABASE_URL` | Supabase `sapiensia-homolog` > configurações de API (endereço do projeto) | Arquivos dos Produtos (#18); sem ela a aplicação não sobe em `prod` |
+| `APP_STORAGE_SUPABASE_SECRET_KEY` | Supabase > chaves de API (a *secret key*, no Bitwarden) | Segredo de verdade; vazia, a aplicação não sobe em `prod` |
 
 ### Variáveis comuns (`[env]` do `fly.homolog.toml`, versionadas)
 
@@ -109,6 +111,7 @@ Só depois da autorização do deploy.
 - **Formato do `DB_URL`, sem usuário e sem senha:** `jdbc:postgresql://aws-<n>-sa-east-1.pooler.supabase.com:5432/postgres?sslmode=require`. Copie host e `<n>` da tela Connect do Supabase.
 - A string JDBC que o Supabase mostra traz um parâmetro de senha: **não** use essa. A senha vai só em `DB_PASSWORD`; o usuário vai só em `DB_USER`.
 - **Migrations** rodam sozinhas na primeira subida (Flyway), antes de a aplicação aceitar tráfego. O schema `public` do projeto novo precisa estar sem tabelas; o log da primeira subida mostra `Successfully applied N migrations`.
+- **Bucket dos Arquivos do produto (#18):** o bucket privado `product-files` do Storage do mesmo projeto Supabase é criado à mão, antes do deploy. O passo a passo está em `docs/runbooks/bucket-arquivos-produto.md`; siga o que está lá (aqui não se repete).
 
 ## 4. Segredos (só o responsável)
 
@@ -170,6 +173,22 @@ Faça antes o "Passo zero". O padrão para cada segredo: copie o valor do Bitwar
 
     Grava a caixa que recebe o link de primeiro acesso como segredo do app; o valor nunca entra em arquivo nem no chat.
 
+13a. **[RESPONSÁVEL]** Copie `APP_STORAGE_SUPABASE_URL` (endereço do projeto, `https://<projeto>.supabase.co`) e grave.
+
+    ```powershell
+    fly secrets set APP_STORAGE_SUPABASE_URL="$(Get-Clipboard)" --stage -a sapiensia-homolog
+    ```
+
+    Grava o endereço do projeto Supabase como segredo do app.
+
+13b. **[RESPONSÁVEL]** Copie `APP_STORAGE_SUPABASE_SECRET_KEY` do Bitwarden (a *secret key* `sb_secret_...`, não a publicável) e grave.
+
+    ```powershell
+    fly secrets set APP_STORAGE_SUPABASE_SECRET_KEY="$(Get-Clipboard)" --stage -a sapiensia-homolog
+    ```
+
+    Mesmo padrão; o valor nunca é digitado no comando, mostrado na tela nem colado no chat.
+
 14. **[RESPONSÁVEL]** Limpe a área de transferência.
 
     ```powershell
@@ -184,7 +203,7 @@ Faça antes o "Passo zero". O padrão para cada segredo: copie o valor do Bitwar
     fly secrets list -a sapiensia-homolog
     ```
 
-    Mostra só nomes, digest e data. Devem estar os 6 nomes da tabela e nenhum a mais.
+    Mostra só nomes, digest e data. Devem estar os 8 nomes da tabela e nenhum a mais.
 
 ## 5. Imagem e deploy
 

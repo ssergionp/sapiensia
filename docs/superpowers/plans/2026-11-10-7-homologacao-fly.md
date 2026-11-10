@@ -60,6 +60,8 @@ Levantado de `application.yml`, `application-prod.yml`, `Dockerfile`, `ci.yml` e
 | `APP_MFA_ENCRYPTION_KEY` | Sim (sem ela não sobe) | Gerada pelo responsável no PowerShell (32 bytes aleatórios em Base64), guardada no Bitwarden **antes** do `fly secrets set` | Trocar inutiliza o MFA gravado (ADR-0004); um backup restaurado precisa da mesma chave |
 | `RESEND_API_KEY` | Sim (sem ela não sobe) | Resend > API Keys (chave só de envio, já no Bitwarden) | Só da homologação; produção terá outra (SEC-071) |
 | `APP_ADMIN_EMAIL` | Sim (sem ela não sobe em `prod`) | Escolha do responsável: a caixa que recebe o link de primeiro acesso | Dado pessoal: segredo, nunca no `fly.homolog.toml` |
+| `APP_STORAGE_SUPABASE_URL` | Sim (sem ela não sobe em `prod`) | Supabase `sapiensia-homolog` > configurações de API (endereço do projeto) | Arquivos dos Produtos (#18); digitada pelo responsável |
+| `APP_STORAGE_SUPABASE_SECRET_KEY` | Sim (vazia, não sobe em `prod`) | Supabase > chaves de API (secret key, no Bitwarden) | Segredo de verdade; o bucket privado `product-files` é criado à mão (`docs/runbooks/bucket-arquivos-produto.md`) |
 
 ### Variáveis comuns (`[env]` do `fly.homolog.toml`, versionadas, sem segredo)
 
@@ -82,7 +84,7 @@ Levantado de `application.yml`, `application-prod.yml`, `Dockerfile`, `ci.yml` e
 
 ### Fora deste ticket (o código da `main` ainda não usa)
 
-Supabase Storage (entra com o #18: os nomes virão do plano dele e serão acrescentados ao runbook depois do merge), Cloudflare R2 (backup, #47) e Asaas sandbox (pagamento). Não cadastrar segredo que o código não usa (escopo mínimo, SEC-022).
+Cloudflare R2 (backup, #47) e Asaas sandbox (pagamento). O Supabase Storage entrou com o #18 (mergeado) e já está na tabela acima. Não cadastrar segredo que o código não usa (escopo mínimo, SEC-022).
 
 ## 2. Arquivo do Fly.io (`fly.homolog.toml`)
 
@@ -164,9 +166,9 @@ Padrão para cada segredo: copiar do Bitwarden (o valor vai para a área de tran
    Gera 32 bytes aleatórios seguros, converte para Base64 e põe na área de transferência. **Cole primeiro no Bitwarden e salve**, só depois siga.
 9. **[RESPONSÁVEL]** `fly secrets set APP_MFA_ENCRYPTION_KEY="$(Get-Clipboard)" --stage -a sapiensia-homolog` — grava a chave como segredo do app.
 10. **[RESPONSÁVEL]** copie `DB_PASSWORD` do Bitwarden e rode `fly secrets set DB_PASSWORD="$(Get-Clipboard)" --stage -a sapiensia-homolog`.
-11. **[RESPONSÁVEL]** repita o passo 10 para `DB_URL`, `DB_USER`, `RESEND_API_KEY` e `APP_ADMIN_EMAIL` (um comando por segredo, trocando o nome).
+11. **[RESPONSÁVEL]** repita o passo 10 para `DB_URL`, `DB_USER`, `RESEND_API_KEY`, `APP_ADMIN_EMAIL`, `APP_STORAGE_SUPABASE_URL` e `APP_STORAGE_SUPABASE_SECRET_KEY` (um comando por segredo, trocando o nome).
 12. **[RESPONSÁVEL]** `Set-Clipboard -Value $null` — limpa a área de transferência.
-13. **[AGENTE]** `fly secrets list -a sapiensia-homolog` — mostra só nomes, digest e data; confiro que os 6 nomes da seção 1 estão lá e nenhum a mais.
+13. **[AGENTE]** `fly secrets list -a sapiensia-homolog` — mostra só nomes, digest e data; confiro que os 8 nomes da seção 1 estão lá e nenhum a mais.
 
 ### 4.4 Imagem e deploy
 14. **[AGENTE]** `just imagem` — gera a imagem `app:local` com o `Dockerfile` (a mesma do CI).
@@ -204,7 +206,7 @@ Padrão para cada segredo: copiar do Bitwarden (o valor vai para a área de tran
 8. **`X-Forwarded-For` no fallback.** Hipótese da primeira leitura (marcada como **não verificada** e provavelmente falsa, ver seção 1): `getRemoteAddr()` viria do `X-Forwarded-For`. O teste da Tarefa 1 decide; se a prova na homologação ou o teste mostrarem algo diferente do esperado, paro e trago para o responsável antes de mudar código (aprovado).
 9. **`APP_ADMIN_EMAIL`.** Qual caixa recebe o primeiro acesso da homologação? Você só digita no `fly secrets set`; não preciso saber o valor.
 10. **Portas.** Nenhuma porta local muda: a imagem escuta 8080 dentro do container e o Fly.io publica 443. `just imagem` não sobe container. Nada a decidir, só registro.
-11. **Contas que faltam.** Para este ticket, nenhuma: Fly.io, Supabase e Resend estão prontos. R2 e Asaas ainda não têm código que os use; os segredos do Storage dependem do merge do #18.
+11. **Contas que faltam.** Para este ticket, nenhuma: Fly.io, Supabase e Resend estão prontos. R2 e Asaas ainda não têm código que os use. O Storage do #18 já está na `main`: faltam o bucket privado `product-files`, criado à mão (`docs/runbooks/bucket-arquivos-produto.md`), e os dois segredos `APP_STORAGE_SUPABASE_*`.
 12. **Robôs e custo.** O `*.fly.dev` é público e recebe varredura automática que pode manter a máquina acordada. Se o custo medido passar de US$ 3 na primeira semana, trago opções.
 13. **Supabase pausado.** Uma semana sem uso pausa o projeto e a homologação para de subir (health check `DOWN`). Religa pelo painel; vai no runbook.
 
@@ -284,7 +286,7 @@ void shouldFallBackToConnectionAddressWhenFlyClientIpIsMissing() {
 
 - [ ] Seção 4, passos 1 a 17, na ordem, parando a cada **[RESPONSÁVEL]**.
 - [ ] `fly config validate -c fly.homolog.toml` → `Configuration is valid`.
-- [ ] Esperado no fim: `fly machine list` com 1 máquina `started` em `gru`, `fly secrets list` com os 6 nomes.
+- [ ] Esperado no fim: `fly machine list` com 1 máquina `started` em `gru`, `fly secrets list` com os 8 nomes.
 - [ ] Se o deploy falhar por config ou segredo faltando: ler `fly logs` (filtrando), corrigir, sem nunca imprimir valores.
 
 ### Task 4: Provas na homologação (sessão principal + responsável, **não** subagente)
