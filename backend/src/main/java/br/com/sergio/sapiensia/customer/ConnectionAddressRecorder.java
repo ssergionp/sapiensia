@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 class ConnectionAddressRecorder implements ServletRequestListener {
 
     /** Request attribute holding the address of the connection, read before any header-based rewriting. */
-    public static final String ATTRIBUTE = ConnectionAddressRecorder.class.getName() + ".CONNECTION_ADDRESS";
+    static final String ATTRIBUTE = ConnectionAddressRecorder.class.getName() + ".CONNECTION_ADDRESS";
 
     @Override
     public void requestInitialized(ServletRequestEvent event) {

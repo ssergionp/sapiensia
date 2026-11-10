@@ -53,8 +53,9 @@ class FlyClientIpLoginLimitTest {
      * connection-address limit of one test never touches another's, whatever the order they run in.
      */
     private int login(String loopback, String forwardedFor, String flyClientIp) throws Exception {
-        // the client binds to that source address, which is what the server sees as the connection address
-        HttpClient http = HttpClient.newBuilder()
+        // the client binds to that source address, which is what the server sees as the connection address;
+        // this needs all of 127.0.0.0/8 available (true on Linux CI and Windows) and fails with a bind error otherwise
+        HttpClient boundClient = HttpClient.newBuilder()
                 .localAddress(java.net.InetAddress.getByName(loopback))
                 .build();
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/sessions"))
@@ -69,7 +70,7 @@ class FlyClientIpLoginLimitTest {
         if (flyClientIp != null) {
             builder.header("Fly-Client-IP", flyClientIp);
         }
-        return http.send(builder.build(), HttpResponse.BodyHandlers.ofString()).statusCode();
+        return boundClient.send(builder.build(), HttpResponse.BodyHandlers.ofString()).statusCode();
     }
 
     @Test
