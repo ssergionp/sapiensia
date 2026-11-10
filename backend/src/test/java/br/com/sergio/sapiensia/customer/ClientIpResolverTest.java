@@ -55,6 +55,27 @@ class ClientIpResolverTest {
         assertThat(resolver(null).resolve(request)).isEqualTo("10.0.0.1");
     }
 
+    @Test
+    @DisplayName("SEC-014: without Fly-Client-IP the client IP is the connection address, never X-Forwarded-For")
+    void shouldFallBackToConnectionAddressWhenFlyClientIpIsMissing() {
+        MockHttpServletRequest request = request();
+        request.addHeader("X-Forwarded-For", "203.0.113.8");
+        request.addHeader("Forwarded", "for=203.0.113.9");
+
+        assertThat(resolver("Fly-Client-IP").resolve(request)).isEqualTo(request.getRemoteAddr());
+    }
+
+    @Test
+    @DisplayName("SEC-014: the recorded connection address wins over getRemoteAddr when the header is absent")
+    void shouldPreferRecordedConnectionAddressWhenHeaderIsAbsent() {
+        MockHttpServletRequest request = request();
+        request.setAttribute(ConnectionAddressRecorder.ATTRIBUTE, "192.0.2.77");
+        request.addHeader("X-Forwarded-For", "203.0.113.8");
+
+        assertThat(resolver("Fly-Client-IP").resolve(request)).isEqualTo("192.0.2.77");
+        assertThat(resolver(null).resolve(request)).isEqualTo("192.0.2.77");
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"203.0.113.7", "192.0.2.1"})
     @DisplayName("SEC-014: shouldAcceptLiteralIpv4FromConfiguredHeader")

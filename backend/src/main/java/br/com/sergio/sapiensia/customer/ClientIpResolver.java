@@ -10,7 +10,9 @@ import org.springframework.stereotype.Component;
  * Finds the client IP for login limiting. Only the header named in app.login-limit.client-ip-header is trusted
  * (the platform proxy sets it); when it is not configured, any such header is ignored because it could be forged.
  * The header must only be set to one that the platform proxy overwrites (e.g. Fly-Client-IP), never to
- * X-Forwarded-For. A value that is not a literal IP address falls back to the remote address.
+ * X-Forwarded-For. A value that is not a literal IP address, an absent header or no configured header falls back
+ * to the real connection address recorded by ConnectionAddressRecorder before any forwarded-header rewriting
+ * (getRemoteAddr() when none was recorded). X-Forwarded-For is never used.
  */
 @Component
 public class ClientIpResolver {
@@ -37,7 +39,13 @@ public class ClientIpResolver {
                 }
             }
         }
-        return request.getRemoteAddr();
+        return connectionAddress(request);
+    }
+
+    /** The address recorded before any forwarded-header rewriting; getRemoteAddr() only when nothing was recorded. */
+    private static String connectionAddress(HttpServletRequest request) {
+        Object recorded = request.getAttribute(ConnectionAddressRecorder.ATTRIBUTE);
+        return recorded instanceof String address ? address : request.getRemoteAddr();
     }
 
     /**
