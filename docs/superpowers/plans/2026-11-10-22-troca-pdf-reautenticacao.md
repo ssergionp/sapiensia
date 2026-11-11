@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** APROVADO em 10/11/2026 (itens 2 a 8 da seção 8 como escritos; ajustes 1 e 3a–3d incorporados). Textos da seção 6 e linha do ADR-0004 (D8) aguardam a aprovação final. **Nada é implementado antes de o #19 estar mergeado na main e de o Sérgio avisar.** Aí: `git merge origin/main` (sem rebase) nesta branch e revisão do plano contra o código real do #19 (Task 1).
+**Status:** APROVADO em 10/11/2026 (itens 2 a 8 da seção 8 como escritos; ajustes 1 e 3a–3d incorporados). Em 11/11/2026 a main com o #19 (`0eef1df`) entrou nesta branch por `git merge origin/main` (sem conflitos) e o plano foi alinhado ao código real (Task 1, seções 2, 4.2, 5, 6, 7, 8 e Tasks 3–5). **Aguardam aprovação antes de qualquer código:** os textos novos da seção 6 (incluindo a frase de confirmação da publicação, nova neste ajuste), D8 (ADR-0004), D9 e D10.
 
 **Goal:** Trocar o Arquivo do produto de um Produto que já foi publicado (mesmo despublicado depois) exige que o Administrador digite de novo a senha e um código TOTP; antes da primeira publicação nada muda.
 
@@ -50,7 +50,7 @@
 **Entra:**
 - Rota `POST /api/admin/sessions/reauthentication` (senha + código TOTP) com limite, replay guard, auditoria e sessão nova com os carimbos renovados.
 - Regra na rota do arquivo: Produto com `first_published_at` exige reautenticação na janela; rascunho nunca publicado segue como no #18.
-- **Remoção do bloqueio do #19**: `ProductFileRejection.PUBLISHED_BEFORE`, o mapeamento para `409`, as duas conferências que o lançam no `ProductFileService`, o texto `FILE_MESSAGES.PUBLISHED_BEFORE` e a frase que substitui o formulário na tela (seção 4.3).
+- **Remoção do bloqueio do #19**: `ProductFileRejection.PUBLISHED_BEFORE`, o mapeamento para `409`, as duas conferências que o lançam no `ProductFileService`, o texto `FILE_MESSAGES.PUBLISHED_BEFORE` e o ramo que troca o formulário por essa frase na tela; a frase da confirmação de publicação que diz que a troca "ainda não está disponível" (tabela de 4.2 e seção 6).
 - Formulário de reautenticação inline na seção "Arquivo do produto", sem perder o arquivo escolhido.
 - e2e da troca com reautenticação; a linha do ADR-0004 (D8).
 
@@ -65,12 +65,13 @@
 
 - **O #22 não cria coluna nem migration. Só lê.** O marcador é do #19: `products.first_published_at timestamptz null`, gravado no primeiro `DRAFT → PUBLISHED` e nunca alterado, com o check `products_publication_consistent` (`(status = 'DRAFT') = (first_published_at is null)`).
 - **Ordem das migrations:** `V14__create_product_files.sql` (#18, já na main) → `V15__product_publication.sql` (#19: estados `DRAFT/PUBLISHED/UNPUBLISHED` e `first_published_at`) → **nenhuma no #22**. Se outro ticket ocupar a V15 antes, o #19 renumera; o #22 não é afetado.
-- **O que o #22 usa do #19** (nomes do plano do #19; a Task 1 confere no código mergeado e ajusta este plano se mudarem):
-  - `Products.everPublished(UUID id) -> boolean` (`false` se o Produto não existe);
-  - `ProductResponse.firstPublishedAt` (`Instant`, nulo em rascunho) e `Product.firstPublishedAt: string | null` no `schemas.ts`;
-  - as duas conferências em `ProductFileService.upload` (antes da validação e logo depois de `files.lockProduct`), que hoje lançam `ProductFileRejectedException(PUBLISHED_BEFORE)`;
-  - os testes do #19 `SEC-008: depois de publicar e despublicar, trocar o arquivo é recusado` e `SEC-008: a publicação que entra antes da trava faz a troca em andamento ser recusada`, que passam a esperar a resposta da seção 4.2.
-- **Enquanto o #19 não estiver na main:** nada é implementado. Este plano fica commitado na branch, sem push.
+- **O que o #22 usa do #19 — conferido no código mergeado em 11/11/2026** (`V15__product_publication.sql` com `first_published_at` e o check `products_publication_consistent`):
+  - `Products.everPublished(UUID id) -> boolean` (package-private, `Products.java:148`; `false` se o Produto não existe). O `ProductFileReplacementAccess` fica no pacote `product`, então o acesso package-private basta;
+  - `ProductResponse.firstPublishedAt` (`Instant`, nulo em rascunho) e `Product.firstPublishedAt: string | null` no `schemas.ts`; a fixture `product({...})` do `products/testing.tsx` já aceita `status` e `firstPublishedAt`;
+  - as duas conferências em `ProductFileService` — a pré-checagem em `upload` (linhas 69–74, antes do validador, grava `FAILURE` independente) e **a que conta**, em `store`, dentro da `transaction.execute` logo depois de `files.lockProduct` (linhas 93–96); o `catch` de `store` apaga o objeto novo e grava `FAILURE` independente quando a exceção é `ProductFileRejectedException`;
+  - `ProductFileRejection.PUBLISHED_BEFORE` e o ramo `case PUBLISHED_BEFORE -> HttpStatus.CONFLICT` em `ProductFileController.java:111` (e o Javadoc da linha 53);
+  - os testes do #19 que esperam o `409`: em `AdminProductFileUploadTest` — `SEC-008: depois de publicar e despublicar, trocar o arquivo é recusado`, `SEC-008: Produto publicado não aceita arquivo novo` e `SEC-008: a publicação que entra antes da trava faz a troca em andamento ser recusada`; em `ProductFileServiceTest` — `SEC-008: a Product that was ever published refuses a new file, stores nothing and audits a FAILURE`; em `ProductFileControllerTest` — o caso `PUBLISHED_BEFORE -> 409` dentro de `SEC-043: cada recusa vira 400 com o código, FILE_TOO_LARGE vira 413 e PUBLISHED_BEFORE vira 409`;
+  - no frontend: `PUBLISHED_BEFORE_TEXT` e `FILE_MESSAGES.PUBLISHED_BEFORE` (`messages.ts:58–72`, texto 10 do #19), `PUBLICATION_MESSAGES.confirmQuestion` (`messages.ts:105`, texto 25 do #19), o código `PUBLISHED_BEFORE` em `FILE_REJECTION_CODES` (`schemas.ts:34`), o ramo `firstPublishedAt !== null` que esconde o formulário (`ProductFileSection.tsx:73–77`), os testes `ProductFileSection.test.tsx:132–152` (frase de bloqueio e `SEC-008 409 PUBLISHED_BEFORE from the API shows the same sentence`), `ProductPublicationSection.test.tsx:81` (frase de confirmação) e o e2e `FR-011 FR-016 SEC-008: o Administrador publica um Produto com arquivo, despublica e não consegue trocar o arquivo` (`admin-panel.e2e.ts:591`).
 
 ## 3. Reautenticação
 
@@ -130,11 +131,19 @@
 
 - Produzido em dois lugares, com o mesmo `ProblemDetail` (método estático `ProductFileReplacementAccess.problem(HttpServletRequest)`): pelo `SecurityConfig.accessDeniedHandler()` quando a `AuthorizationDeniedException` traz `ReauthenticationRequired` em `getAuthorizationResult()`, e pelo handler de `ProductFileReauthenticationRequiredException` no `ProductFileController` (recheque do serviço). `Unavailable` → `503` sem corpo. CSRF ausente/errado continua `403` sem esse corpo; pendente de MFA continua `401`.
 - Por que `403` e não `409`: falta uma credencial recente do usuário, não há conflito com o estado do recurso; e `401` faria a tela tratar como sessão encerrada.
-- **Como substitui o `409 PUBLISHED_BEFORE` do #19:**
-  - `ProductFileRejection.PUBLISHED_BEFORE` é removido, junto com o ramo que o mapeia para `409` no `ProductFileController`.
-  - As duas conferências do #19 no `ProductFileService.upload` passam a ser `if (products.everPublished(productId) && !reauthenticated)` e lançam `ProductFileReauthenticationRequiredException`, gravando `BLOCKED` (não mais `FAILURE`) com `recordIndependent`. A de dentro da trava continua na mesma `TransactionTemplate`; o `catch` existente apaga o objeto novo.
-  - Os dois testes do #19 citados na seção 2 passam a esperar `403` com `errors.reauthentication = REAUTHENTICATION_REQUIRED` e o evento `BLOCKED`; o resto das asserções (chave antiga mantida, nenhum objeto novo) fica igual.
-  - Frontend: sai o código `PUBLISHED_BEFORE` do `ProductFileRejectionCode` e `FILE_MESSAGES.PUBLISHED_BEFORE`; o `403` com esse corpo vira `ProductFileReauthenticationRequiredError`.
+- **Como substitui a trava provisória do #19 (o que sai e o que entra):**
+
+| Onde | Sai (#19) | Entra (#22) |
+|---|---|---|
+| `ProductFileRejection` | `PUBLISHED_BEFORE` | — (o enum volta a ter só recusas do PDF) |
+| `ProductFileController` | `case PUBLISHED_BEFORE -> CONFLICT` e "409 PUBLISHED_BEFORE" no Javadoc | lê o atributo `REAUTHENTICATED`; `@ExceptionHandler(ProductFileReauthenticationRequiredException)` → corpo de 4.2 |
+| `ProductFileService.upload` (pré-checagem, antes do validador) | `if (everPublished) { FAILURE; throw Rejected(PUBLISHED_BEFORE) }` | `if (!reauthenticated && everPublished) { BLOCKED; throw ReauthenticationRequired }` — continua barata, antes dos 20 s do validador |
+| `ProductFileService.store` (**dentro** da `transaction.execute`, logo depois de `files.lockProduct`) | `if (everPublished) throw Rejected(PUBLISHED_BEFORE)` | `if (!reauthenticated && everPublished) throw ReauthenticationRequired` — **mesmo lugar, mesma transação, mesma trava da linha** (a publicação pega a mesma trava, então o marcador não muda até o commit). `store` ganha o parâmetro `boolean reauthenticated` |
+| `catch` de `store` | `FAILURE` independente para `ProductFileRejectedException` | igual para ela; `BLOCKED` independente para `ProductFileReauthenticationRequiredException`; o objeto novo é apagado nos dois casos (já é) |
+| Comentário "Ticket #22 replaces both…" | sai | comentário dizendo que a conferência sob a trava é a que vale |
+
+  - Os cinco testes do #19 listados na seção 2 mudam: os três de `AdminProductFileUploadTest` passam a esperar `403` com o corpo de 4.2 e `BLOCKED` (o resto das asserções — chave antiga mantida, nenhum objeto novo — fica igual), e ganham uma versão "com reautenticação recente → 200"; o de `ProductFileServiceTest` espera `ProductFileReauthenticationRequiredException` + `BLOCKED` com `reauthenticated=false` e o swap com `reauthenticated=true`; o de `ProductFileControllerTest` perde o caso `PUBLISHED_BEFORE` (título sem "e PUBLISHED_BEFORE vira 409").
+  - Frontend: sai o código `PUBLISHED_BEFORE` do `FILE_REJECTION_CODES` e `FILE_MESSAGES.PUBLISHED_BEFORE`; o `403` com esse corpo vira `ProductFileReauthenticationRequiredError` (seção 5).
   - Não há compatibilidade com o `409`: a SPA e a API saem no mesmo deploy (imagem única).
 
 ### 4.3 Recheque na trava e serviço
@@ -145,9 +154,13 @@
 
 `ProductFileService.store` troca o ponteiro (`product_files`, chave primária `product_id`) numa transação com `FOR UPDATE` e só **depois do commit** (`transaction.execute` já retornou) chama `deleteBestEffort(chaveAntiga)`. Falha do banco apaga o objeto **novo** e mantém o antigo. Falha ao apagar o antigo deixa um órfão que nunca é entregue, porque o download (#33) lê a chave do banco. Nada muda; a Task 3 só acrescenta um teste para o caso "Produto já publicado".
 
-### 4.5 Teste negativo de ID (SEC-011)
+Reconferido em 11/11/2026: o #19 não mexeu em `store` além da conferência sob a trava (o ponteiro único em `product_files`, PK `product_id`, e o `deleteBestEffort` depois do commit são os do #18/#82). O #33 ("Download com link de 60 segundos") tem o critério "Entrega sempre a versão mais recente do arquivo" e emite o link a cada clique: basta ele ler `product_files.object_key` no momento do clique, sem cache da chave e sem guardar versão por compra. O #22 não cria nada para o #33; o que o #33 precisa saber fica escrito no FR-010 do teste de ponteiro (chave antiga fora do Storage, linha única). Link de 60 s já emitido para a chave antiga pode falhar se a troca acontecer nesses 60 s — o Cliente clica de novo e recebe a nova; risco do #33, anotado aqui para ele.
+
+### 4.5 Testes negativos (SEC-011 e "sessão esquecida aberta não basta")
 
 O Produto não tem dono (um Administrador). Provas: Cliente autenticado → `403` igual para id existente e inexistente; Administrador sem reautenticação → id inexistente `404`, id de Produto publicado `403 REAUTHENTICATION_REQUIRED`, id de rascunho `200`; reautenticar e trocar o arquivo do Produto A não muda linha nem objeto do B.
+
+**Outra sessão:** o carimbo vive no `SecurityContext` de cada sessão. Sessão A reautentica; sessão B do mesmo Administrador, com login de 5 min + 1 s atrás, tenta trocar o arquivo do Produto publicado → `403 REAUTHENTICATION_REQUIRED`, nada no Storage nem em `product_files`, e `audit_events` com `ADMIN_PRODUCT_FILE_UPLOADED`/`BLOCKED` (Administrador, Produto, origem; sem nome do arquivo). Mesma coisa para a própria sessão A depois que a janela vence (relógio avançado).
 
 ## 5. Tela
 
@@ -160,6 +173,10 @@ Componente existente `ProductFileSection.tsx`. Sai a frase do #19 que trocava o 
 - Rascunho nunca publicado: comportamento do #18 sem nenhuma mudança.
 
 Funções novas: `reauthenticate(body): Promise<void>` em `frontend/src/features/admin/api.ts` (erros `ReauthenticationRejectedError` para o 400 e `ReauthenticationLockedError` para o 429; 401 e 503 com os erros existentes); `ProductFileReauthenticationRequiredError` em `products/api.ts`. Hook `useReauthenticate()` em `admin/hooks.ts`.
+
+**Distinguir os dois `403` (em `uploadProductFile`, antes do `check(raw, 200)`):** se `raw.status === 403`, ler o corpo com `.json().catch(() => null)`; se `errors.reauthentication === "REAUTHENTICATION_REQUIRED"` → `ProductFileReauthenticationRequiredError` (a tela abre/reabre o formulário de senha e código); qualquer outro `403` (sem capacidade, CSRF velho, Cliente, corpo vazio ou não-JSON) → `ProductForbiddenError` de sempre (texto `Você não tem permissão para enviar o arquivo do Produto.`). O mesmo vale na tela: só o erro novo abre o formulário; o resto segue o tratamento do #18. Testes Vitest: `403` com o corpo de 4.2 → formulário; `403` sem corpo → texto de permissão, sem formulário.
+
+**Seção "Publicação" (#19):** só muda o texto de `PUBLICATION_MESSAGES.confirmQuestion` (seção 6); nenhum comportamento muda.
 
 ## 6. Textos da seção "Arquivo do produto" (todos)
 
@@ -189,7 +206,7 @@ Do #18, sem mudança:
 | Falha de rede ou resposta inesperada (envio ou confirmação) | `Não foi possível enviar o arquivo. Verifique a conexão e tente novamente.` |
 | 401 (sessão encerrada) | o tratamento existente (`ProductSessionEndedError`), sem texto novo |
 
-Novos do #22 (aprovados no item 2):
+Novos do #22 (aprovados no item 2 em 10/11; **reapresentados para aprovação final em 11/11**, sem mudança de redação):
 
 | Onde | Texto |
 |---|---|
@@ -204,7 +221,12 @@ Novos do #22 (aprovados no item 2):
 | 429 | `Muitas tentativas. Aguarde alguns minutos e tente de novo.` |
 | 403 `REAUTHENTICATION_REQUIRED` no envio | `A confirmação venceu. Digite sua senha e o código de novo para enviar o arquivo.` |
 
-Sai (era do #19): `Este Produto já foi publicado. A troca do arquivo vai exigir nova autenticação, que ainda não está disponível.`
+Substituídos (eram do #19, `frontend/src/features/products/messages.ts`) — **aguardam aprovação**:
+
+| Texto do #19 | Sai | Entra |
+|---|---|---|
+| 10 — `PUBLISHED_BEFORE_TEXT` (seção "Arquivo do produto", no lugar do formulário) | `Este Produto já foi publicado. A troca do arquivo vai exigir nova autenticação, que ainda não está disponível.` | A constante e o código `PUBLISHED_BEFORE` saem. No lugar da frase, o formulário volta, com a orientação extra acima (`Este Produto já foi publicado. Para trocar o arquivo, confirme sua senha e o código do aplicativo autenticador. Quem já comprou passa a baixar a nova versão.`) |
+| 25 — `PUBLICATION_MESSAGES.confirmQuestion` (confirmação de "Publicar") | `Publicar este Produto? Ele vai aparecer no Catálogo. Depois da primeira publicação, o arquivo só poderá ser trocado com nova autenticação, que ainda não está disponível.` | `Publicar este Produto? Ele vai aparecer no Catálogo. Depois da primeira publicação, trocar o arquivo vai exigir sua senha e o código do aplicativo autenticador.` |
 
 ## 7. Testes por requisito
 
@@ -228,20 +250,31 @@ Sai (era do #19): `Este Produto já foi publicado. A troca do arquivo vai exigir
 | `SEC-008: a recusa vem antes de ler o corpo` | integração (`RANDOM_PORT`) | corpo de 50 MB em stream: 403 sem temporário criado |
 | `SEC-008 FR-010: depois de reautenticar, a troca vale e o objeto anterior sai do Storage` | integração | ponteiro novo em `product_files`, chave antiga fora de `storage.keys()` |
 | `SEC-008 SEC-017: depois da reautenticação o envio usa a sessão e o token CSRF novos` | integração (`RANDOM_PORT`, cliente HTTP com cookies de verdade) | ajuste 3d: o `JSESSIONID` e o `XSRF-TOKEN` mudam no 204; envio com a sessão nova e o token **velho** → 403 sem o corpo de 4.2, nada no Storage nem em `product_files`; envio com o `JSESSIONID` **velho** → 401; envio com a sessão e o token novos → 200 |
+| `SEC-008 FR-010: outra sessão sem reautenticação recente é recusada e a tentativa vai para a auditoria` | integração (`AdminProductFileReplacementTest`) | seção 4.5: sessão A reautentica; sessão B (login há 5 min + 1 s) → 403 com o corpo de 4.2, Storage e `product_files` iguais, `ADMIN_PRODUCT_FILE_UPLOADED`/`BLOCKED` com o id do Administrador e do Produto |
+| `SEC-008 FR-010: sessão esquecida aberta, com a janela vencida, não troca o arquivo` | integração | mesma sessão que reautenticou, relógio avançado 5 min + 1 s → 403, `BLOCKED` |
 | `SEC-008: janela que vence durante o upload não recusa o envio já autorizado` | integração | Review Focus 1 |
-| `SEC-008: a publicação que entra antes da trava recusa a troca e apaga o objeto novo` | integração | Review Focus 2 (teste do #19 com a resposta nova) |
+| `SEC-008: a publicação que entra antes da trava faz a troca em andamento ser recusada` | integração (`AdminProductFileUploadTest`, teste do #19) | Review Focus 2: agora 403 com o corpo de 4.2 e `BLOCKED`; objeto novo apagado |
+| `SEC-008: depois de publicar e despublicar, trocar o arquivo é recusado` e `SEC-008: Produto publicado não aceita arquivo novo` | integração (`AdminProductFileUploadTest`, testes do #19) | títulos acrescidos de "sem reautenticação recente"; 409 → 403 com o corpo de 4.2, `FAILURE` → `BLOCKED` |
+| `SEC-008: a Product that was ever published refuses a new file without recent reauthentication, stores nothing and audits BLOCKED` | integração do serviço (`ProductFileServiceTest`, teste do #19 reescrito) | + caso `reauthenticated=true` → swap feito |
+| `SEC-043: cada recusa vira 400 com o código e FILE_TOO_LARGE vira 413` | unit (`ProductFileControllerTest`, teste do #19) | sem o caso `PUBLISHED_BEFORE` |
 | `SEC-011: Cliente recebe 403 igual para id existente e inexistente; Administrador 404 para inexistente` | integração | |
 | `SEC-011: reautenticar e trocar o arquivo do Produto A não toca o B` | integração | |
-| `ProductFileSection`: rascunho igual ao #18; publicado mostra a orientação, abre o formulário sem chamar o upload, envia o mesmo `File` depois do 204, mantém o arquivo no erro e no Cancelar, cada resposta vira o texto da seção 6, campos limpos depois da tentativa, foco | Vitest | |
-| `SEC-008 FR-010: o Administrador troca o PDF de um Produto publicado depois de confirmar senha e código` | e2e (`admin-panel.e2e.ts`) | Task 5 |
+| `ProductFileSection`: rascunho igual ao #18; publicado mostra a orientação, abre o formulário sem chamar o upload, envia o mesmo `File` depois do 204, mantém o arquivo no erro e no Cancelar, cada resposta vira o texto da seção 6, campos limpos depois da tentativa, foco | Vitest | substitui os dois testes do #19 da frase de bloqueio |
+| `SEC-008: 403 REAUTHENTICATION_REQUIRED reabre o formulário; 403 sem esse corpo mostra o texto de permissão` | Vitest (`ProductFileSection.test.tsx`) | seção 5, os dois `403` |
+| `ProductPublicationSection`: a confirmação mostra o texto 25 novo | Vitest (teste do #19, só a string) | |
+| `FR-011 FR-016 SEC-008 FR-010: o Administrador publica, despublica e troca o PDF depois de confirmar senha e código` | e2e (`admin-panel.e2e.ts`, o teste do #19 estendido) | Task 5 |
 
 ## 8. Decisões
 
 Aprovadas em 10/11/2026: D1 (o #22 depende do #19 e só lê `first_published_at`), D2 (janela de 5 min em `app.admin.reauthentication-window`), D3 (a tela sempre pede senha e código em Produto já publicado), D4 (só TOTP), D5 (resposta única `CREDENTIALS_INVALID`), D6 (sessão nova a cada reautenticação), D7 (textos novos da seção 6).
 
+**Janela (D2), reconferida em 11/11:** o ADR-0004 não define a janela de "autenticação recente" (só diz, na linha 61, que a troca "exige a nova autenticação do #22"). Fica a proposta já aprovada: **5 minutos**, porque (a) é o mesmo prazo da sessão pendente de MFA (`app.admin.mfa-pending-ttl`), já aceito no ADR-0004 como "tempo de digitar a senha e o código"; (b) dá para escolher o arquivo e clicar, já que a decisão vale no início da requisição e um upload lento de 50 MB não é cortado; (c) é curto o bastante para a sessão esquecida aberta (2 horas sem uso) não valer. Custo se estiver errada: curto demais → o Administrador redigita senha e código numa segunda troca seguida (só incômodo; configurável sem código); longo demais → janela maior para quem pegar o computador destravado logo depois.
+
 Aguardando aprovação final:
-- **D7** — a lista completa da seção 6.
-- **D8 — ADR-0004:** a última linha passa a ser:
+- **D7** — a lista completa da seção 6, incluindo os dois substitutos dos textos 10 e 25 do #19.
+- **D9 — o login completo conta como autenticação recente durante a janela** (seção 3, "Onde fica o carimbo"). Quem acabou de entrar com senha e TOTP (há menos de 5 min) troca o arquivo sem digitar de novo. Custo se estiver errada: se você quiser senha e código **sempre** na hora da troca, é um campo a mais no carimbo (`reauthenticatedAt`) em vez de reaproveitar os dois do login — pouco código, mas muda os testes da Task 2.
+- **D10 — o e2e do #19 é estendido, não duplicado:** `FR-011 FR-016 SEC-008: … despublica e não consegue trocar o arquivo` vira `FR-011 FR-016 SEC-008 FR-010: … despublica e troca o PDF depois de confirmar senha e código`; a parte de criar/publicar/despublicar fica igual e o final troca a frase de bloqueio pelo fluxo de reautenticação. Custo se estiver errada: um teste e2e mais longo (um só ponto de falha para publicação e troca); separar depois é mover ~30 linhas de preparo para um helper.
+- **D8 — ADR-0004:** a linha 61 (a do #19, "Enquanto o Produto nunca foi publicado…") é substituída por:
 
 > Enquanto o Produto nunca foi publicado (`first_published_at` nulo), o Administrador envia e substitui o Arquivo do produto sem nova autenticação. Depois da primeira publicação, mesmo despublicado, a troca exige senha e código TOTP digitados há no máximo `app.admin.reauthentication-window` (5 minutos), em `POST /api/admin/sessions/reauthentication`, com os mesmos limites de tentativas, a mesma proteção contra reuso do código TOTP e a mesma auditoria do login; só o TOTP serve (código de recuperação não), e a resposta é a mesma para senha ou código errados. Sem a reautenticação, a troca responde `403` com `errors.reauthentication = REAUTHENTICATION_REQUIRED`, decidido antes de receber o arquivo. Consequência aceita: como os contadores são os do login, quem roubar uma sessão aberta do Administrador pode errar a senha 5 vezes na reautenticação e bloquear o login do painel por 15 minutos; a saída continua sendo reiniciar a API.
 
@@ -251,14 +284,14 @@ Aguardando aprovação final:
 - **Composição de `AuthorizationManager`:** o `ProductFileReplacementAccess` delega ao `panel(...)` em vez de usar `AuthorizationManagers.allOf`, para que a decisão que chega ao `AccessDeniedHandler` seja a nossa. O teste do corpo exato de 4.2 prova isso.
 - **Consulta ao banco na autorização:** mais uma consulta por envio de arquivo; banco fora → `503` (falha fechada).
 - **Bloqueio por senha errada compartilhado com o login:** ajuste 3b, registrado no ADR-0004.
-- **O #19 pode mudar no caminho:** nomes (`everPublished`, `firstPublishedAt`), a forma das duas conferências ou a frase da tela. A Task 1 confere depois do merge e atualiza este plano antes de qualquer código.
-- **#33 ainda não existe:** "a anterior deixa de ser entregue" é provado pelo ponteiro e pelo Storage; a entrega vem com o #33, que lê `product_files.object_key`.
+- **#33 ainda não existe:** "a anterior deixa de ser entregue" é provado pelo ponteiro e pelo Storage; a entrega vem com o #33, que lê `product_files.object_key` a cada clique (seção 4.4).
+- **Recheque fora da trava:** se a implementação mover a conferência de `store` para fora da `transaction.execute` (ou para depois de `files.swap`), a corrida com a publicação volta. O teste `a publicação que entra antes da trava…` é o guarda; não pode ser afrouxado.
 
 ## 10. Ordem das tarefas e subagentes (todos `model: sonnet`)
 
 | Task | O quê | Depende de | Subagente |
 |---|---|---|---|
-| 1 | Merge da main com o #19 e conferência do plano | #19 mergeado + aviso do Sérgio | comigo |
+| 1 | Merge da main com o #19 e conferência do plano (feito em 11/11, falta só o `just check-resumo` de base) | — | comigo |
 | 2 | Reautenticação no backend | 1 | sonnet |
 | 3 | Regra na troca do arquivo (substitui o `409 PUBLISHED_BEFORE`) | 1, 2 | sonnet |
 | 4 | Tela | contrato das seções 3–5 (pode começar junto com a 3) | sonnet |
@@ -270,13 +303,11 @@ Aguardando aprovação final:
 
 ### Task 1: Trazer o #19 e conferir o plano
 
-**Só depois de o #19 estar mergeado na main e de o Sérgio avisar.**
-
-- [ ] **Step 1:** `git fetch origin` e `git merge origin/main` nesta branch (sem rebase). Conflito no plano: resolver mantendo os dois arquivos de plano.
-- [ ] **Step 2:** conferir no código mergeado: `V15__product_publication.sql` (ou o número que o #19 usou) com `first_published_at`; `Products.everPublished`; `ProductResponse.firstPublishedAt`; as duas conferências `PUBLISHED_BEFORE` no `ProductFileService`; os dois testes do #19 citados na seção 2; a frase do #19 em `ProductFileSection`/`messages.ts`.
-- [ ] **Step 3:** se algum nome ou forma mudou, atualizar as seções 2, 4 e 7 e o bloco Interfaces das Tasks 3 e 4; mostrar o diff do plano ao Sérgio antes de seguir se a mudança afetar texto, resposta da API ou decisão.
-- [ ] **Step 4:** `just check-resumo` → OK (linha de base com o #19).
-- [ ] **Step 5: Commit** (só se o plano mudou) `docs: align the #22 plan with the merged #19 (#22)`.
+- [x] **Step 1:** `git fetch origin` e `git merge origin/main` nesta branch (sem rebase) → merge `00df01e`, sem conflitos.
+- [x] **Step 2:** conferido no código mergeado (seção 2).
+- [x] **Step 3:** seções 2, 4.2, 4.4, 4.5, 5, 6, 7, 8 e Tasks 3–5 atualizadas; textos e D8–D10 apresentados ao Sérgio.
+- [ ] **Step 4:** depois da aprovação, `just check-resumo` → OK (linha de base com o #19).
+- [x] **Step 5: Commit** `docs: align the #22 plan with the merged #19 (#22)`.
 
 ### Task 2: Reautenticação no backend
 
@@ -315,15 +346,15 @@ void loginCodeIsNotReusable() throws Exception {
 
 **Files:**
 - Create: `product/ProductFileReplacementAccess.java` (público; `ReauthenticationRequired` e `Unavailable` como subclasses de `AuthorizationDecision`; constante `REAUTHENTICATED`; `static ProblemDetail problem(HttpServletRequest)`), `product/ProductFileReauthenticationRequiredException.java`
-- Modify: `security/SecurityConfig.java` (rota do arquivo usa o manager; `accessDeniedHandler` com os dois casos de 4.2), `product/ProductFileService.java` (parâmetro `boolean reauthenticated`; as duas conferências do #19 com a condição nova, exceção nova e `BLOCKED`), `product/ProductFileController.java` (lê o atributo; handler da exceção nova; remove o ramo `409`), `product/ProductFileRejection.java` (remove `PUBLISHED_BEFORE`)
-- Test: `admin/AdminProductFileReplacementTest.java` (integração, `RANDOM_PORT` para o teste do corpo e o do CSRF), os dois testes do #19 citados na seção 2, `AdminProductFileServiceTest` (assinatura nova)
+- Modify: `security/SecurityConfig.java` (rota do arquivo usa o manager; `accessDeniedHandler` com os dois casos de 4.2), `product/ProductFileService.java` (parâmetro `boolean reauthenticated` em `upload` e `store`; as duas conferências do #19 trocadas conforme a tabela de 4.2, a de `store` no mesmo lugar dentro da trava; `catch` com `BLOCKED`), `product/ProductFileController.java` (lê o atributo; handler da exceção nova; remove o ramo `409` e o "409 PUBLISHED_BEFORE" do Javadoc), `product/ProductFileRejection.java` (remove `PUBLISHED_BEFORE`)
+- Test: `admin/AdminProductFileReplacementTest.java` (integração nova, `RANDOM_PORT` para o teste do corpo e o do CSRF), `admin/AdminProductFileUploadTest.java` (os três testes do #19), `product/ProductFileServiceTest.java` (o teste do #19 e a assinatura nova), `product/ProductFileControllerTest.java` (sem o caso `PUBLISHED_BEFORE`)
 
 **Interfaces:**
 - Consumes: `RecentAuthentication.isRecent`, `SecurityConfig.panel(Capability)`, `Products.everPublished`, `AuditLog.recordIndependent`.
 - Produces: resposta exata de 4.2 em `POST /api/admin/products/{id}/file`; `ProductFileService.upload(UUID, Path, String, String, UUID, String, boolean reauthenticated)`.
 
 - [ ] **Step 1: Testes que falham:** as linhas `ADR-0004`, `SEC-008` da troca, `SEC-008 SEC-017` (CSRF novo, ajuste 3d), `FR-010` e `SEC-011` da seção 7; os dois testes do #19 passam a esperar 4.2. "Já publicado" é preparado pela rota do #19 (`PUT .../publication`, e `DELETE` para o despublicado), não por SQL.
-- [ ] **Step 2:** `cd backend; .\mvnw.cmd test -Dtest='AdminProductFile*Test,AdminProductPublication*Test'` → FAIL.
+- [ ] **Step 2:** `cd backend; .\mvnw.cmd test -Dtest='AdminProductFile*Test,AdminProductPublication*Test,ProductFile*Test'` → FAIL.
 - [ ] **Step 3: Implementar** a seção 4.
 - [ ] **Step 4:** mesmo comando, mais `AdminRouteDenyByDefaultTest,AuditPrivacyTest` → PASS; depois `just check-resumo` → OK.
 - [ ] **Step 5: Commit** `feat: replacing a published product file requires recent reauthentication (SEC-008) (#22)`.
@@ -331,7 +362,7 @@ void loginCodeIsNotReusable() throws Exception {
 ### Task 4: Tela
 
 **Files:**
-- Modify: `frontend/src/features/admin/api.ts` (`reauthenticate`), `admin/hooks.ts` (`useReauthenticate`), `products/api.ts` (`ProductFileReauthenticationRequiredError` para o 403 com o código), `products/schemas.ts` (sai `PUBLISHED_BEFORE`), `products/messages.ts` (sai `FILE_MESSAGES.PUBLISHED_BEFORE` e a frase do #19; entra `REAUTHENTICATION_TEXTS` com os textos novos da seção 6, exatamente), `products/ProductFileSection.tsx`, `products/ProductFileSection.test.tsx`, `products/testing.tsx` (fixture publicada, se o #19 não tiver criado)
+- Modify: `frontend/src/features/admin/api.ts` (`reauthenticate`), `admin/hooks.ts` (`useReauthenticate`), `products/api.ts` (`ProductFileReauthenticationRequiredError` para o 403 com o código; os dois `403` da seção 5), `products/schemas.ts` (sai `PUBLISHED_BEFORE` de `FILE_REJECTION_CODES`), `products/messages.ts` (sai `PUBLISHED_BEFORE_TEXT`/`FILE_MESSAGES.PUBLISHED_BEFORE`; `PUBLICATION_MESSAGES.confirmQuestion` com o texto 25 novo; entra `REAUTHENTICATION_TEXTS` com os textos novos da seção 6, exatamente), `products/ProductFileSection.tsx` (sai o ramo `firstPublishedAt !== null` que esconde o formulário), `products/ProductFileSection.test.tsx`, `products/ProductPublicationSection.test.tsx` (só a string da confirmação). A fixture publicada já existe (`product({ status, firstPublishedAt })` em `testing.tsx`).
 
 **Interfaces:**
 - Consumes: contratos das Tasks 2 e 3; `Product.firstPublishedAt`.
@@ -348,7 +379,7 @@ void loginCodeIsNotReusable() throws Exception {
 **Files:**
 - Modify: `frontend/e2e/admin-panel.e2e.ts` (o e2e do #19 que esperava a frase de bloqueio passa a usar o fluxo abaixo), `docs/adr/0004-identidade-e-mfa.md` (D8)
 
-- [ ] **Step 1: e2e** `SEC-008 FR-010: o Administrador troca o PDF de um Produto publicado depois de confirmar senha e código` (contra API e banco de verdade, sem `page.route`): entra no painel com os helpers existentes; cria Produto; envia PDF (sem pedir senha, rascunho); publica e despublica pela tela (#19); escolhe outro PDF e clica "Enviar arquivo" → `Confirme sua identidade`; código errado → `Senha ou código incorretos. Confira e tente de novo.` e o arquivo continua escolhido; senha e código certos (próximo passo TOTP, com `waitForStepAfter`) → `Arquivo enviado.` e a linha "Arquivo atual" com a nova contagem de páginas. Rodar `just db`, `just dev-back`, `just dev-front`, `just e2e` → PASS.
+- [ ] **Step 1: e2e** (D10: estende o teste do #19, renomeado para `FR-011 FR-016 SEC-008 FR-010: o Administrador publica, despublica e troca o PDF depois de confirmar senha e código`; sai a constante `blocked` e a asserção de que o campo some) (contra API e banco de verdade, sem `page.route`): entra no painel com os helpers existentes; cria Produto; envia PDF (sem pedir senha, rascunho); publica e despublica pela tela (#19); a orientação de Produto já publicado aparece; escolhe outro PDF e clica "Enviar arquivo" → `Confirme sua identidade`; código errado → `Senha ou código incorretos. Confira e tente de novo.` e o arquivo continua escolhido; senha e código certos (próximo passo TOTP, com `waitForStepAfter`) → `Arquivo enviado.` e a linha "Arquivo atual" com a nova contagem de páginas. Rodar `just db`, `just dev-back`, `just dev-front`, `just e2e` → PASS.
 - [ ] **Step 2:** sistema de verdade no navegador no fluxo principal; conferir em `audit_events` as linhas `ADMIN_REAUTHENTICATION` e `ADMIN_PRODUCT_FILE_UPLOADED` sem senha nem código.
 - [ ] **Step 3:** ADR-0004 (D8, texto aprovado).
 - [ ] **Step 4:** `just check-resumo` → OK; skill `verificar-entrega` com a tabela.
