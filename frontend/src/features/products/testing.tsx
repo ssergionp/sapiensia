@@ -51,7 +51,12 @@ export function product(overrides: Partial<Product> = {}): Product {
 export function listItem(
   overrides: Partial<ProductListItem> = {},
 ): ProductListItem {
-  const { description: _description, file: _file, ...item } = product();
+  const {
+    description: _description,
+    file: _file,
+    firstPublishedAt: _firstPublishedAt,
+    ...item
+  } = product();
   return { ...item, ...overrides };
 }
 

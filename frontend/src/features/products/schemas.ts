@@ -87,6 +87,7 @@ export type ProductStatus = Product["status"];
 export const productListItemSchema = productSchema.omit({
   description: true,
   file: true,
+  firstPublishedAt: true,
 });
 
 export type ProductListItem = z.infer<typeof productListItemSchema>;
