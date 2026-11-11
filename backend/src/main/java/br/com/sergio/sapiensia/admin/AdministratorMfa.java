@@ -310,6 +310,33 @@ class AdministratorMfa {
         });
     }
 
+    /**
+     * The TOTP step of a reauthentication of the fully logged-in Administrator {@code id}, after the password was
+     * checked. Same limiter key and answers as {@link #verify}, and the same replay guard: the step is accepted
+     * (conditional UPDATE) and audited in one transaction, so the code of the login, or of an earlier
+     * reauthentication, is refused. Nothing else is written.
+     */
+    Outcome reauthenticate(UUID administratorId, String code, String clientIp) {
+        return guarded(administratorId, AuditAction.ADMIN_REAUTHENTICATION, clientIp, id -> {
+            Optional<Administrators.StoredTotp> totp = administrators.findTotp(id);
+            if (totp.isEmpty() || !totp.get().enabled()) {
+                return Outcome.of(Verdict.NOT_ENROLLED);
+            }
+            byte[] secret = cipher.decrypt(totp.get().secretCipher(), secretAad(id));
+            OptionalLong step = Totp.matchingStep(secret, code, clock.instant());
+            if (step.isEmpty()) {
+                return Outcome.of(Verdict.REJECTED);
+            }
+            return transaction.execute(status -> {
+                if (administrators.acceptStep(id, step.getAsLong()) == 0) {
+                    return Outcome.of(Verdict.REJECTED);
+                }
+                audit.recordInTransaction(entry(AuditAction.ADMIN_REAUTHENTICATION, AuditResult.SUCCESS, id, clientIp));
+                return Outcome.of(Verdict.ACCEPTED);
+            });
+        });
+    }
+
     private static AuditEntry entry(AuditAction action, AuditResult result, UUID id, String clientIp) {
         return new AuditEntry(action, result, id, AuditObject.ADMINISTRATOR, id, clientIp);
     }

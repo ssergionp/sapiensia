@@ -89,6 +89,8 @@ app:
     required: false
     # how long the "MFA pending" state lasts after the correct password; then the code is refused and the login restarts
     mfa-pending-ttl: PT5M
+    # how long a password and code typed again (or the login) count as recent, for the actions that ask for it
+    reauthentication-window: PT5M
   audit:
     # audit events older than this are deleted by the daily cleanup; never below P365D (the database trigger floor)
     retention: P365D

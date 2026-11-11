@@ -154,6 +154,9 @@ public class SecurityConfig {
                         // every panel route: the capability AND both factors, two independent locks
                         .requestMatchers(HttpMethod.GET, "/api/admin/sessions/current")
                         .access(panel(Capability.PANEL_ACCESS))
+                        // password and a fresh TOTP code typed again by the full Administrator (SEC-008)
+                        .requestMatchers(HttpMethod.POST, "/api/admin/sessions/reauthentication")
+                        .access(panel(Capability.PANEL_ACCESS))
                         // also asks for a fresh TOTP code in the body, checked by the controller (SEC-008)
                         .requestMatchers(HttpMethod.POST, "/api/admin/recovery-codes")
                         .access(panel(Capability.RECOVERY_CODES_MANAGE))
