@@ -13,6 +13,8 @@ export const CATALOG_TEXTS = {
   previous: "Anterior",
   next: "Próxima",
   pageOf: (n: number, total: number) => `Página ${n} de ${total}`,
+  loadingDocumentTitle: "Carregando… | SapiensIA",
+  detailErrorDocumentTitle: "Erro ao carregar o Produto | SapiensIA",
   detailDocumentTitle: (title: string) => `${title} | SapiensIA`,
   categoryTerm: "Categoria",
   priceTerm: "Preço",

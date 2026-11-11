@@ -1,8 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { Link, useSearchParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { CATEGORY_LABELS } from "@/features/products/messages";
 import { formatCents } from "@/features/products/schemas";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { useCatalog } from "./hooks";
 import { CATALOG_TEXTS as T } from "./messages";
 
@@ -19,9 +20,7 @@ export default function CatalogPage() {
   const catalog = useCatalog(page);
   const heading = useRef<HTMLHeadingElement>(null);
 
-  useEffect(() => {
-    document.title = T.listDocumentTitle;
-  }, []);
+  useDocumentTitle(T.listDocumentTitle);
 
   function goTo(target: number) {
     setSearchParams(target === 0 ? {} : { pagina: String(target + 1) });

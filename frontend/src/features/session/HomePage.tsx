@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { CATALOG_TEXTS } from "@/features/catalog/messages";
+import { DEFAULT_TITLE, useDocumentTitle } from "@/lib/useDocumentTitle";
 import { useLogout, useLogoutEverywhere, useSession } from "./hooks";
 import { LOGOUT_ERROR } from "./messages";
 
@@ -12,6 +13,7 @@ export default function HomePage() {
   const session = useSession();
   const logout = useLogout();
   const logoutEverywhere = useLogoutEverywhere();
+  useDocumentTitle(DEFAULT_TITLE);
 
   if (session.isPending) {
     return (

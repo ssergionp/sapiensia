@@ -1,8 +1,8 @@
-import { useEffect } from "react";
 import { Link, useParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { CATEGORY_LABELS } from "@/features/products/messages";
 import { formatCents } from "@/features/products/schemas";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { CatalogProductNotFoundError } from "./api";
 import { useCatalogProduct } from "./hooks";
 import { CATALOG_TEXTS as T } from "./messages";
@@ -11,12 +11,11 @@ export default function CatalogProductPage() {
   const { id = "" } = useParams();
   const query = useCatalogProduct(id);
   const notFound = query.error instanceof CatalogProductNotFoundError;
-  const title = query.data?.title;
-
-  useEffect(() => {
-    if (notFound) document.title = T.notFoundDocumentTitle;
-    else if (title !== undefined) document.title = T.detailDocumentTitle(title);
-  }, [notFound, title]);
+  let documentTitle: string = T.loadingDocumentTitle;
+  if (notFound) documentTitle = T.notFoundDocumentTitle;
+  else if (query.isError) documentTitle = T.detailErrorDocumentTitle;
+  else if (query.data) documentTitle = T.detailDocumentTitle(query.data.title);
+  useDocumentTitle(documentTitle);
 
   const backLink = (
     <Link to="/catalogo" className="underline">

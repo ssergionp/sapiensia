@@ -142,3 +142,66 @@ describe("CatalogProductPage", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("CatalogProductPage tab title", () => {
+  test("is Carregando… | SapiensIA while loading", () => {
+    vi.spyOn(globalThis, "fetch").mockReturnValue(new Promise(() => {}));
+    document.title = "outro";
+    renderProduct();
+
+    expect(document.title).toBe("Carregando… | SapiensIA");
+  });
+
+  test("is the Product title once loaded", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(200, product()),
+    );
+    renderProduct();
+    await screen.findByRole("heading", { level: 1, name: "Guia" });
+
+    expect(document.title).toBe("Guia | SapiensIA");
+  });
+
+  test.each([404, 400])("is Produto não encontrado on %i", async (status) => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(status, {}));
+    document.title = "outro";
+    renderProduct();
+    await screen.findByRole("heading", { name: "Produto não encontrado" });
+
+    expect(document.title).toBe("Produto não encontrado | SapiensIA");
+  });
+
+  test("is Erro ao carregar o Produto on a 500", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(500, {}));
+    document.title = "outro";
+    renderProduct();
+    await screen.findByRole("alert");
+
+    expect(document.title).toBe("Erro ao carregar o Produto | SapiensIA");
+  });
+
+  test("goes back to SapiensIA when navigating to a page without its own title", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(200, product()),
+    );
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/catalogo/p1"]}>
+          <Routes>
+            <Route path="/catalogo/:id" element={<CatalogProductPage />} />
+            <Route path="/catalogo" element={<p>lista</p>} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("link", { name: "Voltar ao Catálogo" }));
+    await screen.findByText("lista");
+
+    expect(document.title).toBe("SapiensIA");
+  });
+});

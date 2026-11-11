@@ -235,3 +235,59 @@ describe("CatalogPage", () => {
     ]);
   });
 });
+
+describe("CatalogPage tab title", () => {
+  const TITLE = "Catálogo | SapiensIA";
+
+  test("is the Catálogo title while loading", () => {
+    vi.spyOn(globalThis, "fetch").mockReturnValue(new Promise(() => {}));
+    document.title = "outro";
+    renderCatalog();
+
+    expect(document.title).toBe(TITLE);
+  });
+
+  test("is the Catálogo title when empty", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(200, pageBody([])),
+    );
+    document.title = "outro";
+    renderCatalog();
+    await screen.findByText("Nenhum Produto disponível no momento.");
+
+    expect(document.title).toBe(TITLE);
+  });
+
+  test("is the Catálogo title past the end", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(200, pageBody([], 4, 2)),
+    );
+    document.title = "outro";
+    renderCatalog("/catalogo?pagina=5");
+    await screen.findByText(/Esta página do Catálogo não tem Produtos/);
+
+    expect(document.title).toBe(TITLE);
+  });
+
+  test("is the Catálogo title on error", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(500));
+    document.title = "outro";
+    renderCatalog();
+    await screen.findByRole("alert");
+
+    expect(document.title).toBe(TITLE);
+  });
+
+  test("goes back to SapiensIA when navigating to a page without its own title", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(200, pageBody([item()])),
+    );
+    renderCatalog();
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("link", { name: "Guia" }));
+    await screen.findByText("detalhe");
+
+    expect(document.title).toBe("SapiensIA");
+  });
+});

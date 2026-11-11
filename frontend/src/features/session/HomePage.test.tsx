@@ -257,4 +257,27 @@ describe("HomePage", () => {
       await screen.findByRole("button", { name: "Saindo…" }),
     ).toBeDisabled();
   });
+
+  test("the tab title is SapiensIA while loading, signed out and signed in", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockReturnValue(new Promise(() => {}));
+    document.title = "outro";
+    const loading = renderPage();
+    expect(document.title).toBe("SapiensIA");
+    loading.unmount();
+
+    fetchSpy.mockResolvedValue(jsonResponse(401));
+    document.title = "outro";
+    const signedOut = renderPage();
+    await screen.findByRole("link", { name: "Entrar" });
+    expect(document.title).toBe("SapiensIA");
+    signedOut.unmount();
+
+    fetchSpy.mockResolvedValue(jsonResponse(200, { email: "ana@example.com" }));
+    document.title = "outro";
+    renderPage();
+    await screen.findByRole("button", { name: "Sair" });
+    expect(document.title).toBe("SapiensIA");
+  });
 });
