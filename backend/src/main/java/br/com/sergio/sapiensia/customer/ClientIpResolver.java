@@ -52,7 +52,7 @@ public class ClientIpResolver {
      * Returns the canonical text of a literal IPv4/IPv6 address (so equivalent forms share one limiter key), or
      * null when the value is not a literal. Never performs a DNS lookup.
      */
-    private static String canonicalLiteralIp(String candidate) {
+    public static String canonicalLiteralIp(String candidate) {
         if (candidate.isEmpty() || candidate.length() > MAX_IP_LENGTH) {
             return null;
         }

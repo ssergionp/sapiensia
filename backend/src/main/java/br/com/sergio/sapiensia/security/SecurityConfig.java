@@ -5,6 +5,7 @@ import br.com.sergio.sapiensia.admin.AdministratorPrincipal;
 import br.com.sergio.sapiensia.admin.Capability;
 import br.com.sergio.sapiensia.admin.PendingAdministrator;
 import br.com.sergio.sapiensia.customer.SessionVersionFilter;
+import br.com.sergio.sapiensia.payment.AsaasWebhookAccess;
 import br.com.sergio.sapiensia.product.ProductFileReplacementAccess;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
@@ -133,7 +134,8 @@ public class SecurityConfig {
             CsrfTokenRepository csrfTokenRepository,
             SessionVersionFilter sessionVersionFilter,
             AdminMfaAccess adminMfaAccess,
-            ProductFileReplacementAccess productFileReplacementAccess)
+            ProductFileReplacementAccess productFileReplacementAccess,
+            AsaasWebhookAccess asaasWebhookAccess)
             throws Exception {
         // right after the context is loaded from the session: ends sessions opened before a password change (SEC-006)
         http.addFilterAfter(sessionVersionFilter, SecurityContextHolderFilter.class);
@@ -205,11 +207,18 @@ public class SecurityConfig {
                         .access(panel(Capability.PRODUCTS_PUBLISH))
                         .requestMatchers(HttpMethod.DELETE, "/api/admin/products/*/publication")
                         .access(panel(Capability.PRODUCTS_PUBLISH))
+                        // Asaas webhook (#26, ADR-0003): the token header and the source IP are the credential; no
+                        // session, no CSRF
+                        .requestMatchers(HttpMethod.POST, "/api/webhooks/asaas")
+                        .access(asaasWebhookAccess)
                         .requestMatchers("/api/**")
                         .denyAll()
                         .anyRequest()
                         .permitAll())
-                .csrf(csrf -> csrf.spa().csrfTokenRepository(csrfTokenRepository))
+                .csrf(csrf -> csrf.spa()
+                        .csrfTokenRepository(csrfTokenRepository)
+                        .ignoringRequestMatchers(
+                                PathPatternRequestMatcher.pathPattern(HttpMethod.POST, "/api/webhooks/asaas")))
                 // no login page to redirect to: anonymous requests to protected routes get 401
                 // nothing to redirect back to after a login, and the saved request would create a session for every
                 // anonymous visitor

@@ -63,6 +63,8 @@ jobs:
         run: |
           MFA_KEY="$(openssl rand -base64 32)"
           echo "::add-mask::$MFA_KEY"
+          ASAAS_WEBHOOK_TOKEN="$(openssl rand -hex 32)"
+          echo "::add-mask::$ASAAS_WEBHOOK_TOKEN"
           mkdir -p .tmp/outbox && chmod 777 .tmp/outbox
           docker run -d --name app --network host \
             -v "$PWD/.tmp/outbox:/outbox" \
@@ -70,6 +72,7 @@ jobs:
             -e APP_PUBLIC_BASE_URL=http://localhost:8080 \
             -e APP_ADMIN_EMAIL=admin-e2e@example.com \
             -e APP_MFA_ENCRYPTION_KEY="$MFA_KEY" \
+            -e APP_ASAAS_WEBHOOK_TOKEN="$ASAAS_WEBHOOK_TOKEN" \
             -e DB_SCHEDULER_POLLING_INTERVAL=PT1S \
             -e APP_LOGIN_LIMIT_IP_MAX_ATTEMPTS=1000 \
             -e APP_STORAGE_SUPABASE_URL=http://localhost:54321 \

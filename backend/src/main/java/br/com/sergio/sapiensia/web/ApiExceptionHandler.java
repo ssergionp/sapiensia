@@ -6,6 +6,7 @@ import br.com.sergio.sapiensia.customer.IncorrectConfirmationPasswordException;
 import br.com.sergio.sapiensia.customer.InvalidConfirmationTokenException;
 import br.com.sergio.sapiensia.customer.PasswordCompromisedException;
 import br.com.sergio.sapiensia.customer.WrongPasswordLimitReachedException;
+import br.com.sergio.sapiensia.payment.InvalidWebhookBodyException;
 import br.com.sergio.sapiensia.product.ProductFileRequiredException;
 import br.com.sergio.sapiensia.product.ProductNotFoundException;
 import br.com.sergio.sapiensia.product.ProductVersionConflictException;
@@ -67,6 +68,11 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(InvalidMfaCodeException.class)
     ResponseEntity<ProblemDetail> handleInvalidMfaCode() {
         return ResponseEntity.badRequest().body(problem(Map.of("code", "CODE_INVALID")));
+    }
+
+    @ExceptionHandler(InvalidWebhookBodyException.class)
+    ResponseEntity<ProblemDetail> handleInvalidWebhookBody() {
+        return ResponseEntity.badRequest().body(problem(Map.of("body", "BODY_INVALID")));
     }
 
     @ExceptionHandler(InvalidReauthenticationException.class)
