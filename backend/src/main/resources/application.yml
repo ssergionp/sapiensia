@@ -105,6 +105,16 @@ app:
     ip-window: PT15M
     # request header carrying the client IP; blank uses the socket address (set only a header the platform overwrites)
     client-ip-header:
+  asaas:
+    webhook:
+      # shared secret sent by Asaas in the asaas-access-token header (secret APP_ASAAS_WEBHOOK_TOKEN); a missing or
+      # invalid value stops the application
+      token: ${APP_ASAAS_WEBHOOK_TOKEN}
+      # official Asaas source IPs, from https://docs.asaas.com/docs/official-asaas-ips (checked on 2026-11-11);
+      # APP_ASAAS_WEBHOOK_ALLOWED_IPS replaces the whole list; the sandbox may need an extra IP
+      allowed-ips: 52.67.12.206,18.230.8.159,54.94.136.112,54.94.183.101
+      # larger request bodies are refused
+      max-body-bytes: 65536
   product-file:
     # a PDF with more pages is refused (SEC-043)
     max-pages: 1000
