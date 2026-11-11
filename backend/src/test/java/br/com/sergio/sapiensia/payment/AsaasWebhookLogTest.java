@@ -65,16 +65,21 @@ class AsaasWebhookLogTest {
         String wrong = "WRONG-" + UUID.randomUUID();
         assertThat(AsaasWebhookTestSupport.post(port, LOOPBACK, Map.of(HEADER, wrong))
                         .statusCode())
-                .isIn(401, 403);
+                .isEqualTo(401);
 
         // (d) a malformed body that contains a marker
-        AsaasWebhookTestSupport.post(port, LOOPBACK, good, "{\"id\": \"MARKER3\", ", "application/json");
+        assertThat(AsaasWebhookTestSupport.post(port, LOOPBACK, good, "{\"id\": \"MARKER3\", ", "application/json")
+                        .statusCode())
+                .isEqualTo(400);
 
         // (e) a body with a personal document number
-        String personal = AsaasWebhookTestSupport.event(AsaasWebhookTestSupport.uniqueId(), "PAYMENT_RECEIVED")
+        String personalId = AsaasWebhookTestSupport.uniqueId();
+        String personal = AsaasWebhookTestSupport.event(personalId, "PAYMENT_RECEIVED")
                 .replace("\"customer\": \"cus_000\"", "\"customer\": \"cus_000\", \"cpfCnpj\": \"98765432100\"");
         assertThat(personal).contains("98765432100");
-        AsaasWebhookTestSupport.post(port, LOOPBACK, good, personal, "application/json");
+        assertThat(AsaasWebhookTestSupport.post(port, LOOPBACK, good, personal, "application/json")
+                        .statusCode())
+                .isEqualTo(200);
 
         String logs = output.getAll();
         assertThat(logs).as("the flow logged something").isNotBlank();
@@ -87,6 +92,7 @@ class AsaasWebhookLogTest {
                 .doesNotContain("98765432100");
         assertThat(logs)
                 .contains("Asaas webhook event stored: id=" + id)
+                .contains("Asaas webhook event stored: id=" + personalId)
                 .contains("Asaas webhook event duplicate: id=" + id)
                 .contains("Asaas webhook refused: ip=127.0.0.1 reason=TOKEN_INVALID");
     }

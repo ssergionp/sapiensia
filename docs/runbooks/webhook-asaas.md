@@ -49,7 +49,7 @@ O mesmo do `docs/runbooks/homologacao-fly.md`.
 
    Mostra só nomes, digest e data. Devem aparecer 9 nomes.
 
-4. **[AGENTE]** Faça o deploy (seção 5 do `docs/runbooks/homologacao-fly.md`) e leia o log. Procure `Started` e confira que não há `Invalid app.asaas.webhook` (esse erro significa token ausente ou fora de 32 a 255 caracteres).
+4. **[AGENTE]** Faça o deploy (seção 5 do `docs/runbooks/homologacao-fly.md`) e leia o log. Procure `Started` e confira que não há nenhum erro de inicialização citando `APP_ASAAS_WEBHOOK_TOKEN` ou `app.asaas.webhook` (significa segredo ausente, ou token fora de 32 a 255 caracteres).
 
 ## 2. Criar o webhook no sandbox do Asaas
 
@@ -73,13 +73,15 @@ O mesmo do `docs/runbooks/homologacao-fly.md`.
 
 7. **[RESPONSÁVEL]** No sandbox, crie uma cobrança Pix de teste (Cobranças > Nova cobrança; qualquer cliente fictício do sandbox). Isso dispara `PAYMENT_CREATED`. Em `Integrações > Logs de Webhooks`, a entrega deve mostrar **200**. Se o sandbox oferecer "simular pagamento", use-o para ver `PAYMENT_RECEIVED`.
 
-8. **[AGENTE]** Confira no banco (SQL Editor do Supabase).
+8. **[RESPONSÁVEL]** Confira no banco (SQL Editor do Supabase, no navegador).
 
    ```sql
    select provider_event_id, event_type, received_at from payment_events order by received_at desc limit 5;
    ```
 
    Mostra os últimos eventos gravados.
+
+   **[AGENTE]** Depois, confira o log:
 
    ```powershell
    fly logs -a sapiensia-homolog --no-tail
