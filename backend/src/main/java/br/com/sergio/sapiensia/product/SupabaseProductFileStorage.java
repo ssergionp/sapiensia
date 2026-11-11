@@ -29,7 +29,9 @@ class SupabaseProductFileStorage implements ProductFileStorage {
 
     private static final Logger log = LoggerFactory.getLogger(SupabaseProductFileStorage.class);
     private static final JsonMapper JSON = JsonMapper.builder().build();
-    private static final Pattern SECRET_PATTERN = Pattern.compile("sb_(secret|publishable)_[A-Za-z0-9_-]*");
+    // the new keys and the legacy JWT keys (anon, service_role)
+    private static final Pattern SECRET_PATTERN =
+            Pattern.compile("sb_(secret|publishable)_[A-Za-z0-9_-]*|eyJ[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+){1,2}");
     private static final String REDACTED = "<redacted>";
     private static final int MAX_FIELD = 200;
 

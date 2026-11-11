@@ -209,6 +209,25 @@ class SupabaseProductFileStorageTest {
     }
 
     @Test
+    @DisplayName("SEC-047: o log do erro do Storage nunca mostra um token JWT do Supabase")
+    void shouldNeverLogALegacyJwtKey(CapturedOutput output) throws IOException {
+        Fixture fixture = fixture();
+        Path file = Files.writeString(dir.resolve("f.pdf"), "x");
+        String key = ProductFileKeys.newKey(UUID.randomUUID());
+        String jwt = "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiZmFrZSJ9.ZmFrZS1zaWduYXR1cmU";
+        String twoParts = "eyJhbGciOiJub25lIn0.eyJmYWtlIjp0cnVlfQ";
+        fixture.server
+                .expect(requestTo(URL + "/storage/v1/object/" + BUCKET + "/" + key))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"statusCode\":\"403\",\"error\":\"" + twoParts + "\",\"message\":\"bad token " + jwt
+                                + "\"}"));
+
+        assertThatThrownBy(() -> fixture.storage.put(key, file, 1)).isInstanceOf(ProductFileStorageException.class);
+        assertThat(output.getAll()).contains("message=bad token <redacted>").doesNotContain("eyJ");
+    }
+
+    @Test
     void shouldLogOnlyTheStatusWhenTheBodyIsNotJson(CapturedOutput output) throws IOException {
         Fixture fixture = fixture();
         Path file = Files.writeString(dir.resolve("f.pdf"), "x");
