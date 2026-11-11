@@ -55,9 +55,6 @@ export const SERVER_FIELD_NAMES: Record<string, string> = {
 
 export const PRODUCT_NOT_FOUND = "Produto não encontrado.";
 
-const PUBLISHED_BEFORE_TEXT =
-  "Este Produto já foi publicado. A troca do arquivo vai exigir nova autenticação, que ainda não está disponível.";
-
 export const FILE_MESSAGES: Record<ProductFileRejectionCode, string> = {
   FILE_REQUIRED: "Selecione um arquivo PDF.",
   FILE_EMPTY: "O arquivo está vazio.",
@@ -69,7 +66,6 @@ export const FILE_MESSAGES: Record<ProductFileRejectionCode, string> = {
     "O PDF está protegido por senha. Envie uma versão sem proteção.",
   FILE_TOO_MANY_PAGES:
     "O PDF passa de 1.000 páginas. Envie um arquivo com até 1.000 páginas.",
-  PUBLISHED_BEFORE: PUBLISHED_BEFORE_TEXT,
 };
 
 export const FILE_UPLOAD_ERRORS = {
@@ -78,6 +74,21 @@ export const FILE_UPLOAD_ERRORS = {
     "O sistema está indisponível no momento e o arquivo não foi enviado. Tente novamente em alguns instantes.",
   unexpected:
     "Não foi possível enviar o arquivo. Verifique a conexão e tente novamente.",
+} as const;
+
+export const REAUTHENTICATION_TEXTS = {
+  publishedNotice:
+    "Este Produto já foi publicado. Para trocar o arquivo, confirme sua senha e o código do aplicativo autenticador. Quem já comprou passa a baixar a nova versão.",
+  title: "Confirme sua identidade",
+  passwordLabel: "Senha",
+  codeLabel: "Código do aplicativo autenticador",
+  confirm: "Confirmar e enviar",
+  confirming: "Confirmando…",
+  cancel: "Cancelar",
+  rejected: "Senha ou código incorretos. Confira e tente de novo.",
+  locked: "Muitas tentativas. Aguarde alguns minutos e tente de novo.",
+  expired:
+    "A confirmação venceu. Digite sua senha e o código de novo para enviar o arquivo.",
 } as const;
 
 export const STATUS_LABELS: Record<ProductStatus, string> = {
@@ -102,7 +113,7 @@ export const PUBLICATION_MESSAGES = {
   unpublish: "Despublicar",
   needFile: "Envie o Arquivo do produto para poder publicar.",
   confirmQuestion:
-    "Publicar este Produto? Ele vai aparecer no Catálogo. Depois da primeira publicação, o arquivo só poderá ser trocado com nova autenticação, que ainda não está disponível.",
+    "Publicar este Produto? Ele vai aparecer no Catálogo. Depois da primeira publicação, trocar o arquivo vai exigir sua senha e o código do aplicativo autenticador.",
   confirm: "Confirmar publicação",
   cancel: "Cancelar",
   keepsAccess: "Quem já comprou continua com acesso.",

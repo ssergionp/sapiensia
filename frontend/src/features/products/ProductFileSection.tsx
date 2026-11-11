@@ -1,8 +1,15 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  ReauthenticationLockedError,
+  ReauthenticationRejectedError,
+  ReauthenticationUnavailableError,
+} from "@/features/admin/api";
+import { useReauthenticate } from "@/features/admin/hooks";
+import {
+  ProductFileReauthenticationRequiredError,
   ProductFileRejectedError,
   ProductForbiddenError,
   ProductNotFoundError,
@@ -13,6 +20,7 @@ import {
   FILE_MESSAGES,
   FILE_UPLOAD_ERRORS,
   PRODUCT_NOT_FOUND,
+  REAUTHENTICATION_TEXTS,
 } from "./messages";
 import {
   formatFileSize,
@@ -32,15 +40,69 @@ function describeUploadError(error: unknown): string {
   return FILE_UPLOAD_ERRORS.unexpected;
 }
 
+function describeReauthenticationError(error: unknown): string {
+  if (error instanceof ReauthenticationRejectedError)
+    return REAUTHENTICATION_TEXTS.rejected;
+  if (error instanceof ReauthenticationLockedError)
+    return REAUTHENTICATION_TEXTS.locked;
+  if (error instanceof ReauthenticationUnavailableError)
+    return FILE_UPLOAD_ERRORS.unavailable;
+  return FILE_UPLOAD_ERRORS.unexpected;
+}
+
 export default function ProductFileSection({ product }: { product: Product }) {
   const upload = useUploadProductFile(product.id);
+  const reauthenticate = useReauthenticate();
   const input = useRef<HTMLInputElement>(null);
+  const sendButton = useRef<HTMLButtonElement>(null);
+  const passwordField = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
+  // The chosen file lives here while the identity form is open, so it is sent as is after the confirmation.
+  const [pending, setPending] = useState<File | null>(null);
+  const [asking, setAsking] = useState(false);
+  const [askError, setAskError] = useState<string | null>(null);
+  const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  // Bumped each time the form (re)opens so the focus goes back to the password.
+  const [focusTick, setFocusTick] = useState(0);
   const file = product.file;
+  const published = product.firstPublishedAt !== null;
+  const busy = upload.isPending || reauthenticate.isPending;
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: focusTick is the trigger.
+  useEffect(() => {
+    if (asking) passwordField.current?.focus();
+  }, [asking, focusTick]);
+
+  function openForm(chosen: File, message: string | null) {
+    setPending(chosen);
+    setAskError(message);
+    setAsking(true);
+    setFocusTick((tick) => tick + 1);
+  }
+
+  function sendFile(chosen: File) {
+    upload.mutate(chosen, {
+      onSuccess: () => {
+        if (input.current) input.current.value = "";
+        setAsking(false);
+        setPending(null);
+        setAskError(null);
+      },
+      onError: (e) => {
+        if (e instanceof ProductFileReauthenticationRequiredError) {
+          openForm(chosen, REAUTHENTICATION_TEXTS.expired);
+          return;
+        }
+        setAsking(false);
+        setError(describeUploadError(e));
+      },
+    });
+  }
 
   function send(event: React.FormEvent) {
     event.preventDefault();
-    if (upload.isPending) return;
+    if (busy) return;
     upload.reset();
     setError(null);
     const chosen = input.current?.files?.[0];
@@ -49,12 +111,32 @@ export default function ProductFileSection({ product }: { product: Product }) {
       return setError(FILE_MESSAGES.FILE_NOT_PDF);
     if (chosen.size > MAX_FILE_BYTES)
       return setError(FILE_MESSAGES.FILE_TOO_LARGE);
-    upload.mutate(chosen, {
-      onSuccess: () => {
-        if (input.current) input.current.value = "";
-      },
-      onError: (e) => setError(describeUploadError(e)),
+    if (published) return openForm(chosen, null);
+    sendFile(chosen);
+  }
+
+  function confirm(event: React.FormEvent) {
+    event.preventDefault();
+    if (busy || !pending) return;
+    const credentials = { password, code };
+    const chosen = pending;
+    // The password and the code never outlive the attempt.
+    setPassword("");
+    setCode("");
+    setAskError(null);
+    reauthenticate.mutate(credentials, {
+      onSuccess: () => sendFile(chosen),
+      onError: (e) => setAskError(describeReauthenticationError(e)),
     });
+  }
+
+  function cancel() {
+    setAsking(false);
+    setPending(null);
+    setAskError(null);
+    setPassword("");
+    setCode("");
+    sendButton.current?.focus();
   }
 
   const currentFile = (
@@ -70,12 +152,7 @@ export default function ProductFileSection({ product }: { product: Product }) {
       <h2 id="file-heading" className="mb-4 text-lg font-semibold">
         Arquivo do produto
       </h2>
-      {product.firstPublishedAt !== null ? (
-        <div className="grid gap-4">
-          {currentFile}
-          <p>{FILE_MESSAGES.PUBLISHED_BEFORE}</p>
-        </div>
-      ) : (
+      <div className="grid gap-4">
         <form onSubmit={send} noValidate className="grid gap-4">
           {currentFile}
           <div className="grid gap-1.5">
@@ -89,6 +166,7 @@ export default function ProductFileSection({ product }: { product: Product }) {
               aria-describedby={[
                 "file-help",
                 file ? "file-help-replace" : null,
+                published ? "file-help-published" : null,
                 error ? "file-error" : null,
               ]
                 .filter(Boolean)
@@ -103,6 +181,14 @@ export default function ProductFileSection({ product }: { product: Product }) {
                 className="text-sm text-muted-foreground"
               >
                 Enviar outro arquivo substitui o atual.
+              </p>
+            )}
+            {published && (
+              <p
+                id="file-help-published"
+                className="text-sm text-muted-foreground"
+              >
+                {REAUTHENTICATION_TEXTS.publishedNotice}
               </p>
             )}
             {error && (
@@ -121,12 +207,71 @@ export default function ProductFileSection({ product }: { product: Product }) {
             </p>
           )}
           <div>
-            <Button type="submit" disabled={upload.isPending}>
+            <Button ref={sendButton} type="submit" disabled={busy}>
               {upload.isPending ? "Enviando arquivo…" : "Enviar arquivo"}
             </Button>
           </div>
         </form>
-      )}
+        {asking && (
+          <form
+            onSubmit={confirm}
+            noValidate
+            aria-labelledby="reauthentication-heading"
+            className="grid gap-4"
+          >
+            <h3 id="reauthentication-heading" className="font-semibold">
+              {REAUTHENTICATION_TEXTS.title}
+            </h3>
+            <div className="grid gap-1.5">
+              <Label htmlFor="reauthentication-password">
+                {REAUTHENTICATION_TEXTS.passwordLabel}
+              </Label>
+              <Input
+                id="reauthentication-password"
+                ref={passwordField}
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="reauthentication-code">
+                {REAUTHENTICATION_TEXTS.codeLabel}
+              </Label>
+              <Input
+                id="reauthentication-code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={code}
+                onChange={(event) => setCode(event.target.value)}
+              />
+            </div>
+            {askError && (
+              <p role="alert" className="text-sm text-destructive">
+                {askError}
+              </p>
+            )}
+            <div className="flex gap-2">
+              <Button type="submit" disabled={busy}>
+                {reauthenticate.isPending
+                  ? REAUTHENTICATION_TEXTS.confirming
+                  : upload.isPending
+                    ? "Enviando arquivo…"
+                    : REAUTHENTICATION_TEXTS.confirm}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy}
+                onClick={cancel}
+              >
+                {REAUTHENTICATION_TEXTS.cancel}
+              </Button>
+            </div>
+          </form>
+        )}
+      </div>
     </section>
   );
 }
