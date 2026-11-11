@@ -50,8 +50,8 @@ class ProductFileController {
     }
 
     /**
-     * 200 with the Product; 400 {"errors":{"file":CODE}}; 413 FILE_TOO_LARGE; 409 PUBLISHED_BEFORE; 404; 503 without a body. The part is
-     * copied to a temporary file that is always deleted, whatever the outcome.
+     * 200 with the Product; 400 {"errors":{"file":CODE}}; 413 FILE_TOO_LARGE; 409 PUBLISHED_BEFORE; 404; 503 without a
+     * body. The part is copied to a temporary file that is always deleted, whatever the outcome.
      */
     @PostMapping(path = "/{id}/file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     ProductResponse upload(
