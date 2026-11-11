@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** APROVADO em 10/11/2026 (itens 2 a 8 da seção 8 como escritos; ajustes 1 e 3a–3d incorporados). Em 11/11/2026 a main com o #19 (`0eef1df`) entrou nesta branch por `git merge origin/main` (sem conflitos) e o plano foi alinhado ao código real (Task 1, seções 2, 4.2, 5, 6, 7, 8 e Tasks 3–5). **Aguardam aprovação antes de qualquer código:** os textos novos da seção 6 (incluindo a frase de confirmação da publicação, nova neste ajuste), D8 (ADR-0004), D9 e D10.
+**Status:** APROVADO em 10/11/2026 (itens 2 a 8 da seção 8 como escritos; ajustes 1 e 3a–3d incorporados). Em 11/11/2026 a main com o #19 (`0eef1df`) entrou nesta branch por `git merge origin/main` (sem conflitos) e o plano foi alinhado ao código real (Task 1, seções 2, 4.2, 5, 6, 7, 8 e Tasks 3–5). **Aprovado em 11/11/2026:** todos os textos da seção 6 exatamente como escritos (inclusive os substitutos dos textos 10 e 25 do #19), D2, D8, D9 e D10. **Condição nova do Sérgio:** as tentativas erradas de senha ou código na reautenticação contam no **mesmo** limite do login, para que uma sessão sequestrada não sirva para adivinhar a senha sem limite (seção 3, "Mesmo limite do login").
 
 **Goal:** Trocar o Arquivo do produto de um Produto que já foi publicado (mesmo despublicado depois) exige que o Administrador digite de novo a senha e um código TOTP; antes da primeira publicação nada muda.
 
@@ -96,6 +96,8 @@
 4. Senha certa → `limiter.recordSuccess(passwordKey)` (como o login) e `AdministratorMfa.reauthenticate(id, code, ip)`: o `guarded(...)` existente com `AuditAction.ADMIN_REAUTHENTICATION` (chave `admin-mfa:<id>`, auditoria `SUCCESS` na transação do passo, `FAILURE`/`BLOCKED` independentes).
 5. **Replay guard (ajuste 3a):** igual ao login. `Totp.matchingStep` acha o passo do código e o aceite é o `UPDATE` condicional `Administrators.acceptStep(id, step)` (`totp_last_step` nulo ou menor). `0` linhas → `REJECTED`. Assim o código do login não vale na reautenticação, o da reautenticação não vale de novo, e duas reautenticações paralelas com o mesmo código dão um `204` e um `400`.
 6. `ACCEPTED` → o controller abre a sessão nova; `REJECTED` → `400 CREDENTIALS_INVALID`; `LOCKED` → `429`; `UNAVAILABLE` → `503`; `NOT_ENROLLED` (impossível para Administrador completo) → `503` com log.
+
+**Mesmo limite do login (condição do Sérgio, 11/11):** a reautenticação não tem limitador próprio. Usa o **mesmo** bean `LoginAttemptLimiter` e as **mesmas** chaves: senha em `admin:<e-mail normalizado>` (o balde do `POST /api/admin/sessions`), código em `admin-mfa:<id>` (o balde do `POST /api/admin/sessions/mfa`), e a ficha do IP compartilhada. Falhas no login e na reautenticação se somam: 5 erradas em 15 minutos, em qualquer combinação, bloqueiam as duas rotas com `429` + `Retry-After`, e o bloqueio vale até para a senha certa. Senha errada não chega a conferir o código. Senha certa zera só o balde da senha (como no login); quem sequestrou a sessão não sabe a senha, então não consegue zerar. Provas: os testes `5 senhas erradas…`, `5 códigos errados…` e `SEC-008: erros no login e na reautenticação somam no mesmo limite` (seção 7) e, na tela, `429 → Muitas tentativas. Aguarde alguns minutos e tente de novo.` (Vitest). O e2e **não** bloqueia a conta de verdade: o bloqueio dura 15 minutos e derrubaria os outros e2e do painel, que usam o mesmo Administrador.
 
 **Auditoria:** `AuditAction.ADMIN_REAUTHENTICATION` (a checagem `^[A-Z_]+$` da tabela aceita sem migration), `AuditObject.ADMINISTRATOR`, id do Administrador, origem. Nunca senha, código nem e-mail.
 
@@ -241,6 +243,8 @@ Substituídos (eram do #19, `frontend/src/features/products/messages.ts`) — **
 | `SEC-008: código de recuperação não serve para reautenticar` | integração | D4 |
 | `SEC-008: 5 senhas erradas bloqueiam a reautenticação e o login do painel com 429` | integração | ajuste 3b: `Retry-After`; `POST /api/admin/sessions` com a senha certa também `429` |
 | `SEC-008: 5 códigos errados bloqueiam a reautenticação com 429` | integração | chave `admin-mfa:<id>` compartilhada com o login |
+| `SEC-008: erros no login e na reautenticação somam no mesmo limite` | integração | 3 senhas erradas em `POST /api/admin/sessions` (outra sessão) + 2 na reautenticação → a próxima reautenticação com a senha certa recebe `429` com `Retry-After`, e o login do painel com a senha certa também; `audit_events` com `BLOCKED` de `ADMIN_REAUTHENTICATION` |
+| `SEC-008: 429 na reautenticação mostra "Muitas tentativas" e mantém o arquivo escolhido` | Vitest (`ProductFileSection.test.tsx`) | tentativas repetidas respondidas com 429 → texto exato da seção 6, upload não chamado, `File` preservado |
 | `SEC-010: anônimo e sessão pendente recebem 401, Cliente 403, sem token CSRF 403` | integração | rota negada por padrão |
 | `SEC-065: reautenticação certa, errada e bloqueada vão para a auditoria sem senha nem código` | integração | `audit_events` e log capturado sem a senha nem o código |
 | `SEC-008: ReauthenticationRequest não mostra senha nem código no toString` | unit | |
