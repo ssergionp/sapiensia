@@ -2,12 +2,17 @@ package br.com.sergio.sapiensia.product;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.anything;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 
 import br.com.sergio.sapiensia.admin.AdministratorPrincipal;
 import br.com.sergio.sapiensia.admin.Capability;
@@ -26,13 +31,19 @@ import org.apache.tomcat.util.http.fileupload.InvalidFileNameException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.dao.QueryTimeoutException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.RestClient;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
 
@@ -40,6 +51,7 @@ import org.springframework.web.multipart.MultipartException;
  * SEC-047: the temporary copy of the upload is deleted on every way out of the controller, and each failure maps to its
  * answer. A plain unit test: the service is a Mockito mock (the ban on mocks is only for integration tests).
  */
+@ExtendWith(OutputCaptureExtension.class)
 class ProductFileControllerTest {
 
     private final ProductFileService service = mock(ProductFileService.class);
@@ -239,5 +251,49 @@ class ProductFileControllerTest {
             assertThat(answer.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
             assertThat(answer.getBody()).isNull();
         }
+    }
+
+    @Test
+    @DisplayName("SEC-047: falha do Storage registra o motivo seguro, sem segredo, URL nem nome do arquivo")
+    void shouldLogTheSafeStorageReasonWithoutSecretUrlOrFileName(CapturedOutput output) {
+        String secret = "test-secret-not-real";
+        String url = "https://project.example.test";
+        String fileName = "relatorio-cliente-confidencial.pdf";
+        RestClient.Builder builder = spy(RestClient.builder());
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        doReturn(builder).when(builder).requestFactory(any());
+        var storage = new SupabaseProductFileStorage(builder, url, secret, "product-files");
+        server.expect(anything())
+                .andRespond(withStatus(HttpStatus.FORBIDDEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"message\":\"denied " + secret + " " + fileName + "\"}"));
+        stubService(() -> {
+            Path temp = seen.get(0);
+            storage.put(ProductFileKeys.newKey(productId), temp, 1);
+            return null;
+        });
+        var upload = new MockMultipartFile("file", fileName, "application/pdf", "%PDF-1.4 content".getBytes());
+
+        var failure = catchThrowable(() -> controller.upload(productId, upload, authentication, request));
+        var answer = controller.unavailable((Exception) failure);
+
+        assertThat(answer.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(answer.getBody()).isNull();
+        assertThat(output.getAll())
+                .contains("Product file upload unavailable")
+                .contains("HTTP 403")
+                .doesNotContain(secret)
+                .doesNotContain(url)
+                .doesNotContain(fileName);
+    }
+
+    @Test
+    @DisplayName("SEC-047: banco fora registra só a classe, não a mensagem")
+    void shouldLogOnlyTheClassForADatabaseFailure(CapturedOutput output) {
+        controller.unavailable(new QueryTimeoutException("select * from product where title = 'Guia secreto'"));
+
+        assertThat(output.getAll())
+                .contains(QueryTimeoutException.class.getName())
+                .doesNotContain("Guia secreto");
     }
 }
