@@ -175,6 +175,7 @@ export default function ProductFileSection({ product }: { product: Product }) {
               ref={input}
               type="file"
               onChange={changeFile}
+              disabled={busy}
               accept="application/pdf,.pdf"
               aria-invalid={error ? true : undefined}
               aria-describedby={[

@@ -289,6 +289,23 @@ describe("ProductFileSection", () => {
     expect(uploaded).toEqual([second]);
   });
 
+  test("SEC-008: o arquivo não pode ser trocado enquanto a confirmação está em andamento", async () => {
+    let finish: (r: Response) => void = () => {};
+    const pending = new Promise<Response>((resolve) => {
+      finish = resolve;
+    });
+    apiWithReauth(() => pending);
+    await open();
+    await openForm();
+    await fill();
+    await screen.findByRole("button", { name: "Confirmando…" });
+    expect(screen.getByLabelText("Arquivo PDF")).toBeDisabled();
+    finish(jsonResponse(400));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Arquivo PDF")).toBeEnabled(),
+    );
+  });
+
   test("SEC-008: depois de uma confirmação recusada o foco volta para o campo Senha", async () => {
     apiWithReauth(() => jsonResponse(400));
     await open();
