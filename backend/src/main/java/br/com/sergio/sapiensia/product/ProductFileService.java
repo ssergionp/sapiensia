@@ -59,28 +59,36 @@ class ProductFileService {
             String submittedName,
             String declaredContentType,
             UUID administratorId,
-            String origin) {
+            String origin,
+            boolean reauthenticated) {
         // Deleting the old object "after commit" and holding no row lock during network calls both assume that this
         // method owns the transaction. Inside a caller's transaction the swap would not commit yet, so refuse.
         Assert.state(!TransactionSynchronizationManager.isActualTransactionActive(), "must not run in a transaction");
         if (!products.exists(productId)) {
             throw new ProductNotFoundException();
         }
-        // Cheap pre-check so no byte reaches the storage for nothing; the one that counts is under the lock, in store.
-        // Ticket #22 replaces both with a re-authentication requirement.
-        if (products.everPublished(productId)) {
-            audit.recordIndependent(entry(AuditResult.FAILURE, administratorId, productId, origin));
-            throw new ProductFileRejectedException(ProductFileRejection.PUBLISHED_BEFORE);
+        // Cheap pre-check so no byte reaches the storage (nor the validator) for nothing; the one that counts is under
+        // the lock, in store. "reauthenticated" says the security filter let the request in on a recent authentication.
+        if (!reauthenticated && products.everPublished(productId)) {
+            audit.recordIndependent(entry(AuditResult.BLOCKED, administratorId, productId, origin));
+            throw new ProductFileReauthenticationRequiredException();
         }
         PdfCheck check = validator.check(tempFile, submittedName, declaredContentType);
         if (check instanceof PdfCheck.Rejected rejected) {
             audit.recordIndependent(entry(AuditResult.FAILURE, administratorId, productId, origin));
             throw new ProductFileRejectedException(rejected.reason());
         }
-        return store(productId, tempFile, ((PdfCheck.Valid) check).pageCount(), administratorId, origin);
+        return store(
+                productId, tempFile, ((PdfCheck.Valid) check).pageCount(), administratorId, origin, reauthenticated);
     }
 
-    private ProductResponse store(UUID productId, Path tempFile, int pageCount, UUID administratorId, String origin) {
+    private ProductResponse store(
+            UUID productId,
+            Path tempFile,
+            int pageCount,
+            UUID administratorId,
+            String origin,
+            boolean reauthenticated) {
         long size = sizeOf(tempFile);
         String newKey = ProductFileKeys.newKey(productId);
         storage.put(newKey, tempFile, size);
@@ -90,9 +98,10 @@ class ProductFileService {
                 if (!files.lockProduct(productId)) {
                     throw new ProductNotFoundException();
                 }
-                // Publishing takes this same lock, so the marker read here cannot change before the swap commits.
-                if (products.everPublished(productId)) {
-                    throw new ProductFileRejectedException(ProductFileRejection.PUBLISHED_BEFORE);
+                // The check that counts: publishing takes this same lock, so the marker read here cannot change before
+                // the swap commits. A request authorized as a draft is refused if the publication won the lock.
+                if (!reauthenticated && products.everPublished(productId)) {
+                    throw new ProductFileReauthenticationRequiredException();
                 }
                 Optional<String> previous = files.currentKey(productId);
                 files.swap(productId, newKey, size, pageCount);
@@ -104,9 +113,11 @@ class ProductFileService {
             // Accepted residual risk: if the commit throws after the database really committed (e.g. the connection
             // drops on the reply), this deletes the object the row now points to. Rare; accepted for this ticket.
             deleteBestEffort(newKey, productId);
+            // The transaction rolled back, so these two have to be written outside of it.
             if (e instanceof ProductFileRejectedException) {
-                // The transaction rolled back, so the FAILURE has to be written outside of it.
                 audit.recordIndependent(entry(AuditResult.FAILURE, administratorId, productId, origin));
+            } else if (e instanceof ProductFileReauthenticationRequiredException) {
+                audit.recordIndependent(entry(AuditResult.BLOCKED, administratorId, productId, origin));
             }
             throw e;
         }

@@ -17,6 +17,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -37,6 +38,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The upload route against a real Tomcat: the receive limits, hostile file names, the shape of the answers and what
@@ -418,37 +420,49 @@ class AdminProductFileUploadTest {
                 "select object_key from product_files where product_id = ?", String.class, productId);
     }
 
+    private void assertReauthenticationRequired(HttpResponse<String> response) throws Exception {
+        assertThat(response.statusCode()).isEqualTo(403);
+        assertThat(response.headers().firstValue("Content-Type").orElse("")).startsWith("application/problem+json");
+        JsonMapper json = JsonMapper.builder().build();
+        assertThat(json.readTree(response.body()))
+                .isEqualTo(json.readTree("{\"type\":\"about:blank\",\"title\":\"Reauthentication required\","
+                        + "\"status\":403,\"instance\":\"" + path() + "\","
+                        + "\"errors\":{\"reauthentication\":\"REAUTHENTICATION_REQUIRED\"}}"));
+    }
+
     @Test
-    @DisplayName("SEC-008: depois de publicar e despublicar, trocar o arquivo é recusado")
-    void shouldRefuseReplacingTheFileAfterPublishAndUnpublish() throws Exception {
+    @DisplayName("SEC-008: depois de publicar e despublicar, trocar o arquivo sem reautenticação recente é recusado")
+    void shouldRefuseReplacingTheFileAfterPublishAndUnpublishWithoutRecentReauthentication() throws Exception {
         productId = AdminProductFixtures.insertProductWithFile(jdbc);
         String before = currentKey();
         assertThat(admin.put(publicationPath(), "").statusCode()).isEqualTo(200);
         assertThat(admin.delete(publicationPath()).statusCode()).isEqualTo(200);
+        clock.advance(Duration.ofMinutes(5).plusSeconds(1));
 
         HttpResponse<String> response = upload("guia.pdf", "application/pdf", TestPdfs.pages(1));
 
-        assertThat(response.statusCode()).isEqualTo(409);
-        assertThat(response.body()).contains("\"errors\":{\"file\":\"PUBLISHED_BEFORE\"}");
+        assertReauthenticationRequired(response);
         assertThat(currentKey()).isEqualTo(before);
         assertThat(storage.keys()).isEmpty();
-        assertThat(fileUploadAudit("FAILURE")).isEqualTo(1);
+        assertThat(fileUploadAudit("BLOCKED")).isEqualTo(1);
+        assertThat(fileUploadAudit("FAILURE")).isZero();
         assertThat(fileUploadAudit("SUCCESS")).isZero();
     }
 
     @Test
-    @DisplayName("SEC-008: Produto publicado não aceita arquivo novo")
-    void shouldRefuseANewFileForAPublishedProduct() throws Exception {
+    @DisplayName("SEC-008: Produto publicado não aceita arquivo novo sem reautenticação recente")
+    void shouldRefuseANewFileForAPublishedProductWithoutRecentReauthentication() throws Exception {
         productId = AdminProductFixtures.insertProductWithFile(jdbc);
         String before = currentKey();
-        AdminProductFixtures.publish(jdbc, productId);
+        assertThat(admin.put(publicationPath(), "").statusCode()).isEqualTo(200);
+        clock.advance(Duration.ofMinutes(5).plusSeconds(1));
 
         HttpResponse<String> response = upload("guia.pdf", "application/pdf", TestPdfs.pages(1));
 
-        assertThat(response.statusCode()).isEqualTo(409);
-        assertThat(response.body()).contains("\"errors\":{\"file\":\"PUBLISHED_BEFORE\"}");
+        assertReauthenticationRequired(response);
         assertThat(currentKey()).isEqualTo(before);
         assertThat(storage.keys()).isEmpty();
+        assertThat(fileUploadAudit("BLOCKED")).isEqualTo(1);
     }
 
     @Test
@@ -475,11 +489,11 @@ class AdminProductFileUploadTest {
 
         HttpResponse<String> response = replacement.get(30, TimeUnit.SECONDS);
 
-        assertThat(response.statusCode()).isEqualTo(409);
-        assertThat(response.body()).contains("\"errors\":{\"file\":\"PUBLISHED_BEFORE\"}");
+        assertReauthenticationRequired(response);
         assertThat(storage.keys()).as("the new object was deleted").isEmpty();
         assertThat(currentKey()).isEqualTo(before);
-        assertThat(fileUploadAudit("FAILURE")).isEqualTo(1);
+        assertThat(fileUploadAudit("BLOCKED")).isEqualTo(1);
+        assertThat(fileUploadAudit("FAILURE")).isZero();
         assertThat(fileUploadAudit("SUCCESS")).isZero();
     }
 }

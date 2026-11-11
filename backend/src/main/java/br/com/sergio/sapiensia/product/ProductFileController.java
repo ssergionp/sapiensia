@@ -31,8 +31,8 @@ import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * The PDF of a Product in the panel. The lock (PRODUCTS_FILE and both factors) is in SecurityConfig and runs before the
- * body is read. This class is not transactional on purpose: the service does network calls and owns its transactions.
+ * The PDF of a Product in the panel. The lock (PRODUCTS_FILE, both factors and, for a Product that was ever published, a recent
+ * authentication: ProductFileReplacementAccess) is in SecurityConfig and runs before the body is read. This class is not transactional on purpose: the service does network calls and owns its transactions.
  * The submitted file name goes only to the validator, which checks the extension; it is never logged or stored.
  */
 @RestController
@@ -50,8 +50,9 @@ class ProductFileController {
     }
 
     /**
-     * 200 with the Product; 400 {"errors":{"file":CODE}}; 413 FILE_TOO_LARGE; 409 PUBLISHED_BEFORE; 404; 503 without a
-     * body. The part is copied to a temporary file that is always deleted, whatever the outcome.
+     * 200 with the Product; 400 {"errors":{"file":CODE}}; 413 FILE_TOO_LARGE; 403 REAUTHENTICATION_REQUIRED (the
+     * service re-check under the lock); 404; 503 without a body. The part is copied to a temporary file that is
+     * always deleted, whatever the outcome.
      */
     @PostMapping(path = "/{id}/file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     ProductResponse upload(
@@ -79,7 +80,8 @@ class ProductFileController {
                     file.getOriginalFilename(),
                     file.getContentType(),
                     administrator.id(),
-                    clientIp.resolve(request));
+                    clientIp.resolve(request),
+                    Boolean.TRUE.equals(request.getAttribute(ProductFileReplacementAccess.REAUTHENTICATED)));
         } finally {
             deleteQuietly(temp);
         }
@@ -108,10 +110,17 @@ class ProductFileController {
     ResponseEntity<ProblemDetail> rejected(ProductFileRejectedException e) {
         HttpStatus status = switch (e.reason()) {
             case FILE_TOO_LARGE -> HttpStatus.PAYLOAD_TOO_LARGE;
-            case PUBLISHED_BEFORE -> HttpStatus.CONFLICT;
             default -> HttpStatus.BAD_REQUEST;
         };
         return ResponseEntity.status(status).body(problem(status, e.reason()));
+    }
+
+    /** The re-check under the row lock found the Product published since the request was let in as a draft. */
+    @ExceptionHandler(ProductFileReauthenticationRequiredException.class)
+    ResponseEntity<ProblemDetail> reauthenticationRequired(HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                .body(ProductFileReplacementAccess.problem(request));
     }
 
     /** Tomcat stopped the body at the limit (file part over 50 MB or request over 51 MB). */
