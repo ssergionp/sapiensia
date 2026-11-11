@@ -336,6 +336,8 @@ class AdminProductFileUploadTest {
                         + " where action = 'ADMIN_PRODUCT_FILE_UPLOADED' order by result");
         assertThat(rows).extracting(r -> r.get("result")).containsExactly("FAILURE", "SUCCESS");
         String key = jdbc.queryForObject("select object_key from product_files", String.class);
+        // The size as a standalone number only: the same digits inside a random UUID are not a leak.
+        String sizeAsNumber = "(?<![0-9A-Za-z])" + pdf.length + "(?![0-9A-Za-z])";
         for (Map<String, Object> row : rows) {
             assertThat(row.get("actor_id")).isEqualTo(account.id());
             assertThat(row.get("object_type")).isEqualTo("PRODUCT");
@@ -343,7 +345,7 @@ class AdminProductFileUploadTest {
             assertThat((String) row.get("text"))
                     .doesNotContain("nome-unico-5521")
                     .doesNotContain(key)
-                    .doesNotContain(String.valueOf(pdf.length));
+                    .doesNotContainPattern(sizeAsNumber);
         }
     }
 
