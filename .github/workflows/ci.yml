@@ -91,15 +91,33 @@ jobs:
           node-version: lts/*
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
+      # The browser comes from the Playwright CDN, not apt: apt mirrors have been down for hours.
+      # apt runs only if Chromium cannot start for lack of system libraries, with 3 attempts.
+      - name: Install Chromium for Playwright
+        working-directory: frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install chromium
+          if node -e "require('@playwright/test').chromium.launch().then((b) => b.close())"; then
+            echo "Chromium starts with the runner libraries; apt was not used."
+            exit 0
+          fi
+          echo "Chromium is missing system libraries; installing them with apt."
+          for attempt in 1 2 3; do
+            if sudo apt-get update && pnpm exec playwright install-deps chromium; then
+              echo "System libraries installed on attempt $attempt."
+              exit 0
+            fi
+            [ "$attempt" -lt 3 ] && sleep $((attempt * 30))
+          done
+          echo "apt failed 3 times."
+          exit 1
       - name: End-to-end tests
         working-directory: frontend
         env:
           E2E_BASE_URL: http://localhost:8080
           E2E_ADMIN_EMAIL: admin-e2e@example.com
-        run: |
-          pnpm install --frozen-lockfile
-          pnpm exec playwright install --with-deps chromium
-          ../.github/ci-report.sh "End-to-end tests" pnpm exec playwright test
+        run: ../.github/ci-report.sh "End-to-end tests" pnpm exec playwright test
       - name: Logs of the system
         if: failure()
         run: docker logs app
