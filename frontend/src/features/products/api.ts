@@ -13,6 +13,8 @@ import {
 export class ProductSessionEndedError extends Error {}
 // 403: the capability is missing.
 export class ProductForbiddenError extends Error {}
+// 403 with errors.reauthentication = REAUTHENTICATION_REQUIRED: the Product was published before and the password and code are not recent.
+export class ProductFileReauthenticationRequiredError extends Error {}
 // 404: no such Product.
 export class ProductNotFoundError extends Error {}
 // 409: the Product changed since it was loaded (stale version).
@@ -59,6 +61,19 @@ async function readFileErrorCode(raw: Response): Promise<string | undefined> {
   return typeof errors.file === "string" ? errors.file : undefined;
 }
 
+async function isReauthenticationRequired(raw: Response): Promise<boolean> {
+  const body: unknown = await raw.json().catch(() => null);
+  if (typeof body !== "object" || body === null || !("errors" in body))
+    return false;
+  const errors = body.errors;
+  return (
+    typeof errors === "object" &&
+    errors !== null &&
+    "reauthentication" in errors &&
+    errors.reauthentication === "REAUTHENTICATION_REQUIRED"
+  );
+}
+
 // 400/409/413 with a known code in errors.file.
 export class ProductFileRejectedError extends Error {
   readonly code: ProductFileRejectionCode;
@@ -88,6 +103,9 @@ export async function uploadProductFile(
       throw new ProductFileRejectedError(code as ProductFileRejectionCode);
     }
     throw new Error(`Unexpected status ${raw.status}`);
+  }
+  if (raw.status === 403 && (await isReauthenticationRequired(raw))) {
+    throw new ProductFileReauthenticationRequiredError();
   }
   const response = await check(raw, 200);
   return productSchema.parse(await response.json());

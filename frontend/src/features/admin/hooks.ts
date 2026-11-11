@@ -6,6 +6,7 @@ import {
   fetchAdminSession,
   fetchMfaStatus,
   MfaExpiredError,
+  reauthenticate,
   regenerateRecoveryCodes,
   setAdminPassword,
   verifyMfaCode,
@@ -78,6 +79,20 @@ export function useRegenerateRecoveryCodes(onCodes: (codes: string[]) => void) {
       onCodes(await regenerateRecoveryCodes(code));
     },
     // A 401 means the panel session ended: mark it as signed out (like the sign-out does) so the page redirects.
+    onError: (error) => {
+      if (error instanceof MfaExpiredError) {
+        queryClient.setQueryData(adminSessionQueryKey, null);
+      }
+    },
+  });
+}
+
+export function useReauthenticate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    // The typed password and code are the mutation variable: do not keep them in the cache after it settles.
+    gcTime: 0,
+    mutationFn: reauthenticate,
     onError: (error) => {
       if (error instanceof MfaExpiredError) {
         queryClient.setQueryData(adminSessionQueryKey, null);

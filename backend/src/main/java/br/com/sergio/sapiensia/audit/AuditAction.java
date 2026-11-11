@@ -4,6 +4,7 @@ package br.com.sergio.sapiensia.audit;
 public enum AuditAction {
     ADMIN_PASSWORD_LOGIN,
     ADMIN_MFA_LOGIN,
+    ADMIN_REAUTHENTICATION,
     ADMIN_MFA_ENABLED,
     ADMIN_RECOVERY_CODE_LOGIN,
     ADMIN_RECOVERY_CODES_REGENERATED,

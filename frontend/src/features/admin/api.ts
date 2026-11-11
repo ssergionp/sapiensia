@@ -106,6 +106,49 @@ export async function regenerateRecoveryCodes(code: string): Promise<string[]> {
   return recoveryCodesSchema.parse(await response.json()).codes;
 }
 
+// 400: wrong password, or wrong, malformed or already used code (one answer for all).
+export class ReauthenticationRejectedError extends Error {
+  constructor() {
+    super("Reauthentication was rejected");
+    this.name = "ReauthenticationRejectedError";
+  }
+}
+
+// 429: too many wrong attempts (the same limit as the login).
+export class ReauthenticationLockedError extends Error {
+  constructor() {
+    super("Reauthentication is locked");
+    this.name = "ReauthenticationLockedError";
+  }
+}
+
+// 503: database or audit trail unavailable.
+export class ReauthenticationUnavailableError extends Error {
+  constructor() {
+    super("Reauthentication unavailable");
+    this.name = "ReauthenticationUnavailableError";
+  }
+}
+
+// 204 renews the password and code factors and swaps the session id and the XSRF-TOKEN cookie (apiFetch reads it on every call).
+// 401 means the panel session ended.
+export async function reauthenticate(body: {
+  password: string;
+  code: string;
+}): Promise<void> {
+  const response = await apiFetch("/api/admin/sessions/reauthentication", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (response.status === 204) return;
+  if (response.status === 400) throw new ReauthenticationRejectedError();
+  if (response.status === 429) throw new ReauthenticationLockedError();
+  if (response.status === 503) throw new ReauthenticationUnavailableError();
+  if (response.status === 401) throw new MfaExpiredError();
+  throw new Error(`Unexpected status ${response.status}`);
+}
+
 export async function adminLogin(input: LoginInput): Promise<void> {
   const response = await apiFetch("/api/admin/sessions", {
     method: "POST",

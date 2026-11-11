@@ -1,14 +1,18 @@
 // Builds a minimal valid 1-page PDF in memory (no PDF file in git, no dependency).
 // The marker goes into the page content stream, so two PDFs with different markers have different bytes.
-export function buildPdf(marker = "SapiensIA"): Buffer {
+export function buildPdf(marker = "SapiensIA", pages = 1): Buffer {
   const text = marker.replace(/[()\\]/g, "");
   const stream = `BT /F1 18 Tf 72 720 Td (${text}) Tj ET`;
+  const PAGE =
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>";
   const objects = [
     "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+    `<< /Type /Pages /Kids [${Array.from({ length: pages }, (_, i) => (i === 0 ? "3" : String(5 + i))).join(" 0 R ")} 0 R] /Count ${pages} >>`,
+    PAGE,
     `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    // Extra pages are objects 6, 7, ... (object 5 is the font).
+    ...Array.from({ length: pages - 1 }, () => PAGE),
   ];
   let body = "%PDF-1.4\n";
   const offsets: number[] = [];

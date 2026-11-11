@@ -100,7 +100,7 @@ class ProductFileServiceTest {
     }
 
     private ProductResponse upload(UUID id, Path file) {
-        return service.upload(id, file, SUBMITTED_NAME, "application/pdf", adminId, "127.0.0.1");
+        return service.upload(id, file, SUBMITTED_NAME, "application/pdf", adminId, "127.0.0.1", false);
     }
 
     private List<String> rowKeys() {
@@ -298,18 +298,62 @@ class ProductFileServiceTest {
     }
 
     @Test
-    @DisplayName("SEC-008: a Product that was ever published refuses a new file, stores nothing and audits a FAILURE")
-    void shouldRefuseAFileForAProductThatWasEverPublished() throws Exception {
+    @DisplayName(
+            "SEC-008: a Product that was ever published refuses a new file without recent reauthentication, stores nothing and audits BLOCKED")
+    void shouldRefuseAFileForAProductThatWasEverPublishedWithoutReauthentication() throws Exception {
         jdbc.update("update products set status = 'PUBLISHED', first_published_at = now() where id = ?", productId);
 
         assertThatThrownBy(() -> upload(productId, pdf(1)))
-                .isInstanceOfSatisfying(
-                        ProductFileRejectedException.class,
-                        e -> assertThat(e.reason()).isEqualTo(ProductFileRejection.PUBLISHED_BEFORE));
+                .isInstanceOf(ProductFileReauthenticationRequiredException.class);
 
-        assertThat(auditCount("FAILURE")).isEqualTo(1);
+        assertThat(auditCount("BLOCKED")).isEqualTo(1);
+        assertThat(auditCount("FAILURE")).isZero();
         assertThat(auditCount("SUCCESS")).isZero();
         assertThat(storage.keys()).isEmpty();
         assertThat(rowKeys()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("SEC-008: a Product that was ever published swaps the file when the request was reauthenticated")
+    void shouldSwapTheFileOfAProductThatWasEverPublishedWhenReauthenticated() throws Exception {
+        upload(productId, pdf(1));
+        String oldKey = rowKeys().get(0);
+        jdbc.update("update products set status = 'PUBLISHED', first_published_at = now() where id = ?", productId);
+
+        ProductResponse response =
+                service.upload(productId, pdf(2), SUBMITTED_NAME, "application/pdf", adminId, "127.0.0.1", true);
+
+        assertThat(response.file().pageCount()).isEqualTo(2);
+        assertThat(rowKeys()).hasSize(1).doesNotContain(oldKey);
+        assertThat(storage.keys()).containsExactlyElementsOf(rowKeys());
+        assertThat(auditCount("BLOCKED")).isZero();
+        assertThat(auditCount("SUCCESS")).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName(
+            "SEC-008: the check under the row lock refuses an upload authorized as a draft, deletes the new object")
+    void shouldRefuseUnderTheLockWhenThePublicationAlreadyHappened() throws Exception {
+        upload(productId, pdf(1));
+        String oldKey = rowKeys().get(0);
+        // authorized as a draft (reauthenticated=false); the publication lands between the cheap check and the lock
+        SwitchableProductFileStorage.Pause pause = storage.pausePuts();
+        ExecutorService pool = Executors.newSingleThreadExecutor();
+        try {
+            Future<ProductResponse> replacement = pool.submit(() -> upload(productId, pdf(2)));
+            assertThat(pause.awaitReached()).isTrue();
+            jdbc.update("update products set status = 'PUBLISHED', first_published_at = now() where id = ?", productId);
+            pause.release();
+
+            assertThatThrownBy(replacement::get).hasCauseInstanceOf(ProductFileReauthenticationRequiredException.class);
+        } finally {
+            storage.resumePuts();
+            pause.release();
+            pool.shutdownNow();
+        }
+
+        assertThat(rowKeys()).containsExactly(oldKey);
+        assertThat(storage.keys()).containsExactly(oldKey);
+        assertThat(auditCount("BLOCKED")).isEqualTo(1);
     }
 }
