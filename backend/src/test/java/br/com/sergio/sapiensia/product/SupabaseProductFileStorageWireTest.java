@@ -91,7 +91,9 @@ class SupabaseProductFileStorageWireTest {
         assertThat(request.headers()).doesNotContainKey("Authorization");
         assertThat(request.headers().get("x-upsert")).containsExactly("false");
         assertThat(request.headers().get("Content-Type")).containsExactly("application/pdf");
-        assertThat(request.headers().get("Transfer-Encoding")).as("chunked body").isNull();
+        assertThat(request.headers().get("Transfer-Encoding"))
+                .as("chunked body")
+                .isNull();
         assertThat(request.headers().get("Content-Length")).containsExactly(String.valueOf(pdf.length));
         assertThat(request.body()).hasSize(pdf.length);
         assertThat(sha256(request.body())).isEqualTo(sha256(pdf));
