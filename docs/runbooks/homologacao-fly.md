@@ -110,7 +110,7 @@ Só depois da autorização do deploy.
   - `sslmode=require` cifra mas não confere o certificado. `verify-full` (certificado raiz do Supabase dentro da imagem) fica para o #47.
 - **Formato do `DB_URL`, sem usuário e sem senha:** `jdbc:postgresql://aws-<n>-sa-east-1.pooler.supabase.com:5432/postgres?sslmode=require`. Copie host e `<n>` da tela Connect do Supabase.
 - A string JDBC que o Supabase mostra traz um parâmetro de senha: **não** use essa. A senha vai só em `DB_PASSWORD`; o usuário vai só em `DB_USER`.
-- **Migrations** rodam sozinhas na primeira subida (Flyway), antes de a aplicação aceitar tráfego. O schema `public` do projeto novo precisa estar sem tabelas; o log da primeira subida mostra `Successfully applied N migrations`.
+- **Migrations** rodam sozinhas na primeira subida (Flyway), antes de a aplicação aceitar tráfego. O schema `public` do projeto novo precisa estar sem tabelas (a função `rls_auto_enable` do Supabase pode ficar: o perfil `prod` faz o baseline na versão 0, #84). O log da primeira subida mostra `Successfully applied N migrations`; nas seguintes, `Successfully validated 15 migrations` (14 migrations mais a linha de baseline).
 - **Bucket dos Arquivos do produto (#18):** o bucket privado `product-files` do Storage do mesmo projeto Supabase é criado à mão, antes do deploy. O passo a passo está em `docs/runbooks/bucket-arquivos-produto.md`; siga o que está lá (aqui não se repete).
 
 ## 4. Segredos (só o responsável)
@@ -266,10 +266,10 @@ Faça antes o "Passo zero". O padrão para cada segredo: copie o valor do Bitwar
 22. **[AGENTE]** Confira o `Referrer-Policy`.
 
     ```powershell
-    curl.exe -sSI https://sapiensia-homolog.fly.dev/redefinir-senha
+    curl.exe -sS -D - -o NUL https://sapiensia-homolog.fly.dev/redefinir-senha
     ```
 
-    Espera a linha `Referrer-Policy: no-referrer`. Repita em `/painel/definir-senha`; em `/entrar` o cabeçalho não deve aparecer.
+    Mostra os cabeçalhos de uma requisição GET (o `-I` faz HEAD, e o `Referrer-Policy` só vem no GET). Espera a linha `Referrer-Policy: no-referrer`. Repita em `/painel/definir-senha`; em `/entrar` o cabeçalho não deve aparecer.
 
 ## Fly-Client-IP ausente
 
@@ -277,7 +277,7 @@ O limite de tentativas de login por IP lê o IP do cliente do cabeçalho `Fly-Cl
 
 - **O que acontece se o cabeçalho faltar ou for inválido:** o sistema usa o endereço real da conexão (registrado antes do tratamento de cabeçalhos encaminhados do Spring). **Nunca** usa o `X-Forwarded-For`, que o cliente pode forjar.
 - **Efeito no Fly.io:** o endereço da conexão é o do proxy, então todos os clientes passam a dividir um único limite de 20 tentativas de login por 15 minutos.
-- **Como conferir:** a prova na homologação (plano, seção 5, e Tarefa 4): 21 logins com e-mails fictícios diferentes, cada um com `Fly-Client-IP` e `X-Forwarded-For` forjados e diferentes. Se o proxy sobrescreve o cabeçalho, todos contam no seu IP real e o 21º recebe `429`; se não sobrescrevesse, o 21º seria `401`. Se o 21º der `401`, pare e traga ao responsável antes de mudar código. Confirme também a origem gravada na auditoria: no SQL Editor do Supabase, `select origin, action, occurred_at from audit_events order by occurred_at desc limit 3;`, comparando `origin` com o seu IP. Atenção: a prova bloqueia o seu IP no login por 15 minutos.
+- **Como conferir:** a prova na homologação (plano, seção 5, e Tarefa 4): 21 logins com e-mails fictícios diferentes, cada um com `Fly-Client-IP` e `X-Forwarded-For` forjados e diferentes. Se o proxy sobrescreve o cabeçalho, todos contam no seu IP real e o 21º recebe `429`; se não sobrescrevesse, o 21º seria `401`. Se o 21º der `401`, pare e traga ao responsável antes de mudar código. Confirme também a origem gravada na auditoria: no SQL Editor do Supabase, `select origin, action, occurred_at from audit_events order by occurred_at desc limit 3;`, comparando `origin` com o seu IP. Atenção: a prova bloqueia o seu IP no login por 15 minutos. Dicas: use `curl.exe -4` em todas as chamadas (com IPv4 e IPv6 alternando, o seu IP vira dois baldes e o 21º pode dar `401`); no PowerShell 5.1 escape as aspas do JSON com `.Replace('"','\"')`, senão o corpo chega sem aspas e dá `400`, que não conta como tentativa; e rode a prova logo depois de um auto-stop, porque o reinício zera os contadores (que ficam em memória). Resultado esperado na homologação de 2026-11-11: 20 respostas `401` e o 21º `429`.
 
 ## Religar o Supabase pausado
 
