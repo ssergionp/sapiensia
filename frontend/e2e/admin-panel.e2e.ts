@@ -675,10 +675,11 @@ test("FR-011 FR-016 SEC-008 FR-010: o Administrador publica, despublica e troca 
     ),
   ).toBeVisible();
   const input = page.getByLabel("Arquivo PDF");
+  await expect(page.getByText(/^Arquivo atual: 1 página,/)).toBeVisible();
   await input.setInputFiles({
     name: "produto-novo.pdf",
     mimeType: "application/pdf",
-    buffer: buildPdf("troca"),
+    buffer: buildPdf("troca", 2),
   });
   await page.getByRole("button", { name: "Enviar arquivo" }).click();
   await expect(
@@ -713,7 +714,7 @@ test("FR-011 FR-016 SEC-008 FR-010: o Administrador publica, despublica e troca 
   await fillSecret(codeField, totpCode(totp.secret, step));
   await confirm.click();
   await expect(page.getByText("Arquivo enviado.")).toBeVisible();
-  await expect(page.getByText(/^Arquivo atual: 1 página,/)).toBeVisible();
+  await expect(page.getByText(/^Arquivo atual: 2 páginas,/)).toBeVisible();
 });
 
 test("SEC-010 FR-016: sem sessão, as rotas de Produto do painel negam", async ({
