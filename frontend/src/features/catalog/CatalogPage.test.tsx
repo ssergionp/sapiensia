@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { jsonResponse } from "@/features/products/testing";
 import CatalogPage from "./CatalogPage";
+import CatalogProductPage from "./CatalogProductPage";
 import type { CatalogItem } from "./schemas";
 
 function item(overrides: Partial<CatalogItem> = {}): CatalogItem {
@@ -245,6 +246,50 @@ describe("CatalogPage tab title", () => {
     renderCatalog();
 
     expect(document.title).toBe(TITLE);
+  });
+
+  test("is the Catálogo title with items", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(200, pageBody([item()])),
+    );
+    document.title = "outro";
+    renderCatalog();
+    await screen.findByRole("link", { name: "Guia" });
+
+    expect(document.title).toBe(TITLE);
+  });
+
+  test("is the Product title after navigating from the list to a Product", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) =>
+      String(input).includes("/p1")
+        ? jsonResponse(200, {
+            id: "p1",
+            title: "Guia",
+            description: "Descrição",
+            category: "HEALTH",
+            priceCents: 1990,
+          })
+        : jsonResponse(200, pageBody([item()])),
+    );
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/catalogo"]}>
+          <Routes>
+            <Route path="/catalogo" element={<CatalogPage />} />
+            <Route path="/catalogo/:id" element={<CatalogProductPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("link", { name: "Guia" }));
+    await screen.findByRole("heading", { level: 1, name: "Guia" });
+
+    expect(document.title).toBe("Guia | SapiensIA");
   });
 
   test("is the Catálogo title when empty", async () => {
