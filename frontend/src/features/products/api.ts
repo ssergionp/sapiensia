@@ -71,7 +71,7 @@ export async function uploadProductFile(
       body: form,
     },
   );
-  if (raw.status === 400 || raw.status === 413) {
+  if (raw.status === 400 || raw.status === 409 || raw.status === 413) {
     const body: unknown = await raw.json().catch(() => null);
     const code =
       typeof body === "object" &&
@@ -90,6 +90,33 @@ export async function uploadProductFile(
   const response = await check(raw, 200);
   return productSchema.parse(await response.json());
 }
+
+// 409 with errors.file: the Product cannot be published without a file. Any other 409 stays a conflict.
+async function publication(id: string, method: "PUT" | "DELETE") {
+  const raw = await apiFetch(
+    `/api/admin/products/${encodeURIComponent(id)}/publication`,
+    { method },
+  );
+  if (raw.status === 409) {
+    const body: unknown = await raw.json().catch(() => null);
+    if (
+      typeof body === "object" &&
+      body !== null &&
+      "errors" in body &&
+      typeof body.errors === "object" &&
+      body.errors !== null &&
+      "file" in body.errors
+    ) {
+      throw new ProductValidationError(body.errors as Record<string, string>);
+    }
+    throw new ProductConflictError();
+  }
+  const response = await check(raw, 200);
+  return productSchema.parse(await response.json());
+}
+
+export const publishProduct = (id: string) => publication(id, "PUT");
+export const unpublishProduct = (id: string) => publication(id, "DELETE");
 
 function sendJson(method: string, body: unknown): RequestInit {
   return {

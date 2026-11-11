@@ -123,6 +123,36 @@ describe("ProductFileSection", () => {
     expect(fileCalls(spy)).toHaveLength(1);
   });
 
+  test("FR-016 SEC-008 after a first publication the form is replaced by the notice", async () => {
+    apiWith(
+      undefined,
+      product({
+        file: FILE_INFO,
+        status: "UNPUBLISHED",
+        firstPublishedAt: "2026-11-10T12:00:00Z",
+      }),
+    );
+    await open();
+    expect(
+      screen.getByText(
+        "Este Produto já foi publicado. A troca do arquivo vai exigir nova autenticação, que ainda não está disponível.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Arquivo PDF")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Enviar arquivo" }),
+    ).not.toBeInTheDocument();
+  });
+
+  test("SEC-008 409 PUBLISHED_BEFORE from the API shows the same sentence", async () => {
+    apiWith(() => jsonResponse(409, { errors: { file: "PUBLISHED_BEFORE" } }));
+    await open();
+    await chooseAndSend(pdf());
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Este Produto já foi publicado. A troca do arquivo vai exigir nova autenticação, que ainda não está disponível.",
+    );
+  });
+
   test("a .txt file is refused in the browser", async () => {
     const spy = apiWith();
     await open();

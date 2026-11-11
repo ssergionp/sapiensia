@@ -11,6 +11,8 @@ import {
   fetchProduct,
   fetchProducts,
   ProductSessionEndedError,
+  publishProduct,
+  unpublishProduct,
   updateProduct,
   updateProductPrice,
   uploadProductFile,
@@ -112,3 +114,22 @@ export function useUpdateProductPrice(id: string) {
     onError: endSessionOn401(queryClient),
   });
 }
+
+// The answer is the whole Product: the cache takes it, so the status and the file section are current.
+function usePublication(id: string, call: (id: string) => Promise<Product>) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => call(id),
+    onSuccess: (saved: Product) => {
+      queryClient.setQueryData(productQueryKey(id), saved);
+      void queryClient.invalidateQueries({ queryKey: productsQueryKey });
+    },
+    onError: endSessionOn401(queryClient),
+  });
+}
+
+export const usePublishProduct = (id: string) =>
+  usePublication(id, publishProduct);
+
+export const useUnpublishProduct = (id: string) =>
+  usePublication(id, unpublishProduct);

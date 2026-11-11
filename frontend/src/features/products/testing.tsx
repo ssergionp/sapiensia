@@ -26,6 +26,7 @@ export const FULL = adminBody([
   "PANEL_ACCESS",
   "PRODUCTS_EDIT",
   "PRODUCTS_PRICE",
+  "PRODUCTS_PUBLISH",
 ]);
 export const EDIT_ONLY = adminBody(["PANEL_ACCESS", "PRODUCTS_EDIT"]);
 
@@ -37,6 +38,7 @@ export function product(overrides: Partial<Product> = {}): Product {
     category: "HEALTH",
     priceCents: 1990,
     status: "DRAFT",
+    firstPublishedAt: null,
     version: 3,
     file: null,
     createdAt: "2026-01-01T00:00:00Z",
