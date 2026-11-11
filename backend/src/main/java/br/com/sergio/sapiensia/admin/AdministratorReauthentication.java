@@ -64,7 +64,11 @@ class AdministratorReauthentication {
 
     Result reauthenticate(AdministratorPrincipal who, String password, String code, String clientIp) {
         // such inputs can never match: refuse them without touching the limiter and without hashing
-        if (password == null || code == null || password.length() > MAX_PASSWORD_LENGTH) {
+        if (password == null
+                || code == null
+                || password.isEmpty()
+                || code.isBlank()
+                || password.length() > MAX_PASSWORD_LENGTH) {
             return Result.of(Verdict.REJECTED);
         }
         String email = Emails.normalize(who.email());

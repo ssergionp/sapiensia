@@ -219,6 +219,22 @@ class AdminReauthenticationTest {
     }
 
     @Test
+    @DisplayName("SEC-008: senha ou código em branco dão 400 sem gastar tentativa do limite")
+    void shouldRefuseBlankFieldsWithoutTouchingTheLimiter() throws Exception {
+        AdminBrowser browser = fullSession();
+        String code = freshCode();
+
+        for (int i = 0; i < 8; i++) {
+            assertCredentialsInvalid(reauthenticate(browser, "", ""));
+            assertCredentialsInvalid(reauthenticate(browser, "", code));
+            assertCredentialsInvalid(reauthenticate(browser, PASSWORD, "   "));
+        }
+
+        // empty submits from the form must not lock the Administrator out of the login
+        assertThat(reauthenticate(browser, PASSWORD, code).statusCode()).isEqualTo(204);
+    }
+
+    @Test
     @DisplayName("SEC-008: o código usado no login não vale na reautenticação")
     void shouldNotAcceptTheCodeOfTheLogin() throws Exception {
         AdminBrowser browser = new AdminBrowser(port);
