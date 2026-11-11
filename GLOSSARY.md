@@ -60,6 +60,10 @@ _Avoid_: Minha conta, área do cliente
 O registro de que um Cliente quer comprar um Produto, com preço recalculado no servidor e um Pix de 30 minutos. Nasce pendente, vira pago só quando o Asaas confirma o pagamento, e vira expirado se o Pix não for pago a tempo. Se o Asaas confirmar o pagamento de um Pedido já expirado, ele vira pago e o Acesso é concedido normalmente.
 _Avoid_: Compra, transação, carrinho
 
+**Evento de pagamento**:
+O aviso que o Asaas envia ao sistema (webhook) sobre uma cobrança ou o saldo, identificado pelo `id` do Asaas. É gravado antes de qualquer processamento, e um aviso repetido é descartado sem efeito.
+_Avoid_: Notificação, callback
+
 **Reembolso**:
 Devolução do valor de um Pedido pago, aceita em até 7 dias após a compra (arrependimento) ou por defeito no Arquivo do produto. O Administrador devolve o dinheiro no painel do Asaas; o sistema não tem botão de reembolso, e o aviso de estorno do Asaas (ou de devolução por fraude, o MED do Pix) cancela sozinho o Acesso do Cliente.
 _Avoid_: Estorno (é do cartão), chargeback

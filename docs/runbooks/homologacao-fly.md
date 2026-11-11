@@ -24,6 +24,7 @@ Regras que valem para tudo aqui:
 | `APP_ADMIN_EMAIL` | Escolha do responsável: a caixa que recebe o link de primeiro acesso | Dado pessoal: só no `fly secrets set`, nunca em arquivo |
 | `APP_STORAGE_SUPABASE_URL` | Supabase `sapiensia-homolog` > configurações de API (endereço do projeto) | Arquivos dos Produtos (#18); sem ela a aplicação não sobe em `prod` |
 | `APP_STORAGE_SUPABASE_SECRET_KEY` | Supabase > chaves de API (a *secret key*, no Bitwarden) | Segredo de verdade; vazia, a aplicação não sobe em `prod` |
+| `APP_ASAAS_WEBHOOK_TOKEN` | Gerado pelo responsável (64 hex), guardado no Bitwarden; o mesmo valor vai no webhook do sandbox do Asaas (`docs/runbooks/webhook-asaas.md`) | Sem ele a aplicação não sobe em `prod` |
 
 ### Variáveis comuns (`[env]` do `fly.homolog.toml`, versionadas)
 
@@ -31,6 +32,7 @@ Regras que valem para tudo aqui:
 |---|---|
 | `APP_PUBLIC_BASE_URL` | Base dos links dos e-mails (endereço `fly.dev` do app) |
 | `APP_EMAIL_FROM` | Remetente no domínio verificado no Resend da homologação |
+| `APP_ASAAS_WEBHOOK_ALLOWED_IPS` | Opcional: lista de IPs que substitui a padrão do Asaas, só se o sandbox precisar de IP extra (`docs/runbooks/webhook-asaas.md`) |
 
 `SPRING_PROFILES_ACTIVE`, `SERVER_PORT` e `JAVA_TOOL_OPTIONS` já vêm do `Dockerfile`: não redefina.
 
@@ -203,7 +205,7 @@ Faça antes o "Passo zero". O padrão para cada segredo: copie o valor do Bitwar
     fly secrets list -a sapiensia-homolog
     ```
 
-    Mostra só nomes, digest e data. Devem estar os 8 nomes da tabela e nenhum a mais.
+    Mostra só nomes, digest e data. Devem estar os 9 nomes da tabela e nenhum a mais.
 
 ## 5. Imagem e deploy
 

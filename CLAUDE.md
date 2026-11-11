@@ -40,6 +40,7 @@ Glossário e convenções das skills: veja docs/agents/ (o domain.md diz onde fi
 
 ## Reaproveitar antes de criar
 - `frontend/src/lib/api.ts` (`apiFetch`): toda chamada do frontend ao backend passa por ele, que manda o cookie de sessão e o token CSRF.
+- backend/.../customer/ClientIpResolver.java: o único jeito de obter o IP do cliente (Fly-Client-IP em prod; X-Forwarded-For nunca). Usado pelo limite de login e pelo webhook do Asaas.
 - (liste aqui outros helpers e componentes que o Claude deve usar em vez de criar novos)
 
 ## Segurança e produção
