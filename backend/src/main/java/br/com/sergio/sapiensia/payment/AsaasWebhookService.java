@@ -2,6 +2,7 @@ package br.com.sergio.sapiensia.payment;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
@@ -26,6 +27,8 @@ class AsaasWebhookService {
     private static final Pattern EVENT_ID = Pattern.compile("^[\\x21-\\x7E]{1,255}$");
     private static final Pattern EVENT_TYPE = Pattern.compile("^[A-Z0-9_]{1,64}$");
     private static final String REDACTED = "[redacted]";
+    private static final char NUL = (char) 0;
+    private static final char REPLACEMENT = (char) 0xFFFD;
 
     private final PaymentEvents events;
     private final JsonMapper mapper;
@@ -49,7 +52,7 @@ class AsaasWebhookService {
         }
         String id = text(root, "id", EVENT_ID);
         String type = text(root, "event", EVENT_TYPE);
-        redact(root);
+        sanitize(root);
         boolean stored = events.insertIfAbsent(id, type, mapper.writeValueAsString(root), OffsetDateTime.now(clock));
         log.info("Asaas webhook event {}: id={} type={}", stored ? "stored" : "duplicate", id, type);
         return stored ? Outcome.STORED : Outcome.DUPLICATE;
@@ -65,18 +68,39 @@ class AsaasWebhookService {
         return node.asString();
     }
 
-    private static void redact(JsonNode node) {
+    /**
+     * One walk over the tree: blanks CPF/CNPJ values and replaces NUL (which jsonb cannot hold) in text values; a
+     * property name with NUL makes the body invalid.
+     */
+    private static void sanitize(JsonNode node) {
         if (node instanceof ObjectNode object) {
-            for (String name : object.propertyNames()) {
+            for (String name : List.copyOf(object.propertyNames())) {
+                if (name.indexOf(NUL) >= 0) {
+                    throw new InvalidWebhookBodyException();
+                }
                 String key = name.toLowerCase(Locale.ROOT);
+                JsonNode value = object.get(name);
                 if (key.equals("cpfcnpj") || key.equals("cpf")) {
                     object.put(name, REDACTED);
+                } else if (value.isString()) {
+                    object.put(name, withoutNul(value.asString()));
                 } else {
-                    redact(object.get(name));
+                    sanitize(value);
                 }
             }
         } else if (node instanceof ArrayNode array) {
-            array.forEach(AsaasWebhookService::redact);
+            for (int i = 0; i < array.size(); i++) {
+                JsonNode item = array.get(i);
+                if (item.isString()) {
+                    array.set(i, array.stringNode(withoutNul(item.asString())));
+                } else {
+                    sanitize(item);
+                }
+            }
         }
+    }
+
+    private static String withoutNul(String text) {
+        return text.replace(NUL, REPLACEMENT);
     }
 }

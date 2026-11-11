@@ -204,12 +204,43 @@ class AsaasWebhookPersistenceTest {
     }
 
     @Test
+    @DisplayName("FR-021: shouldStoreAnEventWhoseTextContainsANulCharacter")
+    void shouldStoreAnEventWhoseTextContainsANulCharacter() throws Exception {
+        String id = uniqueId();
+        String body = "{\"id\": \"" + id + "\", \"event\": \"PAYMENT_RECEIVED\","
+                + " \"payment\": {\"description\": \"a\\u0000b\"}}";
+
+        assertThat(post(body).statusCode()).isEqualTo(200);
+
+        assertThat(count(id)).isEqualTo(1);
+        String description = jdbc.queryForObject(
+                "select payload->'payment'->>'description' from payment_events where provider_event_id = ?",
+                String.class,
+                id);
+        assertThat(description).isEqualTo("a�b");
+    }
+
+    @Test
+    @DisplayName("SEC-023: shouldRefuseAPropertyNameWithANulCharacter")
+    void shouldRefuseAPropertyNameWithANulCharacter() throws Exception {
+        String id = uniqueId();
+        String body = "{\"id\": \"" + id + "\", \"event\": \"PAYMENT_RECEIVED\","
+                + " \"payment\": {\"bad\\u0000key\": \"x\"}}";
+
+        HttpResponse<String> response = post(body);
+
+        assertThat(response.statusCode()).isEqualTo(400);
+        assertThat(count(id)).isZero();
+    }
+
+    @Test
     @DisplayName("FR-021: shouldAnswerWithoutABodyOrCookie")
     void shouldAnswerWithoutABodyOrCookie() throws Exception {
         HttpResponse<String> response = post(event(uniqueId(), "PAYMENT_RECEIVED"));
 
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(response.body()).isEmpty();
+        assertThat(response.headers().firstValue("content-length")).hasValue("0");
         assertThat(response.headers().allValues("set-cookie")).noneMatch(c -> c.startsWith("JSESSIONID"));
     }
 }

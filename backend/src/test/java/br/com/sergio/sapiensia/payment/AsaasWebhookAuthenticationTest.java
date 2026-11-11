@@ -1,6 +1,8 @@
 package br.com.sergio.sapiensia.payment;
 
 import static br.com.sergio.sapiensia.payment.AsaasWebhookTestSupport.TOKEN;
+import static br.com.sergio.sapiensia.payment.AsaasWebhookTestSupport.event;
+import static br.com.sergio.sapiensia.payment.AsaasWebhookTestSupport.uniqueId;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
@@ -8,9 +10,11 @@ import java.net.http.HttpResponse;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest(
@@ -23,14 +27,28 @@ class AsaasWebhookAuthenticationTest {
     @LocalServerPort
     int port;
 
+    @Autowired
+    JdbcTemplate jdbc;
+
     private HttpResponse<String> post(String from, Map<String, String> headers) throws Exception {
         return AsaasWebhookTestSupport.post(port, from, headers);
+    }
+
+    /** A refused request must not reach the controller: no row exists for the event it carried. */
+    private HttpResponse<String> postRefused(String from, Map<String, String> headers) throws Exception {
+        String id = uniqueId();
+        HttpResponse<String> response =
+                AsaasWebhookTestSupport.post(port, from, headers, event(id, "PAYMENT_RECEIVED"), "application/json");
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from payment_events where provider_event_id = ?", Integer.class, id))
+                .isZero();
+        return response;
     }
 
     @Test
     @DisplayName("SEC-023: shouldRefuseWithoutTheToken")
     void shouldRefuseWithoutTheToken() throws Exception {
-        HttpResponse<String> response = post("127.0.0.21", Map.of());
+        HttpResponse<String> response = postRefused("127.0.0.21", Map.of());
 
         assertThat(response.statusCode()).isEqualTo(401);
         assertThat(response.body()).isEmpty();
@@ -41,22 +59,23 @@ class AsaasWebhookAuthenticationTest {
     void shouldRefuseAWrongToken() throws Exception {
         String oneCharChanged = TOKEN.substring(0, TOKEN.length() - 1) + "1";
 
-        assertThat(post("127.0.0.21", Map.of(HEADER, oneCharChanged)).statusCode())
+        assertThat(postRefused("127.0.0.21", Map.of(HEADER, oneCharChanged)).statusCode())
                 .isEqualTo(401);
-        assertThat(post("127.0.0.21", Map.of(HEADER, TOKEN + TOKEN)).statusCode())
+        assertThat(postRefused("127.0.0.21", Map.of(HEADER, TOKEN + TOKEN)).statusCode())
                 .isEqualTo(401);
     }
 
     @Test
     @DisplayName("SEC-023: shouldRefuseAnIpOutsideTheList")
     void shouldRefuseAnIpOutsideTheList() throws Exception {
-        assertThat(post("127.0.0.22", Map.of(HEADER, TOKEN)).statusCode()).isEqualTo(401);
+        assertThat(postRefused("127.0.0.22", Map.of(HEADER, TOKEN)).statusCode())
+                .isEqualTo(401);
     }
 
     @Test
     @DisplayName("SEC-023: shouldIgnoreXForwardedForWhenNoHeaderIsConfigured")
     void shouldIgnoreXForwardedForWhenNoHeaderIsConfigured() throws Exception {
-        assertThat(post("127.0.0.22", Map.of(HEADER, TOKEN, "X-Forwarded-For", "127.0.0.21"))
+        assertThat(postRefused("127.0.0.22", Map.of(HEADER, TOKEN, "X-Forwarded-For", "127.0.0.21"))
                         .statusCode())
                 .isEqualTo(401);
     }
