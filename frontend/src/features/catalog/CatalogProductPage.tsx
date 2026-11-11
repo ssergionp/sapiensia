@@ -1,0 +1,81 @@
+import { useEffect } from "react";
+import { Link, useParams } from "react-router";
+import { Button } from "@/components/ui/button";
+import { CATEGORY_LABELS } from "@/features/products/messages";
+import { formatCents } from "@/features/products/schemas";
+import { CatalogProductNotFoundError } from "./api";
+import { useCatalogProduct } from "./hooks";
+import { CATALOG_TEXTS as T } from "./messages";
+
+export default function CatalogProductPage() {
+  const { id = "" } = useParams();
+  const query = useCatalogProduct(id);
+  const notFound = query.error instanceof CatalogProductNotFoundError;
+  const title = query.data?.title;
+
+  useEffect(() => {
+    if (notFound) document.title = T.notFoundDocumentTitle;
+    else if (title !== undefined) document.title = T.detailDocumentTitle(title);
+  }, [notFound, title]);
+
+  const backLink = (
+    <Link to="/catalogo" className="underline">
+      {T.backToCatalog}
+    </Link>
+  );
+
+  if (query.isPending) {
+    return (
+      <main className="p-8">
+        <p role="status">{T.loading}</p>
+      </main>
+    );
+  }
+
+  if (notFound) {
+    return (
+      <main className="p-8">
+        <h1 className="text-2xl font-bold">{T.notFoundHeading}</h1>
+        <p className="mt-4">{T.notFoundText}</p>
+        <p className="mt-4">{backLink}</p>
+      </main>
+    );
+  }
+
+  if (query.isError) {
+    return (
+      <main className="p-8">
+        <p>{backLink}</p>
+        <p role="alert" className="mt-4 text-destructive">
+          {T.detailError}
+        </p>
+        <Button
+          variant="outline"
+          className="mt-2"
+          onClick={() => query.refetch()}
+        >
+          {T.retry}
+        </Button>
+      </main>
+    );
+  }
+
+  const product = query.data;
+  return (
+    <main className="p-8">
+      <p>{backLink}</p>
+      <h1 className="mt-4 text-2xl font-bold [overflow-wrap:anywhere]">
+        {product.title}
+      </h1>
+      <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+        <dt className="font-semibold">{T.categoryTerm}</dt>
+        <dd>{CATEGORY_LABELS[product.category]}</dd>
+        <dt className="font-semibold">{T.priceTerm}</dt>
+        <dd>{formatCents(product.priceCents)}</dd>
+      </dl>
+      <p className="mt-4 whitespace-pre-line [overflow-wrap:anywhere]">
+        {product.description}
+      </p>
+    </main>
+  );
+}

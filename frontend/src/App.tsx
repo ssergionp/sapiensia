@@ -4,6 +4,7 @@ import AdminLoginPage from "@/features/admin/AdminLoginPage";
 import AdminMfaPage from "@/features/admin/AdminMfaPage";
 import SetAdminPasswordPage from "@/features/admin/SetAdminPasswordPage";
 import CatalogPage from "@/features/catalog/CatalogPage";
+import CatalogProductPage from "@/features/catalog/CatalogProductPage";
 import ConfirmEmailPage from "@/features/customer/ConfirmEmailPage";
 import ForgotPasswordPage from "@/features/customer/ForgotPasswordPage";
 import RegisterPage from "@/features/customer/RegisterPage";
@@ -19,6 +20,7 @@ export default function App() {
       <Route path="/" element={<HomePage />} />
       <Route path="/entrar" element={<LoginPage />} />
       <Route path="/catalogo" element={<CatalogPage />} />
+      <Route path="/catalogo/:id" element={<CatalogProductPage />} />
       <Route path="/cadastro" element={<RegisterPage />} />
       <Route path="/confirmar-email" element={<ConfirmEmailPage />} />
       <Route path="/esqueci-senha" element={<ForgotPasswordPage />} />
