@@ -213,4 +213,29 @@ class AdminProductPublicationTest {
         assertThat((Integer) JsonPath.read(response.body(), "$.version")).isZero();
         assertThat(admin.put(PRODUCTS + "/" + id, validUpdate(0)).statusCode()).isEqualTo(200);
     }
+
+    @Test
+    @DisplayName("FR-016 SEC-010: a published Product shows in the public catalog and detail; unpublished it leaves"
+            + " both with 404; republished it comes back")
+    void shouldFollowThePublicationInThePublicCatalog() throws Exception {
+        UUID id = AdminProductFixtures.insertProductWithFile(jdbc);
+        AdminBrowser visitor = new AdminBrowser(port);
+
+        assertThat(admin.put(path(id), "").statusCode()).isEqualTo(200);
+        assertThat(visitor.get("/api/products").body()).contains(id.toString());
+        assertThat(visitor.get("/api/products/" + id).statusCode()).isEqualTo(200);
+
+        assertThat(admin.delete(path(id)).statusCode()).isEqualTo(200);
+        assertThat(visitor.get("/api/products").body()).doesNotContain(id.toString());
+        HttpResponse<String> gone = visitor.get("/api/products/" + id);
+        assertThat(gone.statusCode()).isEqualTo(404);
+        assertThat(gone.body()).isEmpty();
+
+        assertThat(admin.put(path(id), "").statusCode()).isEqualTo(200);
+        assertThat(visitor.get("/api/products/" + id).statusCode()).isEqualTo(200);
+
+        // the public GET with the full Administrator session: allowed, and the session is untouched
+        assertThat(admin.get("/api/products").statusCode()).isEqualTo(200);
+        assertThat(admin.get("/api/admin/sessions/current").statusCode()).isEqualTo(200);
+    }
 }
