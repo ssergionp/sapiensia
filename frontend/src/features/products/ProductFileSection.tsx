@@ -126,17 +126,30 @@ export default function ProductFileSection({ product }: { product: Product }) {
     setAskError(null);
     reauthenticate.mutate(credentials, {
       onSuccess: () => sendFile(chosen),
-      onError: (e) => setAskError(describeReauthenticationError(e)),
+      onError: (e) => {
+        setAskError(describeReauthenticationError(e));
+        // The button was disabled meanwhile, so the focus fell to the body.
+        setFocusTick((tick) => tick + 1);
+      },
     });
   }
 
-  function cancel() {
+  function closeForm() {
     setAsking(false);
     setPending(null);
     setAskError(null);
     setPassword("");
     setCode("");
+  }
+
+  function cancel() {
+    closeForm();
     sendButton.current?.focus();
+  }
+
+  // A different file must go through the identity form again; the old one is never sent.
+  function changeFile() {
+    if (asking) closeForm();
   }
 
   const currentFile = (
@@ -161,6 +174,7 @@ export default function ProductFileSection({ product }: { product: Product }) {
               id="product-file"
               ref={input}
               type="file"
+              onChange={changeFile}
               accept="application/pdf,.pdf"
               aria-invalid={error ? true : undefined}
               aria-describedby={[
@@ -254,11 +268,9 @@ export default function ProductFileSection({ product }: { product: Product }) {
             )}
             <div className="flex gap-2">
               <Button type="submit" disabled={busy}>
-                {reauthenticate.isPending
+                {busy
                   ? REAUTHENTICATION_TEXTS.confirming
-                  : upload.isPending
-                    ? "Enviando arquivo…"
-                    : REAUTHENTICATION_TEXTS.confirm}
+                  : REAUTHENTICATION_TEXTS.confirm}
               </Button>
               <Button
                 type="button"

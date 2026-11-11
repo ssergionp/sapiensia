@@ -262,6 +262,61 @@ describe("ProductFileSection", () => {
     await screen.findByRole("button", { name: "Confirmar e enviar" });
   });
 
+  test("SEC-008: trocar o arquivo escolhido com o formulário aberto fecha o formulário e não envia o arquivo anterior", async () => {
+    const first = pdf(10, "a.pdf");
+    const second = pdf(10, "b.pdf");
+    const uploaded: unknown[] = [];
+    const spy = apiWithReauth(
+      () => jsonResponse(204),
+      (init) => {
+        uploaded.push((init?.body as FormData | undefined)?.get("file"));
+        return jsonResponse(200, product({ file: FILE_INFO }));
+      },
+    );
+    await open();
+    await openForm(first);
+    await setup().type(screen.getByLabelText("Senha"), "segredo");
+    await setup().upload(screen.getByLabelText("Arquivo PDF"), second);
+    expect(screen.queryByText(TITLE)).not.toBeInTheDocument();
+    expect(reauthCalls(spy)).toHaveLength(0);
+    expect(fileCalls(spy)).toHaveLength(0);
+
+    await setup().click(screen.getByRole("button", { name: "Enviar arquivo" }));
+    await screen.findByLabelText("Senha");
+    expect(screen.getByLabelText("Senha")).toHaveValue("");
+    await fill();
+    await screen.findByText("Arquivo enviado.");
+    expect(uploaded).toEqual([second]);
+  });
+
+  test("SEC-008: depois de uma confirmação recusada o foco volta para o campo Senha", async () => {
+    apiWithReauth(() => jsonResponse(400));
+    await open();
+    await openForm();
+    await fill();
+    await screen.findByRole("alert");
+    await waitFor(() => expect(screen.getByLabelText("Senha")).toHaveFocus());
+  });
+
+  test("the confirm button says Confirmando during the upload that follows the reauthentication", async () => {
+    let finish: (r: Response) => void = () => {};
+    const pending = new Promise<Response>((resolve) => {
+      finish = resolve;
+    });
+    apiWithReauth(
+      () => jsonResponse(204),
+      () => pending,
+    );
+    await open();
+    await openForm();
+    await fill();
+    const form = screen.getByRole("heading", { name: TITLE }).closest("form");
+    await waitFor(() => expect(form).toHaveTextContent("Confirmando…"));
+    expect(form).not.toHaveTextContent("Enviando arquivo…");
+    finish(jsonResponse(200, product({ file: FILE_INFO })));
+    await screen.findByText("Arquivo enviado.");
+  });
+
   test("a wrong password or code shows the text, clears the fields and keeps the file", async () => {
     const file = pdf();
     const spy = apiWithReauth(() =>
