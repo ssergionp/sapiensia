@@ -59,7 +59,6 @@ class AsaasWebhookRouteVariantsTest {
             builder.header(headerPairs[i], headerPairs[i + 1]);
         }
         HttpResponse<String> response = client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
-        System.out.println("ROUTE-VARIANT " + method + " " + path + " -> " + response.statusCode());
         return response;
     }
 
@@ -79,6 +78,7 @@ class AsaasWebhookRouteVariantsTest {
     @DisplayName("SEC-010, SEC-023: shouldDenyTheRouteWithATrailingSlash")
     void shouldDenyTheRouteWithATrailingSlash() throws Exception {
         // Expected layer: the exact-path matcher does not match, so /api/** denyAll applies (or the app has no route).
+        // Observed: 403.
         assertRefused("POST", "/api/webhooks/asaas/");
     }
 
@@ -86,6 +86,7 @@ class AsaasWebhookRouteVariantsTest {
     @DisplayName("SEC-010, SEC-023: shouldDenyTheRouteWithADoubleSlash")
     void shouldDenyTheRouteWithADoubleSlash() throws Exception {
         // Expected layer: StrictHttpFirewall rejects the double slash (400), or the security chain answers 401.
+        // Observed: 400.
         assertRefused("POST", "/api//webhooks/asaas");
     }
 
@@ -93,6 +94,7 @@ class AsaasWebhookRouteVariantsTest {
     @DisplayName("SEC-010, SEC-023: shouldDenyTheRouteWithAPathParameter")
     void shouldDenyTheRouteWithAPathParameter() throws Exception {
         // Expected layer: StrictHttpFirewall rejects the semicolon (400).
+        // Observed: 400.
         assertRefused("POST", "/api/webhooks/asaas;jsessionid=abc");
     }
 
@@ -100,6 +102,7 @@ class AsaasWebhookRouteVariantsTest {
     @DisplayName("SEC-010, SEC-023: shouldDenyTheRouteWithAnotherCase")
     void shouldDenyTheRouteWithAnotherCase() throws Exception {
         // Expected layer: the case-sensitive matchers do not match, so /api/** denyAll applies (or no route exists).
+        // Observed: 403 for both.
         assertRefused("POST", "/API/webhooks/asaas");
         assertRefused("POST", "/api/Webhooks/asaas");
     }
@@ -108,6 +111,7 @@ class AsaasWebhookRouteVariantsTest {
     @DisplayName("SEC-010, SEC-023: shouldDenyTheRouteWithASuffix")
     void shouldDenyTheRouteWithASuffix() throws Exception {
         // Expected layer: no suffix pattern matching; /api/** denyAll applies.
+        // Observed: 403.
         assertRefused("POST", "/api/webhooks/asaas.json");
     }
 
@@ -115,6 +119,7 @@ class AsaasWebhookRouteVariantsTest {
     @DisplayName("SEC-010, SEC-023: shouldDenyOtherVerbs")
     void shouldDenyOtherVerbs() throws Exception {
         // Expected layer: only POST is matched by the access rule, so /api/** denyAll applies to every other verb.
+        // Observed: GET, HEAD, OPTIONS 401; PUT, DELETE, PATCH 403 (CSRF refuses the verb before authorization).
         for (String method : new String[] {"GET", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"}) {
             assertRefused(method, "/api/webhooks/asaas");
         }
