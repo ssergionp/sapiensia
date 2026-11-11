@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 
 import br.com.sergio.sapiensia.customer.ClientIpResolver;
 import java.util.List;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -80,8 +81,11 @@ class AsaasWebhookAccessTest {
         assertThat(output.getAll()).contains("reason=IP_NOT_ALLOWED_AND_TOKEN_INVALID");
 
         assertThat(granted(access(ALLOWED_IP), "203.0.113.9", TOKEN)).isFalse();
-        assertThat(output.getAll().lines().filter(l -> l.endsWith("reason=IP_NOT_ALLOWED")))
-                .hasSize(1);
+        assertThat(Pattern.compile("reason=IP_NOT_ALLOWED(?!_)")
+                        .matcher(output.getAll())
+                        .results()
+                        .count())
+                .isEqualTo(1);
 
         assertThat(granted(access(ALLOWED_IP), ALLOWED_IP, "wrong")).isFalse();
         assertThat(output.getAll())
