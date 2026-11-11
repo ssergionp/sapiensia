@@ -5,13 +5,18 @@ import br.com.sergio.sapiensia.admin.AdministratorPrincipal;
 import br.com.sergio.sapiensia.admin.Capability;
 import br.com.sergio.sapiensia.admin.PendingAdministrator;
 import br.com.sergio.sapiensia.customer.SessionVersionFilter;
+import br.com.sergio.sapiensia.product.ProductFileReplacementAccess;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
+import org.springframework.http.server.ServletServerHttpResponse;
 import org.springframework.security.authorization.AllRequiredFactorsAuthorizationManager;
 import org.springframework.security.authorization.AuthorityAuthorizationManager;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.security.authorization.AuthorizationManager;
 import org.springframework.security.authorization.AuthorizationManagers;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -74,7 +79,7 @@ public class SecurityConfig {
      * the capabilities (which only the full Administrator has). Not @EnableMultiFactorAuthentication: that would
      * require the factors on the customer routes too.
      */
-    static AuthorizationManager<RequestAuthorizationContext> panel(Capability capability) {
+    public static AuthorizationManager<RequestAuthorizationContext> panel(Capability capability) {
         return AuthorizationManagers.allOf(
                 AuthorityAuthorizationManager.hasAuthority(capability.authority()),
                 AllRequiredFactorsAuthorizationManager.<RequestAuthorizationContext>builder()
@@ -83,14 +88,32 @@ public class SecurityConfig {
                         .build());
     }
 
+    private static final JacksonJsonHttpMessageConverter PROBLEM_WRITER = new JacksonJsonHttpMessageConverter();
+
     /**
      * A pending Administrator (password done, code missing) denied anywhere gets 401, like an anonymous visitor: the
      * SPA then shows the login, not "this area is only for the Administrator". Everyone else keeps the usual 403, and
-     * so does a CSRF failure.
+     * so does a CSRF failure. Two denials of the product file route carry their own answer: a published Product needs a
+     * recent authentication (403 with the problem body, so the screen can ask for it) and a database that cannot tell
+     * (503, no body).
      */
     static AccessDeniedHandler accessDeniedHandler() {
         AccessDeniedHandler forbidden = new AccessDeniedHandlerImpl();
         return (request, response, exception) -> {
+            if (exception instanceof AuthorizationDeniedException denied) {
+                if (denied.getAuthorizationResult() instanceof ProductFileReplacementAccess.ReauthenticationRequired) {
+                    response.setStatus(HttpStatus.FORBIDDEN.value());
+                    PROBLEM_WRITER.write(
+                            ProductFileReplacementAccess.problem(request),
+                            MediaType.APPLICATION_PROBLEM_JSON,
+                            new ServletServerHttpResponse(response));
+                    return;
+                }
+                if (denied.getAuthorizationResult() instanceof ProductFileReplacementAccess.Unavailable) {
+                    response.setStatus(HttpStatus.SERVICE_UNAVAILABLE.value());
+                    return;
+                }
+            }
             Authentication authentication = SecurityContextHolder.getContextHolderStrategy()
                     .getContext()
                     .getAuthentication();
@@ -109,7 +132,8 @@ public class SecurityConfig {
             HttpSecurity http,
             CsrfTokenRepository csrfTokenRepository,
             SessionVersionFilter sessionVersionFilter,
-            AdminMfaAccess adminMfaAccess)
+            AdminMfaAccess adminMfaAccess,
+            ProductFileReplacementAccess productFileReplacementAccess)
             throws Exception {
         // right after the context is loaded from the session: ends sessions opened before a password change (SEC-006)
         http.addFilterAfter(sessionVersionFilter, SecurityContextHolderFilter.class);
@@ -154,6 +178,9 @@ public class SecurityConfig {
                         // every panel route: the capability AND both factors, two independent locks
                         .requestMatchers(HttpMethod.GET, "/api/admin/sessions/current")
                         .access(panel(Capability.PANEL_ACCESS))
+                        // password and a fresh TOTP code typed again by the full Administrator (SEC-008)
+                        .requestMatchers(HttpMethod.POST, "/api/admin/sessions/reauthentication")
+                        .access(panel(Capability.PANEL_ACCESS))
                         // also asks for a fresh TOTP code in the body, checked by the controller (SEC-008)
                         .requestMatchers(HttpMethod.POST, "/api/admin/recovery-codes")
                         .access(panel(Capability.RECOVERY_CODES_MANAGE))
@@ -168,9 +195,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/api/admin/products/*/price")
                         .access(panel(Capability.PRODUCTS_PRICE))
                         // the PDF of a Product (#18): POST only (Tomcat parses multipart on POST); GET, PUT and DELETE
-                        // on /file stay denied. The lock is checked before the body is read.
-                        .requestMatchers(HttpMethod.POST, "/api/admin/products/*/file")
-                        .access(panel(Capability.PRODUCTS_FILE))
+                        // on /file stay denied. The lock is checked before the body is read: PRODUCTS_FILE and, for a
+                        // Product that was ever published, a recent authentication (#22). The name {id} feeds the
+                        // manager.
+                        .requestMatchers(HttpMethod.POST, "/api/admin/products/{id}/file")
+                        .access(productFileReplacementAccess)
                         // publication (#19): PUT publishes, DELETE unpublishes; no other verb is open
                         .requestMatchers(HttpMethod.PUT, "/api/admin/products/*/publication")
                         .access(panel(Capability.PRODUCTS_PUBLISH))

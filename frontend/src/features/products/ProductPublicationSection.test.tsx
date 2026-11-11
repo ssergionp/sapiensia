@@ -78,7 +78,7 @@ describe("ProductPublicationSection", () => {
     await user.click(screen.getByRole("button", { name: "Publicar" }));
     expect(
       screen.getByText(
-        "Publicar este Produto? Ele vai aparecer no Catálogo. Depois da primeira publicação, o arquivo só poderá ser trocado com nova autenticação, que ainda não está disponível.",
+        "Publicar este Produto? Ele vai aparecer no Catálogo. Depois da primeira publicação, trocar o arquivo vai exigir sua senha e o código do aplicativo autenticador.",
       ),
     ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Cancelar" }));

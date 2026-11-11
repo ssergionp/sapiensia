@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -77,7 +78,7 @@ class ProductFileControllerTest {
 
     /** Makes the service record the temp file it receives, check that it holds the bytes, then run {@code outcome}. */
     private void stubService(Supplier<ProductResponse> outcome) {
-        when(service.upload(eq(productId), any(), any(), any(), eq(adminId), eq("203.0.113.9")))
+        when(service.upload(eq(productId), any(), any(), any(), eq(adminId), eq("203.0.113.9"), eq(false)))
                 .thenAnswer(invocation -> {
                     Path temp = invocation.getArgument(1);
                     seen.add(temp);
@@ -195,24 +196,49 @@ class ProductFileControllerTest {
                         ProductFileRejectedException.class,
                         e -> assertThat(e.reason()).isEqualTo(ProductFileRejection.FILE_EMPTY));
 
-        verify(service, never()).upload(any(), any(), any(), any(), any(), any());
+        verify(service, never()).upload(any(), any(), any(), any(), any(), any(), anyBoolean());
     }
 
     @Test
-    @DisplayName("SEC-043: cada recusa vira 400 com o código, FILE_TOO_LARGE vira 413 e PUBLISHED_BEFORE vira 409")
+    @DisplayName("SEC-043: cada recusa vira 400 com o código, FILE_TOO_LARGE vira 413")
     void shouldMapRejectionsToTheErrorCode() {
         for (ProductFileRejection reason : ProductFileRejection.values()) {
             var answer = controller.rejected(new ProductFileRejectedException(reason));
 
             HttpStatus expected = switch (reason) {
                 case FILE_TOO_LARGE -> HttpStatus.PAYLOAD_TOO_LARGE;
-                case PUBLISHED_BEFORE -> HttpStatus.CONFLICT;
                 default -> HttpStatus.BAD_REQUEST;
             };
             assertThat(answer.getStatusCode()).isEqualTo(expected);
             ProblemDetail body = answer.getBody();
             assertThat(body.getProperties()).containsEntry("errors", java.util.Map.of("file", reason.name()));
         }
+    }
+
+    @Test
+    @DisplayName("SEC-008: o atributo da autorização vai ao serviço como reauthenticated=true")
+    void shouldPassTheReauthenticatedAttributeToTheService() {
+        ProductResponse response = mock(ProductResponse.class);
+        request.setAttribute(ProductFileReplacementAccess.REAUTHENTICATED, Boolean.TRUE);
+        when(service.upload(eq(productId), any(), any(), any(), eq(adminId), eq("203.0.113.9"), eq(true)))
+                .thenReturn(response);
+
+        assertThat(controller.upload(productId, pdf(), authentication, request)).isSameAs(response);
+    }
+
+    @Test
+    @DisplayName("SEC-008: a recheque do serviço vira 403 com o corpo REAUTHENTICATION_REQUIRED")
+    void shouldMapTheReauthenticationRefusalTo403() {
+        request.setRequestURI("/api/admin/products/" + productId + "/file");
+
+        var answer = controller.reauthenticationRequired(request);
+
+        assertThat(answer.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        ProblemDetail body = answer.getBody();
+        assertThat(body.getTitle()).isEqualTo("Reauthentication required");
+        assertThat(body.getInstance()).hasToString("/api/admin/products/" + productId + "/file");
+        assertThat(body.getProperties())
+                .containsEntry("errors", java.util.Map.of("reauthentication", "REAUTHENTICATION_REQUIRED"));
     }
 
     @Test

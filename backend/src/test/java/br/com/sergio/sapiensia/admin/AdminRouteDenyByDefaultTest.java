@@ -142,6 +142,37 @@ class AdminRouteDenyByDefaultTest {
     }
 
     @Test
+    @DisplayName("SEC-010: anônimo e sessão pendente recebem 401, Cliente 403, sem token CSRF 403")
+    void shouldGuardTheReauthenticationRoute() throws Exception {
+        String reauthentication = "/api/admin/sessions/reauthentication";
+        String body = "{\"password\":\"" + PASSWORD + "\",\"code\":\"123456\"}";
+        AdminBrowser anonymous = new AdminBrowser(port);
+        AdminBrowser pending = new AdminBrowser(port);
+        AdminBrowser customer = new AdminBrowser(port);
+        AdminBrowser administrator = new AdminBrowser(port);
+        assertThat(pending.loginAdmin(adminEmail, PASSWORD).statusCode()).isEqualTo(204);
+        assertThat(customer.loginCustomer(customerEmail, PASSWORD).statusCode()).isEqualTo(204);
+        assertThat(administrator
+                        .loginAdminFully(adminEmail, PASSWORD, secret, clock)
+                        .statusCode())
+                .isEqualTo(204);
+
+        assertThat(anonymous.post(reauthentication, body).statusCode())
+                .as("anonymous")
+                .isEqualTo(401);
+        assertThat(pending.post(reauthentication, body).statusCode())
+                .as("pending")
+                .isEqualTo(401);
+        assertThat(customer.post(reauthentication, body).statusCode())
+                .as("customer")
+                .isEqualTo(403);
+        assertThat(administrator.postWithoutCsrf(reauthentication, body).statusCode())
+                .as("no CSRF token")
+                .isEqualTo(403);
+        assertThat(administrator.get(reauthentication).statusCode()).as("GET").isEqualTo(403);
+    }
+
+    @Test
     @DisplayName("SEC-010: DELETE, PUT, GET e PATCH do arquivo e rotas mais fundas de Produto seguem negados")
     void shouldKeepTheRestOfTheProductRoutesDenied() throws Exception {
         AdminBrowser anonymous = new AdminBrowser(port);

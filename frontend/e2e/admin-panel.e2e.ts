@@ -589,7 +589,7 @@ test("SEC-043 FR-034: o Administrador envia o PDF do Produto e o substitui; arqu
   await expect(current).toBeVisible();
 });
 
-test("FR-011 FR-016 SEC-008: o Administrador publica um Produto com arquivo, despublica e não consegue trocar o arquivo", async ({
+test("FR-011 FR-016 SEC-008 FR-010: o Administrador publica, despublica e troca o PDF depois de confirmar senha e código", async ({
   page,
   baseURL,
 }) => {
@@ -601,8 +601,6 @@ test("FR-011 FR-016 SEC-008: o Administrador publica um Produto com arquivo, des
     );
   }
   const title = `E2E Publicação ${Date.now()}`;
-  const blocked =
-    "Este Produto já foi publicado. A troca do arquivo vai exigir nova autenticação, que ainda não está disponível.";
 
   await loginWithStoredCredentials(page);
 
@@ -668,13 +666,55 @@ test("FR-011 FR-016 SEC-008: o Administrador publica um Produto com arquivo, des
       .getByText("Despublicado"),
   ).toBeVisible();
 
-  // The file section is locked after the first publication: the phrase, and no upload field.
+  // After the first publication the file section explains the rule; choosing a file and sending asks to confirm.
   await page.getByRole("link", { name: `Editar ${title}` }).click();
-  await expect(page.getByText(blocked)).toBeVisible();
-  await expect(page.getByLabel("Arquivo PDF")).toHaveCount(0);
   await expect(
-    page.getByRole("button", { name: "Enviar arquivo" }),
-  ).toHaveCount(0);
+    page.getByText(
+      "Este Produto já foi publicado. Para trocar o arquivo, confirme sua senha e o código do aplicativo autenticador.",
+      { exact: false },
+    ),
+  ).toBeVisible();
+  const input = page.getByLabel("Arquivo PDF");
+  await expect(page.getByText(/^Arquivo atual: 1 página,/)).toBeVisible();
+  await input.setInputFiles({
+    name: "produto-novo.pdf",
+    mimeType: "application/pdf",
+    buffer: buildPdf("troca", 2),
+  });
+  await page.getByRole("button", { name: "Enviar arquivo" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Confirme sua identidade" }),
+  ).toBeVisible();
+
+  const password = await readStoredPassword();
+  const totp = await readStoredTotp();
+  if (password === null || totp === null) {
+    throw new Error(
+      "The stored Administrator password or two-step secret is missing.",
+    );
+  }
+  const passwordField = page.getByLabel("Senha", { exact: true });
+  const codeField = page.getByLabel("Código do aplicativo autenticador");
+  const confirm = page.getByRole("button", { name: "Confirmar e enviar" });
+
+  // One wrong attempt only (it must not lock the account): the file stays chosen.
+  await fillSecret(passwordField, password);
+  await fillSecret(codeField, totpCode(totp.secret, currentStep() + 10));
+  await confirm.click();
+  await expect(
+    page.getByText("Senha ou código incorretos. Confira e tente de novo."),
+  ).toBeVisible();
+  await expect(input).toHaveValue(/produto-novo.pdf$/);
+
+  // The right password and the next TOTP step (after the one used by the login): the file is replaced.
+  await waitForStepAfter(totp.lastStep);
+  const step = currentStep();
+  await writeStoredTotp({ secret: totp.secret, lastStep: step });
+  await fillSecret(passwordField, password);
+  await fillSecret(codeField, totpCode(totp.secret, step));
+  await confirm.click();
+  await expect(page.getByText("Arquivo enviado.")).toBeVisible();
+  await expect(page.getByText(/^Arquivo atual: 2 páginas,/)).toBeVisible();
 });
 
 test("SEC-010 FR-016: sem sessão, as rotas de Produto do painel negam", async ({

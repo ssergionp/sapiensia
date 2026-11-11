@@ -31,7 +31,6 @@ export const FILE_REJECTION_CODES = [
   "FILE_INVALID",
   "FILE_ENCRYPTED",
   "FILE_TOO_MANY_PAGES",
-  "PUBLISHED_BEFORE",
 ] as const;
 
 export type ProductFileRejectionCode = (typeof FILE_REJECTION_CODES)[number];

@@ -105,7 +105,7 @@ class AdminSessionController {
     }
 
     /** The e-mail normalized, then the "admin:" prefix: every spelling of one e-mail shares one bucket. */
-    private static String accountKey(String email) {
+    static String accountKey(String email) {
         return ACCOUNT_KEY_PREFIX + Emails.normalize(email);
     }
 
