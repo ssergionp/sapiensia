@@ -6,13 +6,9 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Map;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.web.servlet.function.RouterFunction;
-import org.springframework.web.servlet.function.RouterFunctions;
-import org.springframework.web.servlet.function.ServerResponse;
+import java.util.UUID;
 
-/** Shared by the webhook security tests: a stand-in for the real controller and an HTTP client with a chosen source. */
+/** Shared by the webhook tests: event builders and an HTTP client with a chosen source address. */
 final class AsaasWebhookTestSupport {
 
     /** The token of src/test/resources/application.properties. */
@@ -20,18 +16,21 @@ final class AsaasWebhookTestSupport {
 
     private AsaasWebhookTestSupport() {}
 
-    /**
-     * Stands in for the real controller (Task 3). A router function, not a @RestController: a controller class outside
-     * a test class would be picked up by component scanning in every context.
-     */
-    @TestConfiguration
-    static class ProbeConfig {
-        @Bean
-        RouterFunction<ServerResponse> asaasWebhookProbe() {
-            return RouterFunctions.route()
-                    .POST("/api/webhooks/asaas", request -> ServerResponse.ok().body("reached"))
-                    .build();
-        }
+    /** A minimal event as in the provider's documentation. */
+    static String event(String id, String type) {
+        return event(id, type, "59.9");
+    }
+
+    static String event(String id, String type, String value) {
+        return """
+                {"id": "%s", "event": "%s", "dateCreated": "2026-11-11 10:00:00",
+                 "payment": {"object": "payment", "id": "pay_000", "customer": "cus_000", "value": %s,
+                             "billingType": "PIX", "status": "RECEIVED"}}""".formatted(id, type, value);
+    }
+
+    /** A unique event id, so tests never collide in the shared database. */
+    static String uniqueId() {
+        return "evt_" + UUID.randomUUID();
     }
 
     /**
@@ -39,6 +38,12 @@ final class AsaasWebhookTestSupport {
      * all of 127.0.0.0/8 available, true on Linux CI and Windows.
      */
     static HttpResponse<String> send(int port, String method, String loopback, Map<String, String> headers)
+            throws Exception {
+        return send(port, method, loopback, headers, "{}", "application/json");
+    }
+
+    static HttpResponse<String> send(
+            int port, String method, String loopback, Map<String, String> headers, String body, String contentType)
             throws Exception {
         HttpClient client = HttpClient.newBuilder()
                 .localAddress(InetAddress.getByName(loopback))
@@ -48,14 +53,20 @@ final class AsaasWebhookTestSupport {
                 .method(
                         method,
                         "POST".equals(method)
-                                ? HttpRequest.BodyPublishers.ofString("{}")
+                                ? HttpRequest.BodyPublishers.ofString(body)
                                 : HttpRequest.BodyPublishers.noBody())
-                .header("Content-Type", "application/json");
+                .header("Content-Type", contentType);
         headers.forEach(builder::header);
         return client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
     }
 
+    /** A POST with a valid minimal event and a unique id. */
     static HttpResponse<String> post(int port, String loopback, Map<String, String> headers) throws Exception {
-        return send(port, "POST", loopback, headers);
+        return post(port, loopback, headers, event(uniqueId(), "PAYMENT_RECEIVED"), "application/json");
+    }
+
+    static HttpResponse<String> post(
+            int port, String loopback, Map<String, String> headers, String body, String contentType) throws Exception {
+        return send(port, "POST", loopback, headers, body, contentType);
     }
 }

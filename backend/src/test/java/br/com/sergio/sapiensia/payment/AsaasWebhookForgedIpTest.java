@@ -12,7 +12,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 
 /** Behind the platform proxy (forwarded headers on), only Fly-Client-IP may stand for the source address. */
-@Import({TestcontainersConfiguration.class, AsaasWebhookTestSupport.ProbeConfig.class})
+@Import(TestcontainersConfiguration.class)
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {

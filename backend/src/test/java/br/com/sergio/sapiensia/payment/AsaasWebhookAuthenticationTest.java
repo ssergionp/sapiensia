@@ -12,7 +12,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 
-@Import({TestcontainersConfiguration.class, AsaasWebhookTestSupport.ProbeConfig.class})
+@Import(TestcontainersConfiguration.class)
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"test.isolated-context=asaas-webhook-auth", "app.asaas.webhook.allowed-ips=127.0.0.21"})
