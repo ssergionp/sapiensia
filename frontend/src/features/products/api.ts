@@ -48,7 +48,18 @@ async function check(response: Response, ok: number): Promise<Response> {
   throw new Error(`Unexpected status ${response.status}`);
 }
 
-// 400/413 with a known code in errors.file.
+// The code in {"errors":{"file":CODE}} of an error answer, or undefined when the body has no such string.
+async function readFileErrorCode(raw: Response): Promise<string | undefined> {
+  const body: unknown = await raw.json().catch(() => null);
+  if (typeof body !== "object" || body === null || !("errors" in body))
+    return undefined;
+  const errors = body.errors;
+  if (typeof errors !== "object" || errors === null || !("file" in errors))
+    return undefined;
+  return typeof errors.file === "string" ? errors.file : undefined;
+}
+
+// 400/409/413 with a known code in errors.file.
 export class ProductFileRejectedError extends Error {
   readonly code: ProductFileRejectionCode;
   constructor(code: ProductFileRejectionCode) {
@@ -72,16 +83,7 @@ export async function uploadProductFile(
     },
   );
   if (raw.status === 400 || raw.status === 409 || raw.status === 413) {
-    const body: unknown = await raw.json().catch(() => null);
-    const code =
-      typeof body === "object" &&
-      body !== null &&
-      "errors" in body &&
-      typeof body.errors === "object" &&
-      body.errors !== null &&
-      "file" in body.errors
-        ? body.errors.file
-        : null;
+    const code = await readFileErrorCode(raw);
     if ((FILE_REJECTION_CODES as readonly unknown[]).includes(code)) {
       throw new ProductFileRejectedError(code as ProductFileRejectionCode);
     }
@@ -98,17 +100,8 @@ async function publication(id: string, method: "PUT" | "DELETE") {
     { method },
   );
   if (raw.status === 409) {
-    const body: unknown = await raw.json().catch(() => null);
-    if (
-      typeof body === "object" &&
-      body !== null &&
-      "errors" in body &&
-      typeof body.errors === "object" &&
-      body.errors !== null &&
-      "file" in body.errors
-    ) {
-      throw new ProductValidationError(body.errors as Record<string, string>);
-    }
+    const code = await readFileErrorCode(raw);
+    if (code !== undefined) throw new ProductValidationError({ file: code });
     throw new ProductConflictError();
   }
   const response = await check(raw, 200);
