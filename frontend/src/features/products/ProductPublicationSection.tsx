@@ -40,6 +40,9 @@ export default function ProductPublicationSection({
   const [confirming, setConfirming] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
   const resultRef = useRef<HTMLParagraphElement>(null);
+  const questionRef = useRef<HTMLParagraphElement>(null);
+  const publishButtonRef = useRef<HTMLButtonElement>(null);
+  const cancelled = useRef(false);
   const pending = publish.isPending || unpublish.isPending;
   const hasFile = product.file !== null;
 
@@ -47,6 +50,17 @@ export default function ProductPublicationSection({
   useEffect(() => {
     if (result) resultRef.current?.focus();
   }, [result]);
+
+  // The button that was focused disappears when the confirmation opens: focus goes to the question (not to
+  // Confirmar publicação, so a double Enter cannot publish) and, on Cancelar, back to Publicar.
+  useEffect(() => {
+    if (confirming) {
+      questionRef.current?.focus();
+    } else if (cancelled.current) {
+      cancelled.current = false;
+      publishButtonRef.current?.focus();
+    }
+  }, [confirming]);
 
   function run(action: "publish" | "unpublish") {
     if (pending) return;
@@ -90,7 +104,9 @@ export default function ProductPublicationSection({
           </>
         ) : confirming ? (
           <>
-            <p>{T.confirmQuestion}</p>
+            <p ref={questionRef} tabIndex={-1}>
+              {T.confirmQuestion}
+            </p>
             <div className="flex gap-4">
               <Button type="button" onClick={() => run("publish")}>
                 {T.confirm}
@@ -98,7 +114,10 @@ export default function ProductPublicationSection({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setConfirming(false)}
+                onClick={() => {
+                  cancelled.current = true;
+                  setConfirming(false);
+                }}
               >
                 {T.cancel}
               </Button>
@@ -111,6 +130,7 @@ export default function ProductPublicationSection({
             )}
             <div>
               <Button
+                ref={publishButtonRef}
                 type="button"
                 disabled={!hasFile || pending}
                 onClick={() =>

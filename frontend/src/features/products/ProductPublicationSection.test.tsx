@@ -89,6 +89,29 @@ describe("ProductPublicationSection", () => {
     expect(publicationCalls(spy)).toHaveLength(0);
   });
 
+  test("the confirmation question takes focus and Tab reaches Confirmar publicação", async () => {
+    apiWith(draftWithFile());
+    await open();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Publicar" }));
+    expect(
+      screen.getByText(/^Publicar este Produto[?] Ele vai aparecer/),
+    ).toHaveFocus();
+    await user.tab();
+    expect(
+      screen.getByRole("button", { name: "Confirmar publicação" }),
+    ).toHaveFocus();
+  });
+
+  test("Cancelar returns focus to Publicar", async () => {
+    apiWith(draftWithFile());
+    await open();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Publicar" }));
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(screen.getByRole("button", { name: "Publicar" })).toHaveFocus();
+  });
+
   test("FR-011 Confirmar publicação sends PUT, shows the result and moves focus to it", async () => {
     const spy = apiWith(draftWithFile(), (init) =>
       init?.method === "PUT"
