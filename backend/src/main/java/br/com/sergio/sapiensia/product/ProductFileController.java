@@ -136,7 +136,11 @@ class ProductFileController {
         return rejected(new ProductFileRejectedException(ProductFileRejection.FILE_REQUIRED));
     }
 
-    /** Busy validator, storage or database down: 503 without a body. Only the class is logged. */
+    /**
+     * Busy validator, storage or database down: 503 without a body. Only the class is logged, plus the message of a
+     * storage failure: those messages are fixed texts with at most an HTTP status or a class name, while the others
+     * can carry data.
+     */
     @ExceptionHandler({
         ValidatorBusyException.class,
         ProductFileStorageException.class,
@@ -144,7 +148,11 @@ class ProductFileController {
         TransactionException.class
     })
     ResponseEntity<Void> unavailable(Exception e) {
-        log.error("Product file upload unavailable ({})", e.getClass().getName());
+        if (e instanceof ProductFileStorageException) {
+            log.error("Product file upload unavailable ({}: {})", e.getClass().getName(), e.getMessage());
+        } else {
+            log.error("Product file upload unavailable ({})", e.getClass().getName());
+        }
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
     }
 
