@@ -1,5 +1,6 @@
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
+import { CATALOG_TEXTS } from "@/features/catalog/messages";
 import { useLogout, useLogoutEverywhere, useSession } from "./hooks";
 import { LOGOUT_ERROR } from "./messages";
 
@@ -35,6 +36,9 @@ export default function HomePage() {
           <Link to="/cadastro" className="underline">
             Criar conta
           </Link>
+          <Link to="/catalogo" className="underline">
+            {CATALOG_TEXTS.homeLink}
+          </Link>
         </nav>
       </main>
     );
@@ -53,6 +57,11 @@ export default function HomePage() {
           {LOGOUT_ALL_ERROR}
         </p>
       )}
+      <p className="mt-4">
+        <Link to="/catalogo" className="underline">
+          {CATALOG_TEXTS.homeLink}
+        </Link>
+      </p>
       <div className="mt-4 flex flex-wrap gap-4">
         <Button disabled={logout.isPending} onClick={() => logout.mutate()}>
           {logout.isPending ? "Saindo…" : "Sair"}

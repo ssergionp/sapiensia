@@ -1,0 +1,27 @@
+// Single source of the Catalog screen texts (section 7 of the plan). Category labels come from features/products/messages.ts.
+export const CATALOG_TEXTS = {
+  homeLink: "Ver o Catálogo",
+  listDocumentTitle: "Catálogo | SapiensIA",
+  listHeading: "Catálogo",
+  loading: "Carregando…",
+  empty: "Nenhum Produto disponível no momento.",
+  pastEnd: "Esta página do Catálogo não tem Produtos.",
+  goToFirstPage: "Ir para a primeira página",
+  listError: "Não foi possível carregar o Catálogo agora. Tente novamente.",
+  retry: "Tentar novamente",
+  paginationLabel: "Paginação",
+  previous: "Anterior",
+  next: "Próxima",
+  pageOf: (n: number, total: number) => `Página ${n} de ${total}`,
+  detailDocumentTitle: (title: string) => `${title} | SapiensIA`,
+  categoryTerm: "Categoria",
+  priceTerm: "Preço",
+  backToCatalog: "Voltar ao Catálogo",
+  notFoundDocumentTitle: "Produto não encontrado | SapiensIA",
+  notFoundHeading: "Produto não encontrado",
+  notFoundText:
+    "Este Produto não está disponível. Ele pode ter saído do Catálogo ou o endereço pode estar errado.",
+  detailError: "Não foi possível carregar este Produto agora. Tente novamente.",
+  srCategory: "Categoria:",
+  srPrice: "Preço:",
+} as const;

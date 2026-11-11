@@ -61,6 +61,25 @@ describe("HomePage", () => {
     ).not.toBeInTheDocument();
   });
 
+  test("mostra o link Ver o Catálogo sem sessão e com sessão", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(401));
+    const first = renderPage();
+    const anonymous = await screen.findByRole("link", {
+      name: "Ver o Catálogo",
+    });
+    expect(anonymous).toHaveAttribute("href", "/catalogo");
+    first.unmount();
+
+    fetchSpy.mockResolvedValue(jsonResponse(200, { email: "ana@example.com" }));
+    renderPage();
+    expect(
+      await screen.findByRole("link", { name: "Ver o Catálogo" }),
+    ).toHaveAttribute("href", "/catalogo");
+    expect(screen.getByRole("button", { name: "Sair" })).toBeInTheDocument();
+  });
+
   test("com sessão mostra o e-mail e o botão Sair", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       jsonResponse(200, { email: "ana@example.com" }),
