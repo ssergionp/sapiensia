@@ -124,7 +124,12 @@ function usePublication(id: string, call: (id: string) => Promise<Product>) {
       queryClient.setQueryData(productQueryKey(id), saved);
       void queryClient.invalidateQueries({ queryKey: productsQueryKey });
     },
-    onError: endSessionOn401(queryClient),
+    // A refused change means the screen is stale (file removed, already published...): reload the real state.
+    onError: (error: unknown) => {
+      endSessionOn401(queryClient)(error);
+      void queryClient.invalidateQueries({ queryKey: productQueryKey(id) });
+      void queryClient.invalidateQueries({ queryKey: productsQueryKey });
+    },
   });
 }
 

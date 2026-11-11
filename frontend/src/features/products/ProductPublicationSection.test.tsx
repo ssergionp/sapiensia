@@ -112,6 +112,66 @@ describe("ProductPublicationSection", () => {
     expect(screen.getByRole("button", { name: "Publicar" })).toHaveFocus();
   });
 
+  test("FR-011 after a refused publication the Product is reloaded and the screen follows it", async () => {
+    let current = draftWithFile();
+    const spy = mockApi((url, init) => {
+      if (url === PRODUCT_URL) return jsonResponse(200, current);
+      if (url === PUBLICATION_URL && init?.method === "PUT") {
+        current = product();
+        return jsonResponse(409, { errors: { file: "FILE_REQUIRED" } });
+      }
+    });
+    await open();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Publicar" }));
+    await user.click(
+      screen.getByRole("button", { name: "Confirmar publicação" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Envie o Arquivo do produto antes de publicar.",
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Publicar" })).toBeDisabled(),
+    );
+    expect(
+      screen.getByText("Envie o Arquivo do produto para poder publicar."),
+    ).toBeInTheDocument();
+    expect(
+      spy.mock.calls.filter(([url]) => String(url) === PRODUCT_URL).length,
+    ).toBeGreaterThan(1);
+  });
+
+  test("focus goes to the Publicação heading while the request runs, then to the result", async () => {
+    let release: (r: Response) => void = () => {};
+    apiWith(
+      draftWithFile(),
+      () =>
+        new Promise<Response>((resolve) => {
+          release = resolve;
+        }),
+    );
+    await open();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Publicar" }));
+    await user.click(
+      screen.getByRole("button", { name: "Confirmar publicação" }),
+    );
+    expect(screen.getByRole("heading", { name: "Publicação" })).toHaveFocus();
+    release(jsonResponse(200, published()));
+    expect(await result("Produto publicado.")).toHaveFocus();
+  });
+
+  test.each([
+    ["Despublicar", published],
+    ["Publicar de novo", unpublished],
+  ])("focus stays in the section while %s runs", async (label, loaded) => {
+    apiWith(loaded(), () => new Promise<Response>(() => {}));
+    await open();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: label }));
+    expect(screen.getByRole("heading", { name: "Publicação" })).toHaveFocus();
+  });
+
   test("FR-011 Confirmar publicação sends PUT, shows the result and moves focus to it", async () => {
     const spy = apiWith(draftWithFile(), (init) =>
       init?.method === "PUT"

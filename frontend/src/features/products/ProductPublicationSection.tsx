@@ -42,6 +42,7 @@ export default function ProductPublicationSection({
   const resultRef = useRef<HTMLParagraphElement>(null);
   const questionRef = useRef<HTMLParagraphElement>(null);
   const publishButtonRef = useRef<HTMLButtonElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const cancelled = useRef(false);
   const pending = publish.isPending || unpublish.isPending;
   const hasFile = product.file !== null;
@@ -66,6 +67,8 @@ export default function ProductPublicationSection({
     if (pending) return;
     setResult(null);
     setConfirming(false);
+    // The clicked button unmounts or gets disabled: keep the focus in the section until the answer arrives.
+    headingRef.current?.focus();
     const mutation = action === "publish" ? publish : unpublish;
     mutation.mutate(undefined, {
       onSuccess: () =>
@@ -85,7 +88,12 @@ export default function ProductPublicationSection({
 
   return (
     <section aria-labelledby="publication-heading">
-      <h2 id="publication-heading" className="mb-4 text-lg font-semibold">
+      <h2
+        id="publication-heading"
+        ref={headingRef}
+        tabIndex={-1}
+        className="mb-4 text-lg font-semibold"
+      >
         {T.heading}
       </h2>
       <div className="grid gap-4">
