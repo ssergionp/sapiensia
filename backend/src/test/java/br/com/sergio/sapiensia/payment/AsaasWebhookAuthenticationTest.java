@@ -46,7 +46,7 @@ class AsaasWebhookAuthenticationTest {
     }
 
     @Test
-    @DisplayName("SEC-023: shouldRefuseWithoutTheToken")
+    @DisplayName("SEC-023, SEC-031: shouldRefuseWithoutTheToken")
     void shouldRefuseWithoutTheToken() throws Exception {
         HttpResponse<String> response = postRefused("127.0.0.21", Map.of());
 
@@ -55,7 +55,7 @@ class AsaasWebhookAuthenticationTest {
     }
 
     @Test
-    @DisplayName("SEC-023: shouldRefuseAWrongToken")
+    @DisplayName("SEC-023, SEC-024: shouldRefuseAWrongToken")
     void shouldRefuseAWrongToken() throws Exception {
         String oneCharChanged = TOKEN.substring(0, TOKEN.length() - 1) + "1";
 
@@ -81,7 +81,7 @@ class AsaasWebhookAuthenticationTest {
     }
 
     @Test
-    @DisplayName("SEC-023: shouldAcceptTokenAndIp")
+    @DisplayName("SEC-023, SEC-024: shouldAcceptTokenAndIp")
     void shouldAcceptTokenAndIp() throws Exception {
         assertThat(post("127.0.0.21", Map.of(HEADER, TOKEN)).statusCode()).isEqualTo(200);
     }

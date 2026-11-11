@@ -66,7 +66,7 @@ class AsaasWebhookPersistenceTest {
     }
 
     @Test
-    @DisplayName("SEC-025: shouldAnswerOkAndKeepOneRowForARepeatedEvent")
+    @DisplayName("SEC-025, SEC-031: shouldAnswerOkAndKeepOneRowForARepeatedEvent")
     void shouldAnswerOkAndKeepOneRowForARepeatedEvent() throws Exception {
         String id = uniqueId();
 
@@ -82,7 +82,7 @@ class AsaasWebhookPersistenceTest {
     }
 
     @Test
-    @DisplayName("SEC-025: shouldLetTheDatabaseDecideBetweenTwoSimultaneousDeliveries")
+    @DisplayName("SEC-025, SEC-031: shouldLetTheDatabaseDecideBetweenTwoSimultaneousDeliveries")
     void shouldLetTheDatabaseDecideBetweenTwoSimultaneousDeliveries() throws Exception {
         ExecutorService pool = Executors.newFixedThreadPool(2);
         try {

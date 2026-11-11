@@ -39,7 +39,7 @@ class AsaasWebhookAccessTest {
     }
 
     @Test
-    @DisplayName("SEC-023: shouldGrantWhenTokenAndIpMatch")
+    @DisplayName("SEC-023, SEC-024: shouldGrantWhenTokenAndIpMatch")
     void shouldGrantWhenTokenAndIpMatch() {
         assertThat(granted(access(ALLOWED_IP), ALLOWED_IP, TOKEN)).isTrue();
     }
