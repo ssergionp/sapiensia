@@ -8,5 +8,6 @@ public enum ProductFileRejection {
     FILE_NOT_PDF,
     FILE_INVALID,
     FILE_ENCRYPTED,
-    FILE_TOO_MANY_PAGES
+    FILE_TOO_MANY_PAGES,
+    PUBLISHED_BEFORE
 }

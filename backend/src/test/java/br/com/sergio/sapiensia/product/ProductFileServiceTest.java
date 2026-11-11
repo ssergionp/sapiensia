@@ -296,4 +296,20 @@ class ProductFileServiceTest {
         assertThat(rows).isNotEmpty();
         assertThat(String.join(" ", rows)).doesNotContain(SUBMITTED_NAME).doesNotContain(key);
     }
+
+    @Test
+    @DisplayName("SEC-008: a Product that was ever published refuses a new file, stores nothing and audits a FAILURE")
+    void shouldRefuseAFileForAProductThatWasEverPublished() throws Exception {
+        jdbc.update("update products set status = 'PUBLISHED', first_published_at = now() where id = ?", productId);
+
+        assertThatThrownBy(() -> upload(productId, pdf(1)))
+                .isInstanceOfSatisfying(
+                        ProductFileRejectedException.class,
+                        e -> assertThat(e.reason()).isEqualTo(ProductFileRejection.PUBLISHED_BEFORE));
+
+        assertThat(auditCount("FAILURE")).isEqualTo(1);
+        assertThat(auditCount("SUCCESS")).isZero();
+        assertThat(storage.keys()).isEmpty();
+        assertThat(rowKeys()).isEmpty();
+    }
 }

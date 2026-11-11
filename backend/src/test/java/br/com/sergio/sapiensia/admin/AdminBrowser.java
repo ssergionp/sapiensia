@@ -151,6 +151,12 @@ final class AdminBrowser {
                 HttpResponse.BodyHandlers.ofString());
     }
 
+    /** A DELETE that keeps the cookies but sends no X-XSRF-TOKEN header. */
+    HttpResponse<String> deleteWithoutCsrf(String path) throws Exception {
+        ensureCsrfCookie();
+        return client.send(HttpRequest.newBuilder(uri(path)).DELETE().build(), HttpResponse.BodyHandlers.ofString());
+    }
+
     HttpResponse<String> loginAdmin(String email, String password) throws Exception {
         return post("/api/admin/sessions", "{\"email\":\"" + email + "\",\"password\":\"" + password + "\"}");
     }

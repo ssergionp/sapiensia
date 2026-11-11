@@ -171,6 +171,11 @@ public class SecurityConfig {
                         // on /file stay denied. The lock is checked before the body is read.
                         .requestMatchers(HttpMethod.POST, "/api/admin/products/*/file")
                         .access(panel(Capability.PRODUCTS_FILE))
+                        // publication (#19): PUT publishes, DELETE unpublishes; no other verb is open
+                        .requestMatchers(HttpMethod.PUT, "/api/admin/products/*/publication")
+                        .access(panel(Capability.PRODUCTS_PUBLISH))
+                        .requestMatchers(HttpMethod.DELETE, "/api/admin/products/*/publication")
+                        .access(panel(Capability.PRODUCTS_PUBLISH))
                         .requestMatchers("/api/**")
                         .denyAll()
                         .anyRequest()

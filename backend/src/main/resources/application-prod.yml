@@ -12,7 +12,21 @@ logging:
     # one JSON line per log entry, for the platform's log search; never log tokens, passwords or personal data
     format:
       console: ecs
+spring:
+  datasource:
+    # no default: a missing value stops the application
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+  flyway:
+    # Supabase leaves its function rls_auto_enable in the public schema, so Flyway sees a non-empty schema with no
+    # history table and refuses to start. Baselining at version 0 creates the history table and still applies V1 onwards.
+    baseline-on-migrate: true
+    baseline-version: 0
 app:
+  login-limit:
+    # Fly Proxy sets it; when it is absent the real connection address is used, never X-Forwarded-For
+    client-ip-header: Fly-Client-IP
   email:
     provider: resend
     resend:

@@ -24,6 +24,26 @@ describe("ProductListPage", () => {
     expect(screen.getByText("Carregando…")).toBeInTheDocument();
   });
 
+  test("FR-016 shows the real status of each Product", async () => {
+    mockApi((url) =>
+      url === LIST
+        ? jsonResponse(200, {
+            items: [
+              listItem({ id: "p1", title: "Um", status: "PUBLISHED" }),
+              listItem({ id: "p2", title: "Dois", status: "UNPUBLISHED" }),
+            ],
+            page: 0,
+            totalPages: 1,
+          })
+        : undefined,
+    );
+    renderProducts("/painel/produtos");
+    const one = await screen.findByRole("row", { name: /Um/ });
+    expect(within(one).getByText("Publicado")).toBeInTheDocument();
+    const two = screen.getByRole("row", { name: /Dois/ });
+    expect(within(two).getByText("Despublicado")).toBeInTheDocument();
+  });
+
   test("renders the table with headers, row values and an accessible edit link", async () => {
     mockApi((url) =>
       url === LIST

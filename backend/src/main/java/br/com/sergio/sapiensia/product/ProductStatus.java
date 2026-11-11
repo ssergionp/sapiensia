@@ -1,6 +1,11 @@
 package br.com.sergio.sapiensia.product;
 
-/** Where a Product is in its life. Only DRAFT exists until publishing (#19) adds PUBLISHED, with its migration. */
+/**
+ * Where a Product is in its life. DRAFT exists only before the first publication; a Product never goes back to it
+ * (the database enforces it through first_published_at).
+ */
 public enum ProductStatus {
-    DRAFT
+    DRAFT,
+    PUBLISHED,
+    UNPUBLISHED
 }

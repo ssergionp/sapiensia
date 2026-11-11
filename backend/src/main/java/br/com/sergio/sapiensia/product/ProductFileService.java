@@ -66,6 +66,12 @@ class ProductFileService {
         if (!products.exists(productId)) {
             throw new ProductNotFoundException();
         }
+        // Cheap pre-check so no byte reaches the storage for nothing; the one that counts is under the lock, in store.
+        // Ticket #22 replaces both with a re-authentication requirement.
+        if (products.everPublished(productId)) {
+            audit.recordIndependent(entry(AuditResult.FAILURE, administratorId, productId, origin));
+            throw new ProductFileRejectedException(ProductFileRejection.PUBLISHED_BEFORE);
+        }
         PdfCheck check = validator.check(tempFile, submittedName, declaredContentType);
         if (check instanceof PdfCheck.Rejected rejected) {
             audit.recordIndependent(entry(AuditResult.FAILURE, administratorId, productId, origin));
@@ -84,6 +90,10 @@ class ProductFileService {
                 if (!files.lockProduct(productId)) {
                     throw new ProductNotFoundException();
                 }
+                // Publishing takes this same lock, so the marker read here cannot change before the swap commits.
+                if (products.everPublished(productId)) {
+                    throw new ProductFileRejectedException(ProductFileRejection.PUBLISHED_BEFORE);
+                }
                 Optional<String> previous = files.currentKey(productId);
                 files.swap(productId, newKey, size, pageCount);
                 audit.recordInTransaction(entry(AuditResult.SUCCESS, administratorId, productId, origin));
@@ -94,6 +104,10 @@ class ProductFileService {
             // Accepted residual risk: if the commit throws after the database really committed (e.g. the connection
             // drops on the reply), this deletes the object the row now points to. Rare; accepted for this ticket.
             deleteBestEffort(newKey, productId);
+            if (e instanceof ProductFileRejectedException) {
+                // The transaction rolled back, so the FAILURE has to be written outside of it.
+                audit.recordIndependent(entry(AuditResult.FAILURE, administratorId, productId, origin));
+            }
             throw e;
         }
         swapped.oldKey().ifPresent(key -> deleteBestEffort(key, productId));

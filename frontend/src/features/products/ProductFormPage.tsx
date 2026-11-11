@@ -33,8 +33,10 @@ import {
   SAVE_ERRORS,
   SERVER_FIELD_MESSAGES,
   SERVER_FIELD_NAMES,
+  STATUS_NOTICES,
 } from "./messages";
 import ProductFileSection from "./ProductFileSection";
+import ProductPublicationSection from "./ProductPublicationSection";
 import {
   centsToInput,
   formatCents,
@@ -317,10 +319,12 @@ function CreateProduct() {
 function EditForms({
   product,
   canChangePrice,
+  canPublish,
   reload,
 }: {
   product: Product;
   canChangePrice: boolean;
+  canPublish: boolean;
   reload: () => Promise<unknown>;
 }) {
   const updateData = useUpdateProduct(product.id);
@@ -388,10 +392,7 @@ function EditForms({
           Voltar para Produtos
         </Link>
       </p>
-      <p className="mt-4">
-        Este Produto está em rascunho: os clientes ainda não conseguem vê-lo nem
-        comprá-lo.
-      </p>
+      <p className="mt-4">{STATUS_NOTICES[product.status]}</p>
       <div className="mt-6 grid max-w-xl gap-8">
         <section aria-labelledby="data-heading">
           <h2 id="data-heading" className="mb-4 text-lg font-semibold">
@@ -446,6 +447,7 @@ function EditForms({
           )}
         </section>
         <ProductFileSection product={product} />
+        {canPublish && <ProductPublicationSection product={product} />}
       </div>
     </main>
   );
@@ -454,9 +456,11 @@ function EditForms({
 function EditProduct({
   id,
   canChangePrice,
+  canPublish,
 }: {
   id: string;
   canChangePrice: boolean;
+  canPublish: boolean;
 }) {
   const product = useProduct(id);
 
@@ -491,6 +495,7 @@ function EditProduct({
     <EditForms
       product={product.data}
       canChangePrice={canChangePrice}
+      canPublish={canPublish}
       reload={product.refetch}
     />
   );
@@ -508,6 +513,7 @@ export default function ProductFormPage() {
           <EditProduct
             id={id}
             canChangePrice={admin.capabilities.includes("PRODUCTS_PRICE")}
+            canPublish={admin.capabilities.includes("PRODUCTS_PUBLISH")}
           />
         ) : (
           <CreateProduct />

@@ -48,7 +48,18 @@ async function check(response: Response, ok: number): Promise<Response> {
   throw new Error(`Unexpected status ${response.status}`);
 }
 
-// 400/413 with a known code in errors.file.
+// The code in {"errors":{"file":CODE}} of an error answer, or undefined when the body has no such string.
+async function readFileErrorCode(raw: Response): Promise<string | undefined> {
+  const body: unknown = await raw.json().catch(() => null);
+  if (typeof body !== "object" || body === null || !("errors" in body))
+    return undefined;
+  const errors = body.errors;
+  if (typeof errors !== "object" || errors === null || !("file" in errors))
+    return undefined;
+  return typeof errors.file === "string" ? errors.file : undefined;
+}
+
+// 400/409/413 with a known code in errors.file.
 export class ProductFileRejectedError extends Error {
   readonly code: ProductFileRejectionCode;
   constructor(code: ProductFileRejectionCode) {
@@ -71,17 +82,8 @@ export async function uploadProductFile(
       body: form,
     },
   );
-  if (raw.status === 400 || raw.status === 413) {
-    const body: unknown = await raw.json().catch(() => null);
-    const code =
-      typeof body === "object" &&
-      body !== null &&
-      "errors" in body &&
-      typeof body.errors === "object" &&
-      body.errors !== null &&
-      "file" in body.errors
-        ? body.errors.file
-        : null;
+  if (raw.status === 400 || raw.status === 409 || raw.status === 413) {
+    const code = await readFileErrorCode(raw);
     if ((FILE_REJECTION_CODES as readonly unknown[]).includes(code)) {
       throw new ProductFileRejectedError(code as ProductFileRejectionCode);
     }
@@ -90,6 +92,24 @@ export async function uploadProductFile(
   const response = await check(raw, 200);
   return productSchema.parse(await response.json());
 }
+
+// 409 with errors.file: the Product cannot be published without a file. Any other 409 stays a conflict.
+async function publication(id: string, method: "PUT" | "DELETE") {
+  const raw = await apiFetch(
+    `/api/admin/products/${encodeURIComponent(id)}/publication`,
+    { method },
+  );
+  if (raw.status === 409) {
+    const code = await readFileErrorCode(raw);
+    if (code !== undefined) throw new ProductValidationError({ file: code });
+    throw new ProductConflictError();
+  }
+  const response = await check(raw, 200);
+  return productSchema.parse(await response.json());
+}
+
+export const publishProduct = (id: string) => publication(id, "PUT");
+export const unpublishProduct = (id: string) => publication(id, "DELETE");
 
 function sendJson(method: string, body: unknown): RequestInit {
   return {

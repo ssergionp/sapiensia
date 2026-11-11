@@ -1,5 +1,6 @@
 package br.com.sergio.sapiensia.product;
 
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -15,7 +16,8 @@ class Products {
     static final int PAGE_SIZE = 20;
 
     private static final String COLUMNS =
-            "id, title, description, category, price_cents, status, version, created_at, updated_at";
+            "id, title, description, category, price_cents, status, version, created_at, updated_at,"
+                    + " first_published_at";
 
     private static final String LIST_COLUMNS =
             "id, title, category, price_cents, status, version, created_at, updated_at";
@@ -30,10 +32,11 @@ class Products {
             rs.getInt("version"),
             rs.getObject("created_at", OffsetDateTime.class).toInstant(),
             rs.getObject("updated_at", OffsetDateTime.class).toInstant(),
-            null);
+            null,
+            instant(rs.getObject("first_published_at", OffsetDateTime.class)));
 
     private static final String FIND_SQL = "select p.id, p.title, p.description, p.category, p.price_cents, p.status,"
-            + " p.version, p.created_at, p.updated_at, f.size_bytes, f.page_count, f.uploaded_at"
+            + " p.version, p.created_at, p.updated_at, p.first_published_at, f.size_bytes, f.page_count, f.uploaded_at"
             + " from products p left join product_files f on f.product_id = p.id where p.id = :id";
 
     /** Same as MAPPER plus the current file, when there is one (columns of the left join). */
@@ -55,7 +58,8 @@ class Products {
                 product.version(),
                 product.createdAt(),
                 product.updatedAt(),
-                file);
+                file,
+                product.firstPublishedAt());
     };
 
     private static final RowMapper<ProductListItem> LIST_MAPPER = (rs, i) -> new ProductListItem(
@@ -67,6 +71,10 @@ class Products {
             rs.getInt("version"),
             rs.getObject("created_at", OffsetDateTime.class).toInstant(),
             rs.getObject("updated_at", OffsetDateTime.class).toInstant());
+
+    private static Instant instant(OffsetDateTime value) {
+        return value == null ? null : value.toInstant();
+    }
 
     private final JdbcClient jdbc;
 
@@ -114,6 +122,35 @@ class Products {
                 .param("id", id)
                 .param("version", request.version())
                 .update();
+    }
+
+    /**
+     * Publishes unless it already is, and records the first publication date once. Returns the rows changed: 0 means
+     * it was already PUBLISHED (or there is no such Product). Does not touch the version: no form data changed.
+     */
+    int publish(UUID id) {
+        return jdbc.sql("update products set status = 'PUBLISHED',"
+                        + " first_published_at = coalesce(first_published_at, now()), updated_at = now()"
+                        + " where id = :id and status <> 'PUBLISHED'")
+                .param("id", id)
+                .update();
+    }
+
+    /** Unpublishes a PUBLISHED Product; 0 rows means it was not published. The first publication date stays. */
+    int unpublish(UUID id) {
+        return jdbc.sql("update products set status = 'UNPUBLISHED', updated_at = now()"
+                        + " where id = :id and status = 'PUBLISHED'")
+                .param("id", id)
+                .update();
+    }
+
+    /** True once the Product has been published at least once; false when it never was or does not exist. */
+    boolean everPublished(UUID id) {
+        return jdbc.sql("select count(*) from products where id = :id and first_published_at is not null")
+                        .param("id", id)
+                        .query(Long.class)
+                        .single()
+                > 0;
     }
 
     /** Tells a missing Product (404) from a stale version (409) after an update changed no row. */

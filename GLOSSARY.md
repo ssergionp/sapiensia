@@ -9,8 +9,20 @@ Um conteúdo digital à venda no catálogo (e-book, cartilha, tutorial ou checkl
 _Avoid_: Item, livro, curso
 
 **Rascunho**:
-Estado de um Produto que os clientes ainda não conseguem ver nem comprar. É o único estado em que um Produto é criado.
+Estado de um Produto que os clientes ainda não conseguem ver nem comprar. É o único estado em que um Produto é criado. Um Produto que já foi publicado nunca volta a ser Rascunho: ao sair do Catálogo, fica Despublicado.
 _Avoid_: Esboço
+
+**Publicar**:
+Colocar um Produto no Catálogo, para os clientes poderem vê-lo e comprá-lo. Só é possível com Arquivo do produto enviado. Depois da primeira publicação, o Arquivo do produto só pode ser trocado com nova autenticação do Administrador.
+_Avoid_: Ativar, lançar
+
+**Despublicar**:
+Tirar um Produto do Catálogo, sem apagá-lo. Não cancela o Acesso de quem já comprou; o Produto pode ser publicado de novo.
+_Avoid_: Arquivar, desativar, excluir
+
+**Despublicado**:
+Estado de um Produto que já foi publicado e saiu do Catálogo. Os clientes novos não o veem nem o compram; quem já comprou continua com Acesso.
+_Avoid_: Inativo, oculto
 
 **Catálogo**:
 A vitrine pública dos Produtos publicados, visível a qualquer visitante. Mostra capa, título, descrição, categoria e preço; não tem busca, filtros nem amostra grátis na Fase 1.

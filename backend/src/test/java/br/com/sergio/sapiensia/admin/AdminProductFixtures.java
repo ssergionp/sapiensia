@@ -61,6 +61,24 @@ final class AdminProductFixtures {
                 UUID.class);
     }
 
+    /** Inserts a DRAFT Product that already has a file row (no object in the storage) and returns its id. */
+    static UUID insertProductWithFile(JdbcTemplate jdbc) {
+        UUID id = insertProduct(jdbc);
+        jdbc.update(
+                "insert into product_files (product_id, object_key, size_bytes, page_count) values (?, ?, 100, 1)",
+                id,
+                "products/" + id + "/" + UUID.randomUUID() + ".pdf");
+        return id;
+    }
+
+    /** Puts the Product in PUBLISHED straight in the database, keeping an earlier first publication date. */
+    static void publish(JdbcTemplate jdbc, UUID id) {
+        jdbc.update(
+                "update products set status = 'PUBLISHED', first_published_at = coalesce(first_published_at, now())"
+                        + " where id = ?",
+                id);
+    }
+
     private static String quote(String value) {
         if (value == null) {
             return "null";

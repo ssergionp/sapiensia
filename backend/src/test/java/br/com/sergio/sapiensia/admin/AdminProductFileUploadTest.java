@@ -20,6 +20,8 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
@@ -103,6 +105,7 @@ class AdminProductFileUploadTest {
     private void clearState() {
         storage.failPuts(false);
         storage.failDeletes(false);
+        storage.resumePuts();
         auditLog.failWrites(false);
         for (String key : storage.keys()) {
             storage.delete(key);
@@ -333,6 +336,8 @@ class AdminProductFileUploadTest {
                         + " where action = 'ADMIN_PRODUCT_FILE_UPLOADED' order by result");
         assertThat(rows).extracting(r -> r.get("result")).containsExactly("FAILURE", "SUCCESS");
         String key = jdbc.queryForObject("select object_key from product_files", String.class);
+        // The size as a standalone number only: the same digits inside a random UUID are not a leak.
+        String sizeAsNumber = "(?<![0-9A-Za-z])" + pdf.length + "(?![0-9A-Za-z])";
         for (Map<String, Object> row : rows) {
             assertThat(row.get("actor_id")).isEqualTo(account.id());
             assertThat(row.get("object_type")).isEqualTo("PRODUCT");
@@ -340,7 +345,7 @@ class AdminProductFileUploadTest {
             assertThat((String) row.get("text"))
                     .doesNotContain("nome-unico-5521")
                     .doesNotContain(key)
-                    .doesNotContain(String.valueOf(pdf.length));
+                    .doesNotContainPattern(sizeAsNumber);
         }
     }
 
@@ -393,5 +398,88 @@ class AdminProductFileUploadTest {
         assertThat(admin.get(path()).statusCode()).isEqualTo(403);
         assertThat(admin.put(path(), "{}").statusCode()).isEqualTo(403);
         assertThat(admin.delete(path()).statusCode()).isEqualTo(403);
+    }
+
+    private String publicationPath() {
+        return PRODUCTS + "/" + productId + "/publication";
+    }
+
+    private long fileUploadAudit(String result) {
+        return jdbc.queryForObject(
+                "select count(*) from audit_events where action = 'ADMIN_PRODUCT_FILE_UPLOADED'"
+                        + " and object_id = ? and result = ?",
+                Long.class,
+                productId,
+                result);
+    }
+
+    private String currentKey() {
+        return jdbc.queryForObject(
+                "select object_key from product_files where product_id = ?", String.class, productId);
+    }
+
+    @Test
+    @DisplayName("SEC-008: depois de publicar e despublicar, trocar o arquivo é recusado")
+    void shouldRefuseReplacingTheFileAfterPublishAndUnpublish() throws Exception {
+        productId = AdminProductFixtures.insertProductWithFile(jdbc);
+        String before = currentKey();
+        assertThat(admin.put(publicationPath(), "").statusCode()).isEqualTo(200);
+        assertThat(admin.delete(publicationPath()).statusCode()).isEqualTo(200);
+
+        HttpResponse<String> response = upload("guia.pdf", "application/pdf", TestPdfs.pages(1));
+
+        assertThat(response.statusCode()).isEqualTo(409);
+        assertThat(response.body()).contains("\"errors\":{\"file\":\"PUBLISHED_BEFORE\"}");
+        assertThat(currentKey()).isEqualTo(before);
+        assertThat(storage.keys()).isEmpty();
+        assertThat(fileUploadAudit("FAILURE")).isEqualTo(1);
+        assertThat(fileUploadAudit("SUCCESS")).isZero();
+    }
+
+    @Test
+    @DisplayName("SEC-008: Produto publicado não aceita arquivo novo")
+    void shouldRefuseANewFileForAPublishedProduct() throws Exception {
+        productId = AdminProductFixtures.insertProductWithFile(jdbc);
+        String before = currentKey();
+        AdminProductFixtures.publish(jdbc, productId);
+
+        HttpResponse<String> response = upload("guia.pdf", "application/pdf", TestPdfs.pages(1));
+
+        assertThat(response.statusCode()).isEqualTo(409);
+        assertThat(response.body()).contains("\"errors\":{\"file\":\"PUBLISHED_BEFORE\"}");
+        assertThat(currentKey()).isEqualTo(before);
+        assertThat(storage.keys()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("SEC-008: a publicação que entra antes da trava faz a troca em andamento ser recusada")
+    void shouldRefuseAReplacementWhenThePublicationWinsTheLock() throws Exception {
+        productId = AdminProductFixtures.insertProductWithFile(jdbc);
+        String before = currentKey();
+        SwitchableProductFileStorage.Pause pause = storage.pausePuts();
+        CompletableFuture<HttpResponse<String>> replacement = CompletableFuture.supplyAsync(() -> {
+            try {
+                return upload("guia.pdf", "application/pdf", TestPdfs.pages(1));
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        });
+        try {
+            assertThat(pause.awaitReached())
+                    .as("the upload passed the cheap check")
+                    .isTrue();
+            assertThat(admin.put(publicationPath(), "").statusCode()).isEqualTo(200);
+        } finally {
+            pause.release();
+        }
+
+        HttpResponse<String> response = replacement.get(30, TimeUnit.SECONDS);
+
+        assertThat(response.statusCode()).isEqualTo(409);
+        assertThat(response.body()).contains("\"errors\":{\"file\":\"PUBLISHED_BEFORE\"}");
+        assertThat(storage.keys()).as("the new object was deleted").isEmpty();
+        assertThat(currentKey()).isEqualTo(before);
+        assertThat(fileUploadAudit("FAILURE")).isEqualTo(1);
+        assertThat(fileUploadAudit("SUCCESS")).isZero();
     }
 }

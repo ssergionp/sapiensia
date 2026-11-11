@@ -589,6 +589,94 @@ test("SEC-043 FR-034: o Administrador envia o PDF do Produto e o substitui; arqu
   await expect(current).toBeVisible();
 });
 
+test("FR-011 FR-016 SEC-008: o Administrador publica um Produto com arquivo, despublica e não consegue trocar o arquivo", async ({
+  page,
+  baseURL,
+}) => {
+  test.setTimeout(120_000);
+  const host = new URL(baseURL ?? "").hostname;
+  if (host !== "localhost" && host !== "127.0.0.1") {
+    throw new Error(
+      "Refusing to run the administrator e2e outside localhost/127.0.0.1",
+    );
+  }
+  const title = `E2E Publicação ${Date.now()}`;
+  const blocked =
+    "Este Produto já foi publicado. A troca do arquivo vai exigir nova autenticação, que ainda não está disponível.";
+
+  await loginWithStoredCredentials(page);
+
+  // Create a draft Product through the UI and open its edit page.
+  await page.goto("/painel/produtos");
+  await page.getByRole("link", { name: "Novo Produto" }).click();
+  await page.getByLabel("Título").fill(title);
+  await page.getByLabel("Descrição").fill("Produto de teste da publicação.");
+  await page.getByLabel("Categoria").selectOption({ label: "Tecnologia" });
+  await page.getByLabel("Valor (R$)").fill("19,90");
+  await page.getByRole("button", { name: "Criar Produto" }).click();
+  await expect(page.getByText("Produto criado.")).toBeVisible();
+  await page.getByRole("link", { name: `Editar ${title}` }).click();
+  await expect(
+    page.getByRole("heading", { name: "Editar Produto", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Publicação", exact: true }),
+  ).toBeVisible();
+
+  // Without a file, publishing is disabled.
+  const publish = page.getByRole("button", { name: "Publicar", exact: true });
+  await expect(publish).toBeDisabled();
+  await expect(
+    page.getByText("Envie o Arquivo do produto para poder publicar."),
+  ).toBeVisible();
+
+  // Upload the PDF.
+  await page.getByLabel("Arquivo PDF").setInputFiles({
+    name: "produto.pdf",
+    mimeType: "application/pdf",
+    buffer: buildPdf("publicacao"),
+  });
+  await page.getByRole("button", { name: "Enviar arquivo" }).click();
+  await expect(page.getByText("Arquivo enviado.")).toBeVisible();
+
+  // Publish with the inline confirmation.
+  await expect(publish).toBeEnabled();
+  await publish.click();
+  await page.getByRole("button", { name: "Confirmar publicação" }).click();
+  await expect(page.getByText("Produto publicado.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Despublicar" })).toBeVisible();
+
+  // The list shows "Publicado".
+  await page.goto("/painel/produtos");
+  await expect(
+    page.getByRole("row", { name: new RegExp(title) }).getByText("Publicado"),
+  ).toBeVisible();
+
+  // Unpublish.
+  await page.getByRole("link", { name: `Editar ${title}` }).click();
+  await page.getByRole("button", { name: "Despublicar" }).click();
+  await expect(page.getByText("Produto despublicado.")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Publicar de novo" }),
+  ).toBeVisible();
+
+  // The list shows "Despublicado".
+  await page.goto("/painel/produtos");
+  await expect(
+    page
+      .getByRole("row", { name: new RegExp(title) })
+      .getByText("Despublicado"),
+  ).toBeVisible();
+
+  // The file section is locked after the first publication: the phrase, and no upload field.
+  await page.getByRole("link", { name: `Editar ${title}` }).click();
+  await expect(page.getByText(blocked)).toBeVisible();
+  await expect(page.getByLabel("Arquivo PDF")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Enviar arquivo" }),
+  ).toHaveCount(0);
+});
+
 test("SEC-010 FR-016: sem sessão, as rotas de Produto do painel negam", async ({
   playwright,
   baseURL,

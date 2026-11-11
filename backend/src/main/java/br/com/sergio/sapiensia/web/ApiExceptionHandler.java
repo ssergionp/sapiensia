@@ -5,6 +5,7 @@ import br.com.sergio.sapiensia.customer.IncorrectConfirmationPasswordException;
 import br.com.sergio.sapiensia.customer.InvalidConfirmationTokenException;
 import br.com.sergio.sapiensia.customer.PasswordCompromisedException;
 import br.com.sergio.sapiensia.customer.WrongPasswordLimitReachedException;
+import br.com.sergio.sapiensia.product.ProductFileRequiredException;
 import br.com.sergio.sapiensia.product.ProductNotFoundException;
 import br.com.sergio.sapiensia.product.ProductVersionConflictException;
 import java.util.Map;
@@ -75,6 +76,14 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(ProductVersionConflictException.class)
     ResponseEntity<Void> handleProductVersionConflict() {
         return ResponseEntity.status(HttpStatus.CONFLICT).build();
+    }
+
+    /** Publishing needs the Product file (FR-011): 409 with the code of the field, like the other refusals. */
+    @ExceptionHandler(ProductFileRequiredException.class)
+    ResponseEntity<ProblemDetail> handleProductFileRequired() {
+        ProblemDetail problem = problem(Map.of("file", "FILE_REQUIRED"));
+        problem.setStatus(HttpStatus.CONFLICT);
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
     }
 
     private static ProblemDetail problem(Map<String, String> errors) {
