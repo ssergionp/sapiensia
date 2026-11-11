@@ -7,6 +7,7 @@ import { useProducts } from "./hooks";
 import {
   CATEGORY_LABELS,
   NO_PERMISSION_PRODUCTS,
+  STATUS_LABELS,
   UNAVAILABLE_LOAD,
 } from "./messages";
 import { formatCents } from "./schemas";
@@ -85,7 +86,7 @@ function ProductList() {
                     {CATEGORY_LABELS[item.category]}
                   </td>
                   <td className="py-2 pr-4">{formatCents(item.priceCents)}</td>
-                  <td className="py-2 pr-4">Rascunho</td>
+                  <td className="py-2 pr-4">{STATUS_LABELS[item.status]}</td>
                   <td className="py-2">
                     <Link
                       to={`/painel/produtos/${item.id}`}

@@ -16,7 +16,12 @@ public enum Capability {
      * Upload or replace the PDF of a Product (#18): separate from editing the text, because the file is what the
      * Customer receives and a future profile may fix the text without being able to swap the delivery.
      */
-    PRODUCTS_FILE;
+    PRODUCTS_FILE,
+    /**
+     * Publish and unpublish a Product (#19): separate from editing, because publishing is what puts a Product in front
+     * of Customers.
+     */
+    PRODUCTS_PUBLISH;
 
     public String authority() {
         return "CAPABILITY_" + name();

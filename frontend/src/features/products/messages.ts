@@ -1,4 +1,8 @@
-import type { ProductCategory, ProductFileRejectionCode } from "./schemas";
+import type {
+  ProductCategory,
+  ProductFileRejectionCode,
+  ProductStatus,
+} from "./schemas";
 
 export const CATEGORY_LABELS: Record<ProductCategory, string> = {
   HEALTH: "Saúde",
@@ -51,6 +55,9 @@ export const SERVER_FIELD_NAMES: Record<string, string> = {
 
 export const PRODUCT_NOT_FOUND = "Produto não encontrado.";
 
+const PUBLISHED_BEFORE_TEXT =
+  "Este Produto já foi publicado. A troca do arquivo vai exigir nova autenticação, que ainda não está disponível.";
+
 export const FILE_MESSAGES: Record<ProductFileRejectionCode, string> = {
   FILE_REQUIRED: "Selecione um arquivo PDF.",
   FILE_EMPTY: "O arquivo está vazio.",
@@ -62,6 +69,7 @@ export const FILE_MESSAGES: Record<ProductFileRejectionCode, string> = {
     "O PDF está protegido por senha. Envie uma versão sem proteção.",
   FILE_TOO_MANY_PAGES:
     "O PDF passa de 1.000 páginas. Envie um arquivo com até 1.000 páginas.",
+  PUBLISHED_BEFORE: PUBLISHED_BEFORE_TEXT,
 };
 
 export const FILE_UPLOAD_ERRORS = {
@@ -70,4 +78,45 @@ export const FILE_UPLOAD_ERRORS = {
     "O sistema está indisponível no momento e o arquivo não foi enviado. Tente novamente em alguns instantes.",
   unexpected:
     "Não foi possível enviar o arquivo. Verifique a conexão e tente novamente.",
+} as const;
+
+export const STATUS_LABELS: Record<ProductStatus, string> = {
+  DRAFT: "Rascunho",
+  PUBLISHED: "Publicado",
+  UNPUBLISHED: "Despublicado",
+};
+
+export const STATUS_NOTICES: Record<ProductStatus, string> = {
+  DRAFT:
+    "Este Produto está em rascunho: os clientes ainda não conseguem vê-lo nem comprá-lo.",
+  PUBLISHED:
+    "Este Produto está publicado: aparece no Catálogo e pode ser comprado.",
+  UNPUBLISHED:
+    "Este Produto está despublicado: saiu do Catálogo, e quem já comprou continua com acesso.",
+};
+
+export const PUBLICATION_MESSAGES = {
+  heading: "Publicação",
+  publish: "Publicar",
+  publishAgain: "Publicar de novo",
+  unpublish: "Despublicar",
+  needFile: "Envie o Arquivo do produto para poder publicar.",
+  confirmQuestion:
+    "Publicar este Produto? Ele vai aparecer no Catálogo. Depois da primeira publicação, o arquivo só poderá ser trocado com nova autenticação, que ainda não está disponível.",
+  confirm: "Confirmar publicação",
+  cancel: "Cancelar",
+  keepsAccess: "Quem já comprou continua com acesso.",
+  publishing: "Publicando…",
+  unpublishing: "Despublicando…",
+  published: "Produto publicado.",
+  unpublished: "Produto despublicado.",
+} as const;
+
+export const PUBLICATION_ERRORS = {
+  fileRequired: "Envie o Arquivo do produto antes de publicar.",
+  forbidden:
+    "Você não tem permissão para publicar ou despublicar este Produto.",
+  unavailable:
+    "O sistema está indisponível no momento e nada foi alterado. Tente novamente em alguns instantes.",
+  unexpected: "Não foi possível alterar a publicação agora. Tente novamente.",
 } as const;

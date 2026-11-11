@@ -22,7 +22,7 @@ export const productFileSchema = z.object({
 
 export type ProductFile = z.infer<typeof productFileSchema>;
 
-// Codes of the "file" field in a 400/413 answer of the file upload.
+// Codes of the "file" field in a 400/409/413 answer of the file upload.
 export const FILE_REJECTION_CODES = [
   "FILE_REQUIRED",
   "FILE_EMPTY",
@@ -31,6 +31,7 @@ export const FILE_REJECTION_CODES = [
   "FILE_INVALID",
   "FILE_ENCRYPTED",
   "FILE_TOO_MANY_PAGES",
+  "PUBLISHED_BEFORE",
 ] as const;
 
 export type ProductFileRejectionCode = (typeof FILE_REJECTION_CODES)[number];
@@ -70,7 +71,8 @@ export const productSchema = z.object({
   description: z.string(),
   category: z.enum(PRODUCT_CATEGORIES),
   priceCents: z.number().int(),
-  status: z.string(),
+  status: z.enum(["DRAFT", "PUBLISHED", "UNPUBLISHED"]),
+  firstPublishedAt: z.string().nullable(),
   version: z.number().int(),
   file: productFileSchema.nullable(),
   createdAt: z.string(),
@@ -79,10 +81,13 @@ export const productSchema = z.object({
 
 export type Product = z.infer<typeof productSchema>;
 
+export type ProductStatus = Product["status"];
+
 // Mirrors ProductListItem in the backend: the list has no description.
 export const productListItemSchema = productSchema.omit({
   description: true,
   file: true,
+  firstPublishedAt: true,
 });
 
 export type ProductListItem = z.infer<typeof productListItemSchema>;
