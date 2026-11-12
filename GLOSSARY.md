@@ -25,7 +25,7 @@ Estado de um Produto que já foi publicado e saiu do Catálogo. Os clientes novo
 _Avoid_: Inativo, oculto
 
 **Catálogo**:
-A vitrine pública dos Produtos publicados, visível a qualquer visitante. Mostra capa, título, descrição, categoria e preço; não tem busca, filtros nem amostra grátis na Fase 1.
+A vitrine pública dos Produtos publicados, visível a qualquer visitante. Mostra título, descrição, categoria e preço (a capa ainda não existe); não tem busca, filtros nem amostra grátis na Fase 1.
 _Avoid_: Loja, vitrine
 
 **Arquivo do produto**:
@@ -39,6 +39,10 @@ _Avoid_: Admin, editor, usuário interno
 **Cliente**:
 Pessoa com conta que compra Produtos e baixa os Arquivos do produto que comprou.
 _Avoid_: Usuário, comprador
+
+**Visitante**:
+Qualquer pessoa que abre o site, com ou sem conta. Vê o Catálogo e a página de cada Produto publicado; para comprar e baixar precisa entrar como Cliente.
+_Avoid_: Usuário anônimo, lead
 
 **Acesso**:
 O direito de um Cliente baixar o Arquivo do produto de um Produto que comprou. Nasce quando o Pedido é pago e vale para sempre; só é cancelado por Reembolso ou fraude confirmada. Despublicar o Produto não o cancela.

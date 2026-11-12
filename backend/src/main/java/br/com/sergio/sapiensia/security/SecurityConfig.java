@@ -7,6 +7,8 @@ import br.com.sergio.sapiensia.admin.PendingAdministrator;
 import br.com.sergio.sapiensia.customer.SessionVersionFilter;
 import br.com.sergio.sapiensia.payment.AsaasWebhookAccess;
 import br.com.sergio.sapiensia.product.ProductFileReplacementAccess;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -33,6 +35,7 @@ import org.springframework.security.web.authentication.logout.HttpStatusReturnin
 import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfException;
+import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
 import org.springframework.security.web.header.writers.DelegatingRequestMatcherHeaderWriter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
@@ -58,10 +61,49 @@ public class SecurityConfig {
             + "connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; "
             + "frame-ancestors 'none'";
 
+    /**
+     * The public Catalog (#20, ADR-0007): GET only, one segment after /products, so /products/{id}/file and every
+     * other verb stay denied. The same matcher opens the routes and keeps the XSRF-TOKEN cookie off them.
+     */
+    private static final OrRequestMatcher PUBLIC_CATALOG = new OrRequestMatcher(
+            PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/api/products"),
+            PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/api/products/*"));
+
     /** One repository for the filter chain and for the login, which renews the token by hand. */
     @Bean
     CsrfTokenRepository csrfTokenRepository() {
-        return CookieCsrfTokenRepository.withHttpOnlyFalse();
+        return new NoCookieOnPublicCatalog(CookieCsrfTokenRepository.withHttpOnlyFalse());
+    }
+
+    /**
+     * The CSRF filter generates and saves a token on any request that has none, even a GET that needs no token, so
+     * the public Catalog (#20) would hand every Visitor an XSRF-TOKEN cookie. Saving is skipped for those two GET
+     * routes only (A4); everything else, including the login that renews the token by hand, behaves as before.
+     */
+    static final class NoCookieOnPublicCatalog implements CsrfTokenRepository {
+
+        private final CsrfTokenRepository delegate;
+
+        NoCookieOnPublicCatalog(CsrfTokenRepository delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public CsrfToken generateToken(HttpServletRequest request) {
+            return delegate.generateToken(request);
+        }
+
+        @Override
+        public void saveToken(CsrfToken token, HttpServletRequest request, HttpServletResponse response) {
+            if (!PUBLIC_CATALOG.matches(request)) {
+                delegate.saveToken(token, request, response);
+            }
+        }
+
+        @Override
+        public CsrfToken loadToken(HttpServletRequest request) {
+            return delegate.loadToken(request);
+        }
     }
 
     /**
@@ -207,6 +249,8 @@ public class SecurityConfig {
                         .access(panel(Capability.PRODUCTS_PUBLISH))
                         .requestMatchers(HttpMethod.DELETE, "/api/admin/products/*/publication")
                         .access(panel(Capability.PRODUCTS_PUBLISH))
+                        .requestMatchers(PUBLIC_CATALOG)
+                        .permitAll()
                         // Asaas webhook (#26, ADR-0003): the token header and the source IP are the credential; no
                         // session, no CSRF
                         .requestMatchers(HttpMethod.POST, "/api/webhooks/asaas")
