@@ -175,4 +175,40 @@ class Products {
     long count() {
         return jdbc.sql("select count(*) from products").query(Long.class).single();
     }
+
+    private static final String CATALOG_COLUMNS = "id, title, description, category, price_cents";
+
+    /** Published only, in the SQL. Latest first publication first; the id breaks ties. The offset is a long. */
+    List<CatalogItem> listPublished(int page) {
+        return jdbc.sql("select " + CATALOG_COLUMNS + " from products where status = 'PUBLISHED'"
+                        + " order by first_published_at desc, id desc limit :limit offset :offset")
+                .param("limit", PAGE_SIZE)
+                .param("offset", page * (long) PAGE_SIZE)
+                .query((rs, i) -> new CatalogItem(
+                        rs.getObject("id", UUID.class),
+                        rs.getString("title"),
+                        CatalogSummary.of(rs.getString("description")),
+                        ProductCategory.valueOf(rs.getString("category")),
+                        rs.getInt("price_cents")))
+                .list();
+    }
+
+    long countPublished() {
+        return jdbc.sql("select count(*) from products where status = 'PUBLISHED'")
+                .query(Long.class)
+                .single();
+    }
+
+    /** Empty for a draft, an unpublished or a missing Product: the caller cannot tell them apart. */
+    Optional<CatalogProduct> findPublished(UUID id) {
+        return jdbc.sql("select " + CATALOG_COLUMNS + " from products where id = :id and status = 'PUBLISHED'")
+                .param("id", id)
+                .query((rs, i) -> new CatalogProduct(
+                        rs.getObject("id", UUID.class),
+                        rs.getString("title"),
+                        rs.getString("description"),
+                        ProductCategory.valueOf(rs.getString("category")),
+                        rs.getInt("price_cents")))
+                .optional();
+    }
 }

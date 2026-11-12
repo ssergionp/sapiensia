@@ -61,6 +61,25 @@ describe("HomePage", () => {
     ).not.toBeInTheDocument();
   });
 
+  test("mostra o link Ver o Catálogo sem sessão e com sessão", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(401));
+    const first = renderPage();
+    const anonymous = await screen.findByRole("link", {
+      name: "Ver o Catálogo",
+    });
+    expect(anonymous).toHaveAttribute("href", "/catalogo");
+    first.unmount();
+
+    fetchSpy.mockResolvedValue(jsonResponse(200, { email: "ana@example.com" }));
+    renderPage();
+    expect(
+      await screen.findByRole("link", { name: "Ver o Catálogo" }),
+    ).toHaveAttribute("href", "/catalogo");
+    expect(screen.getByRole("button", { name: "Sair" })).toBeInTheDocument();
+  });
+
   test("com sessão mostra o e-mail e o botão Sair", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       jsonResponse(200, { email: "ana@example.com" }),
@@ -237,5 +256,28 @@ describe("HomePage", () => {
     expect(
       await screen.findByRole("button", { name: "Saindo…" }),
     ).toBeDisabled();
+  });
+
+  test("the tab title is SapiensIA while loading, signed out and signed in", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockReturnValue(new Promise(() => {}));
+    document.title = "outro";
+    const loading = renderPage();
+    expect(document.title).toBe("SapiensIA");
+    loading.unmount();
+
+    fetchSpy.mockResolvedValue(jsonResponse(401));
+    document.title = "outro";
+    const signedOut = renderPage();
+    await screen.findByRole("link", { name: "Entrar" });
+    expect(document.title).toBe("SapiensIA");
+    signedOut.unmount();
+
+    fetchSpy.mockResolvedValue(jsonResponse(200, { email: "ana@example.com" }));
+    document.title = "outro";
+    renderPage();
+    await screen.findByRole("button", { name: "Sair" });
+    expect(document.title).toBe("SapiensIA");
   });
 });

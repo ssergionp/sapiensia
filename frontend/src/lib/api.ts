@@ -1,6 +1,7 @@
 // Every call to the backend goes through apiFetch: it sends the session cookie and, on requests that change
 // data (POST, PUT, PATCH, DELETE), the CSRF token that Spring Security left in the XSRF-TOKEN cookie. The cookie
-// comes from any earlier API response; if it is missing, apiFetch gets it with a GET /api/system/health first.
+// comes from an earlier API response, but not from the public Catalog GETs, which set no cookie (#20); if it is
+// missing, apiFetch gets it with a GET /api/system/health first.
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 

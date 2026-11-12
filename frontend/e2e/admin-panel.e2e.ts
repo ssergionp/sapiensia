@@ -589,8 +589,9 @@ test("SEC-043 FR-034: o Administrador envia o PDF do Produto e o substitui; arqu
   await expect(current).toBeVisible();
 });
 
-test("FR-011 FR-016 SEC-008 FR-010: o Administrador publica, despublica e troca o PDF depois de confirmar senha e código", async ({
+test("FR-011 FR-016 FR-018 SEC-008 SEC-010 FR-010: o Administrador publica, despublica e troca o PDF depois de confirmar senha e código", async ({
   page,
+  browser,
   baseURL,
 }) => {
   test.setTimeout(120_000);
@@ -620,6 +621,13 @@ test("FR-011 FR-016 SEC-008 FR-010: o Administrador publica, despublica e troca 
   await expect(
     page.getByRole("heading", { name: "Publicação", exact: true }),
   ).toBeVisible();
+  const productId =
+    /\/painel\/produtos\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/.exec(
+      page.url(),
+    )?.[1];
+  if (productId === undefined) {
+    throw new Error("Could not read the Product id from the edit page URL.");
+  }
 
   // Without a file, publishing is disabled.
   const publish = page.getByRole("button", { name: "Publicar", exact: true });
@@ -644,77 +652,118 @@ test("FR-011 FR-016 SEC-008 FR-010: o Administrador publica, despublica e troca 
   await expect(page.getByText("Produto publicado.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Despublicar" })).toBeVisible();
 
-  // The list shows "Publicado".
-  await page.goto("/painel/produtos");
-  await expect(
-    page.getByRole("row", { name: new RegExp(title) }).getByText("Publicado"),
-  ).toBeVisible();
+  // A visitor context has no Administrator cookies: it sees only what is public.
+  const visitorContext = await browser.newContext({ baseURL });
+  try {
+    const visitor = await visitorContext.newPage();
 
-  // Unpublish.
-  await page.getByRole("link", { name: `Editar ${title}` }).click();
-  await page.getByRole("button", { name: "Despublicar" }).click();
-  await expect(page.getByText("Produto despublicado.")).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Publicar de novo" }),
-  ).toBeVisible();
+    // The published Product appears in the Catálogo and opens its page.
+    await visitor.goto("/catalogo");
+    const catalogLink = visitor.getByRole("link", { name: title });
+    await expect(catalogLink).toBeVisible();
+    await catalogLink.click();
+    await expect(
+      visitor.getByRole("heading", { level: 1, name: title }),
+    ).toBeVisible();
+    await expect(visitor.getByText("Tecnologia")).toBeVisible();
+    await expect(visitor.getByText(/R\$\s19,90/)).toBeVisible();
+    expect(
+      (await visitor.request.get(`/api/products/${productId}`)).status(),
+    ).toBe(200);
 
-  // The list shows "Despublicado".
-  await page.goto("/painel/produtos");
-  await expect(
-    page
-      .getByRole("row", { name: new RegExp(title) })
-      .getByText("Despublicado"),
-  ).toBeVisible();
+    // The list shows "Publicado".
+    await page.goto("/painel/produtos");
+    await expect(
+      page.getByRole("row", { name: new RegExp(title) }).getByText("Publicado"),
+    ).toBeVisible();
 
-  // After the first publication the file section explains the rule; choosing a file and sending asks to confirm.
-  await page.getByRole("link", { name: `Editar ${title}` }).click();
-  await expect(
-    page.getByText(
-      "Este Produto já foi publicado. Para trocar o arquivo, confirme sua senha e o código do aplicativo autenticador.",
-      { exact: false },
-    ),
-  ).toBeVisible();
-  const input = page.getByLabel("Arquivo PDF");
-  await expect(page.getByText(/^Arquivo atual: 1 página,/)).toBeVisible();
-  await input.setInputFiles({
-    name: "produto-novo.pdf",
-    mimeType: "application/pdf",
-    buffer: buildPdf("troca", 2),
-  });
-  await page.getByRole("button", { name: "Enviar arquivo" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Confirme sua identidade" }),
-  ).toBeVisible();
+    // Unpublish.
+    await page.getByRole("link", { name: `Editar ${title}` }).click();
+    await page.getByRole("button", { name: "Despublicar" }).click();
+    await expect(page.getByText("Produto despublicado.")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Publicar de novo" }),
+    ).toBeVisible();
 
-  const password = await readStoredPassword();
-  const totp = await readStoredTotp();
-  if (password === null || totp === null) {
-    throw new Error(
-      "The stored Administrator password or two-step secret is missing.",
-    );
+    // The unpublished Product disappears for the visitor.
+    await visitor.goto("/catalogo");
+    await expect(
+      visitor.getByRole("heading", { level: 1, name: "Catálogo" }),
+    ).toBeVisible();
+    await expect(visitor.getByText("Carregando…")).toHaveCount(0);
+    await expect(visitor.getByRole("link", { name: title })).toHaveCount(0);
+    await visitor.goto(`/catalogo/${productId}`);
+    await expect(
+      visitor.getByRole("heading", {
+        level: 1,
+        name: "Produto não encontrado",
+      }),
+    ).toBeVisible();
+    await expect(visitor.getByText(title)).toHaveCount(0);
+    expect(
+      (await visitor.request.get(`/api/products/${productId}`)).status(),
+    ).toBe(404);
+
+    // The list shows "Despublicado".
+    await page.goto("/painel/produtos");
+    await expect(
+      page
+        .getByRole("row", { name: new RegExp(title) })
+        .getByText("Despublicado"),
+    ).toBeVisible();
+
+    // After the first publication the file section explains the rule; choosing a file and sending asks to confirm.
+    await page.getByRole("link", { name: `Editar ${title}` }).click();
+    await expect(
+      page.getByText(
+        "Este Produto já foi publicado. Para trocar o arquivo, confirme sua senha e o código do aplicativo autenticador.",
+        { exact: false },
+      ),
+    ).toBeVisible();
+    const input = page.getByLabel("Arquivo PDF");
+    await expect(page.getByText(/^Arquivo atual: 1 página,/)).toBeVisible();
+    await input.setInputFiles({
+      name: "produto-novo.pdf",
+      mimeType: "application/pdf",
+      buffer: buildPdf("troca", 2),
+    });
+    await page.getByRole("button", { name: "Enviar arquivo" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Confirme sua identidade" }),
+    ).toBeVisible();
+
+    const password = await readStoredPassword();
+    const totp = await readStoredTotp();
+    if (password === null || totp === null) {
+      throw new Error(
+        "The stored Administrator password or two-step secret is missing.",
+      );
+    }
+    const passwordField = page.getByLabel("Senha", { exact: true });
+    const codeField = page.getByLabel("Código do aplicativo autenticador");
+    const confirm = page.getByRole("button", { name: "Confirmar e enviar" });
+
+    // One wrong attempt only (it must not lock the account): the file stays chosen.
+    await fillSecret(passwordField, password);
+    await fillSecret(codeField, totpCode(totp.secret, currentStep() + 10));
+    await confirm.click();
+    await expect(
+      page.getByText("Senha ou código incorretos. Confira e tente de novo."),
+    ).toBeVisible();
+    await expect(input).toHaveValue(/produto-novo.pdf$/);
+
+    // The right password and the next TOTP step (after the one used by the login): the file is replaced.
+    await waitForStepAfter(totp.lastStep);
+    const step = currentStep();
+    await writeStoredTotp({ secret: totp.secret, lastStep: step });
+    await fillSecret(passwordField, password);
+    await fillSecret(codeField, totpCode(totp.secret, step));
+    await confirm.click();
+    await expect(page.getByText("Arquivo enviado.")).toBeVisible();
+    await expect(page.getByText(/^Arquivo atual: 2 páginas,/)).toBeVisible();
+  } finally {
+    await visitorContext.close();
   }
-  const passwordField = page.getByLabel("Senha", { exact: true });
-  const codeField = page.getByLabel("Código do aplicativo autenticador");
-  const confirm = page.getByRole("button", { name: "Confirmar e enviar" });
-
-  // One wrong attempt only (it must not lock the account): the file stays chosen.
-  await fillSecret(passwordField, password);
-  await fillSecret(codeField, totpCode(totp.secret, currentStep() + 10));
-  await confirm.click();
-  await expect(
-    page.getByText("Senha ou código incorretos. Confira e tente de novo."),
-  ).toBeVisible();
-  await expect(input).toHaveValue(/produto-novo.pdf$/);
-
-  // The right password and the next TOTP step (after the one used by the login): the file is replaced.
-  await waitForStepAfter(totp.lastStep);
-  const step = currentStep();
-  await writeStoredTotp({ secret: totp.secret, lastStep: step });
-  await fillSecret(passwordField, password);
-  await fillSecret(codeField, totpCode(totp.secret, step));
-  await confirm.click();
-  await expect(page.getByText("Arquivo enviado.")).toBeVisible();
-  await expect(page.getByText(/^Arquivo atual: 2 páginas,/)).toBeVisible();
 });
 
 test("SEC-010 FR-016: sem sessão, as rotas de Produto do painel negam", async ({
