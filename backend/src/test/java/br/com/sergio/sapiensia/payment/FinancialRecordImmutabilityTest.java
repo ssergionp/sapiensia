@@ -61,6 +61,7 @@ class FinancialRecordImmutabilityTest {
         String id = insertEvent();
 
         assertRefusedByTheGuard(() -> jdbc.execute("truncate table payment_events"));
+        assertRefusedByTheGuard(() -> jdbc.execute("truncate table payment_events cascade"));
 
         assertThat(count(id)).isEqualTo(1);
     }
