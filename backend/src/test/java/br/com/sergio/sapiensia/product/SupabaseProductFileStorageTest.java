@@ -1,5 +1,6 @@
 package br.com.sergio.sapiensia.product;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -17,13 +18,17 @@ import java.nio.file.Path;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
+@ExtendWith(OutputCaptureExtension.class)
 class SupabaseProductFileStorageTest {
 
     private static final String SECRET = "test-secret-not-real";
@@ -154,6 +159,213 @@ class SupabaseProductFileStorageTest {
         assertThatThrownBy(() -> new SupabaseProductFileStorage(RestClient.builder(), URL, " ", BUCKET))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("APP_STORAGE_SUPABASE_SECRET_KEY is required");
+    }
+
+    @Test
+    @DisplayName("SEC-047: erro do Storage no envio registra statusCode, error e message do corpo")
+    void shouldLogStatusCodeErrorAndMessageOfAStorageError(CapturedOutput output) throws IOException {
+        Fixture fixture = fixture();
+        Path file = Files.writeString(dir.resolve("f.pdf"), "x");
+        String key = ProductFileKeys.newKey(UUID.randomUUID());
+        fixture.server
+                .expect(requestTo(URL + "/storage/v1/object/" + BUCKET + "/" + key))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"statusCode\":\"403\",\"error\":\"Unauthorized\",\"message\":\"invalid signature\"}"));
+
+        assertThatThrownBy(() -> fixture.storage.put(key, file, 1))
+                .isInstanceOf(ProductFileStorageException.class)
+                .hasMessage("Storage could not store the file: HTTP 400");
+        assertThat(output.getAll())
+                .contains("Storage could not store the file: HTTP 400 "
+                        + "(statusCode=403, error=Unauthorized, message=invalid signature)");
+    }
+
+    @Test
+    @DisplayName("SEC-047: o log do erro do Storage nunca mostra a chave, a URL do projeto nem o caminho do objeto")
+    void shouldNeverLogTheSecretTheUrlOrTheObjectPath(CapturedOutput output) throws IOException {
+        Fixture fixture = fixture();
+        Path file = Files.writeString(dir.resolve("f.pdf"), "x");
+        String key = ProductFileKeys.newKey(UUID.randomUUID());
+        // fake key built at run time, so the whole value never sits in the source (secret scanners)
+        String otherKey = String.join("", "sb_", "secret_", "otherKey", "0123456789");
+        String host = "project.example.test";
+        String body = "{\"statusCode\":\"" + SECRET + "\",\"error\":\"" + otherKey + " at " + host + "\",\"message\":\""
+                + URL + "/storage/v1/object/" + BUCKET + "/" + key + " not found\"}";
+        fixture.server
+                .expect(requestTo(URL + "/storage/v1/object/" + BUCKET + "/" + key))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(body));
+
+        assertThatThrownBy(() -> fixture.storage.put(key, file, 1)).isInstanceOf(ProductFileStorageException.class);
+        assertThat(output.getAll())
+                .contains("Storage could not store the file: HTTP 400 (statusCode=")
+                .contains("not found")
+                .doesNotContain(SECRET)
+                .doesNotContain("sb_secret_")
+                .doesNotContain(host)
+                .doesNotContain(key)
+                .doesNotContain("/storage/v1/object/");
+    }
+
+    @Test
+    @DisplayName("SEC-047: o log do erro do Storage nunca mostra um token JWT do Supabase")
+    void shouldNeverLogALegacyJwtKey(CapturedOutput output) throws IOException {
+        Fixture fixture = fixture();
+        Path file = Files.writeString(dir.resolve("f.pdf"), "x");
+        String key = ProductFileKeys.newKey(UUID.randomUUID());
+        // fake tokens ({"role":"fake"}, {"fake":true}) built at run time, so no whole token sits in the source
+        String jwt = String.join(".", "eyJ" + "hbGciOiJIUzI1NiJ9", "eyJ" + "yb2xlIjoiZmFrZSJ9", "ZmFrZS1zaWduYXR1cmU");
+        String twoParts = String.join(".", "eyJ" + "hbGciOiJub25lIn0", "eyJ" + "mYWtlIjp0cnVlfQ");
+        fixture.server
+                .expect(requestTo(URL + "/storage/v1/object/" + BUCKET + "/" + key))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"statusCode\":\"403\",\"error\":\"" + twoParts + "\",\"message\":\"bad token " + jwt
+                                + "\"}"));
+
+        assertThatThrownBy(() -> fixture.storage.put(key, file, 1)).isInstanceOf(ProductFileStorageException.class);
+        assertThat(output.getAll()).contains("message=bad token <redacted>").doesNotContain("eyJ");
+    }
+
+    @Test
+    void shouldLogOnlyTheStatusWhenTheBodyIsNotJson(CapturedOutput output) throws IOException {
+        Fixture fixture = fixture();
+        Path file = Files.writeString(dir.resolve("f.pdf"), "x");
+        String key = ProductFileKeys.newKey(UUID.randomUUID());
+        fixture.server
+                .expect(requestTo(URL + "/storage/v1/object/" + BUCKET + "/" + key))
+                .andRespond(withStatus(HttpStatus.BAD_GATEWAY)
+                        .contentType(MediaType.TEXT_HTML)
+                        .body("<html>boom</html>"));
+
+        assertThatThrownBy(() -> fixture.storage.put(key, file, 1)).isInstanceOf(ProductFileStorageException.class);
+        assertThat(output.getAll())
+                .contains("Storage could not store the file: HTTP 502")
+                .doesNotContain("statusCode=")
+                .doesNotContain("boom");
+    }
+
+    @Test
+    void shouldCutTheFieldsAt200Characters(CapturedOutput output) throws IOException {
+        Fixture fixture = fixture();
+        Path file = Files.writeString(dir.resolve("f.pdf"), "x");
+        String key = ProductFileKeys.newKey(UUID.randomUUID());
+        fixture.server
+                .expect(requestTo(URL + "/storage/v1/object/" + BUCKET + "/" + key))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"statusCode\":\"400\",\"error\":\"e\",\"message\":\"" + "m".repeat(500) + "\"}"));
+
+        assertThatThrownBy(() -> fixture.storage.put(key, file, 1)).isInstanceOf(ProductFileStorageException.class);
+        assertThat(output.getAll()).contains("message=" + "m".repeat(200) + ")").doesNotContain("m".repeat(201));
+    }
+
+    @Test
+    @DisplayName("SEC-047: o log do erro do Storage nunca mostra um nome de arquivo, em nenhum campo")
+    void shouldNeverLogAFileNameInAnyField(CapturedOutput output) throws IOException {
+        String log = logOfAStorageError(
+                output,
+                "{\"statusCode\":\"x.pdf\",\"error\":\"a.b.docx\",\"message\":\"denied relatorio-cliente.pdf\"}");
+
+        assertThat(log)
+                .contains("(statusCode=<redacted>, error=<redacted>, message=denied <redacted>)")
+                .doesNotContain("x.pdf")
+                .doesNotContain("a.b.docx")
+                .doesNotContain("relatorio-cliente.pdf");
+    }
+
+    @Test
+    @DisplayName("SEC-047: o log do erro do Storage mantém legíveis as mensagens comuns do Supabase")
+    void shouldKeepTheCommonStorageMessagesReadable(CapturedOutput output) throws IOException {
+        String log = logOfAStorageError(
+                output,
+                "{\"statusCode\":\"404\",\"error\":\"Bucket not found\","
+                        + "\"message\":\"mime type application/pdf is not supported\"}");
+
+        assertThat(log)
+                .contains(
+                        "(statusCode=404, error=Bucket not found, message=mime type application/pdf is not supported)");
+    }
+
+    @Test
+    @DisplayName("SEC-047: o log do erro do Storage esconde vários nomes de arquivo na mesma frase")
+    void shouldHideSeveralFileNamesInTheSameSentence(CapturedOutput output) throws IOException {
+        String log = logOfAStorageError(
+                output, "{\"statusCode\":\"400\",\"error\":\"e\",\"message\":\"cannot copy a.pdf to b.txt or c.zip\"}");
+
+        assertThat(log).contains("message=cannot copy <redacted> to <redacted> or <redacted>)");
+    }
+
+    @Test
+    @DisplayName("SEC-047: o log do erro do Storage esconde a extensão em maiúsculas")
+    void shouldHideAnUppercaseExtension(CapturedOutput output) throws IOException {
+        String log = logOfAStorageError(
+                output, "{\"statusCode\":\"400\",\"error\":\"e\",\"message\":\"denied CONTRATO.PDF\"}");
+
+        assertThat(log).contains("message=denied <redacted>)").doesNotContain("CONTRATO");
+    }
+
+    private String logOfAStorageError(CapturedOutput output, String body) throws IOException {
+        Fixture fixture = fixture();
+        Path file = Files.writeString(dir.resolve("f.pdf"), "x");
+        String key = ProductFileKeys.newKey(UUID.randomUUID());
+        fixture.server
+                .expect(requestTo(URL + "/storage/v1/object/" + BUCKET + "/" + key))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(body));
+
+        assertThatThrownBy(() -> fixture.storage.put(key, file, 1)).isInstanceOf(ProductFileStorageException.class);
+        return output.getAll();
+    }
+
+    @Test
+    void shouldNotLogASuccessfulUpload(CapturedOutput output) throws IOException {
+        Fixture fixture = fixture();
+        Path file = Files.writeString(dir.resolve("f.pdf"), "x");
+        String key = ProductFileKeys.newKey(UUID.randomUUID());
+        fixture.server
+                .expect(requestTo(URL + "/storage/v1/object/" + BUCKET + "/" + key))
+                .andRespond(withSuccess("{\"Key\":\"x\"}", MediaType.APPLICATION_JSON));
+
+        fixture.storage.put(key, file, 1);
+
+        assertThat(output.getAll()).doesNotContain("Storage could not");
+    }
+
+    @Test
+    @DisplayName("SEC-047: erro do Storage ao apagar registra os mesmos campos, sem segredo")
+    void shouldLogTheSafeReasonOfADeleteError(CapturedOutput output) {
+        Fixture fixture = fixture();
+        String key = ProductFileKeys.newKey(UUID.randomUUID());
+        fixture.server
+                .expect(requestTo(URL + "/storage/v1/object/" + BUCKET + "/" + key))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"statusCode\":\"403\",\"error\":\"Unauthorized\",\"message\":\"" + SECRET + "\"}"));
+
+        assertThatThrownBy(() -> fixture.storage.delete(key))
+                .isInstanceOf(ProductFileStorageException.class)
+                .hasMessage("Storage could not delete the file: HTTP 400");
+        assertThat(output.getAll())
+                .contains("Storage could not delete the file: HTTP 400 (statusCode=403, error=Unauthorized")
+                .doesNotContain(SECRET);
+    }
+
+    @Test
+    void shouldNotLogAMissingObjectOnDelete(CapturedOutput output) {
+        Fixture fixture = fixture();
+        String key = ProductFileKeys.newKey(UUID.randomUUID());
+        fixture.server
+                .expect(requestTo(URL + "/storage/v1/object/" + BUCKET + "/" + key))
+                .andRespond(withStatus(HttpStatus.NOT_FOUND)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"statusCode\":\"404\",\"error\":\"not_found\",\"message\":\"Object not found\"}"));
+
+        assertThatCode(() -> fixture.storage.delete(key)).doesNotThrowAnyException();
+        assertThat(output.getAll()).doesNotContain("Storage could not");
     }
 
     private Fixture fixture() {
