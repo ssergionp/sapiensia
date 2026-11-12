@@ -261,6 +261,61 @@ class SupabaseProductFileStorageTest {
     }
 
     @Test
+    @DisplayName("SEC-047: o log do erro do Storage nunca mostra um nome de arquivo, em nenhum campo")
+    void shouldNeverLogAFileNameInAnyField(CapturedOutput output) throws IOException {
+        String log = logOfAStorageError(
+                output, "{\"statusCode\":\"x.pdf\",\"error\":\"a.b.docx\",\"message\":\"denied relatorio-cliente.pdf\"}");
+
+        assertThat(log)
+                .contains("(statusCode=<redacted>, error=<redacted>, message=denied <redacted>)")
+                .doesNotContain("x.pdf")
+                .doesNotContain("a.b.docx")
+                .doesNotContain("relatorio-cliente.pdf");
+    }
+
+    @Test
+    @DisplayName("SEC-047: o log do erro do Storage mantém legíveis as mensagens comuns do Supabase")
+    void shouldKeepTheCommonStorageMessagesReadable(CapturedOutput output) throws IOException {
+        String log = logOfAStorageError(output, "{\"statusCode\":\"404\",\"error\":\"Bucket not found\","
+                + "\"message\":\"mime type application/pdf is not supported\"}");
+
+        assertThat(log)
+                .contains("(statusCode=404, error=Bucket not found, message=mime type application/pdf is not supported)");
+    }
+
+    @Test
+    @DisplayName("SEC-047: o log do erro do Storage esconde vários nomes de arquivo na mesma frase")
+    void shouldHideSeveralFileNamesInTheSameSentence(CapturedOutput output) throws IOException {
+        String log = logOfAStorageError(
+                output, "{\"statusCode\":\"400\",\"error\":\"e\",\"message\":\"cannot copy a.pdf to b.txt or c.zip\"}");
+
+        assertThat(log).contains("message=cannot copy <redacted> to <redacted> or <redacted>)");
+    }
+
+    @Test
+    @DisplayName("SEC-047: o log do erro do Storage esconde a extensão em maiúsculas")
+    void shouldHideAnUppercaseExtension(CapturedOutput output) throws IOException {
+        String log =
+                logOfAStorageError(output, "{\"statusCode\":\"400\",\"error\":\"e\",\"message\":\"denied CONTRATO.PDF\"}");
+
+        assertThat(log).contains("message=denied <redacted>)").doesNotContain("CONTRATO");
+    }
+
+    private String logOfAStorageError(CapturedOutput output, String body) throws IOException {
+        Fixture fixture = fixture();
+        Path file = Files.writeString(dir.resolve("f.pdf"), "x");
+        String key = ProductFileKeys.newKey(UUID.randomUUID());
+        fixture.server
+                .expect(requestTo(URL + "/storage/v1/object/" + BUCKET + "/" + key))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(body));
+
+        assertThatThrownBy(() -> fixture.storage.put(key, file, 1)).isInstanceOf(ProductFileStorageException.class);
+        return output.getAll();
+    }
+
+    @Test
     void shouldNotLogASuccessfulUpload(CapturedOutput output) throws IOException {
         Fixture fixture = fixture();
         Path file = Files.writeString(dir.resolve("f.pdf"), "x");

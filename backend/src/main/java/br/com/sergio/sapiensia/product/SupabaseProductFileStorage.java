@@ -32,6 +32,8 @@ class SupabaseProductFileStorage implements ProductFileStorage {
     // the new keys and the legacy JWT keys (anon, service_role)
     private static final Pattern SECRET_PATTERN =
             Pattern.compile("sb_(secret|publishable)_[A-Za-z0-9_-]*|eyJ[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+){1,2}");
+    // anything that looks like a file name (no space, a dot, then 1 to 6 letters or digits): on doubt, hide it
+    private static final Pattern FILE_NAME_PATTERN = Pattern.compile("\\S*\\.[A-Za-z0-9]{1,6}\\S*");
     private static final String REDACTED = "<redacted>";
     private static final int MAX_FIELD = 200;
 
@@ -154,6 +156,7 @@ class SupabaseProductFileStorage implements ProductFileStorage {
             }
         }
         text = SECRET_PATTERN.matcher(text).replaceAll(REDACTED).replaceAll("\\p{Cntrl}", " ");
+        text = FILE_NAME_PATTERN.matcher(text).replaceAll(REDACTED);
         return text.length() > MAX_FIELD ? text.substring(0, MAX_FIELD) : text;
     }
 }
