@@ -81,6 +81,20 @@ O mesmo do `docs/runbooks/homologacao-fly.md`.
 
    Mostra os últimos eventos gravados.
 
+   A tabela `payment_events` é o registro financeiro e não aceita UPDATE, DELETE nem TRUNCATE (SEC-028, migration V17): o banco recusa com `payment_events is append-only`. Não tente corrigir uma linha à mão; correção de dados só por migration que desligue o gatilho de forma explícita (ADR-0003).
+
+   Depois de cada deploy que traga a V17, confira (só leitura, no mesmo SQL Editor) que ninguém mais acessa a tabela:
+
+   ```sql
+   select c.relrowsecurity as rls,
+          has_table_privilege('anon', 'payment_events', 'select') as anon_le,
+          has_table_privilege('authenticated', 'payment_events', 'select') as authenticated_le,
+          has_table_privilege('service_role', 'payment_events', 'select') as service_role_le
+   from pg_class c where c.relname = 'payment_events';
+   ```
+
+   Esperado: `rls = true` e as três colunas seguintes `false`. Se alguma vier `true`, pare e avise: sobrou acesso e é correção do ticket #27.
+
    **[AGENTE]** Depois, confira o log:
 
    ```powershell
