@@ -28,3 +28,8 @@ ec7b05dec5cffac1173d3863c24b951304cdf00c:backend/src/test/java/br/com/sergio/sap
 # The public RFC 6238 test secret in the e2e TOTP helper test, flagged in the #15 squash commit on main (not a secret).
 # The final line carries "// gitleaks:allow".
 9f1c87ebee81de965e72ba50bfe1dd80affe283e:frontend/e2e/totp.test.ts:generic-api-key:5
+# Fake Supabase keys in the Storage error log tests of #7 (not secrets): "sb_secret_otherKey0123456789" and a JWT that
+# decodes to {"alg":"HS256"}.{"role":"fake"}.fake-signature. The final lines build them at run time; these two are the
+# earlier commits that wrote them whole.
+5e12cf5f62ef4175ca43e6f30be8b44e6b9bb3fe:backend/src/test/java/br/com/sergio/sapiensia/product/SupabaseProductFileStorageTest.java:jwt:217
+d7b608126d1f06125dc5a8c2aba9c1a8264b12f9:backend/src/test/java/br/com/sergio/sapiensia/product/SupabaseProductFileStorageTest.java:generic-api-key:190
