@@ -81,4 +81,13 @@ class CatalogSummaryTest {
         assertThat(before.length()).isLessThanOrEqualTo(200);
         assertThat(before).isEqualTo(("palavra ".repeat(25)).strip());
     }
+
+    @Test
+    @DisplayName("FR-016: a non-breaking space or a Unicode line separator counts as a space")
+    void shouldTreatUnicodeWhitespaceAsASpace() {
+        assertThat(CatalogSummary.of(" Linha um dois ")).isEqualTo("Linha um dois");
+
+        String description = "a".repeat(150) + " " + "b".repeat(100);
+        assertThat(CatalogSummary.of(description)).isEqualTo("a".repeat(150) + ELLIPSIS);
+    }
 }

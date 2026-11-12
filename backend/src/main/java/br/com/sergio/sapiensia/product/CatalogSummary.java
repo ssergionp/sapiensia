@@ -19,7 +19,9 @@ final class CatalogSummary {
      * grapheme boundary: there is no other way to fit.
      */
     static String of(String description) {
-        String text = description.strip().replaceAll("\\s+", " ");
+        // (?U): Unicode whitespace, so a non-breaking space or a line separator pasted from a word processor also
+        // becomes one space and a cut point
+        String text = description.replaceAll("(?U)\\s+", " ").strip();
         if (text.length() <= MAX) {
             return text;
         }
