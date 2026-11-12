@@ -60,6 +60,14 @@ public class SecurityConfig {
             + "connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; "
             + "frame-ancestors 'none'";
 
+    /**
+     * The public Catalog (#20, ADR-0007): GET only, one segment after /products, so /products/{id}/file and every
+     * other verb stay denied. The same matcher opens the routes and keeps the XSRF-TOKEN cookie off them.
+     */
+    private static final OrRequestMatcher PUBLIC_CATALOG = new OrRequestMatcher(
+            PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/api/products"),
+            PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/api/products/*"));
+
     /** One repository for the filter chain and for the login, which renews the token by hand. */
     @Bean
     CsrfTokenRepository csrfTokenRepository() {
@@ -72,10 +80,6 @@ public class SecurityConfig {
      * routes only (A4); everything else, including the login that renews the token by hand, behaves as before.
      */
     static final class NoCookieOnPublicCatalog implements CsrfTokenRepository {
-
-        private static final OrRequestMatcher PUBLIC_CATALOG = new OrRequestMatcher(
-                PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/api/products"),
-                PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/api/products/*"));
 
         private final CsrfTokenRepository delegate;
 
@@ -243,9 +247,7 @@ public class SecurityConfig {
                         .access(panel(Capability.PRODUCTS_PUBLISH))
                         .requestMatchers(HttpMethod.DELETE, "/api/admin/products/*/publication")
                         .access(panel(Capability.PRODUCTS_PUBLISH))
-                        // the public Catalog (#20, ADR-0007): GET only, one segment after /products, so
-                        // /products/{id}/file and every other verb stay denied
-                        .requestMatchers(HttpMethod.GET, "/api/products", "/api/products/*")
+                        .requestMatchers(PUBLIC_CATALOG)
                         .permitAll()
                         .requestMatchers("/api/**")
                         .denyAll()
