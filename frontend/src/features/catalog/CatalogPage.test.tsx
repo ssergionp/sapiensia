@@ -149,7 +149,7 @@ describe("CatalogPage", () => {
     expect(urlsOf(fetchSpy)).toEqual(["/api/products?page=999999998"]);
   });
 
-  test("cada item tem os rótulos Categoria: e Preço: só para leitor de tela", async () => {
+  test("FR-033 NFR-005 cada item tem os rótulos Categoria: e Preço: só para leitor de tela", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       jsonResponse(200, pageBody([item()])),
     );
@@ -186,7 +186,7 @@ describe("CatalogPage", () => {
     expect(container.querySelector("script, img")).toBeNull();
   });
 
-  test("Próxima e Anterior trocam a página na URL e levam o foco ao título", async () => {
+  test("FR-033 NFR-005 Próxima e Anterior trocam a página na URL e levam o foco ao título", async () => {
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       .mockImplementation(async (input) =>
