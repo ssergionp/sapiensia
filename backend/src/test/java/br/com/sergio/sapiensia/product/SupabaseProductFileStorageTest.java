@@ -264,7 +264,8 @@ class SupabaseProductFileStorageTest {
     @DisplayName("SEC-047: o log do erro do Storage nunca mostra um nome de arquivo, em nenhum campo")
     void shouldNeverLogAFileNameInAnyField(CapturedOutput output) throws IOException {
         String log = logOfAStorageError(
-                output, "{\"statusCode\":\"x.pdf\",\"error\":\"a.b.docx\",\"message\":\"denied relatorio-cliente.pdf\"}");
+                output,
+                "{\"statusCode\":\"x.pdf\",\"error\":\"a.b.docx\",\"message\":\"denied relatorio-cliente.pdf\"}");
 
         assertThat(log)
                 .contains("(statusCode=<redacted>, error=<redacted>, message=denied <redacted>)")
@@ -276,11 +277,14 @@ class SupabaseProductFileStorageTest {
     @Test
     @DisplayName("SEC-047: o log do erro do Storage mantém legíveis as mensagens comuns do Supabase")
     void shouldKeepTheCommonStorageMessagesReadable(CapturedOutput output) throws IOException {
-        String log = logOfAStorageError(output, "{\"statusCode\":\"404\",\"error\":\"Bucket not found\","
-                + "\"message\":\"mime type application/pdf is not supported\"}");
+        String log = logOfAStorageError(
+                output,
+                "{\"statusCode\":\"404\",\"error\":\"Bucket not found\","
+                        + "\"message\":\"mime type application/pdf is not supported\"}");
 
         assertThat(log)
-                .contains("(statusCode=404, error=Bucket not found, message=mime type application/pdf is not supported)");
+                .contains(
+                        "(statusCode=404, error=Bucket not found, message=mime type application/pdf is not supported)");
     }
 
     @Test
@@ -295,8 +299,8 @@ class SupabaseProductFileStorageTest {
     @Test
     @DisplayName("SEC-047: o log do erro do Storage esconde a extensão em maiúsculas")
     void shouldHideAnUppercaseExtension(CapturedOutput output) throws IOException {
-        String log =
-                logOfAStorageError(output, "{\"statusCode\":\"400\",\"error\":\"e\",\"message\":\"denied CONTRATO.PDF\"}");
+        String log = logOfAStorageError(
+                output, "{\"statusCode\":\"400\",\"error\":\"e\",\"message\":\"denied CONTRATO.PDF\"}");
 
         assertThat(log).contains("message=denied <redacted>)").doesNotContain("CONTRATO");
     }
