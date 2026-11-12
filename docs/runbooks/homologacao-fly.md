@@ -112,7 +112,7 @@ Só depois da autorização do deploy.
   - `sslmode=require` cifra mas não confere o certificado. `verify-full` (certificado raiz do Supabase dentro da imagem) fica para o #47.
 - **Formato do `DB_URL`, sem usuário e sem senha:** `jdbc:postgresql://aws-<n>-sa-east-1.pooler.supabase.com:5432/postgres?sslmode=require`. Copie host e `<n>` da tela Connect do Supabase.
 - A string JDBC que o Supabase mostra traz um parâmetro de senha: **não** use essa. A senha vai só em `DB_PASSWORD`; o usuário vai só em `DB_USER`.
-- **Migrations** rodam sozinhas na primeira subida (Flyway), antes de a aplicação aceitar tráfego. O schema `public` do projeto novo precisa estar sem tabelas (a função `rls_auto_enable` do Supabase pode ficar: o perfil `prod` faz o baseline na versão 0, #84). O log da primeira subida mostra `Successfully applied N migrations`; nas seguintes, `Successfully validated 17 migrations` (16 migrations mais a linha de baseline).
+- **Migrations** rodam sozinhas na primeira subida (Flyway), antes de a aplicação aceitar tráfego. O schema `public` do projeto novo precisa estar sem tabelas (a função `rls_auto_enable` do Supabase pode ficar: o perfil `prod` faz o baseline na versão 0, #84). O log da primeira subida mostra `Successfully applied N migrations`; nas seguintes, `Successfully validated 18 migrations` (17 migrations mais a linha de baseline).
 - **Bucket dos Arquivos do produto (#18):** o bucket privado `product-files` do Storage do mesmo projeto Supabase é criado à mão, antes do deploy. O passo a passo está em `docs/runbooks/bucket-arquivos-produto.md`; siga o que está lá (aqui não se repete).
 
 ## 4. Segredos (só o responsável)
