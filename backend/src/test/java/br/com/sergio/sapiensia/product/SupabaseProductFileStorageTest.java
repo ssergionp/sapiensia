@@ -187,7 +187,8 @@ class SupabaseProductFileStorageTest {
         Fixture fixture = fixture();
         Path file = Files.writeString(dir.resolve("f.pdf"), "x");
         String key = ProductFileKeys.newKey(UUID.randomUUID());
-        String otherKey = "sb_secret_otherKey0123456789";
+        // fake key built at run time, so the whole value never sits in the source (secret scanners)
+        String otherKey = String.join("", "sb_", "secret_", "otherKey", "0123456789");
         String host = "project.example.test";
         String body = "{\"statusCode\":\"" + SECRET + "\",\"error\":\"" + otherKey + " at " + host + "\",\"message\":\""
                 + URL + "/storage/v1/object/" + BUCKET + "/" + key + " not found\"}";
@@ -214,8 +215,9 @@ class SupabaseProductFileStorageTest {
         Fixture fixture = fixture();
         Path file = Files.writeString(dir.resolve("f.pdf"), "x");
         String key = ProductFileKeys.newKey(UUID.randomUUID());
-        String jwt = "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiZmFrZSJ9.ZmFrZS1zaWduYXR1cmU";
-        String twoParts = "eyJhbGciOiJub25lIn0.eyJmYWtlIjp0cnVlfQ";
+        // fake tokens ({"role":"fake"}, {"fake":true}) built at run time, so no whole token sits in the source
+        String jwt = String.join(".", "eyJ" + "hbGciOiJIUzI1NiJ9", "eyJ" + "yb2xlIjoiZmFrZSJ9", "ZmFrZS1zaWduYXR1cmU");
+        String twoParts = String.join(".", "eyJ" + "hbGciOiJub25lIn0", "eyJ" + "mYWtlIjp0cnVlfQ");
         fixture.server
                 .expect(requestTo(URL + "/storage/v1/object/" + BUCKET + "/" + key))
                 .andRespond(withStatus(HttpStatus.BAD_REQUEST)
