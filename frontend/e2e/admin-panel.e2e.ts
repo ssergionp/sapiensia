@@ -621,9 +621,10 @@ test("FR-011 FR-016 FR-018 SEC-008 SEC-010 FR-010: o Administrador publica, desp
   await expect(
     page.getByRole("heading", { name: "Publicação", exact: true }),
   ).toBeVisible();
-  const productId = /\/painel\/produtos\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/.exec(
-    page.url(),
-  )?.[1];
+  const productId =
+    /\/painel\/produtos\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/.exec(
+      page.url(),
+    )?.[1];
   if (productId === undefined) {
     throw new Error("Could not read the Product id from the edit page URL.");
   }
