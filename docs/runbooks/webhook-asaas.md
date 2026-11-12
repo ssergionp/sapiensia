@@ -83,17 +83,20 @@ O mesmo do `docs/runbooks/homologacao-fly.md`.
 
    A tabela `payment_events` é o registro financeiro e não aceita UPDATE, DELETE nem TRUNCATE (SEC-028, migration V17): o banco recusa com `payment_events is append-only`. Não tente corrigir uma linha à mão; correção de dados só por migration que desligue o gatilho de forma explícita (ADR-0003).
 
-   Depois de cada deploy que traga a V17, confira (só leitura, no mesmo SQL Editor) que ninguém mais acessa a tabela. Essa consulta roda só no banco do Supabase: no banco local e no CI os papéis `anon`, `authenticated` e `service_role` não existem e a consulta dá erro.
+   Depois de cada deploy que traga a V17, confira (só leitura, no mesmo SQL Editor) que a proteção está ligada e que nenhum outro papel acessa a tabela. A consulta funciona em qualquer banco (Supabase, local ou CI); o dono da tabela (o usuário da aplicação), os superusuários e os papéis pré-definidos `pg_*` (um membro deles aparece pelo próprio nome) não entram na lista, porque passam por cima de privilégios e de RLS de qualquer jeito (ADR-0003, limite).
 
    ```sql
    select c.relrowsecurity as rls,
-          has_table_privilege('anon', 'payment_events', 'select,insert,update,delete,truncate') as anon_acessa,
-          has_table_privilege('authenticated', 'payment_events', 'select,insert,update,delete,truncate') as authenticated_acessa,
-          has_table_privilege('service_role', 'payment_events', 'select,insert,update,delete,truncate') as service_role_acessa
+          (select count(*) from pg_trigger t
+            where t.tgrelid = c.oid and t.tgenabled = 'O'
+              and t.tgname in ('payment_events_guard_row', 'payment_events_guard_truncate')) as gatilhos_ligados,
+          (select string_agg(r.rolname, ', ' order by r.rolname) from pg_roles r
+            where r.oid <> c.relowner and not r.rolsuper and r.rolname not like 'pg\_%'
+              and has_table_privilege(r.oid, c.oid, 'select,insert,update,delete,truncate')) as outros_papeis_com_acesso
    from pg_class c where c.oid = 'public.payment_events'::regclass;
    ```
 
-   Esperado: `rls = true` e `anon_acessa`, `authenticated_acessa` e `service_role_acessa` todas `false`. Se alguma vier `true`, pare e avise: sobrou acesso e é correção do ticket #27.
+   Esperado: `rls = true`, `gatilhos_ligados = 2` e `outros_papeis_com_acesso` vazio (`NULL`). Qualquer outro resultado: pare e avise; sobrou acesso ou o gatilho foi desligado, e é correção do ticket #27.
 
    **[AGENTE]** Depois, confira o log:
 
