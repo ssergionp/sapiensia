@@ -1,5 +1,5 @@
 // Conferência mecânica da entrega de um ticket. Compara a branch atual com a main e imprime um relatório:
-//   1. resultado e data do último just check-resumo
+//   1. resultado e data do último check (rápido ou completo; vale o mais recente)
 //   2. arquivos alterados que o plano do ticket não cita
 //   3. sinais de teste afrouxado: teste apagado ou desligado, verificações removidas
 // Não muda nada. Quem decide o que fazer com cada achado é o Claude, com a skill verificar-entrega.
@@ -33,19 +33,27 @@ const alterados = [...new Set([...linhas(git(['diff', '--name-only', base], raiz
 const apagados = new Set(linhas(git(['diff', '--name-only', '--diff-filter=D', base], raiz)));
 
 // 1. check
-const arquivoCheck = join(raiz, '.tmp', 'check-resultado.json');
 let ultimaEdicao = 0;
 for (const f of alterados) {
   const c = join(raiz, f);
   if (/^(backend|frontend)\//.test(f) && existsSync(c)) ultimaEdicao = Math.max(ultimaEdicao, statSync(c).mtimeMs);
 }
-console.log('\n## 1. just check-resumo');
-if (!existsSync(arquivoCheck)) {
-  console.log('- REPROVADO: não rodou nesta branch.');
+console.log('\n## 1. just check-rapido (ou check completo)');
+const resultados = [
+  ['check completo', 'check-resultado.json'],
+  ['check rápido', 'check-rapido-resultado.json'],
+]
+  .filter(([, nome]) => existsSync(join(raiz, '.tmp', nome)))
+  .map(([tipo, nome]) => ({ ...JSON.parse(readFileSync(join(raiz, '.tmp', nome), 'utf8')), tipo }));
+if (!resultados.length) {
+  console.log('- REPROVADO: nenhum check rodou nesta branch.');
 } else {
-  const r = JSON.parse(readFileSync(arquivoCheck, 'utf8'));
+  const quando = (r) => new Date(r.quando).toLocaleString('pt-BR');
+  for (const r of resultados) console.log(`- ${r.tipo}: ${r.ok ? 'passou' : 'falhou'} em ${quando(r)}`);
+  // vale o mais recente
+  const r = resultados.reduce((a, b) => (b.quando > a.quando ? b : a));
   const velho = r.quando < ultimaEdicao;
-  console.log(`- ${r.ok && !velho ? 'OK' : 'REPROVADO'}: ${r.ok ? 'passou' : 'falhou'} em ${new Date(r.quando).toLocaleString('pt-BR')}${velho ? ', mas houve edição de código depois' : ''}.`);
+  console.log(`- ${r.ok && !velho ? 'OK' : 'REPROVADO'}: ${r.tipo} ${r.ok ? 'passou' : 'falhou'} em ${quando(r)}${velho ? ', mas houve edição de código depois' : ''}.`);
 }
 
 // 2. arquivos fora do plano
