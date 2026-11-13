@@ -117,7 +117,7 @@ Só depois da autorização do deploy.
 
 ## 4. Segredos (só o responsável)
 
-Faça antes o "Passo zero". O padrão para cada segredo: copie o valor do Bitwarden (ele vai para a área de transferência) e rode o comando, que lê a área de transferência sem o valor aparecer na tela nem no histórico do PowerShell. `--stage` grava sem reiniciar nada.
+Faça antes o "Passo zero". O padrão para cada segredo: copie o valor do Bitwarden (ele vai para a área de transferência) e rode o comando, que lê a área de transferência sem o valor aparecer na tela nem no histórico do PowerShell. `--stage` grava sem reiniciar nada. Se der `False` ou outro tamanho, a área de transferência tem outra coisa: copie de novo antes de gravar.
 
 7. **[RESPONSÁVEL]** Gere a chave do MFA e copie-a, sem mostrá-la.
 
@@ -130,12 +130,24 @@ Faça antes o "Passo zero". O padrão para cada segredo: copie o valor do Bitwar
 8. **[RESPONSÁVEL]** Grave a chave do MFA como segredo.
 
    ```powershell
+   (Get-Clipboard).Length
+   ```
+
+   Mostra só o tamanho do que está na área de transferência; o esperado é `44`.
+
+   ```powershell
    fly secrets set APP_MFA_ENCRYPTION_KEY="$(Get-Clipboard)" --stage -a sapiensia-homolog
    ```
 
    Grava o que está na área de transferência como segredo do app.
 
 9. **[RESPONSÁVEL]** Copie `DB_PASSWORD` do Bitwarden e grave.
+
+   ```powershell
+   (Get-Clipboard).Length
+   ```
+
+   Mostra só o tamanho do que está na área de transferência; o esperado é o tamanho que está no Bitwarden, nunca 0.
 
    ```powershell
    fly secrets set DB_PASSWORD="$(Get-Clipboard)" --stage -a sapiensia-homolog
@@ -146,12 +158,24 @@ Faça antes o "Passo zero". O padrão para cada segredo: copie o valor do Bitwar
 10. **[RESPONSÁVEL]** Copie `DB_URL` do Bitwarden e grave.
 
     ```powershell
+    (Get-Clipboard).StartsWith("jdbc:postgresql://")
+    ```
+
+    Mostra `True` se a área de transferência começa com `jdbc:postgresql://`, sem exibir o valor.
+
+    ```powershell
     fly secrets set DB_URL="$(Get-Clipboard)" --stage -a sapiensia-homolog
     ```
 
     Grava a URL do banco (sem usuário e senha) como segredo do app.
 
 11. **[RESPONSÁVEL]** Copie `DB_USER` do Bitwarden e grave.
+
+    ```powershell
+    (Get-Clipboard).StartsWith("postgres.")
+    ```
+
+    Mostra `True` se a área de transferência começa com `postgres.`, sem exibir o valor.
 
     ```powershell
     fly secrets set DB_USER="$(Get-Clipboard)" --stage -a sapiensia-homolog
@@ -162,12 +186,24 @@ Faça antes o "Passo zero". O padrão para cada segredo: copie o valor do Bitwar
 12. **[RESPONSÁVEL]** Copie `RESEND_API_KEY` do Bitwarden e grave.
 
     ```powershell
+    (Get-Clipboard).StartsWith("re_")
+    ```
+
+    Mostra `True` se a área de transferência começa com `re_`, sem exibir o valor.
+
+    ```powershell
     fly secrets set RESEND_API_KEY="$(Get-Clipboard)" --stage -a sapiensia-homolog
     ```
 
     Grava a chave de envio do Resend como segredo do app.
 
 13. **[RESPONSÁVEL]** Copie a caixa de e-mail do Administrador de onde você a guarda e grave `APP_ADMIN_EMAIL`.
+
+    ```powershell
+    (Get-Clipboard).Contains("@")
+    ```
+
+    Mostra `True` se a área de transferência contém `@`, sem exibir o valor.
 
     ```powershell
     fly secrets set APP_ADMIN_EMAIL="$(Get-Clipboard)" --stage -a sapiensia-homolog
@@ -178,12 +214,24 @@ Faça antes o "Passo zero". O padrão para cada segredo: copie o valor do Bitwar
 13a. **[RESPONSÁVEL]** Copie `APP_STORAGE_SUPABASE_URL` (endereço do projeto, `https://<projeto>.supabase.co`) e grave.
 
     ```powershell
+    (Get-Clipboard).StartsWith("https://")
+    ```
+
+    Mostra `True` se a área de transferência começa com `https://`, sem exibir o valor.
+
+    ```powershell
     fly secrets set APP_STORAGE_SUPABASE_URL="$(Get-Clipboard)" --stage -a sapiensia-homolog
     ```
 
     Grava o endereço do projeto Supabase como segredo do app.
 
 13b. **[RESPONSÁVEL]** Copie `APP_STORAGE_SUPABASE_SECRET_KEY` do Bitwarden (a *secret key* `sb_secret_...`, não a publicável) e grave.
+
+    ```powershell
+    (Get-Clipboard).StartsWith("sb_secret_")
+    ```
+
+    Mostra `True` se a área de transferência começa com `sb_secret_`, sem exibir o valor.
 
     ```powershell
     fly secrets set APP_STORAGE_SUPABASE_SECRET_KEY="$(Get-Clipboard)" --stage -a sapiensia-homolog
