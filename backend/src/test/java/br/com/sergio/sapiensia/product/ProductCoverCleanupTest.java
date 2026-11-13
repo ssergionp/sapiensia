@@ -122,6 +122,7 @@ class ProductCoverCleanupTest {
         assertThat(storage.keys()).contains(key);
         assertThat(jdbc.queryForObject("select count(*) from product_covers", Long.class))
                 .isEqualTo(1);
+        assertThat(pendingCount()).as("the stale pending row is dropped").isZero();
     }
 
     @Test

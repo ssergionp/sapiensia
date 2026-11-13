@@ -207,9 +207,20 @@ class ProductCoverService {
     }
 
     private static Path writeTemp(byte[] bytes) {
+        Path file;
         try {
-            return Files.write(Files.createTempFile("cover-", ".bin"), bytes);
+            file = Files.createTempFile("cover-", ".bin");
         } catch (IOException e) {
+            throw new ProductFileStorageException("the temporary file cannot be written");
+        }
+        try {
+            return Files.write(file, bytes);
+        } catch (IOException | RuntimeException e) {
+            // the caller's finally starts only after this method returns, so the half-written file goes here
+            deleteQuietly(file);
+            if (e instanceof RuntimeException runtime) {
+                throw runtime;
+            }
             throw new ProductFileStorageException("the temporary file cannot be written");
         }
     }

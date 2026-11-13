@@ -70,6 +70,10 @@ class ProductCoverCleanup {
                     pending.remove(key);
                 } catch (RuntimeException e) {
                     failed++;
+                    // never the key or the message: only the class of the failure
+                    log.warn(
+                            "Orphan cover object could not be deleted: {}",
+                            e.getClass().getName());
                 }
             }
             return new Result(deleted, failed);
