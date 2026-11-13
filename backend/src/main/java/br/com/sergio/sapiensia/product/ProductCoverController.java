@@ -142,13 +142,8 @@ class ProductCoverController {
         return rejected(new ProductCoverRejectedException(ProductCoverRejection.COVER_REQUIRED));
     }
 
-    /** Busy validator, Storage or database down: 503 without a body; only the class is logged. */
-    @ExceptionHandler({
-        ValidatorBusyException.class,
-        ProductFileStorageException.class,
-        DataAccessException.class,
-        TransactionException.class
-    })
+    /** Storage or database down: 503 without a body; only the class is logged. */
+    @ExceptionHandler({ProductFileStorageException.class, DataAccessException.class, TransactionException.class})
     ResponseEntity<Void> unavailable(Exception e) {
         log.error("Product cover unavailable ({})", e.getClass().getName());
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();

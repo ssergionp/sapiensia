@@ -71,7 +71,8 @@ export default function ProductCoverSection({ product }: { product: Product }) {
         kind: "alert",
         text: COVER_MESSAGES.COVER_TOO_LARGE,
       });
-    if (!COVER_MEDIA_TYPES.includes(chosen.type))
+    // An empty type (the browser could not tell) skips this check: the server decides.
+    if (chosen.type !== "" && !COVER_MEDIA_TYPES.includes(chosen.type))
       return setResult({
         kind: "alert",
         text: COVER_MESSAGES.COVER_NOT_IMAGE,
@@ -113,7 +114,11 @@ export default function ProductCoverSection({ product }: { product: Product }) {
         ) : null}
         <p>
           {cover
-            ? `Capa atual: ${dimensions.format(cover.width)} × ${dimensions.format(cover.height)} pixels, ${formatFileSize(cover.sizeBytes)}, enviada em ${formatUploadedAt(cover.uploadedAt)}.`
+            ? T.current(
+                `${dimensions.format(cover.width)} × ${dimensions.format(cover.height)} pixels`,
+                formatFileSize(cover.sizeBytes),
+                formatUploadedAt(cover.uploadedAt),
+              )
             : T.none}
         </p>
         <form onSubmit={send} noValidate className="grid gap-4">

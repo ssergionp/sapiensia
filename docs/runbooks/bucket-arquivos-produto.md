@@ -48,7 +48,7 @@ As imagens de capa dos Produtos (#21) ficam em um segundo bucket **privado**, `p
 2. Clique em **New bucket**.
 3. Em **Name of bucket**, digite exatamente `product-covers`.
 4. Deixe **Public bucket** **desligado**.
-5. Ligue **Restrict file upload size for bucket** e informe **2 MB**.
+5. Ligue **Restrict file upload size for bucket** e informe **2 MB**. Se o "2 MB" do painel do Supabase significar 2.000.000 de bytes, informe um limite um pouco maior (por exemplo, 3 MB), para que o limite da própria aplicação seja o que recusa.
 6. Ligue **Restrict MIME types** e informe `image/png, image/jpeg, image/webp`.
 7. Clique em **Save** (ou **Create**).
 8. Nenhum segredo novo: a mesma secret key do `product-files` serve.
@@ -61,4 +61,4 @@ Se o bucket não for criado, a aplicação sobe normalmente (não há checagem n
 2. No painel do Supabase, o objeto aparece em `product-covers/covers/<id do Produto>/<UUID>.<png|jpg|webp>`.
 3. Abrir a URL pública desse objeto **falha** (bucket privado).
 4. Troque a capa: o objeto antigo some do bucket.
-5. Envie uma imagem de exatamente 2 MB (aceita) e uma um pouco maior (recusada), para conferir o limite do Supabase de verdade.
+5. Envie uma imagem de 2.097.152 bytes (2 MiB, aceita) e uma de 2.097.153 bytes (recusada), para conferir o limite do Supabase de verdade.

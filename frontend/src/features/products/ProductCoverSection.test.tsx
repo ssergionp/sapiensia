@@ -166,6 +166,14 @@ describe("ProductCoverSection", () => {
     expect(coverCalls(spy)).toHaveLength(0);
   });
 
+  test("arquivo com tipo vazio vai para a API (o servidor decide)", async () => {
+    const spy = apiWith(() => jsonResponse(200, product({ cover: COVER })));
+    await open();
+    await choose(setup(), image(10, "capa", ""));
+    await waitFor(() => expect(coverCalls(spy)).toHaveLength(1));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   test.each([
     [403, "Você não tem permissão para alterar a capa do Produto."],
     [

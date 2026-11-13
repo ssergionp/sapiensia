@@ -4,10 +4,16 @@ import java.nio.file.Path;
 import java.util.Optional;
 import org.springframework.http.MediaType;
 
-/** Where the product objects (PDFs and cover images) live: private Supabase buckets in production, a directory elsewhere. */
+/**
+ * Where the product objects (PDFs and cover images) live: private Supabase buckets in production, a directory
+ * elsewhere.
+ */
 interface ProductFileStorage {
 
-    /** Stores the file under the key with the given media type; never overwrites. Throws ProductFileStorageException on any failure. */
+    /**
+     * Stores the file under the key with the given media type; never overwrites. Throws ProductFileStorageException on
+     * any failure.
+     */
     void put(String key, Path file, long sizeBytes, MediaType type);
 
     /**

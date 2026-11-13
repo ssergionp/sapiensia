@@ -198,8 +198,9 @@ public class CoverImageValidator {
     }
 
     /**
-     * From the first SOS to the first EOI: entropy-coded bytes (including FF00 stuffing and RSTn) are copied as they are
-     * and only scanned to find the next real marker (FF followed by something other than 00, RSTn or FF). Segments
+     * From the first SOS to the first EOI: entropy-coded bytes (including FF00 stuffing and RSTn) are copied as
+     * they are and only scanned to find the next real marker (FF followed by something other than 00, RSTn or FF).
+     * Segments
      * between scans are stepped over by their declared length, never by searching inside them, and filtered like the
      * ones before the scan. Everything after the first EOI is dropped.
      */

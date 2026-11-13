@@ -103,7 +103,6 @@ class ProductCoverControllerTest {
                 new ProductNotFoundException(),
                 new ProductFileStorageException("storage is down"),
                 new QueryTimeoutException("db is down"),
-                new ValidatorBusyException(),
                 new IllegalStateException("boom"));
 
         for (RuntimeException failure : failures) {
@@ -204,10 +203,9 @@ class ProductCoverControllerTest {
     }
 
     @Test
-    @DisplayName("SEC-047: busy validator, Storage and database outages are 503 without body; the log has only classes")
+    @DisplayName("SEC-047: Storage and database outages are 503 without body; the log has only classes")
     void shouldMapUnavailabilityTo503AndLogOnlyClasses(CapturedOutput output) {
         for (Exception e : List.of(
-                new ValidatorBusyException(),
                 new ProductFileStorageException("storage is down https://project.example.test"),
                 new QueryTimeoutException("select * from product where title = 'Guia secreto'"))) {
             var answer = controller.unavailable(e);

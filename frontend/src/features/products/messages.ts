@@ -151,6 +151,8 @@ export const COVER_TEXTS = {
   removing: "Removendo capa…",
   cancel: "Cancelar",
   removed: "Capa removida.",
+  current: (dimensions: string, size: string, uploadedAt: string) =>
+    `Capa atual: ${dimensions}, ${size}, enviada em ${uploadedAt}.`,
 } as const;
 
 export const COVER_MESSAGES: Record<ProductCoverRejectionCode, string> = {
