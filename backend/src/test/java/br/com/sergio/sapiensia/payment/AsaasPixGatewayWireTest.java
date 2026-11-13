@@ -10,6 +10,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -307,6 +308,39 @@ class AsaasPixGatewayWireTest {
     }
 
     @Test
+    @DisplayName("SEC-018: shouldGiveUpOnABodyThatStallsAfterTheHeaders")
+    void shouldGiveUpOnABodyThatStallsAfterTheHeaders() {
+        // the headers and the start of a body arrive, then the server goes quiet
+        server.removeContext("/");
+        server.createContext("/", exchange -> {
+            exchange.getRequestBody().readAllBytes();
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, 100);
+            exchange.getResponseBody().write("{\"id\":".getBytes(StandardCharsets.UTF_8));
+            exchange.getResponseBody().flush();
+            try {
+                Thread.sleep(5000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            exchange.close();
+        });
+        AsaasPixGateway gateway = gateway(Duration.ofMillis(500));
+
+        List<Runnable> calls = List.of(
+                () -> gateway.findCustomerCode(UUID.randomUUID()),
+                () -> gateway.createCustomer(UUID.randomUUID(), "a@b.c", CPF),
+                () -> gateway.createCharge("cus_1", UUID.randomUUID(), 100, LocalDate.now(), "d"),
+                () -> gateway.readCopyPaste("pay_1"),
+                () -> gateway.cancelCharge("pay_1"));
+        for (Runnable call : calls) {
+            long start = System.nanoTime();
+            assertKind(call, PixGatewayException.Kind.UNAVAILABLE);
+            assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(Duration.ofSeconds(2));
+        }
+    }
+
+    @Test
     @DisplayName("SEC-018: shouldGiveUpOnAConnectionThatDoesNotOpenWithinTheConnectTimeout")
     void shouldGiveUpOnAConnectionThatDoesNotOpenWithinTheConnectTimeout() throws IOException {
         // a listener that never accepts, with its backlog filled: new connections hang instead of being refused
@@ -319,8 +353,11 @@ class AsaasPixGatewayWireTest {
                     fillers.add(filler);
                     try {
                         filler.connect(full.getLocalSocketAddress(), 300);
-                    } catch (IOException e) {
+                    } catch (SocketTimeoutException e) {
                         hangs = true;
+                    } catch (IOException e) {
+                        // refused or reset: this operating system does not leave a full backlog hanging
+                        break;
                     }
                 }
                 assumeTrue(hangs, "this operating system does not leave a full backlog hanging");
