@@ -2,7 +2,10 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Subagentes em Sonnet.
 
-**Status:** AGUARDANDO APROVAÇÃO do Sérgio (decisões na seção "Decisões").
+**Status:** APROVADO pelo Sérgio em 13/11/2026, com D1 a D6 como recomendadas e ajustes já incorporados:
+- J1 O check-rapido também roda o backend inteiro quando a mudança toca `payment/` (Task 4).
+- J2 No fim, trocar `just check-resumo` por `just check-rapido` no `~/.claude/CLAUDE.md` global, mostrando o diff antes de salvar (Task 5).
+- J3 Nesta PR, o `just check-resumo` completo roda uma vez no fim (primeira mudança do gancho).
 
 **Goal:** (A) `just demo` sobe o sistema inteiro no computador, só com Docker, com um Administrador, um Cliente e Produtos publicados prontos; (B) três ajustes de texto da capa (#21); (C) `just check-rapido` para o dia a dia, com o `just check` completo só no CI.
 
@@ -66,7 +69,7 @@ Erros: "Pouca memoria livre: X GB. Feche programas e tente de novo (precisa de 2
 
 1. `just demo` rodado duas vezes seguidas: não duplica nada nem falha (semeadores idempotentes; banco já criado).
 2. `local` e `prod` ativos juntos (`SPRING_PROFILES_ACTIVE=local,prod`): a aplicação **não sobe** (trava no construtor).
-3. Check rápido com mudança só em `security/`, `web/`, `resources/`, migration ou `pom.xml`: roda **todos** os testes do backend.
+3. Check rápido com mudança só em `payment/`, `security/`, `web/`, `resources/`, migration ou `pom.xml`: roda **todos** os testes do backend.
 4. Gancho com check completo mais novo que o rápido (ou o contrário): vale o mais recente.
 5. Tamanho de 1.048.000 bytes (arredonda para 1.023 KB) e de 1.048.575 bytes (seria "1.024 KB"): mostra "1,0 MB".
 
@@ -144,7 +147,7 @@ Passos do `demo.ps1`: (1) memória livre ≥ 2 GB (`Win32_OperatingSystem.FreePh
 **O que o `check-rapido` roda** (arquivos mudados = `git diff --name-only <merge-base com origin/main>` + não rastreados):
 1. Sempre: `just lint` (Spotless + Biome).
 2. Frontend com mudança em `frontend/`: `pnpm exec tsc -b` e `pnpm exec vitest related --run <arquivos de frontend/src mudados>`.
-3. Backend: só arquivos em `backend/src/{main,test}/java/br/com/sergio/sapiensia/<f>/` com `<f>` em {admin, audit, customer, demo, email, payment, product} → `-Dtest=br/com/sergio/sapiensia/<f>/**` por funcionalidade, mais as classes de teste que citam os IDs (SEC-/FR-/NFR-) que aparecem nos arquivos mudados (armadilha do CLAUDE.md), com `-Dsurefire.failIfNoSpecifiedTests=false`. Qualquer outro arquivo de backend (`security/`, `web/`, pacote raiz, `resources/`, migration, `pom.xml`) → **todos** os testes do backend.
+3. Backend: só arquivos em `backend/src/{main,test}/java/br/com/sergio/sapiensia/<f>/` com `<f>` em {admin, audit, customer, demo, email, product} → `-Dtest=br/com/sergio/sapiensia/<f>/**` por funcionalidade, mais as classes de teste que citam os IDs (SEC-/FR-/NFR-) que aparecem nos arquivos mudados (armadilha do CLAUDE.md), com `-Dsurefire.failIfNoSpecifiedTests=false`. Qualquer outro arquivo de backend (`payment/`, `security/`, `web/`, pacote raiz, `resources/`, migration, `pom.xml`) → **todos** os testes do backend.
 4. `.claude/` ou `scripts/` mudados: `node --test .claude scripts`.
 5. Saída: `.tmp/check-rapido.log` completo e `.tmp/check-rapido-resultado.json` `{"ok","quando","segundos","tipo":"rapido"}`; na tela, o resumo no estilo do `check-resumo`.
 
@@ -161,7 +164,7 @@ Passos do `demo.ps1`: (1) memória livre ≥ 2 GB (`Win32_OperatingSystem.FreePh
 
 **Fora deste plano (precisa do seu OK, fora da pasta):** o `~/.claude/CLAUDE.md` global manda usar `just check-resumo` para saída longa; sugiro trocar por `just check-rapido` depois.
 
-- [ ] **Step 1: Testes que falham** em `check-rapido.test.mjs`: `["frontend/src/a.ts"]` → backend `none`, frontend `["frontend/src/a.ts"]`; `[".../product/X.java"]` → `["br/com/sergio/sapiensia/product/**"]`; `[".../security/SecurityConfig.java"]` → `all`; `["backend/src/main/resources/db/migration/V19__x.sql"]` → `all`; `["backend/pom.xml"]` → `all`; `["docs/a.md"]` → tudo vazio; `[".claude/hooks/x.mjs"]` → `nodeTests: true`. No teste do gancho: sem resultado → bloqueia; rápido OK e recente → passa; completo OK mais velho e rápido falho mais novo → bloqueia; rápido OK mais velho que a edição → bloqueia. No `conferir.test.mjs`: rápido OK recente → seção 1 "OK" citando "check rápido".
+- [ ] **Step 1: Testes que falham** em `check-rapido.test.mjs`: `["frontend/src/a.ts"]` → backend `none`, frontend `["frontend/src/a.ts"]`; `[".../product/X.java"]` → `["br/com/sergio/sapiensia/product/**"]`; `[".../security/SecurityConfig.java"]` → `all`; `[".../payment/AsaasWebhookService.java"]` → `all`; `["backend/src/main/resources/db/migration/V19__x.sql"]` → `all`; `["backend/pom.xml"]` → `all`; `["docs/a.md"]` → tudo vazio; `[".claude/hooks/x.mjs"]` → `nodeTests: true`. No teste do gancho: sem resultado → bloqueia; rápido OK e recente → passa; completo OK mais velho e rápido falho mais novo → bloqueia; rápido OK mais velho que a edição → bloqueia. No `conferir.test.mjs`: rápido OK recente → seção 1 "OK" citando "check rápido".
 - [ ] **Step 2:** `node --test .claude scripts` → FAIL.
 - [ ] **Step 3:** implemente; atualize SKILL.md e CLAUDE.md.
 - [ ] **Step 4:** `node --test .claude scripts` → PASS; `just check-rapido` nesta branch → OK, mostrando quais testes escolheu e o tempo.
@@ -169,5 +172,7 @@ Passos do `demo.ps1`: (1) memória livre ≥ 2 GB (`Win32_OperatingSystem.FreePh
 
 ### Task 5: Entrega
 
-- [ ] `just check-rapido`; skill `verificar-entrega`; `/verificar-tela` da tela da capa; sistema de verdade = o `just demo` da Task 3, Step 3.
+- [ ] `just check-rapido`; uma vez o `just check-resumo` completo (J3); skill `verificar-entrega`; `/verificar-tela` da tela da capa; sistema de verdade = o `just demo` da Task 3, Step 3.
 - [ ] Push só com `git push -u origin chore/demo-local-e-fluxo-rapido`, depois do OK; PR com `Refs #21` (não há issue própria; a Parte B vem do #21) e o CI completo como prova final.
+- [ ] Trocar `just check-resumo` por `just check-rapido` no `~/.claude/CLAUDE.md` global, mostrando o diff ao Sérgio antes de salvar (J2).
+- [ ] Parar com a PR aberta; relatório final com o passo a passo de 5 linhas para abrir o sistema.
