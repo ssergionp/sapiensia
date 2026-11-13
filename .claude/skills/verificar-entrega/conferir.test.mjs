@@ -85,3 +85,18 @@ test('flags a skip added to an e2e file', () => {
   });
   assert.match(rodar(repo), /TESTE DESLIGADO OU ISOLADO/);
 });
+
+test('section 1 skips a corrupt result file and uses the valid one', () => {
+  const repo = criarRepo();
+  commitar(repo, { 'backend/src/A.java': 'class A {}\n' });
+  escrever(repo, '.tmp/check-resultado.json', '{not json');
+  escrever(repo, '.tmp/check-rapido-resultado.json', JSON.stringify({ ok: true, quando: Date.now() + 60000, segundos: 5, tipo: 'rapido' }));
+  assert.match(rodar(repo), /- OK: check rápido passou/);
+});
+
+test('section 1 rejects a result file without a numeric quando', () => {
+  const repo = criarRepo();
+  commitar(repo, { 'backend/src/A.java': 'class A {}\n' });
+  escrever(repo, '.tmp/check-rapido-resultado.json', JSON.stringify({ ok: true, segundos: 5, tipo: 'rapido' }));
+  assert.match(rodar(repo), /REPROVADO: nenhum check rodou nesta branch/);
+});

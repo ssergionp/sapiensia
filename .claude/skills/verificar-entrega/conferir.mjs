@@ -39,14 +39,23 @@ for (const f of alterados) {
   if (/^(backend|frontend)\//.test(f) && existsSync(c)) ultimaEdicao = Math.max(ultimaEdicao, statSync(c).mtimeMs);
 }
 console.log('\n## 1. just check-rapido (ou check completo)');
-const resultados = [
+// A corrupt file or one without a numeric `quando` is missing evidence, never a pass.
+const resultados = [];
+for (const [tipo, nome] of [
   ['check completo', 'check-resultado.json'],
   ['check rápido', 'check-rapido-resultado.json'],
-]
-  .filter(([, nome]) => existsSync(join(raiz, '.tmp', nome)))
-  .map(([tipo, nome]) => ({ ...JSON.parse(readFileSync(join(raiz, '.tmp', nome), 'utf8')), tipo }));
+]) {
+  const caminho = join(raiz, '.tmp', nome);
+  if (!existsSync(caminho)) continue;
+  try {
+    const r = JSON.parse(readFileSync(caminho, 'utf8'));
+    if (typeof r?.quando === 'number') resultados.push({ ...r, tipo });
+  } catch {
+    // unreadable result: skip it
+  }
+}
 if (!resultados.length) {
-  console.log('- REPROVADO: nenhum check rodou nesta branch.');
+  console.log('- REPROVADO: nenhum check rodou nesta branch (ou o resultado salvo está ilegível ou sem data).');
 } else {
   const quando = (r) => new Date(r.quando).toLocaleString('pt-BR');
   for (const r of resultados) console.log(`- ${r.tipo}: ${r.ok ? 'passou' : 'falhou'} em ${quando(r)}`);

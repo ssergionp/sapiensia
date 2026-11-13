@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { chooseTests, extractRequirementIds, surefireTotal } from './check-rapido.mjs';
+import { chooseTests, extractRequirementIds, selectionFor, surefireTotal } from './check-rapido.mjs';
 
 const J = 'backend/src/main/java/br/com/sergio/sapiensia';
 
@@ -85,4 +85,18 @@ test('surefireTotal reads the final Surefire summary', () => {
 test('surefireTotal is null when nothing ran, and 0 for an empty summary', () => {
   assert.equal(surefireTotal('[INFO] BUILD SUCCESS'), null);
   assert.equal(surefireTotal('[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0'), 0);
+});
+
+test('no comparison base (null changed files) fails closed: run everything', () => {
+  assert.deepEqual(selectionFor(null), { backend: 'all', frontend: 'all', nodeTests: true });
+});
+
+test('a known list of changed files is mapped by chooseTests', () => {
+  assert.deepEqual(selectionFor(['frontend/src/a.ts']), chooseTests(['frontend/src/a.ts']));
+  assert.deepEqual(selectionFor([]), chooseTests([]));
+});
+
+test('markdown under frontend/ is matched on the .md extension only', () => {
+  assert.deepEqual(chooseTests(['frontend/README.md']).frontend, []);
+  assert.equal(chooseTests(['frontend/docsXmd']).frontend, 'all');
 });

@@ -22,7 +22,7 @@ export function chooseTests(changedFiles) {
   for (const f of changedFiles) {
     if (f.startsWith('frontend/src/')) frontend.push(f);
     // package.json, lockfile, vite/vitest/tsconfig...: any test can be affected. e2e files are Playwright, not vitest; docs do not count.
-    else if (f.startsWith('frontend/') && !f.startsWith('frontend/e2e/') && !/.md$/i.test(f)) frontendAll = true;
+    else if (f.startsWith('frontend/') && !f.startsWith('frontend/e2e/') && !/\.md$/i.test(f)) frontendAll = true;
     if (f.startsWith('.claude/') || f.startsWith('scripts/')) nodeTests = true;
     if (!f.startsWith('backend/')) continue;
     const feature = BACKEND_JAVA.exec(f)?.[1];
@@ -33,6 +33,12 @@ export function chooseTests(changedFiles) {
   if (backendAll) backend = 'all';
   else if (features.size) backend = [...features].map((x) => `${PACKAGE}/${x}/**`);
   return { backend, frontend: frontendAll ? 'all' : frontend, nodeTests };
+}
+
+// Pure: null means no comparison base could be found, so the changes are unknown: fail closed and run everything.
+export function selectionFor(changedFiles) {
+  if (changedFiles === null) return { backend: 'all', frontend: 'all', nodeTests: true };
+  return chooseTests(changedFiles);
 }
 
 // Pure: unique, sorted requirement IDs (SEC-, FR-, NFR-) found in the given texts.
@@ -65,7 +71,8 @@ const lines = (s) => s.split('\n').filter(Boolean);
 
 function changedFilesOf(root) {
   const base = git(['merge-base', 'HEAD', 'origin/main'], root) || git(['merge-base', 'HEAD', 'main'], root);
-  const diff = base ? lines(git(['diff', '--name-only', base], root)) : [];
+  if (!base) return null; // unknown base: the caller runs everything
+  const diff = lines(git(['diff', '--name-only', base], root));
   return [...new Set([...diff, ...lines(git(['ls-files', '--others', '--exclude-standard'], root))])];
 }
 
@@ -88,8 +95,10 @@ function run() {
   const logPath = join(tmp, 'check-rapido.log');
   writeFileSync(logPath, '');
 
-  const changed = changedFilesOf(root);
-  const chosen = chooseTests(changed);
+  const changedOrNull = changedFilesOf(root);
+  const semBase = changedOrNull === null;
+  const changed = changedOrNull ?? [];
+  const chosen = selectionFor(changedOrNull);
   const mvnw = process.platform === 'win32' ? '.\\mvnw.cmd' : './mvnw';
 
   let ids = [];
@@ -103,7 +112,7 @@ function run() {
   }
 
   const steps = [{ nome: 'lint (Spotless + Biome)', cmd: 'just lint', cwd: root }];
-  if (changed.some((f) => f.startsWith('frontend/'))) {
+  if (semBase || changed.some((f) => f.startsWith('frontend/'))) {
     steps.push({ nome: 'tipos do frontend (tsc -b)', cmd: 'pnpm exec tsc -b', cwd: join(root, 'frontend') });
     if (chosen.frontend === 'all') {
       steps.push({ nome: 'testes do frontend (todos)', cmd: 'pnpm exec vitest run --passWithNoTests', cwd: join(root, 'frontend') });
@@ -123,6 +132,7 @@ function run() {
   }
 
   console.log(`Check rapido: ${changed.length} arquivo(s) mudado(s). Testes escolhidos:`);
+  if (semBase) console.log('  (sem base de comparacao com a main: roda tudo)');
   for (const s of steps) console.log(`  - ${s.nome}`);
   if (ids.length) console.log(`  (requisitos citados nos arquivos mudados: ${ids.join(', ')})`);
 
