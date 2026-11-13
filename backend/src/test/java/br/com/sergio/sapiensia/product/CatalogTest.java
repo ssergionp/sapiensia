@@ -144,8 +144,10 @@ class CatalogTest {
         Map<String, Object> item = JsonPath.read(list.body(), "$.items[0]");
         Map<String, Object> product = JsonPath.read(detail.body(), "$");
         assertThat(page.keySet()).containsExactlyInAnyOrder("items", "page", "totalPages");
-        assertThat(item.keySet()).containsExactlyInAnyOrder("id", "title", "summary", "category", "priceCents");
-        assertThat(product.keySet()).containsExactlyInAnyOrder("id", "title", "description", "category", "priceCents");
+        assertThat(item.keySet())
+                .containsExactlyInAnyOrder("id", "title", "summary", "category", "priceCents", "coverVersion");
+        assertThat(product.keySet())
+                .containsExactlyInAnyOrder("id", "title", "description", "category", "priceCents", "coverVersion");
         for (String body : List.of(list.body(), detail.body())) {
             assertThat(body)
                     .doesNotContain("products/")
