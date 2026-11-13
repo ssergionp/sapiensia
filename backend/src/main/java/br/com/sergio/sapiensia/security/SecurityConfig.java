@@ -63,7 +63,8 @@ public class SecurityConfig {
 
     /**
      * The public Catalog (#20, ADR-0007) and the cover of a published Product (#21): GET only, so
-     * /products/{id}/file and every other verb stay denied. The same matcher opens the routes and keeps the XSRF-TOKEN cookie off them.
+     * /products/{id}/file and every other verb stay denied. The same matcher opens the routes
+     * and keeps the XSRF-TOKEN cookie off them.
      */
     static final OrRequestMatcher PUBLIC_CATALOG = new OrRequestMatcher(
             PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/api/products"),
