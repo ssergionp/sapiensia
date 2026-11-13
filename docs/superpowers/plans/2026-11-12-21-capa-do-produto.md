@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** AGUARDANDO APROVAÇÃO. As decisões que dependem do Sérgio estão na seção 9 (D1–D8) e os textos da tela na seção 7.
+**Status:** APROVADO em 13/11/2026 com D1–D8 como recomendado; D7 (textos da seção 7) aprovado provisoriamente, revisto no diff da PR antes do merge. **Garantias extras pedidas na aprovação (cada uma com teste):** (G1) a rota pública da capa entra no `PUBLIC_CATALOG` e continua sem cookie XSRF (`NoCookieOnPublicCatalog`) — Task 4; (G2) arquivo malformado, truncado ou com cabeçalho mentiroso falha fechado na limpeza de metadados: recusa (4xx), nunca 500, nada gravado no Storage nem no banco — Tasks 1 e 4; (G3) nenhuma mudança na CSP — Task 4.
 
 **Goal:** O Administrador envia, troca e remove a Capa de um Produto no painel; o Catálogo e a página do Produto a mostram, servida por um endpoint da API a partir de um bucket privado, sem mudar a CSP.
 
@@ -204,7 +204,7 @@ Público: **28** — texto alternativo da capa no card e na página do Produto: 
   - 2_097_152 bytes passa da checagem de tamanho; 2_097_153 → `COVER_TOO_LARGE`;
   - PNG `pngHeaderOnly(4001, 10)`, `(10, 4001)`, `(30000, 30000)` → `COVER_TOO_MANY_PIXELS`; `4000×4000` passa; JPEG com `SOF0` 0×10 → `COVER_INVALID`;
   - PNG com `acTL` e WebP com bit de animação / chunk `ANIM` → `COVER_ANIMATED`;
-  - comprimento de chunk/segmento maior que o arquivo (os três formatos), PNG truncado sem `IEND`, JPEG sem `SOF` → `COVER_INVALID` (nunca exceção);
+  - **G2 (falha fechada):** comprimento de chunk/segmento maior que o arquivo e `uint32` com bit alto (os três formatos), PNG truncado sem `IEND`, PNG cortado no meio do `IHDR`, JPEG sem `SOF`, JPEG truncado antes do `EOI`, segmento JPEG com comprimento < 2, WebP com tamanho do RIFF maior/menor que o arquivo, `VP8X` curto demais → `COVER_INVALID`; e um teste de fuzz simples (todo prefixo de um PNG, JPEG e WebP válidos, e 1.000 mutações de bytes com semente fixa) prova que `check` nunca lança exceção;
   - limpeza: PNG com `tEXt`/`eXIf` sai sem eles e com os mesmos `IDAT`; bytes depois do `IEND` somem; JPEG com `APP1` "Exif" (com miniatura JPEG dentro) e `COM` sai sem eles, com `APP0` e `APP2 ICC_PROFILE` mantidos, e `ImageIO.read(cleaned)` decodifica com as mesmas dimensões; WebP `VP8X` com chunk `EXIF` sai sem o chunk, com o bit 0x08 zerado e o tamanho do RIFF = `cleaned.length - 8`.
 - [ ] **Step 2: Rodar e ver falhar** — `cd backend; .\mvnw.cmd test -Dtest=CoverImageValidatorTest` → falha de compilação.
 - [ ] **Step 3: Implementar** — um método privado por formato (`png`, `jpeg`, `webp`), cada um percorrendo o array com índice e comprimentos conferidos (`long` para os `uint32`), devolvendo `Valid` ou `Rejected`. Nenhuma chamada a `ImageIO` no código de produção.
@@ -279,6 +279,9 @@ Público: **28** — texto alternativo da capa no card e na página do Produto: 
   - Visitante e Cliente (com CSRF válido) em `POST`, `DELETE` e `GET` do painel → `401` / `403`, capa inalterada; `PUT`/`POST`/`DELETE` em `/api/products/{id}/cover` → negados;
   - Administrador: envio, prévia do rascunho pela rota do painel, remoção; erros 400/413/503 com o código certo; temporário apagado em todos os casos;
   - `GET /api/products` e `/api/products/{id}` trazem `coverVersion` (`null` sem capa).
+  - **G1:** `GET /api/products/{id}/cover` de Visitante sem cookies não recebe `Set-Cookie` de `XSRF-TOKEN` (nem `JSESSIONID`), também no `404` e no `304`; e um teste do matcher confirma que `PUBLIC_CATALOG` casa `GET /api/products/{id}/cover` e não casa `POST`/`DELETE` nem `GET /api/products/{id}/file`.
+  - **G2:** envio pelo painel de PNG truncado, JPEG com comprimento de segmento mentiroso e WebP com tamanho de RIFF/chunk mentiroso → `400 COVER_INVALID` (nunca 500), Storage sem objeto novo, `product_covers` e `pending_object_deletions` inalteradas, temporário apagado.
+  - **G3:** o `Content-Security-Policy` das respostas da capa (200, 304, 404) é exatamente a constante atual, e `SecurityConfig.CONTENT_SECURITY_POLICY` não muda no diff.
 - [ ] **Step 2: Rodar e ver falhar** — `.\mvnw.cmd test -Dtest='CatalogCoverTest,ProductCoverControllerTest,CatalogTest'`.
 - [ ] **Step 3: Implementar.** Se o Spring Security sobrescrever o `Cache-Control` do controller, ajustar só para essa rota (sem mexer no padrão das demais). ADR-0007: parágrafo "Capa pública (#21)" (rota, `404` igual, `private, no-cache` + ETag, por que é `permitAll`); ADR-0002: bucket `product-covers` e `pending_object_deletions`.
 - [ ] **Step 4: Rodar e ver passar** — mesmo comando, mais o teste da CSP/cabeçalhos (`git grep -l CONTENT_SECURITY_POLICY -- backend/src/test`) e os que citam SEC-017 (`git grep -l SEC-017 -- backend/src/test`).
