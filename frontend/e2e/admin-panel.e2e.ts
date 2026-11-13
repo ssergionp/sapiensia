@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { expect, type Locator, type Page, test } from "@playwright/test";
+import { buildPng, buildWebpWithExif } from "./image";
 import {
   messagesFor,
   registerAndConfirm,
@@ -761,6 +762,115 @@ test("FR-011 FR-016 FR-018 SEC-008 SEC-010 FR-010: o Administrador publica, desp
     await confirm.click();
     await expect(page.getByText("Arquivo enviado.")).toBeVisible();
     await expect(page.getByText(/^Arquivo atual: 2 páginas,/)).toBeVisible();
+  } finally {
+    await visitorContext.close();
+  }
+});
+
+test("FR-016 SEC-017 SEC-010: capa enviada no painel aparece no Catálogo e capa de rascunho não é servida", async ({
+  page,
+  browser,
+  baseURL,
+}) => {
+  test.setTimeout(120_000);
+  const host = new URL(baseURL ?? "").hostname;
+  if (host !== "localhost" && host !== "127.0.0.1") {
+    throw new Error(
+      "Refusing to run the administrator e2e outside localhost/127.0.0.1",
+    );
+  }
+  const title = `E2E Capa ${Date.now()}`;
+  const loaded = (img: Locator) =>
+    img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth);
+
+  await loginWithStoredCredentials(page);
+
+  // Create a draft Product through the UI and open its edit page.
+  await page.goto("/painel/produtos");
+  await page.getByRole("link", { name: "Novo Produto" }).click();
+  await page.getByLabel("Título").fill(title);
+  await page.getByLabel("Descrição").fill("Produto de teste da capa.");
+  await page.getByLabel("Categoria").selectOption({ label: "Tecnologia" });
+  await page.getByLabel("Valor (R$)").fill("19,90");
+  await page.getByRole("button", { name: "Criar Produto" }).click();
+  await expect(page.getByText("Produto criado.")).toBeVisible();
+  await page.getByRole("link", { name: `Editar ${title}` }).click();
+  await expect(
+    page.getByRole("heading", { name: "Editar Produto", exact: true }),
+  ).toBeVisible();
+  const productId =
+    /\/painel\/produtos\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/.exec(
+      page.url(),
+    )?.[1];
+  if (productId === undefined) {
+    throw new Error("Could not read the Product id from the edit page URL.");
+  }
+  const coverUrl = `/api/products/${productId}/cover`;
+
+  // 1. Upload a WebP that carries an EXIF chunk; the preview loads.
+  await page.getByLabel("Imagem da capa").setInputFiles({
+    name: "capa.webp",
+    mimeType: "image/webp",
+    buffer: buildWebpWithExif(),
+  });
+  await page.getByRole("button", { name: "Enviar capa" }).click();
+  await expect(page.getByText("Capa enviada.")).toBeVisible();
+  const preview = page.getByRole("img", { name: `Capa de ${title}` });
+  await expect.poll(() => loaded(preview)).toBeGreaterThan(0);
+
+  const visitorContext = await browser.newContext({ baseURL });
+  try {
+    const visitor = await visitorContext.newPage();
+
+    // 2. A draft cover is not served to a Visitor.
+    const draft = await visitor.request.get(coverUrl);
+    expect(draft.status()).toBe(404);
+    expect((await draft.body()).length).toBe(0);
+
+    // 3. Published: the Catálogo shows the cover, with the exact type, nosniff and no EXIF.
+    await page.getByLabel("Arquivo PDF").setInputFiles({
+      name: "produto.pdf",
+      mimeType: "application/pdf",
+      buffer: buildPdf("capa"),
+    });
+    await page.getByRole("button", { name: "Enviar arquivo" }).click();
+    await expect(page.getByText("Arquivo enviado.")).toBeVisible();
+    await page.getByRole("button", { name: "Publicar", exact: true }).click();
+    await page.getByRole("button", { name: "Confirmar publicação" }).click();
+    await expect(page.getByText("Produto publicado.")).toBeVisible();
+
+    await visitor.goto("/catalogo");
+    const card = visitor.getByRole("img", { name: `Capa de ${title}` });
+    await expect(card).toBeVisible();
+    await expect.poll(() => loaded(card)).toBeGreaterThan(0);
+    const served = await visitor.request.get(coverUrl);
+    expect(served.status()).toBe(200);
+    expect(served.headers()["content-type"]).toBe("image/webp");
+    expect(served.headers()["x-content-type-options"]).toBe("nosniff");
+    expect((await served.body()).includes(Buffer.from("Exif"))).toBe(false);
+
+    // 4. Replace with a 12x18 PNG; the Product page shows the new one.
+    await page.getByLabel("Imagem da capa").setInputFiles({
+      name: "capa.png",
+      mimeType: "image/png",
+      buffer: buildPng(12, 18),
+    });
+    await page.getByRole("button", { name: "Enviar capa" }).click();
+    await expect(page.getByText("Capa enviada.")).toBeVisible();
+    await visitor.goto(`/catalogo/${productId}`);
+    const productImg = visitor.getByRole("img", { name: `Capa de ${title}` });
+    await expect.poll(() => loaded(productImg)).toBe(12);
+
+    // 5. Remove (with confirmation); the Catálogo shows the neutral frame and the route answers 404.
+    await page.getByRole("button", { name: "Remover capa" }).click();
+    await page.getByRole("button", { name: "Confirmar remoção" }).click();
+    await expect(page.getByText("Capa removida.")).toBeVisible();
+    await visitor.goto("/catalogo");
+    await expect(visitor.getByRole("link", { name: title })).toBeVisible();
+    await expect(
+      visitor.getByRole("img", { name: `Capa de ${title}` }),
+    ).toHaveCount(0);
+    expect((await visitor.request.get(coverUrl)).status()).toBe(404);
   } finally {
     await visitorContext.close();
   }
