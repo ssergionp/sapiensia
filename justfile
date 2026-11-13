@@ -112,3 +112,17 @@ imagem:
 [windows]
 limpar-ticket branch='':
     powershell -NoProfile -ExecutionPolicy Bypass -File scripts/limpar-ticket.ps1 {{ if branch == "" { "" } else { "-Branch " + branch } }}
+
+# sobe a demonstração local (banco, API e frontend em segundo plano, com dados fictícios)
+[windows]
+demo:
+    powershell -NoProfile -ExecutionPolicy Bypass -File scripts/demo.ps1
+
+# para a demonstração local (só os processos dela)
+[windows]
+demo-parar:
+    powershell -NoProfile -ExecutionPolicy Bypass -File scripts/demo-parar.ps1
+
+# mostra o código de verificação atual do Administrador da demonstração
+demo-codigo:
+    node scripts/demo-codigo.mjs
