@@ -2,11 +2,14 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** AGUARDANDO APROVAÇÃO do Sérgio (13/11/2026). Nada de código antes do OK. As decisões que dependem dele estão na seção 11.
+**Status:** APROVADO pelo Sérgio em 13/11/2026, com D1(a), D2 provisório (ele lê os textos no diff da PR), D3 a D8 e D10 como recomendado; D9 fica para antes do deploy na homologação. Três ajustes pedidos por ele já estão incorporados abaixo:
+- **A1.** Tempo limite curto nas chamadas ao Asaas: 3 s para conectar e 10 s para responder, no máximo. Teste de que uma chamada lenta devolve `502` com código fixo e não esgota o pool de conexões do banco (Tasks 3 e 4).
+- **A2.** Se o Asaas criou a cobrança e a gravação no banco falhou, a cobrança é excluída no Asaas em melhor esforço, sem mudar a resposta ao Cliente. Com teste (Task 4).
+- **A3.** QR Code e copia e cola são buscados no Asaas a cada visualização do Pedido; nunca gravados no banco nem em log. Com teste (Tasks 1, 4 e 6).
 
 **Goal:** O Cliente logado escolhe um Produto publicado e gera um Pedido pendente com uma cobrança Pix de 30 minutos no Asaas: vê o QR Code, o código copia e cola e a contagem regressiva. O preço vem sempre do servidor, o CPF passa pelo sistema só para o Asaas gerar a cobrança, e o Visitante é levado a entrar e volta à compra.
 
-**Architecture:** Tudo no pacote `payment` (onde já está o webhook do #26). Uma interface `PixGateway` isola o Asaas: `AsaasPixGateway` (HTTP de verdade) em `prod`, `FakePixGateway` (em memória) no perfil local e nos testes. `OrderService.create` roda numa transação que segura uma trava do PostgreSQL por Cliente (`pg_try_advisory_xact_lock`): dentro dela reaproveita o Pedido pendente ou chama o Asaas e só então insere o Pedido, já completo. Não existe Pedido sem cobrança. Um índice único parcial (um Pedido `PENDING` por Cliente e Produto) é a segunda barreira. Uma tarefa do db-scheduler, a cada minuto, cancela a cobrança no Asaas e marca o Pedido como expirado.
+**Architecture:** Tudo no pacote `payment` (onde já está o webhook do #26). Uma interface `PixGateway` isola o Asaas: `AsaasPixGateway` (HTTP de verdade) em `prod`, `FakePixGateway` (em memória) no perfil local e nos testes. `OrderService.create` roda numa transação que segura uma trava do PostgreSQL por Cliente (`pg_try_advisory_xact_lock`): dentro dela reaproveita o Pedido pendente ou chama o Asaas e só então insere o Pedido, já completo. Não existe Pedido sem cobrança. O código copia e cola não é guardado: `GET /api/orders/{id}` o busca no Asaas a cada visualização, fora de transação (A3). Um índice único parcial (um Pedido `PENDING` por Cliente e Produto) é a segunda barreira. Uma tarefa do db-scheduler, a cada minuto, cancela a cobrança no Asaas e marca o Pedido como expirado.
 
 **Tech Stack:** Spring Boot 4.1 (Spring Security 7, `JdbcClient`, `RestClient`, Jackson 3), Flyway, PostgreSQL, db-scheduler, JUnit 5, Testcontainers; React 19, TanStack Query, React Hook Form + Zod, `qrcode.react` (já é dependência, usada no MFA), Vitest, Playwright. **Nenhuma dependência nova.**
 
@@ -61,6 +64,8 @@ Fontes: [criar cobrança](https://docs.asaas.com/reference/criar-nova-cobranca),
 - Dinheiro em centavos inteiros (`int`), do banco até a tela. A única conversão é no adaptador: `BigDecimal.valueOf(priceCents, 2)` para o campo `value` do Asaas.
 - **Nunca** em log, auditoria, exceção, resposta de erro, `toString` ou tabela: CPF, código copia e cola, QR Code, chave de API, corpo de requisição ou de resposta do Asaas. Em log só: id do Pedido, id da cobrança (`pay_...`), etapa, status HTTP, nome da classe da exceção e os `code` de erro do Asaas reduzidos a `[A-Za-z0-9_.]{1,64}`.
 - O CPF não tem coluna em nenhuma tabela, não entra em sessão HTTP, `localStorage`, `sessionStorage` nem URL.
+- O código copia e cola e o QR Code não têm coluna em nenhuma tabela e não entram no cache do navegador (`Cache-Control: no-store`) nem no `localStorage` (A3).
+- Toda chamada ao Asaas: 3 s para conectar e 10 s para responder, no máximo (`app.asaas.api.connect-timeout: PT3S`, `app.asaas.api.read-timeout: PT10S`); o adaptador recusa subir com valores maiores (A1).
 - Segredo novo `APP_ASAAS_API_KEY`: sem valor em arquivo algum. O perfil local e os testes usam `app.pix.provider=fake` e sobem sem a chave. Em `prod` a aplicação não sobe sem ela.
 - Migration `V19__create_orders.sql` criada pela skill `nova-migration` (a última é a V18). Nenhuma migration existente é editada.
 - Controller e repositórios package-private, DTOs como `record`, exceção de negócio convertida no `ApiExceptionHandler`. Teste que prova requisito leva o ID no `@DisplayName` (backend) ou no título (frontend e e2e). Sem `@MockitoBean` em teste de integração.
@@ -72,7 +77,7 @@ Fontes: [criar cobrança](https://docs.asaas.com/reference/criar-nova-cobranca),
 ## Review Focus
 
 1. **Duplo clique, duas abas ou a mesma requisição repetida depois de um timeout:** uma só cobrança no Asaas e um só Pedido; a segunda requisição recebe o mesmo Pedido ou `409`. Teste de concorrência na Task 4.
-2. **Asaas lento, fora do ar ou respondendo lixo** (timeout, `500`, `401`, `200` sem `id`, `200` sem `payload`, JSON quebrado): nenhum Pedido gravado, `502` com código fixo, nada do corpo vaza. Tasks 3 e 4.
+2. **Asaas lento, fora do ar ou respondendo lixo** (timeout, `500`, `401`, `200` sem `id`, `200` sem `payload`, JSON quebrado): no `POST`, nenhum Pedido gravado; no `GET`, o Pedido continua lá; nos dois, `502` com código fixo, nada do corpo vaza e o pool do banco não esgota. Tasks 3 e 4.
 3. **CPF digitado como as pessoas digitam** (com pontos e traço, com espaços, 11 dígitos iguais, dígito verificador errado, letras, colado com quebra de linha): normalizado ou recusado com a mesma mensagem, e nunca devolvido na resposta. Tasks 2, 4 e 7.
 4. **A fronteira dos 30 minutos:** página aberta depois do prazo e antes de a tarefa rodar mostra "expirou" e não entrega o código; comprar de novo em 30:01 gera Pedido novo; Asaas fora do ar na hora de cancelar não trava a fila. Task 5.
 5. **Entrada adulterada:** id de Pedido de outro Cliente, `priceCents` no corpo, `productId` de rascunho, caminho de retorno forjado no `localStorage` apontando para outro site. Tasks 4 e 9.
@@ -93,7 +98,7 @@ create table payment_customers (
 );
 
 -- One Order is one Product and one Pix charge (FR-019). price_cents is the server price when the Order was created.
--- pix_copy_paste exists only while the Order is PENDING.
+-- The Pix copy-paste code and QR Code are read from Asaas on every view and never stored.
 create table orders (
   id uuid primary key,
   customer_id uuid not null references customers (id),
@@ -101,12 +106,10 @@ create table orders (
   price_cents integer not null check (price_cents > 0),
   status varchar(16) not null check (status in ('PENDING', 'EXPIRED')),
   provider_payment_id varchar(64) not null,
-  pix_copy_paste varchar(2000),
   created_at timestamp with time zone not null,
   expires_at timestamp with time zone not null,
   expired_at timestamp with time zone,
-  constraint orders_provider_payment_id_key unique (provider_payment_id),
-  constraint orders_pix_only_while_pending check ((status = 'PENDING') = (pix_copy_paste is not null))
+  constraint orders_provider_payment_id_key unique (provider_payment_id)
 );
 create unique index orders_one_pending_per_customer_product on orders (customer_id, product_id) where status = 'PENDING';
 create index orders_pending_expires_at on orders (expires_at) where status = 'PENDING';
@@ -118,14 +121,14 @@ create index orders_pending_expires_at on orders (expires_at) where status = 'PE
 | `provider_payment_id not null` | O Pedido só é inserido depois que o Asaas criou a cobrança. Não existe estado "criando" | Nenhum |
 | Estados só `PENDING` e `EXPIRED` | É o que este ticket escreve. O projeto alarga o `check` por migration quando o estado nasce (V13 para V15 fez isso com o Produto) | Nenhum: o #28 já teria de criar migration |
 | `payment_customers` separada de `customers` | A tabela `customers` é do pacote `customer`; o código do Asaas é do pagamento. Evita mexer na entidade JPA | Uma consulta a mais na primeira compra |
-| `pix_copy_paste` gravado, QR Code não | A página precisa mostrar o mesmo código ao recarregar. O QR Code é desenhado no navegador a partir do código (`qrcode.react`), então a imagem do Asaas nem é guardada nem trafega | Se o código do Asaas não couber em 2000 caracteres, o insert falha e a cobrança é cancelada; alarga-se a coluna |
+| Copia e cola e QR Code nunca gravados (A3) | Cada `GET /api/orders/{id}` de um Pedido pendente busca o `payload` em `GET /v3/payments/{id}/pixQrCode`; recarregar mostra o mesmo código porque a cobrança é a mesma. O QR Code é desenhado no navegador a partir do código (`qrcode.react`), então a imagem do Asaas nem trafega. Pedido expirado não chama o Asaas | Com o Asaas fora do ar, a tela do Pedido mostra o erro e "Tentar novamente" em vez do código; o Pedido não se perde |
 | Expiração em `expires_at` (`created_at` + `app.orders.pix-ttl`, `PT30M`) | Regra nossa (ADR-0003); o `dueDate` do Asaas é só a data de `expires_at` no fuso `America/Sao_Paulo` | Nenhum |
 
 **Como o #28 encaixa** (ele depende deste ticket, além do #26):
 
 - Acha o Pedido pelo `payment.id` do evento em `orders.provider_payment_id` (`UNIQUE`) e confere `payment.externalReference = orders.id` e `payment.value = price_cents / 100` (SEC-026).
 - Migration própria: alarga o `check` para incluir `PAID`, acrescenta `paid_at` e cria a tabela do Acesso com `unique (customer_id, product_id)`.
-- Transição condicional, que tolera evento repetido e fora de ordem: `update orders set status = 'PAID', paid_at = now(), pix_copy_paste = null where id = :id and status in ('PENDING', 'EXPIRED')`. O `EXPIRED` na lista cumpre a regra do ADR-0003 (pago depois de expirado vira pago). O `check` de `pix_copy_paste` já serve.
+- Transição condicional, que tolera evento repetido e fora de ordem: `update orders set status = 'PAID', paid_at = now() where id = :id and status in ('PENDING', 'EXPIRED')`. O `EXPIRED` na lista cumpre a regra do ADR-0003 (pago depois de expirado vira pago). O `GET` de um Pedido pago não chama o Asaas.
 - A tarefa de expiração deste ticket só toca `PENDING`: nunca desfaz um `PAID`.
 - Acrescenta ao `PixGateway` a leitura da cobrança ("consultando o Asaas quando preciso") e, na tela do Pedido, a consulta periódica do estado. Este ticket não faz nenhum dos dois.
 - Bloquear a compra de um Produto que o Cliente já tem é do #28 (o Acesso nasce lá).
@@ -164,9 +167,11 @@ Fluxo de `OrderService.create(customerId, customerEmail, request)`, dentro de **
 3. Existe Pedido `PENDING` deste Cliente e Produto? Se `expires_at` está no futuro, **devolve o mesmo Pedido** (`200`): mesmo código, tempo restante. Se já passou, expira-o agora (seção 5) e segue.
 4. Sem código do Cliente no Asaas: procura por `externalReference`; não achou e o `cpf` não veio, `CpfRequiredException` (`400`, `errors.cpf = CPF_REQUIRED`); `cpf` inválido, `CPF_INVALID`; senão cria o cliente e grava `payment_customers`.
 5. `gateway.createCharge(...)` com um `orderId` novo (`UUID.randomUUID()`) no `externalReference`.
-6. Insere o Pedido completo e responde `201` com `Location: /api/orders/{id}`.
+6. Insere o Pedido completo e responde `201` com `Location: /api/orders/{id}` e o corpo `{ "id": "<uuid>" }`. O reaproveitamento do passo 3 responde `200` com o mesmo corpo. O `POST` não devolve o código Pix: a tela vai para `/pedidos/{id}`, cujo `GET` o busca no Asaas (A3).
 
-Qualquer exceção depois do passo 5 (insert recusado pelo índice único, banco fora do ar, falha no commit): fora da transação, `gateway.cancelCharge(chargeId)` em melhor esforço; se o cancelamento também falhar, `WARN "Pix charge left without an Order: chargeId=pay_..."` (o id da cobrança não é segredo e serve para a limpeza à mão).
+**Gravação falhou depois de a cobrança existir (A2).** Qualquer exceção depois do passo 5 (insert recusado pelo índice único, banco fora do ar, falha no commit): já fora da transação, `gateway.cancelCharge(chargeId)` em melhor esforço e a exceção original segue para o Cliente **sem mudança** (o índice único dá `409 ORDER_IN_PROGRESS`; o resto, o `500` genérico de hoje). Se o cancelamento também falhar, a resposta continua a mesma e fica só `WARN "Pix charge left without an Order: chargeId=pay_..."` (o id da cobrança não é segredo e serve para a limpeza à mão).
+
+**Leitura (`GET /api/orders/{id}`).** Lê a linha (filtrada por `id` e `customer_id`) sem transação aberta, devolve a conexão e só então, se o Pedido está `PENDING` e no prazo, chama `gateway.readCopyPaste(providerPaymentId)`. Expirado (no banco ou pelo relógio) não chama o Asaas. Falha do Asaas: `502 PAYMENT_PROVIDER_UNAVAILABLE`, e o Pedido continua intacto.
 
 | Caso | Resultado |
 |---|---|
@@ -177,7 +182,7 @@ Qualquer exceção depois do passo 5 (insert recusado pelo índice único, banco
 | Duas abas, Produtos diferentes | Um por vez (a trava é por Cliente); dois Pedidos, uma cobrança cada |
 | Duas máquinas da aplicação | A trava é do banco, vale entre máquinas; o índice único parcial é a segunda barreira |
 
-**Custo assumido:** a transação segura uma conexão do banco enquanto fala com o Asaas (no pior caso, 4 chamadas de até 2 s para conectar e 8 s para responder). No máximo uma conexão por Cliente, porque quem não pega a trava sai na hora. Com o Asaas lento e 10 ou mais Clientes comprando ao mesmo tempo, o pool (10 conexões por padrão) pode esgotar por alguns segundos. É aceitável no volume da Fase 1 e some se o #42 limitar a taxa; a alternativa (gravar um Pedido "criando" antes de chamar o Asaas) traz um estado a mais e um Pedido preso se a aplicação cair no meio.
+**Custo assumido:** a transação do `POST` segura uma conexão do banco enquanto fala com o Asaas (no pior caso, 3 chamadas de até 3 s para conectar e 10 s para responder; a primeira que estourar o tempo encerra a requisição com `502` e solta a conexão). No máximo uma conexão por Cliente, porque quem não pega a trava sai na hora. O `GET` não segura conexão durante a chamada. Com o Asaas lento e 10 ou mais Clientes comprando ao mesmo tempo, o pool (10 conexões por padrão) pode ficar ocupado por alguns segundos, mas sempre volta: o tempo limite garante que nenhuma conexão fica presa (teste da A1 na Task 4). É aceitável no volume da Fase 1 e some se o #42 limitar a taxa; a alternativa (gravar um Pedido "criando" antes de chamar o Asaas) traz um estado a mais e um Pedido preso se a aplicação cair no meio.
 
 ## 5. Adaptador do Asaas, falso e segredo
 
@@ -185,29 +190,30 @@ Qualquer exceção depois do passo 5 (insert recusado pelo índice único, banco
 public interface PixGateway {
     Optional<String> findCustomerCode(UUID customerId);          // GET /v3/customers?externalReference=
     String createCustomer(UUID customerId, String name, String cpf); // POST /v3/customers -> "cus_..."
-    PixCharge createCharge(String customerCode, UUID orderId, int amountCents, LocalDate dueDate, String description);
+    String createCharge(String customerCode, UUID orderId, int amountCents, LocalDate dueDate, String description); // -> "pay_..."
+    String readCopyPaste(String chargeId);                       // GET /v3/payments/{id}/pixQrCode -> payload; never stored (A3)
     void cancelCharge(String chargeId);                          // DELETE /v3/payments/{id}; 404 is success
 }
-public record PixCharge(String chargeId, String copyPaste) {}    // toString redacted
 public final class PixGatewayException extends RuntimeException { // message: step + "HTTP nnn" or exception class name
     public enum Kind { DOCUMENT_REJECTED, REFUSED, UNAVAILABLE }
 }
 ```
 
-- `createCharge` faz `POST /v3/payments` (`billingType: "PIX"`, `value`, `dueDate`, `description = "SapiensIA: " + título`, `externalReference = orderId`) e `GET /v3/payments/{id}/pixQrCode`, de onde usa só `payload`. Se a segunda chamada falhar, cancela a cobrança (melhor esforço) e lança.
+- `createCharge` faz só `POST /v3/payments` (`billingType: "PIX"`, `value`, `dueDate`, `description = "SapiensIA: " + título`, `externalReference = orderId`) e devolve o `id`. `readCopyPaste` faz `GET /v3/payments/{id}/pixQrCode` e devolve só o `payload` (a `encodedImage` é ignorada).
+- Tempo limite (A1): `JdkClientHttpRequestFactory` com `HttpClient.connectTimeout` = `app.asaas.api.connect-timeout` (`PT3S`) e `setReadTimeout` = `app.asaas.api.read-timeout` (`PT10S`). Valor acima de 3 s ou 10 s, zero ou negativo: `IllegalStateException` na subida. Timeout vira `Kind.UNAVAILABLE`.
 - `Kind`: `DOCUMENT_REJECTED` = `400` no cadastro do cliente com um `code` contendo `cpfCnpj`; `REFUSED` = outro `4xx`; `UNAVAILABLE` = timeout, erro de rede, `5xx`, `429`, `401`/`403` (chave inválida: `log.error`, sem a chave) e `2xx` sem os campos esperados.
-- `AsaasPixGateway`: `@ConditionalOnProperty(app.pix.provider=asaas)`, `RestClient` com `JdkClientHttpRequestFactory` (2 s para conectar, 8 s para ler), cabeçalhos `access_token` e `User-Agent: sapiensia`, construtor com `RestClient.Builder` como costura de teste (padrão de `ResendEmailSender` e `SupabaseProductFileStorage`). Chave em branco: `IllegalStateException("APP_ASAAS_API_KEY is required when app.pix.provider=asaas")`. `base-url` fora de `https://api-sandbox.asaas.com`, `https://api.asaas.com` ou `http://localhost:<porta>`/`http://127.0.0.1:<porta>`: `IllegalStateException` (a chave nunca é enviada a outro endereço).
-- `FakePixGateway`: `@ConditionalOnProperty(app.pix.provider=fake)`, em memória, recusa subir no perfil `prod` (padrão de `FileProductFileStorage`). Devolve `cus_fake_...`, `pay_fake_...` e o código `PIX-FICTICIO-NAO-PAGAVEL-<orderId>`.
+- `AsaasPixGateway`: `@ConditionalOnProperty(app.pix.provider=asaas)`, `RestClient` com `JdkClientHttpRequestFactory` (os tempos limite acima), cabeçalhos `access_token` e `User-Agent: sapiensia`, construtor com `RestClient.Builder` como costura de teste (padrão de `ResendEmailSender` e `SupabaseProductFileStorage`). Chave em branco: `IllegalStateException("APP_ASAAS_API_KEY is required when app.pix.provider=asaas")`. `base-url` fora de `https://api-sandbox.asaas.com`, `https://api.asaas.com` ou `http://localhost:<porta>`/`http://127.0.0.1:<porta>`: `IllegalStateException` (a chave nunca é enviada a outro endereço).
+- `FakePixGateway`: `@ConditionalOnProperty(app.pix.provider=fake)`, em memória, recusa subir no perfil `prod` (padrão de `FileProductFileStorage`). Devolve `cus_fake_...`, `pay_fake_...` e, em `readCopyPaste`, o código `PIX-FICTICIO-NAO-PAGAVEL-<chargeId>` (o mesmo a cada leitura da mesma cobrança).
 - Nos testes de integração, `SwitchablePixGateway` (`@Primary`, padrão de `SwitchableProductFileStorage`) embrulha o falso, registra as chamadas e falha sob comando.
 
 **Configuração**
 
 | Onde | Valor |
 |---|---|
-| `application.yml` | `app.pix.provider: fake`; `app.orders.pix-ttl: PT30M` |
+| `application.yml` | `app.pix.provider: fake`; `app.orders.pix-ttl: PT30M`; `app.asaas.api.connect-timeout: PT3S`; `app.asaas.api.read-timeout: PT10S` |
 | `application-local.yml` | `app.pix.provider: ${APP_PIX_PROVIDER:fake}`; `app.asaas.api.base-url: ${APP_ASAAS_API_BASE_URL:https://api-sandbox.asaas.com}`; `app.asaas.api.key: ${APP_ASAAS_API_KEY:}`. Sem nenhuma variável, sobe com o falso. Com as três no PowerShell, fala com o sandbox (opcional) |
 | `application-prod.yml` | `app.pix.provider: asaas`; `base-url: ${APP_ASAAS_API_BASE_URL}` (sem padrão); `key: ${APP_ASAAS_API_KEY:}` (em branco, não sobe) |
-| `src/test/resources/application.properties` | `app.pix.provider=fake`, `app.orders.pix-ttl=PT30M` |
+| `src/test/resources/application.properties` | `app.pix.provider=fake`, `app.orders.pix-ttl=PT30M`, `app.asaas.api.connect-timeout=PT3S`, `app.asaas.api.read-timeout=PT10S`, `app.asaas.api.base-url=https://api-sandbox.asaas.com`, `app.asaas.api.key=` |
 | `fly.homolog.toml`, `[env]` | `APP_ASAAS_API_BASE_URL = "https://api-sandbox.asaas.com"` (endereço, não é segredo) |
 | Fly secret | `APP_ASAAS_API_KEY` (chave do **sandbox** na homologação; a produção terá outra) |
 | `.env.example` | `APP_ASAAS_API_KEY=` e `APP_ASAAS_API_BASE_URL=`, sem valor |
@@ -238,7 +244,9 @@ Esse segredo é necessário **antes do deploy desta versão na homologação**, 
 | Preço do navegador | Ignorado | `SEC-012: shouldChargeTheServerPriceWhateverTheBodySays` |
 | Produto não publicado | `404` vazio para rascunho, despublicado e inexistente; nenhuma chamada ao Asaas | `SEC-012: shouldRefuseADraftAnUnpublishedAndAMissingProductAlike` |
 | Falha do Asaas | `502`, `errors.payment = PAYMENT_PROVIDER_UNAVAILABLE`; nenhuma linha em `orders`; a mesma resposta para timeout, `4xx` e `5xx` | `SEC-018: shouldStoreNoOrderWhenTheProviderFails` (parametrizado por etapa e por tipo de falha) |
-| Cobrança criada e QR Code falhou | A cobrança é cancelada; nenhum Pedido | idem |
+| Asaas lento (A1) | Corte em 3 s/10 s; `502` com o código fixo; a conexão do banco volta ao pool | `SEC-018: shouldAnswer502AndFreeThePoolWhenTheProviderIsSlow` (`OrderSlowProviderTest`) |
+| Cobrança criada e gravação falhou (A2) | Cobrança excluída no Asaas em melhor esforço; resposta igual à que seria sem a exclusão | `ADR-0003: shouldCancelTheChargeWhenTheOrderCannotBeStored` e `...EvenWhenTheCancelFails` |
+| Código Pix (A3) | Buscado no Asaas a cada `GET`; nenhuma tabela o guarda; Asaas fora do ar no `GET` dá `502` sem apagar o Pedido | `ADR-0003: shouldReadThePixCodeFromTheProviderOnEveryView`, `shouldStoreThePixCodeInNoTableAtAll` |
 | Resposta com o código Pix | Leva `Cache-Control: no-store` (padrão do Spring Security, conferido em teste) | `shouldNeverCacheAnOrderResponse` |
 | Log | Seção Global Constraints | `OrderLogTest` (Task 6) |
 | Limite de taxa | **Nenhum neste ticket** (fica no #42). A trava por Cliente e o reaproveitamento do Pedido pendente limitam cada conta a uma cobrança por Produto a cada 30 minutos | Não há |
@@ -325,15 +333,17 @@ Esse segredo é necessário **antes do deploy desta versão na homologação**, 
 
 | Classe | O que prova |
 |---|---|
-| `OrdersTest` | Migration e repositórios: índice de um `PENDING` por Cliente e Produto, `provider_payment_id` único, `check` do código Pix, FKs |
+| `OrdersTest` | Migration e repositórios: índice de um `PENDING` por Cliente e Produto, `provider_payment_id` único, FKs, nenhuma coluna para o código Pix |
 | `CpfTest` (unitário) | `SEC-033`: aceita `52998224725`, `529.982.247-25`, ` 111.444.777-35 `; recusa `52998224724`, `11111111111`, 10 e 12 dígitos, letras, vazio, `null`; `toString` não mostra o número |
 | `PixProviderConfigTest` | O falso recusa o perfil `prod`; o adaptador recusa chave em branco e `base-url` fora da lista; o contexto padrão sobe sem chave |
 | `AsaasPixGatewayWireTest` | Contra um servidor HTTP local (padrão de `SupabaseProductFileStorageWireTest`): caminhos, verbos, `access_token`, `User-Agent`, JSON enviado (`value` 29.9 para 2990 centavos, `billingType` `PIX`, `externalReference`, `notificationDisabled`); `FR-019`: ids lidos; e as falhas da Review Focus 2, sem vazar corpo, CPF nem chave |
 | `OrderRouteAccessTest` | `SEC-010`: matriz anônimo/Administrador/Cliente/CSRF/verbos |
 | `OrderCreationTest` | `FR-019`: `201`, `Location`, ids únicos; `SEC-012`: preço do servidor e Produto não publicado; `SEC-011`: outro Cliente recebe 404; `SEC-033`: `CPF_REQUIRED`, `CPF_INVALID`, CPF só na primeira compra |
 | `OrderIdempotencyTest` | Review Focus 1: repetição devolve o mesmo Pedido com 1 chamada ao falso; duas threads simultâneas dão 1 cobrança (20 rodadas); Produtos diferentes dão 2 Pedidos |
-| `OrderProviderFailureTest` | `SEC-018`: nenhuma linha em `orders` para cada etapa e tipo de falha; cobrança cancelada quando o QR Code falha |
-| `OrderCpfNotStoredTest` | `SEC-033, ADR-0003`: a varredura de todas as tabelas (seção 3) |
+| `OrderProviderFailureTest` | `SEC-018`: nenhuma linha em `orders` para cada etapa e tipo de falha do `POST`; no `GET`, `502` e o Pedido intacto; A2: cobrança excluída quando a gravação falha |
+| `OrderSlowProviderTest` | `SEC-018` (A1): adaptador de verdade contra um servidor local que não responde, pool do banco reduzido a 2: quatro compras simultâneas recebem `502` com o código fixo antes do tempo de espera do pool, o pool volta a zero conexões ativas e o Catálogo responde |
+| `OrderServiceStoreFailureTest` (unitário) | A2: banco recusa a gravação; a cobrança é excluída e a mesma exceção sobe, mesmo se a exclusão falhar |
+| `OrderCpfNotStoredTest` | `SEC-033, ADR-0003`: a varredura de todas as tabelas (seção 3), também pelo código copia e cola (A3) |
 | `OrderExpirationTest` | `ADR-0003`: Review Focus 4, com `Clock` controlado |
 | `OrderLogTest` | `SEC-033, ADR-0006`: nada sensível no log em TRACE |
 | `RequestRecordsRedactionTest` (alterado) | `cpf` é palavra sensível; `CreateOrderRequest` é exigido |
@@ -358,12 +368,15 @@ Esse segredo é necessário **antes do deploy desta versão na homologação**, 
 | O código copia e cola é pagável num aplicativo de banco | Sandbox não movimenta dinheiro; o botão "Confirmar pagamento" simula | Homologação (botão do sandbox) e, de verdade, só em produção |
 | O Pedido vira pago | É o #28 | #28 |
 | Comportamento com o Asaas lento de verdade | Os testes simulam timeout com um servidor local | Observação na homologação |
-| Esgotamento do pool com muitas compras simultâneas | Não há teste de carga na Fase 1 | #42 ou teste de carga futuro |
+| Esgotamento do pool com muitas compras simultâneas e o Asaas lento de verdade | O `OrderSlowProviderTest` prova que o tempo limite devolve as conexões (pool de 2, quatro compras), não o comportamento sob carga real com o pool de 10 | #42 ou teste de carga futuro |
+| Cobrança excluída de fato no Asaas quando a gravação falha | O teste prova a chamada ao `DELETE` (falso e stub), não o efeito no sandbox | Homologação, se a falha acontecer; senão, conciliação (#31) |
 | Leitor de tela de verdade (NVDA, TalkBack) | O `verificar-tela` confere papéis, nomes e teclado, não a fala | Conferência manual do Sérgio, se quiser |
 | Corrida entre o cancelamento da cobrança e um pagamento no mesmo segundo | Só acontece com dinheiro de verdade; a regra do ADR-0003 (pago depois de expirado vira pago) cobre o resultado | #28 |
 | Cobrança órfã no Asaas depois de um timeout em que o Asaas criou a cobrança e nós não soubemos | Sem chave de idempotência na API, não há como evitar; ela não é pagável (o código nunca foi mostrado e as notificações estão desligadas) | Conciliação (#31) |
 
 ## 11. Decisões que dependem do Sérgio
+
+**Respostas (13/11/2026):** D1 (a); D2 provisório, revisado no diff da PR; D3 a D8 e D10 como recomendado; D9 antes do deploy na homologação.
 
 | # | Decisão | Recomendação |
 |---|---|---|
@@ -381,7 +394,7 @@ Esse segredo é necessário **antes do deploy desta versão na homologação**, 
 ## 12. Arquivos
 
 **Criar (backend, `backend/src/main/java/br/com/sergio/sapiensia/`)**
-- `payment/`: `PixGateway`, `PixCharge`, `PixGatewayException`, `AsaasPixGateway`, `FakePixGateway`, `Cpf`, `Orders`, `PaymentCustomers`, `OrderStatus`, `OrderResponse`, `CreateOrderRequest`, `OrderService`, `OrderController`, `OrderExpiration`, `OrderNotFoundException`, `OrderInProgressException`, `CpfRequiredException`, `CpfInvalidException`, `PaymentProviderUnavailableException`
+- `payment/`: `PixGateway`, `PixGatewayException`, `AsaasPixGateway`, `FakePixGateway`, `Cpf`, `Orders`, `PaymentCustomers`, `OrderStatus`, `OrderResponse`, `OrderCreated`, `CreateOrderRequest`, `OrderService`, `OrderController`, `OrderExpiration`, `OrderNotFoundException`, `OrderInProgressException`, `CpfRequiredException`, `CpfInvalidException`, `PaymentProviderUnavailableException`
 - `customer/CurrentCustomer.java`
 - `backend/src/main/resources/db/migration/V19__create_orders.sql`
 - Testes da seção 9 em `backend/src/test/java/br/com/sergio/sapiensia/payment/`, mais `SwitchablePixGateway`, `SwitchablePixGatewayConfig` e `OrderTestSupport`
@@ -410,24 +423,25 @@ Esse segredo é necessário **antes do deploy desta versão na homologação**, 
 
 **Interfaces:**
 - Produces: `enum OrderStatus { PENDING, EXPIRED }`.
-- Produces: `record Orders.Row(UUID id, UUID customerId, UUID productId, String productTitle, int priceCents, OrderStatus status, String providerPaymentId, String pixCopyPaste, Instant createdAt, Instant expiresAt)`, com `toString()` sem `pixCopyPaste`.
+- Produces: `record Orders.Row(UUID id, UUID customerId, UUID productId, String productTitle, int priceCents, OrderStatus status, String providerPaymentId, Instant createdAt, Instant expiresAt)`.
 - Produces: `@Repository class Orders` (package-private, `JdbcClient`):
-  - `void insert(UUID id, UUID customerId, UUID productId, int priceCents, String providerPaymentId, String pixCopyPaste, Instant createdAt, Instant expiresAt)` (status `PENDING`)
+  - `void insert(UUID id, UUID customerId, UUID productId, int priceCents, String providerPaymentId, Instant createdAt, Instant expiresAt)` (status `PENDING`)
   - `Optional<Row> findForCustomer(UUID id, UUID customerId)` (`where o.id = :id and o.customer_id = :customerId`, join em `products` só para o título)
   - `Optional<Row> findPending(UUID customerId, UUID productId)`
   - `List<Row> findPendingExpired(Instant now, int limit)` (ordem por `expires_at`)
-  - `boolean markExpired(UUID id, Instant now)` (`set status = 'EXPIRED', pix_copy_paste = null, expired_at = :now where id = :id and status = 'PENDING'`; devolve `rows == 1`)
+  - `boolean markExpired(UUID id, Instant now)` (`set status = 'EXPIRED', expired_at = :now where id = :id and status = 'PENDING'`; devolve `rows == 1`)
   - `boolean tryLockCustomer(UUID customerId)` (o `pg_try_advisory_xact_lock` da seção 4)
 - Produces: `@Repository class PaymentCustomers`: `Optional<String> find(UUID customerId)`; `void save(UUID customerId, String providerCustomerId)` (`on conflict (customer_id) do nothing`).
 - Produces (testes): `OrderTestSupport` cria um Cliente confirmado e um Produto publicado direto no banco e devolve os ids.
 
 - [ ] **Step 1: Escrever `OrdersTest`** (`@SpringBootTest`, `@Import(TestcontainersConfiguration.class)`):
-  - `FR-019: shouldStoreAPendingOrderAndReadItBackForItsCustomer` (confere preço, título, `expiresAt`, código)
+  - `FR-019: shouldStoreAPendingOrderAndReadItBackForItsCustomer` (confere preço, título, `expiresAt`, id da cobrança)
+  - `ADR-0003: shouldHaveNoColumnForThePixCode` (A3: `information_schema.columns` de `orders` e `payment_customers` não tem coluna com `pix`, `copy`, `qr`, `payload` ou `cpf` no nome)
   - `SEC-011: shouldFindNothingForAnotherCustomer`
   - `FR-019: shouldRefuseASecondPendingOrderForTheSameCustomerAndProduct` (`DuplicateKeyException`)
   - `FR-019: shouldRefuseTwoOrdersWithTheSamePaymentId`
   - `shouldAllowANewPendingOrderAfterThePreviousOneExpired`
-  - `ADR-0003: shouldEraseThePixCodeWhenAnOrderExpires` e `shouldExpireOnlyOnce` (segundo `markExpired` devolve `false`)
+  - `ADR-0003: shouldExpireOnlyOnce` (segundo `markExpired` devolve `false`)
   - `shouldListOnlyPendingOrdersPastTheirDeadline`
   - `shouldGiveTheCustomerLockToOneTransactionAtATime` (duas `TransactionTemplate` em threads: `true` e `false`; depois do commit, `true` de novo)
   - `SEC-033: shouldKeepOnlyTheProviderCustomerCode` (`save` duas vezes mantém o primeiro)
@@ -440,13 +454,13 @@ Esse segredo é necessário **antes do deploy desta versão na homologação**, 
 ## Task 2: `Cpf`, `PixGateway`, o falso e a configuração
 
 **Files:**
-- Create: `payment/Cpf.java`, `payment/PixGateway.java`, `payment/PixCharge.java`, `payment/PixGatewayException.java`, `payment/FakePixGateway.java`
+- Create: `payment/Cpf.java`, `payment/PixGateway.java`, `payment/PixGatewayException.java`, `payment/FakePixGateway.java`
 - Modify: `application.yml`, `application-local.yml`, `application-prod.yml`, `src/test/resources/application.properties`
 - Test: `payment/CpfTest.java`, `payment/PixProviderConfigTest.java` (parte do falso), `ProdProfileConfigTest.java`
 
 **Interfaces:**
 - Produces: `final class Cpf { static Optional<Cpf> parse(String raw); String digits(); }` com `toString()` igual a `"Cpf[redacted]"`.
-- Produces: `PixGateway`, `PixCharge` e `PixGatewayException` como na seção 5. `PixGatewayException(Kind kind, String step, String reason)`; `getMessage()` é `"Pix gateway failed: step=<step> reason=<reason>"`; sem `cause`.
+- Produces: `PixGateway` e `PixGatewayException` como na seção 5. `PixGatewayException(Kind kind, String step, String reason)`; `getMessage()` é `"Pix gateway failed: step=<step> reason=<reason>"`; sem `cause`.
 - Produces: `FakePixGateway` como na seção 5; `createCustomer` guarda só o código gerado por `customerId`, nunca o CPF.
 
 - [ ] **Step 1: Escrever `CpfTest`** com os casos da seção 9 e `SEC-033: shouldNeverPrintTheNumber`.
@@ -464,20 +478,22 @@ Esse segredo é necessário **antes do deploy desta versão na homologação**, 
 - Test: `payment/AsaasPixGatewayWireTest.java`; `payment/PixProviderConfigTest.java` (parte do adaptador)
 
 **Interfaces:**
-- Consumes: `PixGateway`, `PixCharge`, `PixGatewayException` (Task 2).
-- Produces: `@Component @ConditionalOnProperty(name = "app.pix.provider", havingValue = "asaas") class AsaasPixGateway implements PixGateway`, com o construtor `@Autowired AsaasPixGateway(@Value("${app.asaas.api.base-url}") String baseUrl, @Value("${app.asaas.api.key:}") String apiKey)` e o construtor de teste `AsaasPixGateway(RestClient.Builder builder, String baseUrl, String apiKey)`. Etapas (`step`) usadas nas exceções e no log: `FIND_CUSTOMER`, `CREATE_CUSTOMER`, `CREATE_CHARGE`, `READ_QR_CODE`, `CANCEL_CHARGE`.
+- Consumes: `PixGateway`, `PixGatewayException` (Task 2).
+- Produces: `@Component @ConditionalOnProperty(name = "app.pix.provider", havingValue = "asaas") class AsaasPixGateway implements PixGateway`, com o construtor `@Autowired AsaasPixGateway(@Value("${app.asaas.api.base-url}") String baseUrl, @Value("${app.asaas.api.key:}") String apiKey, @Value("${app.asaas.api.connect-timeout}") Duration connectTimeout, @Value("${app.asaas.api.read-timeout}") Duration readTimeout)` e o construtor de teste `AsaasPixGateway(RestClient.Builder builder, String baseUrl, String apiKey, Duration connectTimeout, Duration readTimeout)` (o builder recebe o `JdkClientHttpRequestFactory` com os tempos limite dentro do construtor, para o teste exercitar o tempo limite de verdade). Etapas (`step`) usadas nas exceções e no log: `FIND_CUSTOMER`, `CREATE_CUSTOMER`, `CREATE_CHARGE`, `READ_QR_CODE`, `CANCEL_CHARGE`.
 
 - [ ] **Step 1: Escrever `AsaasPixGatewayWireTest`** (servidor HTTP local como em `SupabaseProductFileStorageWireTest`; a chave é montada em tempo de execução; `OutputCaptureExtension`):
   - `FR-019: shouldCreateTheCustomerWithNotificationsOffAndReturnItsCode` (corpo: `name`, `cpfCnpj`, `externalReference`, `notificationDisabled = true`; cabeçalhos `access_token` e `User-Agent: sapiensia`)
   - `shouldFindAnExistingCustomerByExternalReference` e `shouldFindNoCustomerWhenTheListIsEmpty`
-  - `FR-019, SEC-012: shouldCreateAPixChargeInReaisFromCents` (2990 vira `29.9`; `billingType = "PIX"`; `dueDate` ISO; `externalReference` = id do Pedido) e devolve `chargeId` e `copyPaste` do `payload`
+  - `FR-019, SEC-012: shouldCreateAPixChargeInReaisFromCents` (2990 vira `29.9`; `billingType = "PIX"`; `dueDate` ISO; `externalReference` = id do Pedido) e devolve o `id`; nenhuma chamada ao `pixQrCode` nesse método
+  - `ADR-0003: shouldReadTheCopyPasteCodeOnEveryCall` (A3: duas chamadas a `readCopyPaste` fazem duas requisições `GET /v3/payments/{id}/pixQrCode` e devolvem só o `payload`)
   - `ADR-0003: shouldCancelAChargeAndTreat404AsCancelled`
   - `SEC-033: shouldReportARejectedDocumentWithoutEchoingIt` (`400` com `code` `invalid_cpfCnpj` e o CPF na `description`: `Kind.DOCUMENT_REJECTED`; mensagem e log sem o CPF)
-  - `SEC-018: shouldReportUnavailableForTimeoutServerErrorAndMalformedAnswers` (parametrizado: `500`, `429`, resposta que demora mais que o timeout de leitura reduzido no teste, `200` com `{}`, `200` com JSON quebrado, `200` no QR sem `payload`)
+  - `SEC-018: shouldReportUnavailableForServerErrorAndMalformedAnswers` (parametrizado: `500`, `429`, `200` com `{}`, `200` com JSON quebrado, `200` no QR sem `payload`)
+  - `SEC-018: shouldGiveUpOnASlowAnswerWithinTheReadTimeout` (A1: servidor que segura a resposta 5 s; adaptador com `read-timeout` `PT0.5S`: `Kind.UNAVAILABLE` em menos de 2 s, em cada um dos cinco métodos)
+  - `SEC-018: shouldGiveUpOnAConnectionThatDoesNotOpenWithinTheConnectTimeout` (A1: `ServerSocket` com backlog cheio ou endereço que não responde; se o comportamento do sistema operacional tornar o teste instável, fica só o teste da configuração do Step 2 e isso vai para a seção 10)
   - `SEC-022: shouldReportAnInvalidKeyWithoutLoggingIt` (`401`: `UNAVAILABLE`, log em ERROR sem a chave)
-  - `ADR-0003: shouldCancelTheChargeWhenTheQrCodeCannotBeRead` (o servidor recebe o `DELETE`)
-  - `SEC-018: shouldNeverPutTheResponseBodyInTheExceptionOrTheLog` (corpos com um marcador único; saída sem o marcador)
-- [ ] **Step 2: Em `PixProviderConfigTest`**: `SEC-022: shouldRefuseABlankApiKey` e `SEC-022: shouldRefuseABaseUrlOutsideAsaasAndLoopback` (`https://example.com`, `http://api.asaas.com`, `https://api.asaas.com.evil.test`), e aceitar as quatro formas permitidas.
+  - `SEC-018: shouldNeverPutTheResponseBodyInTheExceptionOrTheLog` (corpos com um marcador único; saída sem o marcador; o `payload` do QR também não aparece no log)
+- [ ] **Step 2: Em `PixProviderConfigTest`**: `SEC-022: shouldRefuseABlankApiKey`, `SEC-022: shouldRefuseABaseUrlOutsideAsaasAndLoopback` (`https://example.com`, `http://api.asaas.com`, `https://api.asaas.com.evil.test`) aceitando as quatro formas permitidas, e `SEC-018: shouldRefuseTimeoutsAboveThreeAndTenSeconds` (A1: `PT3.001S` de conexão, `PT10.001S` de leitura, zero e negativo são recusados; `PT3S` e `PT10S` sobem).
 - [ ] **Step 3: Rodar e ver falhar.**
 - [ ] **Step 4: Implementar.** Corpos enviados como `record` internos com `toString()` redigido; respostas lidas com `exchange` e `JsonNode`, de onde saem só `id`, `payload`, `data[0].id` e, nos erros, os `code` filtrados por `[A-Za-z0-9_.]{1,64}`. Erro de leitura do corpo de erro não muda o `Kind`.
 - [ ] **Step 5: Rodar e ver passar** (`-Dtest='AsaasPixGatewayWireTest,PixProviderConfigTest'`).
@@ -488,21 +504,23 @@ Esse segredo é necessário **antes do deploy desta versão na homologação**, 
 **Files:**
 - Create: `payment/OrderService.java`, `payment/OrderController.java`, `payment/OrderResponse.java`, `payment/CreateOrderRequest.java`, as cinco exceções, `customer/CurrentCustomer.java`
 - Modify: `security/SecurityConfig.java`, `web/ApiExceptionHandler.java`, `product/CatalogService.java`, `product/CatalogProduct.java`, `RequestRecordsRedactionTest.java`
-- Test: `payment/OrderRouteAccessTest.java`, `OrderCreationTest.java`, `OrderIdempotencyTest.java`, `OrderProviderFailureTest.java`, `OrderCpfNotStoredTest.java`, `SwitchablePixGateway.java`, `SwitchablePixGatewayConfig.java`
+- Test: `payment/OrderRouteAccessTest.java`, `OrderCreationTest.java`, `OrderIdempotencyTest.java`, `OrderProviderFailureTest.java`, `OrderSlowProviderTest.java`, `OrderServiceStoreFailureTest.java`, `OrderCpfNotStoredTest.java`, `SwitchablePixGateway.java`, `SwitchablePixGatewayConfig.java`
 
 **Interfaces:**
 - Consumes: `Orders`, `PaymentCustomers` (Task 1); `PixGateway`, `Cpf` (Task 2); `CatalogService.get(UUID)` (agora `public`).
 - Produces: `public final class CurrentCustomer { public static UUID id(Authentication a); public static String email(Authentication a); }` no pacote `customer`.
 - Produces: `record CreateOrderRequest(@NotNull UUID productId, String cpf)` com `toString()` igual a `"CreateOrderRequest[productId=<id>]"`.
-- Produces: `record OrderResponse(UUID id, UUID productId, String productTitle, int priceCents, OrderStatus status, Instant expiresAt, long secondsToExpire, String pixCopyPaste)` com `toString()` sem o código. Pedido `PENDING` com `expiresAt` no passado sai como `EXPIRED`, `secondsToExpire = 0` e `pixCopyPaste = null`.
-- Produces: `@Service public class OrderService { record Created(OrderResponse order, boolean isNew) {} Created create(UUID customerId, String customerEmail, CreateOrderRequest request); OrderResponse get(UUID customerId, UUID orderId); }`, com `TransactionTemplate`, `Clock` e `@Value("${app.orders.pix-ttl}") Duration`. Para o Pedido pendente vencido encontrado no passo 3 da seção 4, chama `OrderExpiration.Expirer.expire(row)` (Task 5; `false` vira `PaymentProviderUnavailableException`); **nesta task** esse ramo lança `PaymentProviderUnavailableException` e a Task 5 o substitui.
-- Produces: `@RestController @RequestMapping("/api/orders") class OrderController`: `@PostMapping ResponseEntity<OrderResponse> create(@Valid @RequestBody CreateOrderRequest, Authentication)` (`201` com `Location` ou `200`); `@GetMapping("/{id}") OrderResponse get(@PathVariable UUID id, Authentication)`.
+- Produces: `record OrderResponse(UUID id, UUID productId, String productTitle, int priceCents, OrderStatus status, Instant expiresAt, long secondsToExpire, String pixCopyPaste)` com `toString()` sem o código. `pixCopyPaste` vem de `gateway.readCopyPaste` só quando o Pedido está `PENDING` e no prazo. Pedido `PENDING` com `expiresAt` no passado sai como `EXPIRED`, `secondsToExpire = 0` e `pixCopyPaste = null`, sem chamar o Asaas.
+- Produces: `record OrderCreated(UUID id)` (corpo do `POST`).
+- Produces: `@Service public class OrderService { record Created(UUID orderId, boolean isNew) {} Created create(UUID customerId, String customerEmail, CreateOrderRequest request); OrderResponse get(UUID customerId, UUID orderId); }`, com `TransactionTemplate`, `Clock` e `@Value("${app.orders.pix-ttl}") Duration`. Para o Pedido pendente vencido encontrado no passo 3 da seção 4, chama `OrderExpiration.Expirer.expire(row)` (Task 5; `false` vira `PaymentProviderUnavailableException`); **nesta task** esse ramo lança `PaymentProviderUnavailableException` e a Task 5 o substitui.
+- Produces: `@RestController @RequestMapping("/api/orders") class OrderController`: `@PostMapping ResponseEntity<OrderCreated> create(@Valid @RequestBody CreateOrderRequest, Authentication)` (`201` com `Location` ou `200`); `@GetMapping("/{id}") OrderResponse get(@PathVariable UUID id, Authentication)`.
 - Produces (`ApiExceptionHandler`): `OrderNotFoundException` vira `404` vazio; `CpfRequiredException` vira `400` com `errors.cpf = CPF_REQUIRED`; `CpfInvalidException` vira `400` com `CPF_INVALID`; `OrderInProgressException` vira `409` com `errors.order = ORDER_IN_PROGRESS`; `PaymentProviderUnavailableException` vira `502` com `errors.payment = PAYMENT_PROVIDER_UNAVAILABLE`.
-- Produces (testes): `SwitchablePixGateway` com `calls()`, `lastCustomerCpf()`, `lastChargeAmountCents()`, `failAt(String step, PixGatewayException.Kind kind)`, `holdNextCharge(CountDownLatch)` e `reset()`.
+- Produces (testes): `SwitchablePixGateway` com `calls()`, `lastCustomerCpf()`, `lastChargeAmountCents()`, `copyPasteReads()`, `cancelledCharges()`, `failAt(String step, PixGatewayException.Kind kind)`, `failCancel(boolean)`, `holdNextCharge(CountDownLatch)`, `afterNextCharge(Runnable)` e `reset()`.
 
 - [ ] **Step 1: `OrderRouteAccessTest`** (padrão dos testes de rota existentes): `SEC-010: shouldRefuseAnAnonymousVisitor` (401 nos dois verbos), `SEC-010: shouldRefuseAnAdministrator` (403), `SEC-010: shouldRefuseAPostWithoutTheCsrfToken` (403), `SEC-010: shouldKeepEveryOtherOrderRouteDenied` (`GET /api/orders`, `PUT` e `DELETE /api/orders/{id}`, `GET /api/orders/{id}/pix`).
 - [ ] **Step 2: `OrderCreationTest`**:
-  - `FR-019: shouldCreateAPendingOrderWithItsOwnIdAndThePaymentId` (`201`, `Location`, `status = PENDING`, `secondsToExpire` entre 1795 e 1800, `pixCopyPaste` não vazio, linha em `orders` com `provider_payment_id`, `externalReference` recebido pelo falso igual ao id)
+  - `FR-019: shouldCreateAPendingOrderWithItsOwnIdAndThePaymentId` (`201`, `Location`, corpo só com `id`; o `GET` em seguida tem `status = PENDING`, `secondsToExpire` entre 1795 e 1800, `pixCopyPaste` não vazio; linha em `orders` com `provider_payment_id`; `externalReference` recebido pelo falso igual ao id)
+  - `ADR-0003: shouldReadThePixCodeFromTheProviderOnEveryView` (A3: o `POST` não chama `readCopyPaste`; três `GET` fazem três chamadas e devolvem o mesmo código)
   - `SEC-012: shouldChargeTheServerPriceWhateverTheBodySays` (corpo com `priceCents: 1`, `value: 0.01`, `amount: 1`, `status: "PAID"`; o falso recebeu o preço do banco e a linha também)
   - `SEC-012: shouldRefuseADraftAnUnpublishedAndAMissingProductAlike` (três `404` com corpo vazio e cabeçalhos iguais; zero chamadas ao falso)
   - `shouldRefuseABodyWithoutAProductId` (`400`) e `shouldRefuseAMalformedId` (`400` no `GET`)
@@ -513,17 +531,22 @@ Esse segredo é necessário **antes do deploy desta versão na homologação**, 
   - `SEC-011: shouldAnswer404ForAnotherCustomersOrder` (Cliente B lê o Pedido de A: `404` vazio, idêntico ao de um UUID aleatório)
   - `FR-019: shouldReadItsOwnOrder` e `shouldNeverCacheAnOrderResponse` (`Cache-Control` contém `no-store`)
 - [ ] **Step 3: `OrderIdempotencyTest`**:
-  - `FR-019: shouldReturnTheSamePendingOrderWhenTheRequestIsRepeated` (`201` e depois `200`, mesmo `id` e mesmo código; uma chamada `createCharge`)
+  - `FR-019: shouldReturnTheSamePendingOrderWhenTheRequestIsRepeated` (`201` e depois `200`, mesmo `id`; uma chamada `createCharge`)
   - `FR-019: shouldCreateOneChargeForTwoSimultaneousRequests` (duas threads, a primeira presa por `holdNextCharge`; a segunda recebe `409` `ORDER_IN_PROGRESS`; solta a trava; uma linha em `orders`; uma cobrança; 20 rodadas com Clientes novos)
   - `shouldCreateSeparateOrdersForDifferentProducts`
   - `shouldLetTwoCustomersBuyTheSameProduct`
-  - `ADR-0003: shouldCancelTheChargeWhenTheOrderCannotBeStored` (linha `PENDING` concorrente inserida à mão entre a leitura e o insert, por um gancho do `SwitchablePixGateway` em `createCharge`: o falso recebe `cancelCharge` e a resposta é `409`)
-- [ ] **Step 4: `OrderProviderFailureTest`**: `SEC-018: shouldStoreNoOrderWhenTheProviderFails`, parametrizado por (`FIND_CUSTOMER`, `CREATE_CUSTOMER`, `CREATE_CHARGE`, `READ_QR_CODE`) x (`REFUSED`, `UNAVAILABLE`): `502`, `errors.payment`, corpo sem nada além do `ProblemDetail`, zero linhas em `orders`; e `shouldWorkAgainAfterTheProviderRecovers`.
-- [ ] **Step 5: `OrderCpfNotStoredTest`**: `SEC-033, ADR-0003: shouldStoreTheCpfInNoTableAtAll` (seção 3).
-- [ ] **Step 6: Rodar e ver falhar.**
-- [ ] **Step 7: Implementar**, na ordem: `CurrentCustomer`; visibilidade `public` em `CatalogService`, `get` e `CatalogProduct`; DTOs e exceções; `OrderService` (fluxo da seção 4); `OrderController`; handlers; `SecurityConfig` (`// Orders (#24): the logged-in Customer only; the Order is filtered by its owner in the SQL (SEC-011)` e as duas regras antes do `denyAll`); `cpf` em `SENSITIVE_WORDS` e `CreateOrderRequest` na asserção de `RequestRecordsRedactionTest`.
-- [ ] **Step 8: Rodar e ver passar** (`-Dtest='Order*Test,RequestRecordsRedactionTest,WebSecurityTest,CatalogTest'` mais as classes do `git grep` da Global Constraints).
-- [ ] **Step 9: Commit** `feat: pending order with a Pix charge at the server price (#24)`.
+  - `ADR-0003: shouldCancelTheChargeWhenTheOrderCannotBeStored` (A2: linha `PENDING` concorrente inserida, em outra conexão, por `afterNextCharge`: o falso recebe `cancelCharge` com o id da cobrança criada e a resposta é `409 ORDER_IN_PROGRESS`, a mesma de sem a exclusão; uma linha só em `orders`)
+  - `ADR-0003: shouldAnswerTheSameWhenTheCancelAlsoFails` (A2: o mesmo com `failCancel(true)`: ainda `409` igual, e o log tem `Pix charge left without an Order: chargeId=pay_...`)
+- [ ] **Step 4: `OrderProviderFailureTest`**: `SEC-018: shouldStoreNoOrderWhenTheProviderFails`, parametrizado por (`FIND_CUSTOMER`, `CREATE_CUSTOMER`, `CREATE_CHARGE`) x (`REFUSED`, `UNAVAILABLE`): `502`, `errors.payment`, corpo sem nada além do `ProblemDetail`, zero linhas em `orders`; `SEC-018: shouldKeepTheOrderWhenThePixCodeCannotBeRead` (`READ_QR_CODE` no `GET`: `502` com o mesmo código, linha `PENDING` intacta, o `GET` seguinte com o Asaas de volta mostra o código); e `shouldWorkAgainAfterTheProviderRecovers`.
+- [ ] **Step 5: `OrderSlowProviderTest`** (A1; `@SpringBootTest(webEnvironment = RANDOM_PORT)` com contexto próprio: `app.pix.provider=asaas`, `app.asaas.api.base-url=http://127.0.0.1:<porta>` de um `HttpServer` do JDK aberto no teste que segura toda resposta por 30 s, chave montada em tempo de execução, `app.asaas.api.read-timeout=PT1S`, `spring.datasource.hikari.maximum-pool-size=2`, `spring.datasource.hikari.connection-timeout=5000`, `test.isolated-context=order-slow-provider`):
+  - `SEC-018: shouldAnswer502AndFreeThePoolWhenTheProviderIsSlow`: quatro Clientes, cada um com sessão, disparam `POST /api/orders` ao mesmo tempo; os quatro recebem `502` `PAYMENT_PROVIDER_UNAVAILABLE` (nenhum `500`, que seria a espera do pool estourando em 5 s), cada um em menos de 5 s; depois, `HikariPoolMXBean.getActiveConnections() == 0`, `GET /api/catalog` responde `200` e `orders` está vazia.
+  - `SEC-018: shouldAnswer502WithoutHoldingAConnectionWhenTheProviderIsSlowOnView`: com um Pedido já inserido no banco, quatro `GET` simultâneos dão `502` e o Catálogo responde **durante** a espera (o `GET` não segura conexão).
+- [ ] **Step 6: `OrderServiceStoreFailureTest`** (unitário, Mockito sem Spring; `TransactionTemplate` sobre um `PlatformTransactionManager` falso que só executa o bloco; `Orders` e `PaymentCustomers` como mocks; `PixGateway` como o falso): `ADR-0003: shouldCancelTheChargeWhenTheDatabaseRefusesTheOrder` (`Orders.insert` lança `DataAccessResourceFailureException`: `cancelCharge` recebe o id criado e a **mesma** exceção sobe) e `ADR-0003: shouldRethrowTheSameErrorWhenTheCancelFailsToo` (`cancelCharge` lança `PixGatewayException`: sobe a exceção do banco, não a do Asaas).
+- [ ] **Step 7: `OrderCpfNotStoredTest`**: `SEC-033, ADR-0003: shouldStoreTheCpfInNoTableAtAll` (seção 3) e `ADR-0003: shouldStoreThePixCodeInNoTableAtAll` (A3: depois de criar e ler o Pedido, a mesma varredura de todas as tabelas não acha o `pixCopyPaste` devolvido pelo `GET`; o teste confere antes que o código não está vazio).
+- [ ] **Step 8: Rodar e ver falhar.**
+- [ ] **Step 9: Implementar**, na ordem: `CurrentCustomer`; visibilidade `public` em `CatalogService`, `get` e `CatalogProduct`; DTOs e exceções; `OrderService` (fluxo da seção 4); `OrderController`; handlers; `SecurityConfig` (`// Orders (#24): the logged-in Customer only; the Order is filtered by its owner in the SQL (SEC-011)` e as duas regras antes do `denyAll`); `cpf` em `SENSITIVE_WORDS` e `CreateOrderRequest` na asserção de `RequestRecordsRedactionTest`.
+- [ ] **Step 10: Rodar e ver passar** (`-Dtest='Order*Test,RequestRecordsRedactionTest,WebSecurityTest,CatalogTest'` mais as classes do `git grep` da Global Constraints).
+- [ ] **Step 11: Commit** `feat: pending order with a Pix charge at the server price (#24)`.
 
 ## Task 5: Expiração de 30 minutos
 
@@ -537,8 +560,8 @@ Esse segredo é necessário **antes do deploy desta versão na homologação**, 
 - Produces: `@Configuration class OrderExpiration` com o bean `RecurringTask<Void> expirePendingOrdersTask(Expirer expirer)` (`Tasks.recurring("expire-pending-orders", Schedules.fixedDelay(Duration.ofMinutes(1)))`) e o componente `static class Expirer { record Result(int expired, int postponed) {} Result run(); boolean expire(Orders.Row order); }` (padrão de `ProductCoverCleanup`). `expire`: cancela a cobrança; sucesso ou `Kind.REFUSED` marca como expirado (no `REFUSED`, WARN com o id do Pedido e da cobrança); `Kind.UNAVAILABLE` não marca e devolve `false`. `run` trata até 50 Pedidos por vez e registra só as contagens.
 
 - [ ] **Step 1: Escrever `OrderExpirationTest`** (o `Clock` de teste já usado no projeto, ou um `MutableClock` `@Primary` nesta classe):
-  - `ADR-0003: shouldExpireAndCancelTheChargeAfterThirtyMinutes` (29:59 não expira; 30:00 expira; o falso recebeu `cancelCharge`; `pix_copy_paste` nulo)
-  - `ADR-0003: shouldShowAnOrderAsExpiredBeforeTheTaskRuns` (`GET` em 30:01 sem rodar a tarefa: `EXPIRED`, `secondsToExpire = 0`, sem código)
+  - `ADR-0003: shouldExpireAndCancelTheChargeAfterThirtyMinutes` (29:59 não expira; 30:00 expira; o falso recebeu `cancelCharge`)
+  - `ADR-0003: shouldShowAnOrderAsExpiredBeforeTheTaskRuns` (`GET` em 30:01 sem rodar a tarefa: `EXPIRED`, `secondsToExpire = 0`, sem código e **nenhuma** chamada a `readCopyPaste`)
   - `ADR-0003: shouldCreateANewOrderAfterThePreviousOneExpired` (`POST` em 30:01: `201`, outro `id`, a cobrança antiga cancelada, a linha antiga `EXPIRED`)
   - `ADR-0003: shouldRetryLaterWhenTheProviderIsUnavailable` (`UNAVAILABLE`: continua `PENDING` no banco, `postponed = 1`; na rodada seguinte, expira)
   - `ADR-0003: shouldExpireAnywayWhenTheProviderRefusesToCancel` (`REFUSED`)
@@ -555,7 +578,7 @@ Esse segredo é necessário **antes do deploy desta versão na homologação**, 
 **Files:**
 - Test: `payment/OrderLogTest.java`
 
-- [ ] **Step 1: Escrever `OrderLogTest`** (padrão de `AsaasWebhookLogTest`: `OutputCaptureExtension`, `RANDOM_PORT`, `test.isolated-context=order-log`, `logging.level.org.springframework.security=TRACE`, `org.springframework.web=TRACE`, `org.springframework.http=TRACE`, `br.com.sergio.sapiensia=TRACE`). Um método, `@DisplayName("SEC-033, ADR-0006: shouldNeverLogTheCpfThePixCodeOrTheProviderAnswer")`, que: (a) cria um Pedido com o CPF `52998224725` mascarado (`529.982.247-25`); (b) repete a requisição; (c) envia um CPF inválido `12345678900`; (d) provoca `UNAVAILABLE` em `CREATE_CHARGE`; (e) lê o Pedido; (f) roda a expiração. A saída **não contém** `52998224725`, `529.982.247-25`, `12345678900`, o `pixCopyPaste` devolvido nem o e-mail do Cliente; **contém** o id do Pedido numa linha de criação e a linha de falha com `step=CREATE_CHARGE`.
+- [ ] **Step 1: Escrever `OrderLogTest`** (padrão de `AsaasWebhookLogTest`: `OutputCaptureExtension`, `RANDOM_PORT`, `test.isolated-context=order-log`, `logging.level.org.springframework.security=TRACE`, `org.springframework.web=TRACE`, `org.springframework.http=TRACE`, `br.com.sergio.sapiensia=TRACE`). Um método, `@DisplayName("SEC-033, ADR-0006: shouldNeverLogTheCpfThePixCodeOrTheProviderAnswer")`, que: (a) cria um Pedido com o CPF `52998224725` mascarado (`529.982.247-25`); (b) repete a requisição; (c) envia um CPF inválido `12345678900`; (d) provoca `UNAVAILABLE` em `CREATE_CHARGE`; (e) lê o Pedido duas vezes (A3); (f) roda a expiração. A saída **não contém** `52998224725`, `529.982.247-25`, `12345678900`, o `pixCopyPaste` devolvido nem o e-mail do Cliente; **contém** o id do Pedido numa linha de criação e a linha de falha com `step=CREATE_CHARGE`.
 - [ ] **Step 2: Rodar.** Expected: PASS de primeira se as Tasks 3 a 5 estiverem certas; se falhar, corrige-se o código, nunca o teste.
 - [ ] **Step 3: Commit** `test: order logs carry no CPF, Pix code or provider answer (#24)`.
 
@@ -567,8 +590,8 @@ Esse segredo é necessário **antes do deploy desta versão na homologação**, 
 
 **Interfaces:**
 - Produces (`schemas.ts`): `orderSchema` (Zod, espelha `OrderResponse`: `status` em `["PENDING", "EXPIRED"]`, `pixCopyPaste` anulável) e `type Order`.
-- Produces (`api.ts`): `createOrder(input: { productId: string; cpf?: string }): Promise<Order>` e `fetchOrder(id: string): Promise<Order>`, com os erros `NotLoggedInError` (401), `CpfRequiredError`, `CpfInvalidError`, `OrderInProgressError` (409), `ProductUnavailableError` (404 no `POST`), `PaymentUnavailableError` (502), `OrderNotFoundError` (404 ou 400 no `GET`).
-- Produces (`hooks.ts`): `useCreateOrder()` e `useOrder(id)` (query key `["orders", id]`, `retry: false`; `useCreateOrder` grava o Pedido no cache).
+- Produces (`api.ts`): `createOrder(input: { productId: string; cpf?: string }): Promise<{ id: string }>` e `fetchOrder(id: string): Promise<Order>` (`PaymentUnavailableError` também no `GET`), com os erros `NotLoggedInError` (401), `CpfRequiredError`, `CpfInvalidError`, `OrderInProgressError` (409), `ProductUnavailableError` (404 no `POST`), `PaymentUnavailableError` (502), `OrderNotFoundError` (404 ou 400 no `GET`).
+- Produces (`hooks.ts`): `useCreateOrder()` e `useOrder(id)` (query key `["orders", id]`, `retry: false`, `refetchOnWindowFocus: false`, para cada abertura da página ser uma leitura no Asaas e não uma por foco de janela; `gcTime: 0`, para o código não ficar no cache depois que a página fecha).
 - Produces (`cpf.ts`): `normalizeCpf(text: string): string` e `isValidCpf(text: string): boolean` (as mesmas regras de `Cpf`).
 - Produces (`returnTo.ts`): `rememberReturnTo(path: string): void`, `takeReturnTo(now?: number): string | null` (lê, apaga e valida: 60 minutos e os dois padrões da seção 7), `hasReturnTo(): boolean`; todo acesso ao `localStorage` em `try/catch`.
 - Produces (`messages.ts`): `ORDER_TEXTS`, com exatamente os textos das telas A e B da seção 8.
@@ -601,6 +624,7 @@ Esse segredo é necessário **antes do deploy desta versão na homologação**, 
   - `Pedido já expirado abre direto na tela de expirado, com o link para o Produto`
   - `Copiar código escreve na área de transferência e mostra "Código copiado."`; `falha ao copiar mostra a instrução manual`
   - `SEC-011: 404 mostra "Pedido não encontrado"`
+  - `502 no GET mostra "Não foi possível carregar o Pedido agora. Tente novamente." e o botão "Tentar novamente", que consulta de novo` (A3: o código vem do Asaas a cada visualização)
   - `401 guarda o caminho do Pedido e leva a /entrar`
   - `erro de rede mostra a mensagem e o botão "Tentar novamente"`
   - `o título da aba muda em cada estado`
@@ -634,7 +658,7 @@ Esse segredo é necessário **antes do deploy desta versão na homologação**, 
 - [ ] **Step 2: `ci.yml`**: passo "Start the Asaas stub" igual ao do Storage (porta 54322) e, no `docker run`, `-e APP_ASAAS_API_BASE_URL=http://localhost:54322 -e APP_ASAAS_API_KEY=ci-fake-asaas-key-not-real`.
 - [ ] **Step 3: Teste e2e** em `admin-panel.e2e.ts`, com o título da seção 9: o Administrador publica um Produto (os passos do teste de publicação); num contexto novo, um Cliente registrado e confirmado (`registerAndConfirm`), **sem sessão**, abre o Produto e clica em "Comprar com Pix"; cai em `/entrar` com o aviso; entra; volta ao Produto; clica de novo; vê o bloco do CPF com a explicação; envia um CPF fictício gerado na hora; chega a `/pedidos/<id>` e vê "Pague com Pix", o QR Code (`getByRole("img", { name: "QR Code do Pix" })`), o campo "Pix copia e cola" não vazio, o valor igual ao do Produto e a contagem (`/Este Pix expira em \d{2}:\d{2}\./`); recarrega e o código é o mesmo; volta ao Produto, clica em comprar e cai no **mesmo** endereço de Pedido, sem pedir CPF. Um segundo Cliente abre esse endereço e vê "Pedido não encontrado". Por fim, um contexto `devices["Pixel 7"]` com um terceiro Cliente repete a compra e confere que a página não tem rolagem horizontal (`scrollWidth <= clientWidth`).
 - [ ] **Step 4: Rodar o e2e no computador**: na pasta principal, `just db`; na worktree, `just dev-back` e `just dev-front`; depois `just e2e`. Expected: todos os testes passam, inclusive os que já existiam.
-- [ ] **Step 5: Documentação.** `asaas-chave-api.md` (o passo a passo da seção 5 com os comandos, a prova real na homologação da seção 10, rotação e "o que não fazer", no formato do `webhook-asaas.md`); `homologacao-fly.md` (linha `APP_ASAAS_API_KEY` na tabela de segredos, `APP_ASAAS_API_BASE_URL` na de variáveis, "10 nomes"); `fly.homolog.toml`; `.env.example`; ADR-0003 (consequências do #24: adaptador `PixGateway` e `app.pix.provider`, dados enviados ao Asaas e notificações desligadas, um Pedido pendente por Cliente e Produto, QR Code desenhado a partir do código, expiração por tarefa a cada minuto, limite sem chave de idempotência, a decisão D1); `CLAUDE.md`.
+- [ ] **Step 5: Documentação.** `asaas-chave-api.md` (o passo a passo da seção 5 com os comandos, a prova real na homologação da seção 10, rotação e "o que não fazer", no formato do `webhook-asaas.md`); `homologacao-fly.md` (linha `APP_ASAAS_API_KEY` na tabela de segredos, `APP_ASAAS_API_BASE_URL` na de variáveis, "10 nomes"); `fly.homolog.toml`; `.env.example`; ADR-0003 (consequências do #24: adaptador `PixGateway` e `app.pix.provider`, dados enviados ao Asaas e notificações desligadas, um Pedido pendente por Cliente e Produto, código copia e cola buscado no Asaas a cada visualização e nunca guardado, QR Code desenhado a partir do código, tempos limite de 3 s e 10 s, exclusão da cobrança quando a gravação falha, expiração por tarefa a cada minuto, limite sem chave de idempotência, a decisão D1); `CLAUDE.md`.
 - [ ] **Step 6: Commit** `test: end-to-end order with Pix, Asaas stub in CI and runbook (#24)`.
 
 ## Task 11: Sistema de verdade e entrega (controlador, sem subagente)
