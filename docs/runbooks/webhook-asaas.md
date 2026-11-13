@@ -30,6 +30,12 @@ O mesmo do `docs/runbooks/homologacao-fly.md`.
 2. **[RESPONSÁVEL]** Grave o segredo no Fly, **antes do deploy desta versão** (sem ele a aplicação não sobe).
 
    ```powershell
+   (Get-Clipboard).Length
+   ```
+
+   Mostra só o tamanho do que está na área de transferência; o esperado é `64`.
+
+   ```powershell
    fly secrets set APP_ASAAS_WEBHOOK_TOKEN="$(Get-Clipboard)" --stage -a sapiensia-homolog
    ```
 

@@ -12,6 +12,8 @@ export default defineConfig({
     },
   },
   server: {
+    // Playwright writes traces to .tmp/; watching them reloads every open page (#67)
+    watch: { ignored: ["**/.tmp/**"] },
     proxy: {
       // same port as server.port in backend/src/main/resources/application.yml
       "/api": "http://localhost:8081",

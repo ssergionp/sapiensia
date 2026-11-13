@@ -68,7 +68,7 @@ if (!planos.length) {
 
 // 3. testes afrouxados
 console.log('\n## 3. Sinais de teste afrouxado');
-const ehTeste = (f) => /(^|\/)src\/test\//.test(f) || /\.(test|spec)\.[jt]sx?$/.test(f);
+const ehTeste = (f) => /(^|\/)src\/test\//.test(f) || /\.(test|spec|e2e)\.[jt]sx?$/.test(f);
 const achados = [];
 for (const f of alterados.filter(ehTeste)) {
   if (apagados.has(f)) {

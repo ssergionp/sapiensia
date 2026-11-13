@@ -61,3 +61,5 @@ Glossário e convenções das skills: veja docs/agents/ (o domain.md diz onde fi
 - Teste que depende de arquivo fora do git (dados reais) deve ser pulado quando o arquivo não existe, como acontece no CI.
 - Line endings: LF em tudo (`.gitattributes`); só `mvnw.cmd` e os `.ps1` em CRLF. O Spotless e o Biome falham com CRLF.
 - Todos os endpoints da API começam com /api: o proxy do vite.config.ts e o /verificar-tela dependem disso.
+- Valor falso que imita segredo (`sb_secret_...`, token `eyJ...`) é acusado pelo gitleaks do CI: nos testes, monte-o em tempo de execução (`"sb_" + "secret_" + ...`), nunca como literal.
+- Teste focado (`-Dtest=...`) de código que escreve em log ou cumpre um requisito com ID: inclua também as classes que já conferem esse log ou citam esse ID (`git grep -l SEC-047 -- backend/src/test`). Uma checagem de log em outra classe já escapou de um filtro só com o nome da classe mudada.
