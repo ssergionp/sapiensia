@@ -2,7 +2,6 @@ package br.com.sergio.sapiensia.product;
 
 import static br.com.sergio.sapiensia.product.TestImages.concat;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -252,18 +251,23 @@ class CoverImageValidatorTest {
     }
 
     @Test
-    @DisplayName("SEC-043: no prefix and no random mutation of a valid image ever makes the validator throw")
+    @DisplayName(
+            "SEC-043: prefixes and mutations only ever give a designed result, and a Valid output is accepted again")
     void shouldNeverThrowOnPrefixesOrMutations() throws IOException {
         List<byte[]> samples = List.of(
                 TestImages.png(10, 20),
                 TestImages.jpeg(10, 20),
+                TestImages.progressiveJpeg(40, 40),
                 TestImages.webpLossless1x1(),
                 TestImages.webpVp8xWith(TestImages.webpLossless1x1(), true, false));
         Random random = new Random(42);
         for (byte[] sample : samples) {
             for (int length = 0; length <= sample.length; length++) {
                 byte[] prefix = Arrays.copyOf(sample, length);
-                assertThatCode(() -> check(prefix)).doesNotThrowAnyException();
+                CoverCheck result = parseWithoutSafetyNet(prefix);
+                if (length < sample.length) {
+                    assertThat(result).as("prefix of %d bytes", length).isNotInstanceOf(CoverCheck.Valid.class);
+                }
             }
         }
         for (int i = 0; i < 1000; i++) {
@@ -272,8 +276,54 @@ class CoverImageValidatorTest {
             for (int c = 0; c < changes; c++) {
                 mutated[random.nextInt(mutated.length)] = (byte) random.nextInt(256);
             }
-            assertThatCode(() -> check(mutated)).doesNotThrowAnyException();
+            if (parseWithoutSafetyNet(mutated) instanceof CoverCheck.Valid first) {
+                CoverCheck.Valid again = valid(first.cleaned());
+                assertThat(again.format()).isEqualTo(first.format());
+                assertThat(again.width()).isEqualTo(first.width());
+                assertThat(again.height()).isEqualTo(first.height());
+            }
         }
+    }
+
+    /** Runs the walking code without the catch-all, so a swallowed bug (say, an out-of-bounds index) fails the test. */
+    private static CoverCheck parseWithoutSafetyNet(byte[] bytes) {
+        return CoverImageValidator.parse(bytes);
+    }
+
+    @Test
+    @DisplayName("SEC-043: EXIF and a comment hidden between progressive scans are removed, the image still decodes")
+    void shouldCleanMetadataBetweenProgressiveScans() throws IOException {
+        byte[] progressive = TestImages.progressiveJpeg(40, 30);
+        byte[] sos = {(byte) 0xFF, (byte) 0xDA};
+        int firstScan = indexOf(progressive, sos);
+        int secondScan =
+                firstScan + 2 + indexOf(Arrays.copyOfRange(progressive, firstScan + 2, progressive.length), sos);
+        assertThat(secondScan).isGreaterThan(firstScan + 2);
+        byte[] exif = concat("Exif\0\0".getBytes(StandardCharsets.ISO_8859_1), new byte[40]);
+        byte[] dirty = concat(
+                Arrays.copyOfRange(progressive, 0, secondScan),
+                new byte[] {(byte) 0xFF, (byte) 0xE1},
+                TestImages.be16(exif.length + 2),
+                exif,
+                new byte[] {(byte) 0xFF, (byte) 0xFE},
+                TestImages.be16(9),
+                "secret!".getBytes(StandardCharsets.US_ASCII),
+                Arrays.copyOfRange(progressive, secondScan, progressive.length),
+                "PK tail".getBytes(StandardCharsets.US_ASCII));
+
+        CoverCheck.Valid result = valid(dirty);
+
+        assertThat(indexOf(result.cleaned(), "Exif".getBytes(StandardCharsets.ISO_8859_1)))
+                .isEqualTo(-1);
+        assertThat(indexOf(result.cleaned(), "secret!".getBytes(StandardCharsets.US_ASCII)))
+                .isEqualTo(-1);
+        assertThat(indexOf(result.cleaned(), "PK tail".getBytes(StandardCharsets.US_ASCII)))
+                .isEqualTo(-1);
+        assertThat(result.cleaned()).isEqualTo(progressive);
+        var decoded = ImageIO.read(new ByteArrayInputStream(result.cleaned()));
+        assertThat(decoded).isNotNull();
+        assertThat(decoded.getWidth()).isEqualTo(40);
+        assertThat(decoded.getHeight()).isEqualTo(30);
     }
 
     // ---- cleaning ----

@@ -60,6 +60,19 @@ public class CoverImageValidator {
             return reject(ProductCoverRejection.COVER_EMPTY);
         }
         try {
+            return parse(bytes);
+        } catch (RuntimeException e) {
+            // Last line of defense: whatever the walking code did not foresee is a refusal, never a 500.
+            return reject(ProductCoverRejection.COVER_INVALID);
+        }
+    }
+
+    /**
+     * The walking code without the last-line catch-all: only designed rejections become a result, anything else
+     * (a bug such as an out-of-bounds index) propagates. The tests fuzz this entry point so such bugs stay visible.
+     */
+    static CoverCheck parse(byte[] bytes) {
+        try {
             if (startsWith(bytes, PNG_SIGNATURE)) {
                 return png(bytes);
             }
@@ -74,9 +87,6 @@ public class CoverImageValidator {
             return reject(ProductCoverRejection.COVER_NOT_IMAGE);
         } catch (Rejection e) {
             return reject(e.reason);
-        } catch (RuntimeException e) {
-            // Last line of defense: whatever the walking code did not foresee is a refusal, never a 500.
-            return reject(ProductCoverRejection.COVER_INVALID);
         }
     }
 
@@ -188,12 +198,15 @@ public class CoverImageValidator {
     }
 
     /**
-     * From the first SOS to the first EOI the bytes are copied as they are. Entropy-coded data is scanned only to find
-     * the next real marker (FF followed by something other than 00, RSTn or FF); segments between scans are stepped
-     * over by their declared length, never by searching inside them.
+     * From the first SOS to the first EOI: entropy-coded bytes (including FF00 stuffing and RSTn) are copied as they are
+     * and only scanned to find the next real marker (FF followed by something other than 00, RSTn or FF). Segments
+     * between scans are stepped over by their declared length, never by searching inside them, and filtered like the
+     * ones before the scan. Everything after the first EOI is dropped.
      */
     private static void copyScansUpToEoi(byte[] b, int scanStart, int headerEnd, ByteArrayOutputStream out) {
+        out.write(b, scanStart, headerEnd - scanStart);
         int p = headerEnd;
+        int copyFrom = headerEnd; // start of the entropy-coded bytes not yet copied
         while (p < b.length) {
             if (u8(b, p) != 0xFF) {
                 p++;
@@ -206,10 +219,18 @@ public class CoverImageValidator {
             } else if (marker == 0xFF) {
                 p++;
             } else if (marker == 0xD9) {
-                out.write(b, scanStart, p + 2 - scanStart);
+                out.write(b, copyFrom, p + 2 - copyFrom);
                 return;
             } else {
-                p = segmentEnd(b, p);
+                // A real marker between scans: the same keep/drop rule as before the first scan, so EXIF, XMP or a
+                // comment hidden between progressive scans does not survive. SOS headers are kept (their data follows).
+                out.write(b, copyFrom, p - copyFrom);
+                int end = segmentEnd(b, p);
+                if (marker == 0xDA || keepJpegSegment(b, marker, p + 4, end)) {
+                    out.write(b, p, end - p);
+                }
+                p = end;
+                copyFrom = end;
             }
         }
         throw invalid(); // no EOI

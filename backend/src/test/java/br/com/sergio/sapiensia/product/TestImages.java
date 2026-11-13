@@ -40,6 +40,31 @@ public final class TestImages {
         }
     }
 
+    /** A multi-scan (progressive) JPEG. */
+    public static byte[] progressiveJpeg(int width, int height) {
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        for (int x = 0; x < width; x++) {
+            for (int y = 0; y < height; y++) {
+                image.setRGB(x, y, (x * 31 + y * 17) & 0xFFFFFF);
+            }
+        }
+        javax.imageio.ImageWriter writer =
+                ImageIO.getImageWritersByFormatName("jpeg").next();
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream();
+                javax.imageio.stream.ImageOutputStream stream = ImageIO.createImageOutputStream(out)) {
+            javax.imageio.ImageWriteParam param = writer.getDefaultWriteParam();
+            param.setProgressiveMode(javax.imageio.ImageWriteParam.MODE_DEFAULT);
+            writer.setOutput(stream);
+            writer.write(null, new javax.imageio.IIOImage(image, null, null), param);
+            stream.flush();
+            return out.toByteArray();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        } finally {
+            writer.dispose();
+        }
+    }
+
     /** A valid lossless 1x1 WebP (a RIFF with a single VP8L chunk). */
     public static byte[] webpLossless1x1() {
         return Base64.getDecoder().decode(WEBP_LOSSLESS_1X1);
