@@ -12,14 +12,17 @@ const BACKEND_JAVA = new RegExp(`^backend/src/(?:main|test)/java/${PACKAGE}/([^/
 const REQUIREMENT_ID = /\b(?:SEC|FR|NFR)-\d{3}\b/g;
 
 // Pure: which test sets a list of changed files needs.
-// backend: 'none' | 'all' | string[] of -Dtest patterns; frontend: changed files under frontend/src; nodeTests: .claude or scripts changed.
+// backend: 'none' | 'all' | string[] of -Dtest patterns; frontend: 'all' (config/tooling change outside src and e2e) or the changed files under frontend/src; nodeTests: .claude or scripts changed.
 export function chooseTests(changedFiles) {
   const features = new Set();
   const frontend = [];
+  let frontendAll = false;
   let backendAll = false;
   let nodeTests = false;
   for (const f of changedFiles) {
     if (f.startsWith('frontend/src/')) frontend.push(f);
+    // package.json, lockfile, vite/vitest/tsconfig...: any test can be affected. e2e files are Playwright, not vitest; docs do not count.
+    else if (f.startsWith('frontend/') && !f.startsWith('frontend/e2e/') && !/.md$/i.test(f)) frontendAll = true;
     if (f.startsWith('.claude/') || f.startsWith('scripts/')) nodeTests = true;
     if (!f.startsWith('backend/')) continue;
     const feature = BACKEND_JAVA.exec(f)?.[1];
@@ -29,7 +32,7 @@ export function chooseTests(changedFiles) {
   let backend = 'none';
   if (backendAll) backend = 'all';
   else if (features.size) backend = [...features].map((x) => `${PACKAGE}/${x}/**`);
-  return { backend, frontend, nodeTests };
+  return { backend, frontend: frontendAll ? 'all' : frontend, nodeTests };
 }
 
 // Pure: unique, sorted requirement IDs (SEC-, FR-, NFR-) found in the given texts.
@@ -102,8 +105,12 @@ function run() {
   const steps = [{ nome: 'lint (Spotless + Biome)', cmd: 'just lint', cwd: root }];
   if (changed.some((f) => f.startsWith('frontend/'))) {
     steps.push({ nome: 'tipos do frontend (tsc -b)', cmd: 'pnpm exec tsc -b', cwd: join(root, 'frontend') });
-    const related = chosen.frontend.filter((f) => existsSync(join(root, f))).map((f) => f.replace(/^frontend\//, ''));
-    if (related.length) steps.push({ nome: `testes do frontend (${related.length} arquivo(s) e relacionados)`, cmd: `pnpm exec vitest related --run ${related.join(' ')}`, cwd: join(root, 'frontend') });
+    if (chosen.frontend === 'all') {
+      steps.push({ nome: 'testes do frontend (todos)', cmd: 'pnpm exec vitest run --passWithNoTests', cwd: join(root, 'frontend') });
+    } else {
+      const related = chosen.frontend.filter((f) => existsSync(join(root, f))).map((f) => f.replace(/^frontend\//, ''));
+      if (related.length) steps.push({ nome: `testes do frontend (${related.length} arquivo(s) e relacionados)`, cmd: `pnpm exec vitest related --run --passWithNoTests ${related.join(' ')}`, cwd: join(root, 'frontend') });
+    }
   }
   if (chosen.backend === 'all') {
     steps.push({ backend: true, nome: 'testes do backend (todos)', cmd: `${mvnw} test`, cwd: join(root, 'backend') });

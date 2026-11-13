@@ -11,6 +11,15 @@ test('frontend source change picks related vitest files and no backend', () => {
   assert.equal(r.nodeTests, false);
 });
 
+test('frontend config outside src runs all vitest tests', () => {
+  assert.equal(chooseTests(['frontend/package.json']).frontend, 'all');
+  assert.equal(chooseTests(['frontend/src/a.ts', 'frontend/vite.config.ts']).frontend, 'all');
+});
+
+test('frontend e2e files alone pick no vitest tests', () => {
+  assert.deepEqual(chooseTests(['frontend/e2e/a.e2e.ts']).frontend, []);
+});
+
 test('a per-feature backend change picks only that feature', () => {
   const r = chooseTests([`${J}/product/X.java`]);
   assert.deepEqual(r.backend, ['br/com/sergio/sapiensia/product/**']);

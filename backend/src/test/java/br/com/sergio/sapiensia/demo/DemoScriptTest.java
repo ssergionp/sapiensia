@@ -29,4 +29,16 @@ class DemoScriptTest {
 
         assertThat(script).contains(DemoAccounts.ADMIN_TOTP_SECRET);
     }
+
+    @Test
+    void demoGuideListsTheSeededAccounts() throws Exception {
+        String guide = Files.readString(Path.of("..", "docs", "demo.md"));
+
+        assertThat(guide)
+                .contains(DemoAccounts.ADMIN_EMAIL)
+                .contains(DemoAccounts.ADMIN_PASSWORD)
+                .contains(DemoAccounts.CUSTOMER_EMAIL)
+                .contains(DemoAccounts.CUSTOMER_PASSWORD)
+                .contains(DemoAccounts.ADMIN_TOTP_SECRET);
+    }
 }
