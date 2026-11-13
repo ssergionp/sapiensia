@@ -41,6 +41,7 @@ export function product(overrides: Partial<Product> = {}): Product {
     firstPublishedAt: null,
     version: 3,
     file: null,
+    cover: null,
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
     ...overrides,
@@ -54,6 +55,7 @@ export function listItem(
   const {
     description: _description,
     file: _file,
+    cover: _cover,
     firstPublishedAt: _firstPublishedAt,
     ...item
   } = product();

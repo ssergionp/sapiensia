@@ -1,5 +1,6 @@
 import type {
   ProductCategory,
+  ProductCoverRejectionCode,
   ProductFileRejectionCode,
   ProductStatus,
 } from "./schemas";
@@ -130,4 +131,46 @@ export const PUBLICATION_ERRORS = {
   unavailable:
     "O sistema está indisponível no momento e nada foi alterado. Tente novamente em alguns instantes.",
   unexpected: "Não foi possível alterar a publicação agora. Tente novamente.",
+} as const;
+
+export const COVER_TEXTS = {
+  title: "Capa do produto",
+  label: "Imagem da capa",
+  help: "PNG, JPEG ou WebP, até 2 MB e até 4.000 pixels de largura e de altura. Recomendado: 1200 × 1800 pixels.",
+  helpReplace:
+    "Enviar outra imagem substitui a atual. Os dados da foto (como local e aparelho) são removidos.",
+  none: "Nenhuma capa enviada.",
+  alt: (title: string) => `Capa de ${title}`,
+  send: "Enviar capa",
+  sending: "Enviando capa…",
+  sent: "Capa enviada.",
+  remove: "Remover capa",
+  confirmQuestion:
+    "Remover a capa deste Produto? O Catálogo passa a mostrar um quadro sem imagem.",
+  confirmRemove: "Confirmar remoção",
+  removing: "Removendo capa…",
+  cancel: "Cancelar",
+  removed: "Capa removida.",
+} as const;
+
+export const COVER_MESSAGES: Record<ProductCoverRejectionCode, string> = {
+  COVER_REQUIRED: "Selecione uma imagem.",
+  COVER_EMPTY: "A imagem está vazia.",
+  COVER_TOO_LARGE:
+    "A imagem passa de 2 MB. Envie uma imagem menor, de preferência em JPEG ou WebP.",
+  COVER_NOT_IMAGE:
+    "A imagem precisa ser PNG, JPEG ou WebP. SVG e GIF não são aceitos.",
+  COVER_INVALID:
+    "Não foi possível ler esta imagem. Ela pode estar corrompida. Exporte a imagem de novo e tente outra vez.",
+  COVER_TOO_MANY_PIXELS:
+    "A imagem passa de 4.000 pixels de largura ou de altura. Reduza a imagem e envie de novo.",
+  COVER_ANIMATED: "Imagens animadas não são aceitas. Envie uma imagem parada.",
+};
+
+export const COVER_ERRORS = {
+  forbidden: "Você não tem permissão para alterar a capa do Produto.",
+  unavailable:
+    "O sistema está indisponível no momento e a capa não foi alterada. Tente novamente em alguns instantes.",
+  unexpected:
+    "Não foi possível alterar a capa. Verifique a conexão e tente novamente.",
 } as const;
