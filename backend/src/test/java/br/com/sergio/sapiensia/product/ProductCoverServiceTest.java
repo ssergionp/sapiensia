@@ -10,13 +10,17 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -315,5 +319,24 @@ class ProductCoverServiceTest {
 
         storage.delete(cover.objectKey());
         assertThatThrownBy(() -> service.read(cover)).isInstanceOf(ProductCoverMissingException.class);
+    }
+
+    @Test
+    @DisplayName("SEC-050: a failed write of the cleaned bytes leaves no temporary file behind")
+    void shouldDeleteTempFileWhenWriteFails() throws IOException {
+        Set<Path> before = coverTempFiles();
+
+        assertThatThrownBy(() -> ProductCoverService.writeTemp(null)).isInstanceOf(NullPointerException.class);
+
+        Set<Path> created = coverTempFiles();
+        created.removeAll(before);
+        assertThat(created).isEmpty();
+    }
+
+    private static Set<Path> coverTempFiles() throws IOException {
+        try (Stream<Path> files = Files.list(Path.of(System.getProperty("java.io.tmpdir")))) {
+            return files.filter(p -> p.getFileName().toString().startsWith("cover-"))
+                    .collect(Collectors.toCollection(HashSet::new));
+        }
     }
 }

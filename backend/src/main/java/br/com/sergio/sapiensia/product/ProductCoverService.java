@@ -206,7 +206,7 @@ class ProductCoverService {
         Assert.state(!TransactionSynchronizationManager.isActualTransactionActive(), "must not run in a transaction");
     }
 
-    private static Path writeTemp(byte[] bytes) {
+    static Path writeTemp(byte[] bytes) {
         Path file;
         try {
             file = Files.createTempFile("cover-", ".bin");
@@ -215,13 +215,13 @@ class ProductCoverService {
         }
         try {
             return Files.write(file, bytes);
-        } catch (IOException | RuntimeException e) {
+        } catch (IOException e) {
             // the caller's finally starts only after this method returns, so the half-written file goes here
             deleteQuietly(file);
-            if (e instanceof RuntimeException runtime) {
-                throw runtime;
-            }
             throw new ProductFileStorageException("the temporary file cannot be written");
+        } catch (RuntimeException e) {
+            deleteQuietly(file);
+            throw e;
         }
     }
 
