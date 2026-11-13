@@ -70,6 +70,9 @@ class ProductCoverController {
         if (file.isEmpty()) {
             throw new ProductCoverRejectedException(ProductCoverRejection.COVER_EMPTY);
         }
+        if (file.getSize() > CoverImageValidator.MAX_BYTES) {
+            throw new ProductCoverRejectedException(ProductCoverRejection.COVER_TOO_LARGE);
+        }
         var administrator = (AdministratorPrincipal) authentication.getPrincipal();
         Path temp = createTempFile();
         try {

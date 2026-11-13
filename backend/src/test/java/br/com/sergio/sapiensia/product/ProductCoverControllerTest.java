@@ -151,6 +151,32 @@ class ProductCoverControllerTest {
     }
 
     @Test
+    @DisplayName("FR-016: a part over 2 MB is COVER_TOO_LARGE before any copy; the limit itself is let through")
+    void shouldRefuseAnOversizedPartBeforeCopyingIt() throws IOException {
+        MultipartFile big = mock(MultipartFile.class);
+        when(big.isEmpty()).thenReturn(false);
+        when(big.getSize()).thenReturn(CoverImageValidator.MAX_BYTES + 1);
+
+        assertThatThrownBy(() -> controller.upload(productId, big, authentication, request))
+                .isInstanceOfSatisfying(
+                        ProductCoverRejectedException.class,
+                        e -> assertThat(e.reason()).isEqualTo(ProductCoverRejection.COVER_TOO_LARGE));
+
+        verify(big, never()).getInputStream();
+        verify(service, never()).upload(any(), any(), any(), any());
+
+        MultipartFile exact = mock(MultipartFile.class);
+        when(exact.isEmpty()).thenReturn(false);
+        when(exact.getSize()).thenReturn(CoverImageValidator.MAX_BYTES);
+        when(exact.getInputStream()).thenAnswer(i -> new ByteArrayInputStream("image-bytes".getBytes()));
+        stubService(() -> mock(ProductResponse.class));
+
+        controller.upload(productId, exact, authentication, request);
+
+        assertTempDeleted();
+    }
+
+    @Test
     @DisplayName("FR-016: each rejection is a 400 with the code, COVER_TOO_LARGE is 413")
     void shouldMapRejectionsToTheErrorCode() {
         for (ProductCoverRejection reason : ProductCoverRejection.values()) {

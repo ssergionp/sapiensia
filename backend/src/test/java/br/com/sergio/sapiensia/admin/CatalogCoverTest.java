@@ -18,8 +18,11 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -35,6 +38,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
     AdminMfaTestSupport.ClockConfig.class,
     SwitchableProductFileStorageConfig.class
 })
+@ExtendWith(OutputCaptureExtension.class)
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
@@ -283,9 +287,10 @@ class CatalogCoverTest {
 
     @Test
     @DisplayName("FR-016: a missing object in the Storage is an empty 404; a Storage outage is a 503 without body")
-    void shouldAnswerNotFoundForAMissingObjectAndUnavailableForAnOutage() throws Exception {
+    void shouldAnswerNotFoundForAMissingObjectAndUnavailableForAnOutage(CapturedOutput output) throws Exception {
         UUID id = publishedProduct();
         uploadPng(id);
+        String objectKey = jdbc.queryForObject("select object_key from product_covers", String.class);
         AdminBrowser visitor = new AdminBrowser(port);
 
         storage.failGets(true);
@@ -300,5 +305,10 @@ class CatalogCoverTest {
         assertThat(down.body()).isEmpty();
         assertThat(missing.statusCode()).isEqualTo(404);
         assertThat(missing.body()).isEmpty();
+        assertThat(output.getAll())
+                .contains("Product cover object missing (product " + id + ")")
+                .doesNotContain(objectKey)
+                .doesNotContain("covers/")
+                .doesNotContain("product-covers");
     }
 }

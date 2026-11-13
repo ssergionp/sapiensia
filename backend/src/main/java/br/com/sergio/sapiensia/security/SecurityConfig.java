@@ -62,8 +62,8 @@ public class SecurityConfig {
             + "frame-ancestors 'none'";
 
     /**
-     * The public Catalog (#20, ADR-0007) and the cover of a published Product (#21): GET only, so /products/{id}/file and every
-     * other verb stay denied. The same matcher opens the routes and keeps the XSRF-TOKEN cookie off them.
+     * The public Catalog (#20, ADR-0007) and the cover of a published Product (#21): GET only, so
+     * /products/{id}/file and every other verb stay denied. The same matcher opens the routes and keeps the XSRF-TOKEN cookie off them.
      */
     static final OrRequestMatcher PUBLIC_CATALOG = new OrRequestMatcher(
             PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/api/products"),
@@ -78,7 +78,7 @@ public class SecurityConfig {
 
     /**
      * The CSRF filter generates and saves a token on any request that has none, even a GET that needs no token, so
-     * the public Catalog (#20) would hand every Visitor an XSRF-TOKEN cookie. Saving is skipped for those two GET
+     * the public Catalog (#20) would hand every Visitor an XSRF-TOKEN cookie. Saving is skipped for those three GET
      * routes only (A4); everything else, including the login that renews the token by hand, behaves as before.
      */
     static final class NoCookieOnPublicCatalog implements CsrfTokenRepository {
