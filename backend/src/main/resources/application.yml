@@ -122,3 +122,6 @@ app:
     max-pages: 1000
     # the PDF structure check is abandoned after this long (SEC-047)
     validation-timeout: PT20S
+  product-cover:
+    # an object registered for deletion is only deleted after this long, so an upload in progress is never touched
+    orphan-min-age: PT15M
