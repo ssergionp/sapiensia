@@ -199,6 +199,30 @@ class DemoSeedTest {
     }
 
     @Nested
+    @SpringBootTest(properties = {"app.storage.file.dir=target/test-storage-nodemo"})
+    @ActiveProfiles("local")
+    @Import(TestcontainersConfiguration.class)
+    class LocalWithoutDemoFlag {
+
+        @Autowired
+        JdbcTemplate jdbc;
+
+        @Autowired
+        ApplicationContext context;
+
+        @Test
+        @DisplayName("shouldCreateNoDemoSeederInLocalWithoutTheDemoFlag")
+        void shouldCreateNoDemoSeederInLocalWithoutTheDemoFlag() {
+            assertThat(context.getBeansOfType(ApplicationRunner.class).values())
+                    .noneMatch(r -> r.getClass().getSimpleName().startsWith("Demo")
+                            && r.getClass().getSimpleName().endsWith("Seeder"));
+            assertThat(jdbc.queryForObject(
+                            "select count(*) from customers where email = ?", Long.class, DemoAccounts.CUSTOMER_EMAIL))
+                    .isZero();
+        }
+    }
+
+    @Nested
     @SpringBootTest(
             webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
             properties = {
