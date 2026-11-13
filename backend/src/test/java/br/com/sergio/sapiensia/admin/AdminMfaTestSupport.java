@@ -73,11 +73,16 @@ final class AdminMfaTestSupport {
     /** A well-formed code of none of the three steps accepted at {@code at}. */
     static String wrongCodeAt(byte[] secret, Instant at) {
         long step = Totp.stepAt(at);
-        java.util.Set<String> accepted = java.util.Set.of(
+        return firstCodeNotIn(
                 Totp.code(secret, step - 1, 6), Totp.code(secret, step, 6), Totp.code(secret, step + 1, 6));
+    }
+
+    /** The first 6-digit code, counting from 000000, that is not in {@code accepted}; repeated codes are fine. */
+    static String firstCodeNotIn(String... accepted) {
+        java.util.Set<String> rejected = new java.util.HashSet<>(java.util.Arrays.asList(accepted));
         for (int i = 0; ; i++) {
             String candidate = String.format(java.util.Locale.ROOT, "%06d", i);
-            if (!accepted.contains(candidate)) {
+            if (!rejected.contains(candidate)) {
                 return candidate;
             }
         }
