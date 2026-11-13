@@ -117,7 +117,7 @@ class ProductCoverServiceTest {
     }
 
     @Test
-    @DisplayName("SEC-043: upload stores the cleaned bytes, one row with format, size, dimensions and version")
+    @DisplayName("SEC-043 SEC-065: upload stores the cleaned bytes, one row with format, size, dimensions and version")
     void shouldStoreCoverRow() throws Exception {
         ProductResponse response = upload(TestImages.png(30, 20));
 
@@ -249,7 +249,7 @@ class ProductCoverServiceTest {
     }
 
     @Test
-    @DisplayName("SEC-043: a rejected image is audited as FAILURE and nothing reaches the storage")
+    @DisplayName("SEC-043 SEC-065: a rejected image is audited as FAILURE and nothing reaches the storage")
     void shouldAuditRejectionAndStoreNothing() throws Exception {
         assertThatThrownBy(() -> upload("not an image".getBytes()))
                 .isInstanceOfSatisfying(
@@ -271,7 +271,7 @@ class ProductCoverServiceTest {
     }
 
     @Test
-    @DisplayName("SEC-050: removal deletes row and object and audits ADMIN_PRODUCT_COVER_REMOVED")
+    @DisplayName("SEC-050 SEC-065: removal deletes row and object and audits ADMIN_PRODUCT_COVER_REMOVED")
     void shouldRemoveCover() throws Exception {
         upload(TestImages.png(10, 10));
 
