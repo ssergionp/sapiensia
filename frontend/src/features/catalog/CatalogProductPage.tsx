@@ -4,8 +4,10 @@ import { CATEGORY_LABELS } from "@/features/products/messages";
 import { formatCents } from "@/features/products/schemas";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { CatalogProductNotFoundError } from "./api";
+import CoverImage from "./CoverImage";
 import { useCatalogProduct } from "./hooks";
 import { CATALOG_TEXTS as T } from "./messages";
+import { coverUrl } from "./schemas";
 
 export default function CatalogProductPage() {
   const { id = "" } = useParams();
@@ -63,18 +65,27 @@ export default function CatalogProductPage() {
   return (
     <main className="p-8">
       <p>{backLink}</p>
-      <h1 className="mt-4 text-2xl font-bold [overflow-wrap:anywhere]">
-        {product.title}
-      </h1>
-      <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
-        <dt className="font-semibold">{T.categoryTerm}</dt>
-        <dd>{CATEGORY_LABELS[product.category]}</dd>
-        <dt className="font-semibold">{T.priceTerm}</dt>
-        <dd>{formatCents(product.priceCents)}</dd>
-      </dl>
-      <p className="mt-4 whitespace-pre-line [overflow-wrap:anywhere]">
-        {product.description}
-      </p>
+      <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start">
+        <CoverImage
+          src={coverUrl(product.id, product.coverVersion)}
+          alt={`Capa de ${product.title}`}
+          className="w-40 shrink-0"
+        />
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold [overflow-wrap:anywhere]">
+            {product.title}
+          </h1>
+          <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+            <dt className="font-semibold">{T.categoryTerm}</dt>
+            <dd>{CATEGORY_LABELS[product.category]}</dd>
+            <dt className="font-semibold">{T.priceTerm}</dt>
+            <dd>{formatCents(product.priceCents)}</dd>
+          </dl>
+          <p className="mt-4 whitespace-pre-line [overflow-wrap:anywhere]">
+            {product.description}
+          </p>
+        </div>
+      </div>
     </main>
   );
 }

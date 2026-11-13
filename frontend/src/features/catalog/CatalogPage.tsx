@@ -4,8 +4,10 @@ import { Button } from "@/components/ui/button";
 import { CATEGORY_LABELS } from "@/features/products/messages";
 import { formatCents } from "@/features/products/schemas";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
+import CoverImage from "./CoverImage";
 import { useCatalog } from "./hooks";
 import { CATALOG_TEXTS as T } from "./messages";
+import { coverUrl } from "./schemas";
 
 // ?pagina= is 1-based; anything that is not 1 to 9 digits with a value of at least 1 means the first page.
 function pageFromParam(raw: string | null): number {
@@ -70,6 +72,11 @@ export default function CatalogPage() {
           {items.map((item) => (
             <li key={item.id}>
               <article className="rounded-lg border p-4">
+                <CoverImage
+                  src={coverUrl(item.id, item.coverVersion)}
+                  alt={`Capa de ${item.title}`}
+                  className="mb-3 max-w-40"
+                />
                 <h2 className="text-lg font-semibold [overflow-wrap:anywhere]">
                   <Link to={`/catalogo/${item.id}`} className="underline">
                     {item.title}

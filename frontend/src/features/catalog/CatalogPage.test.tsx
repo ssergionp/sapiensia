@@ -15,6 +15,7 @@ function item(overrides: Partial<CatalogItem> = {}): CatalogItem {
     summary: "Resumo…",
     category: "HEALTH",
     priceCents: 1990,
+    coverVersion: null,
     ...overrides,
   };
 }
@@ -52,6 +53,29 @@ afterEach(() => {
 });
 
 describe("CatalogPage", () => {
+  test("mostra a capa do produto com texto alternativo", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(200, pageBody([item({ coverVersion: "v 1" })])),
+    );
+    renderCatalog();
+
+    const img = await screen.findByRole("img", { name: "Capa de Guia" });
+    expect(img).toHaveAttribute("src", "/api/products/p1/cover?v=v%201");
+  });
+
+  test("sem capa mostra o quadro neutro e nenhuma imagem", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(200, pageBody([item()])),
+    );
+    const { container } = renderCatalog();
+
+    await screen.findByRole("heading", { level: 2, name: "Guia" });
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    expect(
+      container.querySelector("li [aria-hidden='true'].bg-muted"),
+    ).not.toBeNull();
+  });
+
   test('mostra "Carregando…" enquanto carrega', () => {
     vi.spyOn(globalThis, "fetch").mockReturnValue(new Promise(() => {}));
     renderCatalog();
@@ -268,6 +292,7 @@ describe("CatalogPage tab title", () => {
             description: "Descrição",
             category: "HEALTH",
             priceCents: 1990,
+            coverVersion: null,
           })
         : jsonResponse(200, pageBody([item()])),
     );
