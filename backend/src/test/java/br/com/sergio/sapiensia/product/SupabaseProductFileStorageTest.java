@@ -31,9 +31,12 @@ import org.springframework.web.client.RestClient;
 @ExtendWith(OutputCaptureExtension.class)
 class SupabaseProductFileStorageTest {
 
+    private static final MediaType PDF = MediaType.APPLICATION_PDF;
+
     private static final String SECRET = "test-secret-not-real";
     private static final String URL = "https://project.example.test";
     private static final String BUCKET = "product-files";
+    private static final String COVER_BUCKET = "product-covers";
 
     @TempDir
     Path dir;
@@ -57,7 +60,8 @@ class SupabaseProductFileStorageTest {
                 })
                 .andRespond(withSuccess("{\"Key\":\"x\"}", MediaType.APPLICATION_JSON));
 
-        assertThatCode(() -> fixture.storage.put(key, file, Files.size(file))).doesNotThrowAnyException();
+        assertThatCode(() -> fixture.storage.put(key, file, Files.size(file), PDF))
+                .doesNotThrowAnyException();
         fixture.server.verify();
     }
 
@@ -98,7 +102,7 @@ class SupabaseProductFileStorageTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .body("{\"message\":\"boom " + SECRET + "\"}"));
 
-        assertThatThrownBy(() -> fixture.storage.put(key, file, 1))
+        assertThatThrownBy(() -> fixture.storage.put(key, file, 1, PDF))
                 .isInstanceOf(ProductFileStorageException.class)
                 .hasMessageContaining("HTTP 500")
                 .hasNoCause()
@@ -134,7 +138,7 @@ class SupabaseProductFileStorageTest {
                     throw new IOException("reset talking to " + URL + " with " + SECRET);
                 });
 
-        assertThatThrownBy(() -> fixture.storage.put(key, file, 1))
+        assertThatThrownBy(() -> fixture.storage.put(key, file, 1, PDF))
                 .isInstanceOf(ProductFileStorageException.class)
                 .hasNoCause()
                 .message()
@@ -147,7 +151,7 @@ class SupabaseProductFileStorageTest {
         Fixture fixture = fixture();
         Path file = Files.writeString(dir.resolve("f.pdf"), "x");
 
-        assertThatThrownBy(() -> fixture.storage.put("../x.pdf", file, 1))
+        assertThatThrownBy(() -> fixture.storage.put("../x.pdf", file, 1, PDF))
                 .isInstanceOf(ProductFileStorageException.class);
         assertThatThrownBy(() -> fixture.storage.delete("products/x.pdf"))
                 .isInstanceOf(ProductFileStorageException.class);
@@ -155,8 +159,136 @@ class SupabaseProductFileStorageTest {
     }
 
     @Test
+    @DisplayName("#21: put de capa vai ao bucket de capas com o Content-Type recebido")
+    void shouldPostACoverToTheCoverBucketWithItsMediaType() throws IOException {
+        Fixture fixture = fixture();
+        Path file = Files.write(dir.resolve("c.png"), new byte[] {1});
+        String key = ProductFileKeys.newCoverKey(UUID.randomUUID(), CoverFormat.PNG);
+        fixture.server
+                .expect(requestTo(URL + "/storage/v1/object/" + COVER_BUCKET + "/" + key))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("Content-Type", "image/png"))
+                .andRespond(withSuccess("{\"Key\":\"x\"}", MediaType.APPLICATION_JSON));
+
+        fixture.storage.put(key, file, 1, MediaType.IMAGE_PNG);
+        fixture.server.verify();
+    }
+
+    @Test
+    @DisplayName("#21: delete de capa usa o bucket de capas")
+    void shouldDeleteACoverFromTheCoverBucket() {
+        Fixture fixture = fixture();
+        String key = ProductFileKeys.newCoverKey(UUID.randomUUID(), CoverFormat.WEBP);
+        fixture.server
+                .expect(requestTo(URL + "/storage/v1/object/" + COVER_BUCKET + "/" + key))
+                .andExpect(method(HttpMethod.DELETE))
+                .andRespond(withSuccess());
+
+        fixture.storage.delete(key);
+        fixture.server.verify();
+    }
+
+    @Test
+    @DisplayName("#21: get lê a capa pela rota autenticada do bucket de capas")
+    void shouldReadACoverThroughTheAuthenticatedRoute() {
+        Fixture fixture = fixture();
+        String key = ProductFileKeys.newCoverKey(UUID.randomUUID(), CoverFormat.JPEG);
+        fixture.server
+                .expect(requestTo(URL + "/storage/v1/object/authenticated/" + COVER_BUCKET + "/" + key))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header("apikey", SECRET))
+                .andRespond(withSuccess(new byte[] {9, 8, 7}, MediaType.IMAGE_JPEG));
+
+        assertThat(fixture.storage.get(key)).contains(new byte[] {9, 8, 7});
+        fixture.server.verify();
+    }
+
+    @Test
+    @DisplayName("#21: get devolve vazio para 404 e para 400 com statusCode 404")
+    void shouldReturnEmptyWhenTheObjectDoesNotExist() {
+        Fixture fixture = fixture();
+        String key = ProductFileKeys.newCoverKey(UUID.randomUUID(), CoverFormat.PNG);
+        String url = URL + "/storage/v1/object/authenticated/" + COVER_BUCKET + "/" + key;
+        fixture.server.expect(requestTo(url)).andRespond(withStatus(HttpStatus.NOT_FOUND));
+        fixture.server
+                .expect(requestTo(url))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"statusCode\":\"404\",\"error\":\"not_found\",\"message\":\"Object not found\"}"));
+
+        assertThat(fixture.storage.get(key)).isEmpty();
+        assertThat(fixture.storage.get(key)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("#21: get falha com ProductFileStorageException em HTTP 500 e em outros 400")
+    void shouldFailTheReadOnServerErrors() {
+        Fixture fixture = fixture();
+        String key = ProductFileKeys.newCoverKey(UUID.randomUUID(), CoverFormat.PNG);
+        String url = URL + "/storage/v1/object/authenticated/" + COVER_BUCKET + "/" + key;
+        fixture.server.expect(requestTo(url)).andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
+        fixture.server
+                .expect(requestTo(url))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"statusCode\":\"403\",\"error\":\"Unauthorized\",\"message\":\"no\"}"));
+
+        assertThatThrownBy(() -> fixture.storage.get(key))
+                .isInstanceOf(ProductFileStorageException.class)
+                .hasMessage("Storage could not read the file: HTTP 500");
+        assertThatThrownBy(() -> fixture.storage.get(key))
+                .isInstanceOf(ProductFileStorageException.class)
+                .hasMessage("Storage could not read the file: HTTP 400");
+    }
+
+    @Test
+    @DisplayName("#21: get recusa corpo maior que o limite da capa e aceita o limite exato")
+    void shouldRefuseABodyBiggerThanTheCoverLimit() {
+        Fixture fixture = fixture();
+        String key = ProductFileKeys.newCoverKey(UUID.randomUUID(), CoverFormat.PNG);
+        String url = URL + "/storage/v1/object/authenticated/" + COVER_BUCKET + "/" + key;
+        fixture.server
+                .expect(requestTo(url))
+                .andRespond(withSuccess(new byte[(int) CoverImageValidator.MAX_BYTES + 1], MediaType.IMAGE_PNG));
+        fixture.server
+                .expect(requestTo(url))
+                .andRespond(withSuccess(new byte[(int) CoverImageValidator.MAX_BYTES], MediaType.IMAGE_PNG));
+
+        assertThatThrownBy(() -> fixture.storage.get(key)).isInstanceOf(ProductFileStorageException.class);
+        assertThat(fixture.storage.get(key))
+                .hasValueSatisfying(bytes -> assertThat(bytes).hasSize((int) CoverImageValidator.MAX_BYTES));
+    }
+
+    @Test
+    @DisplayName("SEC-047: o log do erro de capa nunca mostra segredo, URL, caminho dos buckets nem chave")
+    void shouldNeverLogTheSecretTheUrlTheCoverPathOrTheKey(CapturedOutput output) {
+        Fixture fixture = fixture();
+        String key = ProductFileKeys.newCoverKey(UUID.randomUUID(), CoverFormat.PNG);
+        // fake key built at run time, so the whole value never sits in the source (secret scanners)
+        String otherKey = String.join("", "sb_", "secret_", "otherKey", "0123456789");
+        String body = "{\"statusCode\":\"403\",\"error\":\"" + otherKey + "\",\"message\":\"" + URL
+                + "/storage/v1/object/authenticated/" + COVER_BUCKET + "/" + key + " and /storage/v1/object/"
+                + COVER_BUCKET + "/ and " + key + " with " + SECRET + "\"}";
+        fixture.server
+                .expect(requestTo(URL + "/storage/v1/object/authenticated/" + COVER_BUCKET + "/" + key))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(body));
+
+        assertThatThrownBy(() -> fixture.storage.get(key)).isInstanceOf(ProductFileStorageException.class);
+        assertThat(output.getAll())
+                .contains("Storage could not read the file: HTTP 400 (statusCode=")
+                .doesNotContain(SECRET)
+                .doesNotContain("sb_secret_")
+                .doesNotContain("project.example.test")
+                .doesNotContain(key)
+                .doesNotContain(COVER_BUCKET)
+                .doesNotContain("/storage/v1/object/");
+    }
+
+    @Test
     void shouldRefuseToStartWithoutTheSecretKey() {
-        assertThatThrownBy(() -> new SupabaseProductFileStorage(RestClient.builder(), URL, " ", BUCKET))
+        assertThatThrownBy(() -> new SupabaseProductFileStorage(RestClient.builder(), URL, " ", BUCKET, COVER_BUCKET))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("APP_STORAGE_SUPABASE_SECRET_KEY is required");
     }
@@ -173,7 +305,7 @@ class SupabaseProductFileStorageTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .body("{\"statusCode\":\"403\",\"error\":\"Unauthorized\",\"message\":\"invalid signature\"}"));
 
-        assertThatThrownBy(() -> fixture.storage.put(key, file, 1))
+        assertThatThrownBy(() -> fixture.storage.put(key, file, 1, PDF))
                 .isInstanceOf(ProductFileStorageException.class)
                 .hasMessage("Storage could not store the file: HTTP 400");
         assertThat(output.getAll())
@@ -198,7 +330,8 @@ class SupabaseProductFileStorageTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(body));
 
-        assertThatThrownBy(() -> fixture.storage.put(key, file, 1)).isInstanceOf(ProductFileStorageException.class);
+        assertThatThrownBy(() -> fixture.storage.put(key, file, 1, PDF))
+                .isInstanceOf(ProductFileStorageException.class);
         assertThat(output.getAll())
                 .contains("Storage could not store the file: HTTP 400 (statusCode=")
                 .contains("not found")
@@ -225,7 +358,8 @@ class SupabaseProductFileStorageTest {
                         .body("{\"statusCode\":\"403\",\"error\":\"" + twoParts + "\",\"message\":\"bad token " + jwt
                                 + "\"}"));
 
-        assertThatThrownBy(() -> fixture.storage.put(key, file, 1)).isInstanceOf(ProductFileStorageException.class);
+        assertThatThrownBy(() -> fixture.storage.put(key, file, 1, PDF))
+                .isInstanceOf(ProductFileStorageException.class);
         assertThat(output.getAll()).contains("message=bad token <redacted>").doesNotContain("eyJ");
     }
 
@@ -240,7 +374,8 @@ class SupabaseProductFileStorageTest {
                         .contentType(MediaType.TEXT_HTML)
                         .body("<html>boom</html>"));
 
-        assertThatThrownBy(() -> fixture.storage.put(key, file, 1)).isInstanceOf(ProductFileStorageException.class);
+        assertThatThrownBy(() -> fixture.storage.put(key, file, 1, PDF))
+                .isInstanceOf(ProductFileStorageException.class);
         assertThat(output.getAll())
                 .contains("Storage could not store the file: HTTP 502")
                 .doesNotContain("statusCode=")
@@ -258,7 +393,8 @@ class SupabaseProductFileStorageTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .body("{\"statusCode\":\"400\",\"error\":\"e\",\"message\":\"" + "m".repeat(500) + "\"}"));
 
-        assertThatThrownBy(() -> fixture.storage.put(key, file, 1)).isInstanceOf(ProductFileStorageException.class);
+        assertThatThrownBy(() -> fixture.storage.put(key, file, 1, PDF))
+                .isInstanceOf(ProductFileStorageException.class);
         assertThat(output.getAll()).contains("message=" + "m".repeat(200) + ")").doesNotContain("m".repeat(201));
     }
 
@@ -317,7 +453,8 @@ class SupabaseProductFileStorageTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(body));
 
-        assertThatThrownBy(() -> fixture.storage.put(key, file, 1)).isInstanceOf(ProductFileStorageException.class);
+        assertThatThrownBy(() -> fixture.storage.put(key, file, 1, PDF))
+                .isInstanceOf(ProductFileStorageException.class);
         return output.getAll();
     }
 
@@ -330,7 +467,7 @@ class SupabaseProductFileStorageTest {
                 .expect(requestTo(URL + "/storage/v1/object/" + BUCKET + "/" + key))
                 .andRespond(withSuccess("{\"Key\":\"x\"}", MediaType.APPLICATION_JSON));
 
-        fixture.storage.put(key, file, 1);
+        fixture.storage.put(key, file, 1, PDF);
 
         assertThat(output.getAll()).doesNotContain("Storage could not");
     }
@@ -373,7 +510,7 @@ class SupabaseProductFileStorageTest {
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         // keep the mock request factory: the storage would otherwise replace it with the real one
         doReturn(builder).when(builder).requestFactory(any());
-        return new Fixture(server, new SupabaseProductFileStorage(builder, URL, SECRET, BUCKET));
+        return new Fixture(server, new SupabaseProductFileStorage(builder, URL, SECRET, BUCKET, COVER_BUCKET));
     }
 
     private record Fixture(MockRestServiceServer server, SupabaseProductFileStorage storage) {}

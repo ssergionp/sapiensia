@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.autoconfigure.context.PropertyPlaceholderAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 /** Starts the storage adapters through Spring, as the unit tests build them by hand. */
@@ -15,7 +17,8 @@ class SupabaseProductFileStorageConfigurationTest {
             .withUserConfiguration(SupabaseProductFileStorage.class, FileProductFileStorage.class)
             .withPropertyValues(
                     "app.storage.supabase.url=https://project.example.test",
-                    "app.storage.supabase.bucket=product-files");
+                    "app.storage.supabase.bucket=product-files",
+                    "app.storage.supabase.cover-bucket=product-covers");
 
     @Test
     void shouldStartWithTheSupabaseProviderAndASecretKey() {
@@ -57,6 +60,24 @@ class SupabaseProductFileStorageConfigurationTest {
                 .run(context -> {
                     assertThat(context).hasFailed();
                     assertThat(chain(context.getStartupFailure())).contains("app.storage.provider=file");
+                });
+    }
+
+    @Test
+    @DisplayName("#21: sem app.storage.supabase.cover-bucket o perfil supabase não sobe")
+    void shouldFailToStartWithoutTheCoverBucket() {
+        new ApplicationContextRunner()
+                // the real application has the placeholder resolver; a bare runner would keep "${...}" as text
+                .withConfiguration(AutoConfigurations.of(PropertyPlaceholderAutoConfiguration.class))
+                .withUserConfiguration(SupabaseProductFileStorage.class)
+                .withPropertyValues(
+                        "app.storage.supabase.url=https://project.example.test",
+                        "app.storage.supabase.bucket=product-files",
+                        "app.storage.provider=supabase",
+                        "app.storage.supabase.secret-key=" + SECRET)
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(chain(context.getStartupFailure())).contains("app.storage.supabase.cover-bucket");
                 });
     }
 

@@ -39,3 +39,26 @@ O CI não tem Supabase: o adaptador é testado com respostas simuladas. Na homol
 3. Abrir a URL pública desse objeto **falha** (bucket privado).
 4. Envie outro PDF: o objeto anterior some do bucket.
 5. Envie um arquivo de exatamente 50 MB (aceito) e um um pouco maior (recusado), para conferir o limite do Supabase de verdade.
+
+## 4. Bucket das Capas
+
+As imagens de capa dos Produtos (#21) ficam em um segundo bucket **privado**, `product-covers`, separado do `product-files`: assim cada bucket tem a sua trava no próprio Supabase (o `product-files` só aceita PDF de até 50 MB; o das capas só aceita imagem de até 2 MB). A aplicação escolhe o bucket pelo prefixo da chave (`products/...` ou `covers/...`) e usa a mesma secret key. O nome está no `application-prod.yml` (`app.storage.supabase.cover-bucket`). Crie o bucket uma vez por ambiente (homologação e, depois, produção):
+
+1. Entre no projeto do ambiente em supabase.com e clique em **Storage** no menu da esquerda.
+2. Clique em **New bucket**.
+3. Em **Name of bucket**, digite exatamente `product-covers`.
+4. Deixe **Public bucket** **desligado**.
+5. Ligue **Restrict file upload size for bucket** e informe **2 MB**.
+6. Ligue **Restrict MIME types** e informe `image/png, image/jpeg, image/webp`.
+7. Clique em **Save** (ou **Create**).
+8. Nenhum segredo novo: a mesma secret key do `product-files` serve.
+
+Se o bucket não for criado, a aplicação sobe normalmente (não há checagem na subida) e o Catálogo continua funcionando, com o quadro neutro em todos os Produtos. Só o envio de capa falha: o painel mostra que o sistema está indisponível e o log registra, já redigido, `Storage could not store the file: HTTP 400 (statusCode=404, error=Bucket not found, ...)`. Com o tipo de arquivo errado no bucket o log mostra `statusCode=415`; com limite de tamanho menor que 2 MB, `statusCode=413` para imagens grandes. Se o bucket for criado **público** por engano, a aplicação não percebe (ela nunca usa URL pública): a conferência abaixo (abrir a URL pública tem de falhar) pega isso.
+
+### Conferir as capas na homologação
+
+1. Envie uma capa de um Produto pelo painel.
+2. No painel do Supabase, o objeto aparece em `product-covers/covers/<id do Produto>/<UUID>.<png|jpg|webp>`.
+3. Abrir a URL pública desse objeto **falha** (bucket privado).
+4. Troque a capa: o objeto antigo some do bucket.
+5. Envie uma imagem de exatamente 2 MB (aceita) e uma um pouco maior (recusada), para conferir o limite do Supabase de verdade.

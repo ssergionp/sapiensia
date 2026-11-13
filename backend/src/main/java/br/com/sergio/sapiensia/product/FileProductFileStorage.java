@@ -3,11 +3,13 @@ package br.com.sergio.sapiensia.product;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 
 /** Local development, CI and tests: keeps the files in a directory. Never for production. */
@@ -32,7 +34,7 @@ class FileProductFileStorage implements ProductFileStorage {
     }
 
     @Override
-    public void put(String key, Path file, long sizeBytes) {
+    public void put(String key, Path file, long sizeBytes, MediaType type) {
         Path target = resolve(key);
         try {
             Files.createDirectories(target.getParent());
@@ -42,6 +44,24 @@ class FileProductFileStorage implements ProductFileStorage {
             // the cause is dropped on purpose: its message carries file paths
             throw new ProductFileStorageException(
                     "Could not store the file: " + e.getClass().getSimpleName());
+        }
+    }
+
+    @Override
+    public Optional<byte[]> get(String key) {
+        Path target = resolve(key);
+        if (!Files.isRegularFile(target)) {
+            return Optional.empty();
+        }
+        try (var in = Files.newInputStream(target)) {
+            byte[] bytes = in.readNBytes((int) CoverImageValidator.MAX_BYTES + 1);
+            if (bytes.length > CoverImageValidator.MAX_BYTES) {
+                throw new ProductFileStorageException("Stored object is too large");
+            }
+            return Optional.of(bytes);
+        } catch (IOException e) {
+            throw new ProductFileStorageException(
+                    "Could not read the file: " + e.getClass().getSimpleName());
         }
     }
 

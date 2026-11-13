@@ -288,14 +288,14 @@ class ProductFileControllerTest {
         RestClient.Builder builder = spy(RestClient.builder());
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         doReturn(builder).when(builder).requestFactory(any());
-        var storage = new SupabaseProductFileStorage(builder, url, secret, "product-files");
+        var storage = new SupabaseProductFileStorage(builder, url, secret, "product-files", "product-covers");
         server.expect(anything())
                 .andRespond(withStatus(HttpStatus.FORBIDDEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .body("{\"message\":\"denied " + secret + " " + fileName + "\"}"));
         stubService(() -> {
             Path temp = seen.get(0);
-            storage.put(ProductFileKeys.newKey(productId), temp, 1);
+            storage.put(ProductFileKeys.newKey(productId), temp, 1, MediaType.APPLICATION_PDF);
             return null;
         });
         var upload = new MockMultipartFile("file", fileName, "application/pdf", "%PDF-1.4 content".getBytes());

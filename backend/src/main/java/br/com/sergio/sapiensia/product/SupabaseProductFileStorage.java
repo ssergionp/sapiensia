@@ -2,9 +2,11 @@ package br.com.sergio.sapiensia.product;
 
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,7 +24,15 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
-/** Production: stores the files in a private Supabase Storage bucket. No public URL is ever built or kept. */
+/**
+ * Production: stores the objects in private Supabase Storage buckets, chosen by the key prefix: {@code products/} in
+ * the files bucket and {@code covers/} in the covers bucket. No public URL is ever built or kept.
+ *
+ * <p>Reads use the authenticated download route {@code GET /storage/v1/object/authenticated/{bucket}/{key}}, which the
+ * secret key may call on a private bucket. Route: supabase/storage, src/http/routes/object/getObject.ts
+ * (https://supabase.com/docs/reference/javascript/storage-from-download is the client reference). Storage answers a
+ * missing object with HTTP 404, or with HTTP 400 and {@code "statusCode":"404"} in the JSON body: both mean "absent".
+ */
 @Component
 @ConditionalOnProperty(name = "app.storage.provider", havingValue = "supabase")
 class SupabaseProductFileStorage implements ProductFileStorage {
@@ -36,9 +46,12 @@ class SupabaseProductFileStorage implements ProductFileStorage {
     private static final Pattern FILE_NAME_PATTERN = Pattern.compile("\\S*\\.[A-Za-z0-9]{1,6}\\S*");
     private static final String REDACTED = "<redacted>";
     private static final int MAX_FIELD = 200;
+    // an error body is only read to log three short fields
+    private static final int MAX_ERROR_BODY = 8192;
 
     private final RestClient restClient;
-    private final String objectPath;
+    private final String filesBucket;
+    private final String coverBucket;
     private final String secretKey;
     private final String baseUrl;
     private final String host;
@@ -48,17 +61,20 @@ class SupabaseProductFileStorage implements ProductFileStorage {
     SupabaseProductFileStorage(
             @Value("${app.storage.supabase.url}") String url,
             @Value("${app.storage.supabase.secret-key:}") String secretKey,
-            @Value("${app.storage.supabase.bucket}") String bucket) {
-        this(RestClient.builder(), url, secretKey, bucket);
+            @Value("${app.storage.supabase.bucket}") String bucket,
+            @Value("${app.storage.supabase.cover-bucket}") String coverBucket) {
+        this(RestClient.builder(), url, secretKey, bucket, coverBucket);
     }
 
     // the builder is a test seam
-    SupabaseProductFileStorage(RestClient.Builder builder, String url, String secretKey, String bucket) {
+    SupabaseProductFileStorage(
+            RestClient.Builder builder, String url, String secretKey, String bucket, String coverBucket) {
         if (secretKey == null || secretKey.isBlank()) {
             throw new IllegalStateException(
                     "APP_STORAGE_SUPABASE_SECRET_KEY is required when app.storage.provider=supabase");
         }
-        this.objectPath = "/storage/v1/object/" + bucket + "/";
+        this.filesBucket = bucket;
+        this.coverBucket = coverBucket;
         this.secretKey = secretKey;
         this.baseUrl = url;
         String parsedHost = URI.create(url).getHost();
@@ -78,15 +94,27 @@ class SupabaseProductFileStorage implements ProductFileStorage {
         return requestFactory;
     }
 
+    private String bucketOf(String key) {
+        return ProductFileKeys.isCover(key) ? coverBucket : filesBucket;
+    }
+
+    private String objectPath(String key) {
+        return "/storage/v1/object/" + bucketOf(key) + "/" + key;
+    }
+
+    private String authenticatedPath(String key) {
+        return "/storage/v1/object/authenticated/" + bucketOf(key) + "/" + key;
+    }
+
     @Override
-    public void put(String key, Path file, long sizeBytes) {
+    public void put(String key, Path file, long sizeBytes, MediaType type) {
         requireValid(key);
         try {
             restClient
                     .post()
-                    .uri(objectPath + key)
+                    .uri(objectPath(key))
                     .header("x-upsert", "false")
-                    .contentType(MediaType.APPLICATION_PDF)
+                    .contentType(type)
                     .body(new FileSystemResource(file))
                     .retrieve()
                     .toBodilessEntity();
@@ -96,10 +124,35 @@ class SupabaseProductFileStorage implements ProductFileStorage {
     }
 
     @Override
+    public Optional<byte[]> get(String key) {
+        requireValid(key);
+        try {
+            return restClient.get().uri(authenticatedPath(key)).exchange((request, response) -> {
+                int status = response.getStatusCode().value();
+                if (response.getStatusCode().is2xxSuccessful()) {
+                    byte[] bytes = response.getBody().readNBytes((int) CoverImageValidator.MAX_BYTES + 1);
+                    if (bytes.length > CoverImageValidator.MAX_BYTES) {
+                        throw new ProductFileStorageException("Storage object is too large");
+                    }
+                    return Optional.of(bytes);
+                }
+                String body = new String(response.getBody().readNBytes(MAX_ERROR_BODY), StandardCharsets.UTF_8);
+                if (status == 404 || (status == 400 && bodyStatusCode(body).equals("404"))) {
+                    return Optional.<byte[]>empty();
+                }
+                log.warn("Storage could not read the file: HTTP {}{}", status, safeDetails(body, key));
+                throw new ProductFileStorageException("Storage could not read the file: HTTP " + status);
+            });
+        } catch (RestClientException e) {
+            throw failure("read", key, e);
+        }
+    }
+
+    @Override
     public void delete(String key) {
         requireValid(key);
         try {
-            restClient.delete().uri(objectPath + key).retrieve().toBodilessEntity();
+            restClient.delete().uri(objectPath(key)).retrieve().toBodilessEntity();
         } catch (RestClientResponseException e) {
             if (e.getStatusCode().value() == 404) {
                 return;
@@ -107,6 +160,16 @@ class SupabaseProductFileStorage implements ProductFileStorage {
             throw failure("delete", key, e);
         } catch (RestClientException e) {
             throw failure("delete", key, e);
+        }
+    }
+
+    private static String bodyStatusCode(String body) {
+        try {
+            JsonNode root = JSON.readTree(body);
+            JsonNode code = root == null ? null : root.get("statusCode");
+            return code != null && code.isValueNode() ? code.asString() : "";
+        } catch (JacksonException e) {
+            return "";
         }
     }
 
@@ -150,7 +213,16 @@ class SupabaseProductFileStorage implements ProductFileStorage {
             return "";
         }
         String text = node.asString();
-        for (String hidden : List.of(secretKey, baseUrl, host, objectPath, key)) {
+        // the object paths of both buckets, plain and authenticated, then the key itself
+        for (String hidden : List.of(
+                secretKey,
+                baseUrl,
+                host,
+                "/storage/v1/object/authenticated/" + filesBucket + "/",
+                "/storage/v1/object/authenticated/" + coverBucket + "/",
+                "/storage/v1/object/" + filesBucket + "/",
+                "/storage/v1/object/" + coverBucket + "/",
+                key)) {
             if (!hidden.isEmpty()) {
                 text = text.replace(hidden, REDACTED);
             }
