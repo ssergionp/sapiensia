@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   centsToInput,
   formatCents,
+  formatFileSize,
   parsePriceToCents,
   productDataSchema,
   productPageSchema,
@@ -208,5 +209,24 @@ describe("productDataSchema", () => {
     expect(messageOf({ ...valid, category: "NOPE" })).toBe(
       "Selecione uma categoria.",
     );
+  });
+});
+
+describe("formatFileSize", () => {
+  test.each([
+    [327680, "320 KB"],
+    [1, "1 KB"],
+    [1048000, "1.023 KB"],
+    [1048575, "1,0 MB"],
+    [1258291, "1,2 MB"],
+    [3565158, "3,4 MB"],
+  ])("%i bytes -> %s", (bytes, expected) => {
+    expect(formatFileSize(bytes)).toBe(expected);
+  });
+
+  test("never shows 0,0 MB below 1 MB", () => {
+    for (const bytes of [1, 100, 512, 524288, 1048575]) {
+      expect(formatFileSize(bytes)).not.toBe("0,0 MB");
+    }
   });
 });

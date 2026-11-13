@@ -56,12 +56,12 @@ describe("ProductCoverSection", () => {
     expect(screen.getByLabelText("Imagem da capa")).toBeTruthy();
     expect(
       screen.getByText(
-        "PNG, JPEG ou WebP, até 2 MB e até 4.000 pixels de largura e de altura. Recomendado: 1200 × 1800 pixels.",
+        "PNG, JPEG ou WebP, até 2 MB e até 4.000 pixels de largura e de altura. Recomendado: 1.200 × 1.800 pixels.",
       ),
     ).toBeTruthy();
     expect(
       screen.getByText(
-        "Enviar outra imagem substitui a atual. Os dados da foto (como local e aparelho) são removidos.",
+        "Enviar outra imagem substitui a atual. Os dados da foto (como local e aparelho) são removidos. Se a foto aparecer girada, gire-a em um editor e envie de novo.",
       ),
     ).toBeTruthy();
     expect(screen.getByText("Nenhuma capa enviada.")).toBeTruthy();
