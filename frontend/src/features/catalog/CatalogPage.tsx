@@ -74,7 +74,7 @@ export default function CatalogPage() {
               <article className="rounded-lg border p-4">
                 <CoverImage
                   src={coverUrl(item.id, item.coverVersion)}
-                  alt={`Capa de ${item.title}`}
+                  alt={T.coverAlt(item.title)}
                   className="mb-3 max-w-40"
                 />
                 <h2 className="text-lg font-semibold [overflow-wrap:anywhere]">

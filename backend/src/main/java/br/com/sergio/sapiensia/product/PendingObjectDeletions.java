@@ -8,6 +8,8 @@ import org.springframework.stereotype.Repository;
 @Repository
 class PendingObjectDeletions {
 
+    static final int BATCH_SIZE = 500;
+
     private final JdbcClient jdbc;
 
     PendingObjectDeletions(JdbcClient jdbc) {
@@ -26,20 +28,23 @@ class PendingObjectDeletions {
                 .update();
     }
 
-    /** Keys registered more than {@code minAgeSeconds} ago, oldest first. */
-    List<String> olderThan(long minAgeSeconds) {
-        return jdbc.sql("select object_key from pending_object_deletions"
-                        + " where created_at < now() - make_interval(secs => :age) order by created_at")
+    /** Drops, in one statement, the old records whose key is a current cover: they are not orphans. */
+    int removeStaleCurrentCovers(long minAgeSeconds) {
+        return jdbc.sql("delete from pending_object_deletions p"
+                        + " where p.created_at < now() - make_interval(secs => :age)"
+                        + " and exists (select 1 from product_covers c where c.object_key = p.object_key)")
+                .param("age", (double) minAgeSeconds)
+                .update();
+    }
+
+    /** At most {@value #BATCH_SIZE} keys older than {@code minAgeSeconds}, oldest first, none a current cover. */
+    List<String> orphanCandidates(long minAgeSeconds) {
+        return jdbc.sql("select p.object_key from pending_object_deletions p"
+                        + " where p.created_at < now() - make_interval(secs => :age)"
+                        + " and not exists (select 1 from product_covers c where c.object_key = p.object_key)"
+                        + " order by p.created_at limit " + BATCH_SIZE)
                 .param("age", (double) minAgeSeconds)
                 .query(String.class)
                 .list();
-    }
-
-    boolean isCurrentCover(String key) {
-        return jdbc.sql("select count(*) from product_covers where object_key = :key")
-                        .param("key", key)
-                        .query(Long.class)
-                        .single()
-                > 0;
     }
 }

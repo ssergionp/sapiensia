@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
+import br.com.sergio.sapiensia.audit.AuditLog;
 import br.com.sergio.sapiensia.audit.SwitchableAuditLog;
 import br.com.sergio.sapiensia.audit.SwitchableAuditLogConfig;
 import java.io.IOException;
@@ -14,11 +15,13 @@ import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
@@ -29,7 +32,13 @@ import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.TransactionException;
+import org.springframework.transaction.TransactionStatus;
 
 /** Upload, replacement and removal of the product cover, and the orphan bookkeeping around them (SEC-043, SEC-050). */
 @Import({TestcontainersConfiguration.class, SwitchableAuditLogConfig.class, SwitchableProductFileStorageConfig.class})
@@ -48,6 +57,30 @@ class ProductCoverServiceTest {
 
     @Autowired
     SwitchableAuditLog auditLog;
+
+    @Autowired
+    CoverImageValidator validator;
+
+    @Autowired
+    ProductCovers covers;
+
+    @Autowired
+    JdbcClient jdbcClient;
+
+    @Autowired
+    PendingObjectDeletions pending;
+
+    @Autowired
+    ProductFiles files;
+
+    @Autowired
+    Products products;
+
+    @Autowired
+    AuditLog audit;
+
+    @Autowired
+    PlatformTransactionManager transactionManager;
 
     @TempDir
     Path tmp;
@@ -218,6 +251,89 @@ class ProductCoverServiceTest {
             pause.release();
             executor.shutdownNow();
         }
+    }
+
+    /** Throws on the given commit (1 = the pending row, 2 = the swap), after really committing it or rolling it back. */
+    private static PlatformTransactionManager commitThenThrowOn(
+            PlatformTransactionManager delegate, int commitNumber, boolean committed, Runnable afterCommit) {
+        int[] commits = {0};
+        return new PlatformTransactionManager() {
+            @Override
+            public TransactionStatus getTransaction(TransactionDefinition definition) throws TransactionException {
+                return delegate.getTransaction(definition);
+            }
+
+            @Override
+            public void commit(TransactionStatus status) throws TransactionException {
+                boolean fails = ++commits[0] == commitNumber;
+                if (fails && !committed) {
+                    delegate.rollback(status);
+                } else {
+                    delegate.commit(status);
+                }
+                if (fails) {
+                    afterCommit.run();
+                    throw new DataAccessResourceFailureException("commit reply lost");
+                }
+            }
+
+            @Override
+            public void rollback(TransactionStatus status) throws TransactionException {
+                delegate.rollback(status);
+            }
+        };
+    }
+
+    @Test
+    @DisplayName(
+            "SEC-050: a commit that fails after the database committed keeps the object, the row and no pending key")
+    void shouldKeepCommittedCoverWhenCommitReplyIsLost() throws Exception {
+        ProductCoverService lossy = new ProductCoverService(
+                validator,
+                storage,
+                covers,
+                pending,
+                files,
+                products,
+                audit,
+                commitThenThrowOn(transactionManager, 2, true, () -> {}));
+
+        assertThatThrownBy(() -> lossy.upload(productId, image(TestImages.png(10, 10)), adminId, "127.0.0.1"))
+                .isInstanceOf(DataAccessResourceFailureException.class);
+
+        assertThat(coverKeys()).hasSize(1);
+        assertThat(storage.keys()).containsExactlyElementsOf(coverKeys());
+        assertThat(pendingKeys()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("SEC-050: when the re-read after a failed commit also fails, the key stays pending and stored")
+    void shouldLeaveKeyPendingWhenRereadFails() throws Exception {
+        AtomicBoolean down = new AtomicBoolean();
+        ProductCovers failingCovers = new ProductCovers(jdbcClient) {
+            @Override
+            Optional<String> currentKey(UUID id) {
+                if (down.get()) {
+                    throw new IllegalStateException("db down");
+                }
+                return super.currentKey(id);
+            }
+        };
+        ProductCoverService lossy = new ProductCoverService(
+                validator,
+                storage,
+                failingCovers,
+                pending,
+                files,
+                products,
+                audit,
+                commitThenThrowOn(transactionManager, 2, false, () -> down.set(true)));
+
+        assertThatThrownBy(() -> lossy.upload(productId, image(TestImages.png(10, 10)), adminId, "127.0.0.1"))
+                .isInstanceOf(DataAccessResourceFailureException.class);
+
+        assertThat(storage.keys()).hasSize(1);
+        assertThat(pendingKeys()).containsExactlyElementsOf(storage.keys());
     }
 
     @Test

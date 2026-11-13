@@ -59,14 +59,13 @@ class ProductCoverCleanup {
         Result run() {
             int deleted = 0;
             int failed = 0;
-            for (String key : pending.olderThan(minAge.toSeconds())) {
+            // Extra defense: the current cover is never deleted, whatever the pending list says; its stale record is
+            // dropped so it is not looked at again.
+            pending.removeStaleCurrentCovers(minAge.toSeconds());
+            for (String key : pending.orphanCandidates(minAge.toSeconds())) {
                 try {
-                    // Extra defense: the current cover is never deleted, whatever the pending list says. The stale
-                    // record is dropped so it is not looked at again.
-                    if (!pending.isCurrentCover(key)) {
-                        storage.delete(key);
-                        deleted++;
-                    }
+                    storage.delete(key);
+                    deleted++;
                     pending.remove(key);
                 } catch (RuntimeException e) {
                     failed++;

@@ -115,10 +115,26 @@ class ProductCoverService {
                 return new Swapped(previous, products.find(productId).orElseThrow(ProductNotFoundException::new));
             });
         } catch (RuntimeException e) {
-            // Nothing was committed (or the commit failed): the old row still rules, so drop the new object; the row
-            // in the pending list goes only if that worked. Accepted residual risk, as in the PDF flow: a commit that
-            // throws after the database really committed makes this delete the object the row now points to.
-            if (deleteBestEffort(newKey, productId)) {
+            // The failure may have come after the database really committed (a lost commit reply), so ask the database
+            // which key rules before touching the object, outside any transaction.
+            Optional<String> current;
+            try {
+                current = covers.currentKey(productId);
+            } catch (RuntimeException reread) {
+                // Unknown: keep the object and the pending row; the hourly cleaner skips a current cover and deletes
+                // a real orphan.
+                log.warn(
+                        "Product cover state could not be re-read (product {}): {}",
+                        productId,
+                        reread.getClass().getName());
+                throw e;
+            }
+            if (current.filter(newKey::equals).isPresent()) {
+                // The swap did commit: the row points to the object, so it stays; only the pending row goes.
+                forgetBestEffort(newKey, productId);
+            } else if (deleteBestEffort(newKey, productId)) {
+                // Nothing was committed: the old row still rules, so drop the new object; the pending row goes only
+                // if that worked.
                 forgetBestEffort(newKey, productId);
             }
             throw e;

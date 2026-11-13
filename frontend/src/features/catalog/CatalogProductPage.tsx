@@ -68,7 +68,7 @@ export default function CatalogProductPage() {
       <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start">
         <CoverImage
           src={coverUrl(product.id, product.coverVersion)}
-          alt={`Capa de ${product.title}`}
+          alt={T.coverAlt(product.title)}
           className="w-40 shrink-0"
         />
         <div className="min-w-0">

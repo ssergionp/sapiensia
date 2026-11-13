@@ -136,6 +136,18 @@ class ProductCoverCleanupTest {
     }
 
     @Test
+    @DisplayName("SEC-050: a run handles at most 500 old pending keys and leaves the rest for the next run")
+    void shouldDeleteAtMost500KeysPerRun() {
+        jdbc.update("insert into pending_object_deletions (object_key, created_at)"
+                + " select 'covers/' || gen_random_uuid() || '/' || gen_random_uuid() || '.png', now() - interval '1 hour' + g * interval '1 second'"
+                + " from generate_series(1, 501) g");
+
+        assertThat(cleaner.deleteOrphans()).isEqualTo(500);
+
+        assertThat(pendingCount()).isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("SEC-050: a failing storage delete keeps the pending row for the next run")
     void shouldKeepRowWhenDeleteFails() throws Exception {
         String key = storedKey();
