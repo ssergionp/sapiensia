@@ -5,8 +5,13 @@ if (-not (Test-Path $pidFile)) {
     Write-Host 'Nenhuma demonstracao ligada.'
     exit 0
 }
+$writtenAt = (Get-Item $pidFile).LastWriteTime
 foreach ($line in Get-Content $pidFile) {
-    if ($line -match '^\d+$') {
+    if ($line -notmatch '^\d+$') { continue }
+    # Safety: a stale file (e.g. after a reboot) may hold a PID reused by an unrelated process.
+    # Only kill a live cmd/java/node process that started before the file was last written.
+    $proc = Get-Process -Id ([int]$line) -ErrorAction SilentlyContinue
+    if ($proc -and @('cmd', 'java', 'node') -contains $proc.ProcessName -and $proc.StartTime -le $writtenAt) {
         taskkill /T /F /PID $line *> $null
     }
 }

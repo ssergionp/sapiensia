@@ -18,8 +18,8 @@ O comando sobe o banco, a API e o site em segundo plano (a primeira vez demora a
 
 ## Contas
 
-- **Cliente:** `cliente@example.com` / `Demo-Cliente-2026!`
-- **Administrador:** entre em http://localhost:5173/painel/entrar com `admin@example.com` / `Demo-Admin-2026!`
+- **Cliente:** `cliente@example.com` / `Demo-Cliente-2026!` <!-- gitleaks:allow -->
+- **Administrador:** entre em http://localhost:5173/painel/entrar com `admin@example.com` / `Demo-Admin-2026!` <!-- gitleaks:allow -->
 
 O Administrador pede um código de verificação (MFA). Para ver o código atual, rode:
 
@@ -27,7 +27,7 @@ O Administrador pede um código de verificação (MFA). Para ver o código atual
 just demo-codigo
 ```
 
-O código vale cerca de 30 segundos. Se preferir, cadastre a chave `JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP` em um aplicativo autenticador.
+O código vale cerca de 30 segundos. Se preferir, cadastre a chave `JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP` em um aplicativo autenticador. <!-- gitleaks:allow -->
 
 ## O que dá para ver
 

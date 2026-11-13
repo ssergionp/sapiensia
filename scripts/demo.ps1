@@ -56,10 +56,13 @@ $env:DB_URL = 'jdbc:postgresql://localhost:5433/app_demo'
 $env:APP_DEMO_ENABLED = 'true'
 $env:APP_STORAGE_FILE_DIR = '../.tmp/demo/storage'
 $env:APP_EMAIL_OUTBOX_DIR = '../.tmp/demo/outbox'
+$pidFile = Join-Path $demoDir 'pids.txt'
+Remove-Item $pidFile -Force -ErrorAction SilentlyContinue   # ports are free, so any old file is stale
 $api = Start-Process -FilePath 'cmd.exe' `
     -ArgumentList '/c', '.\mvnw.cmd', 'spring-boot:run', '-Dspring-boot.run.profiles=local' `
     -WorkingDirectory (Join-Path $root 'backend') -WindowStyle Hidden -PassThru `
     -RedirectStandardOutput (Join-Path $demoDir 'api.log') -RedirectStandardError (Join-Path $demoDir 'api.err.log')
+Add-Content -Path $pidFile -Value $api.Id   # saved right away, so demo-parar can always find it
 
 # 7. Wait for the API health check (up to 5 minutes)
 $up = $false
@@ -73,6 +76,7 @@ for ($i = 0; $i -lt 100; $i++) {
 }
 if (-not $up) {
     taskkill /T /F /PID $api.Id *> $null
+    Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
     Stop-Demo 'A API nao subiu em 5 minutos. Veja .tmp/demo/api.log'
 }
 
@@ -80,6 +84,7 @@ if (-not $up) {
 $front = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', 'pnpm', 'dev' `
     -WorkingDirectory (Join-Path $root 'frontend') -WindowStyle Hidden -PassThru `
     -RedirectStandardOutput (Join-Path $demoDir 'front.log') -RedirectStandardError (Join-Path $demoDir 'front.err.log')
+Add-Content -Path $pidFile -Value $front.Id
 $frontUp = $false
 for ($i = 0; $i -lt 60; $i++) {
     if (Get-NetTCPConnection -LocalPort 5173 -State Listen -ErrorAction SilentlyContinue) { $frontUp = $true; break }
@@ -88,18 +93,18 @@ for ($i = 0; $i -lt 60; $i++) {
 if (-not $frontUp) {
     taskkill /T /F /PID $front.Id *> $null
     taskkill /T /F /PID $api.Id *> $null
+    Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
     Stop-Demo 'O frontend nao subiu em 2 minutos. Veja .tmp/demo/front.log'
 }
 
-# 9. Save PIDs for demo-parar
-Set-Content -Path (Join-Path $demoDir 'pids.txt') -Value @($api.Id, $front.Id)
+# 9. (PIDs were saved right after each Start-Process)
 
 # 10. Print the block (code from the single source of the algorithm)
 $code = (node scripts/demo-codigo.mjs).Trim()
 Write-Host 'Demonstracao pronta. Abra no navegador: http://localhost:5173'
-Write-Host 'Cliente:        cliente@example.com  /  Demo-Cliente-2026!'
+Write-Host 'Cliente:        cliente@example.com  /  Demo-Cliente-2026!' # gitleaks:allow
 Write-Host 'Administrador:  http://localhost:5173/painel/entrar'
-Write-Host '                admin@example.com  /  Demo-Admin-2026!'
+Write-Host '                admin@example.com  /  Demo-Admin-2026!' # gitleaks:allow
 Write-Host "                codigo de verificacao agora: $code (vale ~30 s; outro: just demo-codigo)"
-Write-Host '                chave para app autenticador: JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP'
+Write-Host '                chave para app autenticador: JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP' # gitleaks:allow
 Write-Host 'Para parar: just demo-parar'
