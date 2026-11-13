@@ -86,3 +86,16 @@ test('blocks when the green quick check is older than the last code edit', () =>
 test('does not block twice (stop_hook_active)', () => {
   assert.equal(rodar(criarRepo(), { stop_hook_active: true }), '');
 });
+
+test('a corrupt result file counts as absent: the other valid file still applies', () => {
+  const repo = criarRepo();
+  escrever(repo, '.tmp/check-rapido-resultado.json', '{"ok":tr');
+  resultado(repo, 'check-resultado', true, EDIT + 1000);
+  assert.equal(rodar(repo), '');
+});
+
+test('a corrupt result file alone blocks (no check evidence)', () => {
+  const repo = criarRepo();
+  escrever(repo, '.tmp/check-rapido-resultado.json', 'garbage');
+  assert.equal(JSON.parse(rodar(repo)).decision, 'block');
+});

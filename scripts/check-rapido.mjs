@@ -2,7 +2,7 @@
 // The full `just check` stays for the CI. Writes .tmp/check-rapido.log and .tmp/check-rapido-resultado.json
 // (read by the Stop hook and by the verificar-entrega skill) and prints a short summary.
 import { execFileSync, spawnSync } from 'node:child_process';
-import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -37,6 +37,17 @@ export function extractRequirementIds(texts) {
   const ids = new Set();
   for (const t of texts) for (const id of t.match(REQUIREMENT_ID) || []) ids.add(id);
   return [...ids].sort();
+}
+
+// Pure: total tests Surefire reports in a Maven output (the final "Tests run: N, Failures: ..." line, the one
+// without "-- in <class>"). Returns null when there is no summary at all.
+export function surefireTotal(output) {
+  let total = null;
+  for (const l of output.split('\n')) {
+    const m = /Tests run: (\d+), Failures: \d+, Errors: \d+, Skipped: \d+\s*$/.exec(l.trim());
+    if (m) total = Number(m[1]);
+  }
+  return total;
 }
 
 function git(args, cwd) {
@@ -95,10 +106,10 @@ function run() {
     if (related.length) steps.push({ nome: `testes do frontend (${related.length} arquivo(s) e relacionados)`, cmd: `pnpm exec vitest related --run ${related.join(' ')}`, cwd: join(root, 'frontend') });
   }
   if (chosen.backend === 'all') {
-    steps.push({ nome: 'testes do backend (todos)', cmd: `${mvnw} test`, cwd: join(root, 'backend') });
+    steps.push({ backend: true, nome: 'testes do backend (todos)', cmd: `${mvnw} test`, cwd: join(root, 'backend') });
   } else if (chosen.backend !== 'none') {
     const patterns = [...chosen.backend, ...citing].join(',');
-    steps.push({ nome: `testes do backend (${patterns})`, cmd: `${mvnw} test -Dtest=${patterns} -Dsurefire.failIfNoSpecifiedTests=false`, cwd: join(root, 'backend') });
+    steps.push({ backend: true, nome: `testes do backend (${patterns})`, cmd: `${mvnw} test -Dtest=${patterns} -Dsurefire.failIfNoSpecifiedTests=false`, cwd: join(root, 'backend') });
   }
   if (chosen.nodeTests) {
     steps.push({ nome: 'testes de .claude e scripts (node --test)', cmd: 'node --test ".claude/**/*.test.mjs" "scripts/*.test.mjs"', cwd: root });
@@ -114,15 +125,22 @@ function run() {
   for (const s of steps) {
     appendFileSync(logPath, `\n===== ${s.cmd} (${s.cwd}) =====\n`);
     const r = spawnSync(s.cmd, { cwd: s.cwd, shell: true, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
-    appendFileSync(logPath, `${r.stdout || ''}${r.stderr || ''}`);
-    if (r.status !== 0) {
+    const saida = `${r.stdout || ''}${r.stderr || ''}`;
+    appendFileSync(logPath, saida);
+    // a backend selection that ran zero tests is missing evidence, never a pass
+    const vazio = s.backend && r.status === 0 && !((surefireTotal(saida) ?? 0) > 0);
+    if (vazio) appendFileSync(logPath, '\nNenhum teste do backend rodou: o filtro nao casou com nada.\n');
+    if (r.status !== 0 || vazio) {
       falhou = s;
       break;
     }
   }
   const segundos = Math.round((Date.now() - inicio) / 1000);
   const ok = falhou === null;
-  writeFileSync(join(tmp, 'check-rapido-resultado.json'), JSON.stringify({ ok, quando: Date.now(), segundos, tipo: 'rapido' }));
+  // atomic: write a temp file, then rename, so the hook never reads a half-written result
+  const resultado = join(tmp, 'check-rapido-resultado.json');
+  writeFileSync(`${resultado}.tmp`, JSON.stringify({ ok, quando: Date.now(), segundos, tipo: 'rapido' }));
+  renameSync(`${resultado}.tmp`, resultado);
 
   const log = lines(readFileSync(logPath, 'utf8'));
   if (ok) {

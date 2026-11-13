@@ -42,7 +42,13 @@ try {
   for (const nome of ['check-resultado.json', 'check-rapido-resultado.json']) {
     const arquivo = join(raiz, '.tmp', nome);
     if (!existsSync(arquivo)) continue;
-    const r = JSON.parse(readFileSync(arquivo, 'utf8'));
+    let r;
+    try {
+      r = JSON.parse(readFileSync(arquivo, 'utf8'));
+    } catch {
+      continue; // corrupt or half-written file counts as absent
+    }
+    if (typeof r?.quando !== 'number') continue;
     if (!check || r.quando > check.quando) check = r;
   }
   let motivo = null;
