@@ -70,7 +70,11 @@ lint-front:
     pnpm exec biome check .
 
 # roda os testes (o backend precisa do Docker aberto; só classes terminadas em Test)
-test: test-back test-front
+test: test-back test-front test-scripts
+
+# testes dos scripts e dos hooks (aspas: o node expande o glob, inclusive na pasta .claude)
+test-scripts:
+    node --test ".claude/**/*.test.mjs" "scripts/*.test.mjs"
 
 [working-directory: 'backend']
 test-back:
@@ -99,6 +103,10 @@ check: lint test build
 check-resumo:
     powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check-resumo.ps1
 
+# lint + só os testes das áreas que a branch mudou (o gancho de fim de resposta exige este)
+check-rapido:
+    node scripts/check-rapido.mjs
+
 # testes de ponta a ponta contra o sistema de verdade (antes: just db, just dev-back e just dev-front)
 [working-directory: 'frontend']
 e2e:
@@ -112,3 +120,17 @@ imagem:
 [windows]
 limpar-ticket branch='':
     powershell -NoProfile -ExecutionPolicy Bypass -File scripts/limpar-ticket.ps1 {{ if branch == "" { "" } else { "-Branch " + branch } }}
+
+# sobe a demonstração local (banco, API e frontend em segundo plano, com dados fictícios)
+[windows]
+demo:
+    powershell -NoProfile -ExecutionPolicy Bypass -File scripts/demo.ps1
+
+# para a demonstração local (só os processos dela)
+[windows]
+demo-parar:
+    powershell -NoProfile -ExecutionPolicy Bypass -File scripts/demo-parar.ps1
+
+# mostra o código de verificação atual do Administrador da demonstração
+demo-codigo:
+    node scripts/demo-codigo.mjs

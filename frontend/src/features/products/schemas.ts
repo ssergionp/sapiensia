@@ -68,8 +68,15 @@ export type ProductFileRejectionCode = (typeof FILE_REJECTION_CODES)[number];
 // 50 MB, base 1024. The same limit the backend enforces.
 export const MAX_FILE_BYTES = 52_428_800;
 
-// "3,4 MB" from bytes: one decimal, comma, base 1024.
+// "320 KB" below 1 MB (minimum "1 KB", dot as thousands separator);
+// from 1 MB on, "3,4 MB": one decimal, comma, base 1024.
 export function formatFileSize(bytes: number): string {
+  if (bytes < 1024 * 1024) {
+    const kb = Math.max(1, Math.round(bytes / 1024));
+    if (kb < 1024) {
+      return `${kb.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")} KB`;
+    }
+  }
   const tenths = Math.round((bytes * 10) / (1024 * 1024));
   return `${Math.floor(tenths / 10)},${tenths % 10} MB`;
 }

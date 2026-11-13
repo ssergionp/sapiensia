@@ -15,13 +15,15 @@ Plataforma web para criar e revisar e-books, cartilhas, tutoriais e checklists c
 ## Comandos (sempre via just)
 - `just setup` · `just db` · `just db-stop` · `just dev-back` · `just dev-front`
 - `just fmt` · `just lint` · `just test` · `just build`
-- `just check`: tudo que precisa passar antes de um PR (o CI repete o mesmo)
-- `just check-resumo`: o mesmo check, com resumo curto; o log completo fica em .tmp/check.log
+- `just check-rapido`: lint + os testes das áreas alteradas (o gancho de fim de resposta exige este); o log fica em .tmp/check-rapido.log
+- `just check`: o que o CI roda na PR; localmente só se o Sérgio pedir
+- `just check-resumo`: o mesmo check completo, com resumo curto; o log completo fica em .tmp/check.log
+- `just demo` · `just demo-parar` · `just demo-codigo`: sobe a demonstração local com dados fictícios (banco, API e frontend em segundo plano), para só os processos dela e mostra o código de verificação do Administrador da demonstração
 - `just doctor`: confere o computador (Java, Docker, portas do banco e da API...)
 - `just e2e`: testes de ponta a ponta no navegador, contra o sistema de verdade (antes: `just db`, `just dev-back` e `just dev-front`)
 - `just imagem`: gera a imagem Docker do sistema inteiro, a mesma que vai para homologação e produção
 - `just limpar-ticket`: depois do merge da PR, encerra os processos do ticket, remove a worktree, atualiza a main e apaga a branch local.
-- Antes de declarar um ticket pronto: skill `verificar-entrega` (check recente, arquivos fora do plano, teste afrouxado, tela e sistema de verdade).
+- Antes de declarar um ticket pronto: skill `verificar-entrega` (check rápido recente, arquivos fora do plano, teste afrouxado, tela e sistema de verdade); depois da PR, o ticket só está pronto com o CI verde.
 - Se `just lint` acusar formatação, rode `just fmt`.
 - Um teste só: `cd backend; .\mvnw.cmd test -Dtest=NomeDoTest`
 - Swagger: http://localhost:8081/swagger-ui.html

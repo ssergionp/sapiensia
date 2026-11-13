@@ -1,5 +1,5 @@
 // Trava do fim da resposta (hook Stop): numa branch de ticket, o Claude só encerra depois de um
-// "just check-resumo" que passou e é mais novo que a última edição de código.
+// "just check-rapido" (ou check completo) que passou e é mais novo que a última edição de código.
 // Só olha datas de arquivos; não roda teste nenhum. Bloqueia uma vez só: se o Claude parar de novo
 // (por exemplo, para fazer uma pergunta ao usuário), deixa passar.
 import { execFileSync } from 'node:child_process';
@@ -37,18 +37,29 @@ try {
   }
   if (ultimaEdicao === 0) process.exit(0);
 
+  // vale o resultado mais recente: o do check rápido ou o do completo
   let check = null;
-  const arquivo = join(raiz, '.tmp', 'check-resultado.json');
-  if (existsSync(arquivo)) check = JSON.parse(readFileSync(arquivo, 'utf8'));
+  for (const nome of ['check-resultado.json', 'check-rapido-resultado.json']) {
+    const arquivo = join(raiz, '.tmp', nome);
+    if (!existsSync(arquivo)) continue;
+    let r;
+    try {
+      r = JSON.parse(readFileSync(arquivo, 'utf8'));
+    } catch {
+      continue; // corrupt or half-written file counts as absent
+    }
+    if (typeof r?.quando !== 'number') continue;
+    if (!check || r.quando > check.quando) check = r;
+  }
   let motivo = null;
-  if (!check) motivo = 'O código desta branch mudou e o just check-resumo ainda não rodou nela.';
-  else if (!check.ok) motivo = 'O último just check-resumo desta branch falhou.';
-  else if (check.quando < ultimaEdicao) motivo = 'Houve edição de código depois do último just check-resumo.';
+  if (!check) motivo = 'O código desta branch mudou e o just check-rapido ainda não rodou nela.';
+  else if (!check.ok) motivo = 'O último check desta branch falhou.';
+  else if (check.quando < ultimaEdicao) motivo = 'Houve edição de código depois do último check.';
   if (!motivo) process.exit(0);
 
   process.stdout.write(JSON.stringify({
     decision: 'block',
-    reason: `${motivo} Antes de dizer que terminou, rode just check-resumo e mostre o resultado. Se você parou só para fazer uma pergunta ao usuário, pode parar de novo.`,
+    reason: `${motivo} Antes de dizer que terminou, rode just check-rapido e mostre o resultado. Se você parou só para fazer uma pergunta ao usuário, pode parar de novo.`,
   }));
   process.exit(0);
 } catch {

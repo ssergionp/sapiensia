@@ -22,3 +22,6 @@ app:
   # The e2e tests run against this profile and make every login from one IP
   login-limit:
     ip-max-attempts: 1000
+  # Local demo accounts and published products (scripts/demo.ps1 turns this on); prod never has the property
+  demo:
+    enabled: ${APP_DEMO_ENABLED:false}

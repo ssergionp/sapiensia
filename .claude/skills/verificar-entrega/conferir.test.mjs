@@ -63,6 +63,19 @@ test('still flags an ID no test cites', () => {
   assert.match(rodar(repo), /REQUISITO SEM TESTE: SEC-002/);
 });
 
+test('section 1 accepts a fresh green quick check and names it', () => {
+  const repo = criarRepo();
+  commitar(repo, { 'backend/src/A.java': 'class A {}\n' });
+  escrever(repo, '.tmp/check-rapido-resultado.json', JSON.stringify({ ok: true, quando: Date.now() + 60000, segundos: 5, tipo: 'rapido' }));
+  assert.match(rodar(repo), /- OK: check rápido passou/);
+});
+
+test('section 1 reports when no check ran', () => {
+  const repo = criarRepo();
+  commitar(repo, { 'backend/src/A.java': 'class A {}\n' });
+  assert.match(rodar(repo), /REPROVADO: nenhum check rodou nesta branch/);
+});
+
 test('flags a skip added to an e2e file', () => {
   const repo = criarRepo({
     'frontend/e2e/a.e2e.ts': 'test("abre", async () => {});\n',
@@ -71,4 +84,19 @@ test('flags a skip added to an e2e file', () => {
     'frontend/e2e/a.e2e.ts': 'test("abre", async () => {});\ntest.skip("x", async () => {});\n',
   });
   assert.match(rodar(repo), /TESTE DESLIGADO OU ISOLADO/);
+});
+
+test('section 1 skips a corrupt result file and uses the valid one', () => {
+  const repo = criarRepo();
+  commitar(repo, { 'backend/src/A.java': 'class A {}\n' });
+  escrever(repo, '.tmp/check-resultado.json', '{not json');
+  escrever(repo, '.tmp/check-rapido-resultado.json', JSON.stringify({ ok: true, quando: Date.now() + 60000, segundos: 5, tipo: 'rapido' }));
+  assert.match(rodar(repo), /- OK: check rápido passou/);
+});
+
+test('section 1 rejects a result file without a numeric quando', () => {
+  const repo = criarRepo();
+  commitar(repo, { 'backend/src/A.java': 'class A {}\n' });
+  escrever(repo, '.tmp/check-rapido-resultado.json', JSON.stringify({ ok: true, segundos: 5, tipo: 'rapido' }));
+  assert.match(rodar(repo), /REPROVADO: nenhum check rodou nesta branch/);
 });
