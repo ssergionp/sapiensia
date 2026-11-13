@@ -92,7 +92,7 @@ class DemoSeedTest {
     }
 
     @Test
-    @DisplayName("shouldRefuseTheProdProfileEvenTogetherWithLocal")
+    @DisplayName("NFR-012: demo data refuses the prod profile even together with local")
     void shouldRefuseTheProdProfileEvenTogetherWithLocal() {
         MockEnvironment both = new MockEnvironment();
         both.setActiveProfiles("local", "prod");
@@ -247,14 +247,14 @@ class DemoSeedTest {
         ApplicationContext context;
 
         @Test
-        @DisplayName("shouldHaveNoDemoSeederBeanInProd")
+        @DisplayName("NFR-012: no demo seeder exists in the prod profile")
         void shouldHaveNoDemoSeederBeanInProd() {
             assertThat(context.getBeansOfType(ApplicationRunner.class).values())
                     .noneMatch(r -> r.getClass().getSimpleName().startsWith("Demo"));
         }
 
         @Test
-        @DisplayName("shouldHaveNoDemoAccountRowsInProd")
+        @DisplayName("NFR-012: no demo account rows exist in the prod profile")
         void shouldHaveNoDemoAccountRowsInProd() {
             assertThat(jdbc.queryForObject(
                             "select count(*) from customers where email = ?", Long.class, DemoAccounts.CUSTOMER_EMAIL))
@@ -265,7 +265,7 @@ class DemoSeedTest {
         }
 
         @Test
-        @DisplayName("shouldRefuseTheDemoPasswordsInProd")
+        @DisplayName("NFR-012: the prod profile refuses the demo passwords")
         void shouldRefuseTheDemoPasswordsInProd() throws Exception {
             assertThat(new Client(port)
                             .login("/api/admin/sessions", DemoAccounts.ADMIN_EMAIL, DemoAccounts.ADMIN_PASSWORD)
