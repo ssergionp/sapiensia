@@ -14,6 +14,7 @@ function product(overrides: Partial<CatalogProduct> = {}): CatalogProduct {
     description: "Descrição",
     category: "LAW",
     priceCents: 500,
+    coverVersion: null,
     ...overrides,
   };
 }
@@ -38,6 +39,29 @@ afterEach(() => {
 });
 
 describe("CatalogProductPage", () => {
+  test("mostra a capa do produto com texto alternativo", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(200, product({ coverVersion: "abc" })),
+    );
+    renderProduct();
+
+    const img = await screen.findByRole("img", { name: "Capa de Guia" });
+    expect(img).toHaveAttribute("src", "/api/products/p1/cover?v=abc");
+  });
+
+  test("sem capa mostra o quadro neutro e nenhuma imagem", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(200, product()),
+    );
+    const { container } = renderProduct();
+
+    await screen.findByRole("heading", { level: 1, name: "Guia" });
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    expect(
+      container.querySelector("main [aria-hidden='true'].bg-muted"),
+    ).not.toBeNull();
+  });
+
   test('mostra "Carregando…" enquanto carrega', () => {
     vi.spyOn(globalThis, "fetch").mockReturnValue(new Promise(() => {}));
     renderProduct();

@@ -1,6 +1,7 @@
 package br.com.sergio.sapiensia.product;
 
 import java.nio.file.Path;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -8,6 +9,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import org.springframework.http.MediaType;
 
 /**
  * Test double of the product file storage: it delegates to the disk storage until {@link #failPuts(boolean)} or
@@ -19,6 +21,7 @@ public class SwitchableProductFileStorage implements ProductFileStorage {
     private final Set<String> keys = ConcurrentHashMap.newKeySet();
     private volatile boolean failingPuts;
     private volatile boolean failingDeletes;
+    private volatile boolean failingGets;
     private volatile CyclicBarrier gate;
     private volatile Pause pause;
 
@@ -40,11 +43,11 @@ public class SwitchableProductFileStorage implements ProductFileStorage {
     }
 
     @Override
-    public void put(String key, Path file, long sizeBytes) {
+    public void put(String key, Path file, long sizeBytes, MediaType type) {
         if (failingPuts) {
             throw new ProductFileStorageException("storage is down");
         }
-        delegate.put(key, file, sizeBytes);
+        delegate.put(key, file, sizeBytes, type);
         keys.add(key);
         Pause held = pause;
         if (held != null) {
@@ -109,6 +112,18 @@ public class SwitchableProductFileStorage implements ProductFileStorage {
     /** Stops pausing puts. */
     public void resumePuts() {
         this.pause = null;
+    }
+
+    public void failGets(boolean failing) {
+        this.failingGets = failing;
+    }
+
+    @Override
+    public Optional<byte[]> get(String key) {
+        if (failingGets) {
+            throw new ProductFileStorageException("storage is down");
+        }
+        return delegate.get(key);
     }
 
     @Override

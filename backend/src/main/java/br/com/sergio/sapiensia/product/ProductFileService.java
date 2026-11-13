@@ -12,6 +12,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -91,7 +92,7 @@ class ProductFileService {
             boolean reauthenticated) {
         long size = sizeOf(tempFile);
         String newKey = ProductFileKeys.newKey(productId);
-        storage.put(newKey, tempFile, size);
+        storage.put(newKey, tempFile, size, MediaType.APPLICATION_PDF);
         Swapped swapped;
         try {
             swapped = transaction.execute(status -> {

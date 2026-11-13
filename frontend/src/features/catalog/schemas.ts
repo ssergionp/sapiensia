@@ -8,6 +8,7 @@ export const catalogItemSchema = z.object({
   summary: z.string(),
   category: z.enum(PRODUCT_CATEGORIES),
   priceCents: z.number().int(),
+  coverVersion: z.string().nullable(),
 });
 
 export const catalogPageSchema = z.object({
@@ -22,7 +23,14 @@ export const catalogProductSchema = z.object({
   description: z.string(),
   category: z.enum(PRODUCT_CATEGORIES),
   priceCents: z.number().int(),
+  coverVersion: z.string().nullable(),
 });
+
+export function coverUrl(id: string, coverVersion: string | null) {
+  return coverVersion === null
+    ? null
+    : `/api/products/${encodeURIComponent(id)}/cover?v=${encodeURIComponent(coverVersion)}`;
+}
 
 export type CatalogItem = z.infer<typeof catalogItemSchema>;
 export type CatalogPage = z.infer<typeof catalogPageSchema>;

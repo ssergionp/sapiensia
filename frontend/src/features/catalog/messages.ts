@@ -26,4 +26,5 @@ export const CATALOG_TEXTS = {
   detailError: "Não foi possível carregar este Produto agora. Tente novamente.",
   srCategory: "Categoria:",
   srPrice: "Preço:",
+  coverAlt: (title: string) => `Capa de ${title}`,
 } as const;

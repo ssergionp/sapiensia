@@ -1,8 +1,10 @@
 import { apiFetch } from "@/lib/api";
 import {
+  COVER_REJECTION_CODES,
   FILE_REJECTION_CODES,
   type Product,
   type ProductCategory,
+  type ProductCoverRejectionCode,
   type ProductFileRejectionCode,
   type ProductPage,
   productPageSchema,
@@ -109,6 +111,54 @@ export async function uploadProductFile(
   }
   const response = await check(raw, 200);
   return productSchema.parse(await response.json());
+}
+
+// 400/413 with a known code in errors.cover.
+export class ProductCoverRejectedError extends Error {
+  readonly code: ProductCoverRejectionCode;
+  constructor(code: ProductCoverRejectionCode) {
+    super("Product cover rejected");
+    this.code = code;
+  }
+}
+
+async function readCoverErrorCode(raw: Response): Promise<string | undefined> {
+  const body: unknown = await raw.json().catch(() => null);
+  if (typeof body !== "object" || body === null || !("errors" in body))
+    return undefined;
+  const errors = body.errors;
+  if (typeof errors !== "object" || errors === null || !("cover" in errors))
+    return undefined;
+  return typeof errors.cover === "string" ? errors.cover : undefined;
+}
+
+export async function uploadProductCover(
+  id: string,
+  file: File,
+): Promise<Product> {
+  const form = new FormData();
+  form.append("file", file);
+  const raw = await apiFetch(
+    `/api/admin/products/${encodeURIComponent(id)}/cover`,
+    { method: "POST", body: form },
+  );
+  if (raw.status === 400 || raw.status === 413) {
+    const code = await readCoverErrorCode(raw);
+    if ((COVER_REJECTION_CODES as readonly unknown[]).includes(code)) {
+      throw new ProductCoverRejectedError(code as ProductCoverRejectionCode);
+    }
+    throw new Error(`Unexpected status ${raw.status}`);
+  }
+  const response = await check(raw, 200);
+  return productSchema.parse(await response.json());
+}
+
+export async function removeProductCover(id: string): Promise<void> {
+  const raw = await apiFetch(
+    `/api/admin/products/${encodeURIComponent(id)}/cover`,
+    { method: "DELETE" },
+  );
+  await check(raw, 204);
 }
 
 // 409 with errors.file: the Product cannot be published without a file. Any other 409 stays a conflict.

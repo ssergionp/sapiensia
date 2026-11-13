@@ -35,6 +35,7 @@ import {
   SERVER_FIELD_NAMES,
   STATUS_NOTICES,
 } from "./messages";
+import ProductCoverSection from "./ProductCoverSection";
 import ProductFileSection from "./ProductFileSection";
 import ProductPublicationSection from "./ProductPublicationSection";
 import {
@@ -446,6 +447,7 @@ function EditForms({
             </div>
           )}
         </section>
+        <ProductCoverSection product={product} />
         <ProductFileSection product={product} />
         {canPublish && <ProductPublicationSection product={product} />}
       </div>

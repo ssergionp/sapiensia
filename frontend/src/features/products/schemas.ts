@@ -22,6 +22,36 @@ export const productFileSchema = z.object({
 
 export type ProductFile = z.infer<typeof productFileSchema>;
 
+// Mirrors ProductCoverInfo: never a key or a storage URL.
+export const productCoverSchema = z.object({
+  mediaType: z.string(),
+  sizeBytes: z.number().int(),
+  width: z.number().int(),
+  height: z.number().int(),
+  version: z.string(),
+  uploadedAt: z.string(),
+});
+
+export type ProductCover = z.infer<typeof productCoverSchema>;
+
+// Codes of the "cover" field in a 400/413 answer of the cover upload.
+export const COVER_REJECTION_CODES = [
+  "COVER_REQUIRED",
+  "COVER_EMPTY",
+  "COVER_TOO_LARGE",
+  "COVER_NOT_IMAGE",
+  "COVER_INVALID",
+  "COVER_TOO_MANY_PIXELS",
+  "COVER_ANIMATED",
+] as const;
+
+export type ProductCoverRejectionCode = (typeof COVER_REJECTION_CODES)[number];
+
+// 2 MB, base 1024. The same limit the backend enforces.
+export const MAX_COVER_BYTES = 2_097_152;
+
+export const COVER_MEDIA_TYPES = ["image/png", "image/jpeg", "image/webp"];
+
 // Codes of the "file" field in a 400/409/413 answer of the file upload.
 export const FILE_REJECTION_CODES = [
   "FILE_REQUIRED",
@@ -74,6 +104,7 @@ export const productSchema = z.object({
   firstPublishedAt: z.string().nullable(),
   version: z.number().int(),
   file: productFileSchema.nullable(),
+  cover: productCoverSchema.nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -86,6 +117,7 @@ export type ProductStatus = Product["status"];
 export const productListItemSchema = productSchema.omit({
   description: true,
   file: true,
+  cover: true,
   firstPublishedAt: true,
 });
 

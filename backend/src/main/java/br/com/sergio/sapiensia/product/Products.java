@@ -33,21 +33,32 @@ class Products {
             rs.getObject("created_at", OffsetDateTime.class).toInstant(),
             rs.getObject("updated_at", OffsetDateTime.class).toInstant(),
             null,
+            null,
             instant(rs.getObject("first_published_at", OffsetDateTime.class)));
 
     private static final String FIND_SQL = "select p.id, p.title, p.description, p.category, p.price_cents, p.status,"
-            + " p.version, p.created_at, p.updated_at, p.first_published_at, f.size_bytes, f.page_count, f.uploaded_at"
-            + " from products p left join product_files f on f.product_id = p.id where p.id = :id";
+            + " p.version, p.created_at, p.updated_at, p.first_published_at, f.size_bytes, f.page_count, f.uploaded_at,"
+            + " c.media_type, c.size_bytes as cover_size_bytes, c.width, c.height, c.version as cover_version,"
+            + " c.uploaded_at as cover_uploaded_at from products p left join product_files f on f.product_id = p.id"
+            + " left join product_covers c on c.product_id = p.id where p.id = :id";
 
-    /** Same as MAPPER plus the current file, when there is one (columns of the left join). */
+    /** Same as MAPPER plus the current file and cover, when there are any (columns of the left joins). */
     private static final RowMapper<ProductResponse> MAPPER_WITH_FILE = (rs, i) -> {
         ProductResponse product = MAPPER.mapRow(rs, i);
         OffsetDateTime uploadedAt = rs.getObject("uploaded_at", OffsetDateTime.class);
-        if (uploadedAt == null) {
-            return product;
-        }
-        ProductFileInfo file =
-                new ProductFileInfo(rs.getLong("size_bytes"), rs.getInt("page_count"), uploadedAt.toInstant());
+        ProductFileInfo file = uploadedAt == null
+                ? null
+                : new ProductFileInfo(rs.getLong("size_bytes"), rs.getInt("page_count"), uploadedAt.toInstant());
+        OffsetDateTime coverUploadedAt = rs.getObject("cover_uploaded_at", OffsetDateTime.class);
+        ProductCoverInfo cover = coverUploadedAt == null
+                ? null
+                : new ProductCoverInfo(
+                        rs.getString("media_type"),
+                        rs.getInt("cover_size_bytes"),
+                        rs.getInt("width"),
+                        rs.getInt("height"),
+                        rs.getString("cover_version"),
+                        coverUploadedAt.toInstant());
         return new ProductResponse(
                 product.id(),
                 product.title(),
@@ -59,6 +70,7 @@ class Products {
                 product.createdAt(),
                 product.updatedAt(),
                 file,
+                cover,
                 product.firstPublishedAt());
     };
 
@@ -176,12 +188,14 @@ class Products {
         return jdbc.sql("select count(*) from products").query(Long.class).single();
     }
 
-    private static final String CATALOG_COLUMNS = "id, title, description, category, price_cents";
+    private static final String CATALOG_FROM = " from products p left join product_covers c on c.product_id = p.id";
+    private static final String CATALOG_COLUMNS =
+            "p.id, p.title, p.description, p.category, p.price_cents, c.version as cover_version";
 
     /** Published only, in the SQL. Latest first publication first; the id breaks ties. The offset is a long. */
     List<CatalogItem> listPublished(int page) {
-        return jdbc.sql("select " + CATALOG_COLUMNS + " from products where status = 'PUBLISHED'"
-                        + " order by first_published_at desc, id desc limit :limit offset :offset")
+        return jdbc.sql("select " + CATALOG_COLUMNS + CATALOG_FROM + " where p.status = 'PUBLISHED'"
+                        + " order by p.first_published_at desc, p.id desc limit :limit offset :offset")
                 .param("limit", PAGE_SIZE)
                 .param("offset", page * (long) PAGE_SIZE)
                 .query((rs, i) -> new CatalogItem(
@@ -189,7 +203,8 @@ class Products {
                         rs.getString("title"),
                         CatalogSummary.of(rs.getString("description")),
                         ProductCategory.valueOf(rs.getString("category")),
-                        rs.getInt("price_cents")))
+                        rs.getInt("price_cents"),
+                        rs.getString("cover_version")))
                 .list();
     }
 
@@ -201,14 +216,15 @@ class Products {
 
     /** Empty for a draft, an unpublished or a missing Product: the caller cannot tell them apart. */
     Optional<CatalogProduct> findPublished(UUID id) {
-        return jdbc.sql("select " + CATALOG_COLUMNS + " from products where id = :id and status = 'PUBLISHED'")
+        return jdbc.sql("select " + CATALOG_COLUMNS + CATALOG_FROM + " where p.id = :id and p.status = 'PUBLISHED'")
                 .param("id", id)
                 .query((rs, i) -> new CatalogProduct(
                         rs.getObject("id", UUID.class),
                         rs.getString("title"),
                         rs.getString("description"),
                         ProductCategory.valueOf(rs.getString("category")),
-                        rs.getInt("price_cents")))
+                        rs.getInt("price_cents"),
+                        rs.getString("cover_version")))
                 .optional();
     }
 }

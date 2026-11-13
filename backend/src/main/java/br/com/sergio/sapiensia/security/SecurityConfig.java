@@ -62,12 +62,14 @@ public class SecurityConfig {
             + "frame-ancestors 'none'";
 
     /**
-     * The public Catalog (#20, ADR-0007): GET only, one segment after /products, so /products/{id}/file and every
-     * other verb stay denied. The same matcher opens the routes and keeps the XSRF-TOKEN cookie off them.
+     * The public Catalog (#20, ADR-0007) and the cover of a published Product (#21): GET only, so
+     * /products/{id}/file and every other verb stay denied. The same matcher opens the routes
+     * and keeps the XSRF-TOKEN cookie off them.
      */
-    private static final OrRequestMatcher PUBLIC_CATALOG = new OrRequestMatcher(
+    static final OrRequestMatcher PUBLIC_CATALOG = new OrRequestMatcher(
             PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/api/products"),
-            PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/api/products/*"));
+            PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/api/products/*"),
+            PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/api/products/*/cover"));
 
     /** One repository for the filter chain and for the login, which renews the token by hand. */
     @Bean
@@ -77,7 +79,7 @@ public class SecurityConfig {
 
     /**
      * The CSRF filter generates and saves a token on any request that has none, even a GET that needs no token, so
-     * the public Catalog (#20) would hand every Visitor an XSRF-TOKEN cookie. Saving is skipped for those two GET
+     * the public Catalog (#20) would hand every Visitor an XSRF-TOKEN cookie. Saving is skipped for those three GET
      * routes only (A4); everything else, including the login that renews the token by hand, behaves as before.
      */
     static final class NoCookieOnPublicCatalog implements CsrfTokenRepository {
@@ -244,6 +246,13 @@ public class SecurityConfig {
                         // manager.
                         .requestMatchers(HttpMethod.POST, "/api/admin/products/{id}/file")
                         .access(productFileReplacementAccess)
+                        // the cover (#21): all three on PRODUCTS_EDIT, no reauthentication (it is presentation)
+                        .requestMatchers(HttpMethod.GET, "/api/admin/products/*/cover")
+                        .access(panel(Capability.PRODUCTS_EDIT))
+                        .requestMatchers(HttpMethod.POST, "/api/admin/products/*/cover")
+                        .access(panel(Capability.PRODUCTS_EDIT))
+                        .requestMatchers(HttpMethod.DELETE, "/api/admin/products/*/cover")
+                        .access(panel(Capability.PRODUCTS_EDIT))
                         // publication (#19): PUT publishes, DELETE unpublishes; no other verb is open
                         .requestMatchers(HttpMethod.PUT, "/api/admin/products/*/publication")
                         .access(panel(Capability.PRODUCTS_PUBLISH))

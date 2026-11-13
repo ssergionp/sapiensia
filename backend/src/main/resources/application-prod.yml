@@ -42,6 +42,8 @@ app:
       secret-key: ${APP_STORAGE_SUPABASE_SECRET_KEY:}
       # private bucket, created by hand in the Supabase panel
       bucket: product-files
+      # private bucket for the product cover images (2 MB, image/png, image/jpeg, image/webp), also created by hand
+      cover-bucket: product-covers
   admin:
     # a blank or invalid APP_ADMIN_EMAIL stops the application
     required: true

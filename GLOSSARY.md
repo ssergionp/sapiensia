@@ -25,8 +25,12 @@ Estado de um Produto que já foi publicado e saiu do Catálogo. Os clientes novo
 _Avoid_: Inativo, oculto
 
 **Catálogo**:
-A vitrine pública dos Produtos publicados, visível a qualquer visitante. Mostra título, descrição, categoria e preço (a capa ainda não existe); não tem busca, filtros nem amostra grátis na Fase 1.
+A vitrine pública dos Produtos publicados, visível a qualquer visitante. Mostra título, descrição, categoria e preço; não tem busca, filtros nem amostra grátis na Fase 1.
 _Avoid_: Loja, vitrine
+
+**Capa**:
+Imagem de apresentação de um Produto, mostrada no Catálogo e na página do Produto; não é entregue ao Cliente.
+_Avoid_: Imagem, thumbnail, banner
 
 **Arquivo do produto**:
 O PDF pronto, enviado pelo administrador, que o cliente baixa depois de comprar o Produto. Cada Produto tem uma só versão atual; uma correção substitui o arquivo para todos os clientes que já compraram.

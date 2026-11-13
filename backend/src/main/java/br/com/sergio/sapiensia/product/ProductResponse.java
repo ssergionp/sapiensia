@@ -18,4 +18,5 @@ record ProductResponse(
         Instant createdAt,
         Instant updatedAt,
         ProductFileInfo file,
+        ProductCoverInfo cover,
         Instant firstPublishedAt) {}

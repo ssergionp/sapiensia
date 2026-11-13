@@ -50,6 +50,15 @@ final class AdminBrowser {
         return client.send(HttpRequest.newBuilder(uri(path)).build(), HttpResponse.BodyHandlers.ofString());
     }
 
+    /** A GET that keeps the body as bytes and sends the given headers (name, value, name, value...). */
+    HttpResponse<byte[]> getBytes(String path, String... headers) throws Exception {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(uri(path));
+        for (int i = 0; i < headers.length; i += 2) {
+            builder.header(headers[i], headers[i + 1]);
+        }
+        return client.send(builder.build(), HttpResponse.BodyHandlers.ofByteArray());
+    }
+
     HttpResponse<String> post(String path, String json) throws Exception {
         ensureCsrfCookie();
         return client.send(

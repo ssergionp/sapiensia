@@ -22,6 +22,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 
 /**
@@ -30,8 +31,11 @@ import org.springframework.web.client.RestClient;
  */
 class SupabaseProductFileStorageWireTest {
 
+    private static final MediaType PDF = MediaType.APPLICATION_PDF;
+
     private static final String SECRET = "test-secret-not-real";
     private static final String BUCKET = "product-files";
+    private static final String COVER_BUCKET = "product-covers";
 
     @TempDir
     Path dir;
@@ -52,8 +56,9 @@ class SupabaseProductFileStorageWireTest {
                     exchange.getProtocol(),
                     headers,
                     body));
-            byte[] answer = "{\"Key\":\"x\"}".getBytes(StandardCharsets.UTF_8);
-            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            boolean read = "GET".equals(exchange.getRequestMethod());
+            byte[] answer = read ? new byte[] {1, 2, 3} : "{\"Key\":\"x\"}".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", read ? "image/png" : "application/json");
             exchange.sendResponseHeaders(200, answer.length);
             exchange.getResponseBody().write(answer);
             exchange.close();
@@ -79,9 +84,9 @@ class SupabaseProductFileStorageWireTest {
         String key = ProductFileKeys.newKey(UUID.randomUUID());
         String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
         SupabaseProductFileStorage storage =
-                new SupabaseProductFileStorage(RestClient.builder(), baseUrl, SECRET, BUCKET);
+                new SupabaseProductFileStorage(RestClient.builder(), baseUrl, SECRET, BUCKET, COVER_BUCKET);
 
-        storage.put(key, file, pdf.length);
+        storage.put(key, file, pdf.length, PDF);
 
         Recorded request = recorded.get();
         System.out.println(request.describe());
@@ -97,6 +102,30 @@ class SupabaseProductFileStorageWireTest {
         assertThat(request.headers().get("Content-Length")).containsExactly(String.valueOf(pdf.length));
         assertThat(request.body()).hasSize(pdf.length);
         assertThat(sha256(request.body())).isEqualTo(sha256(pdf));
+    }
+
+    @Test
+    @DisplayName("#21: capa vai ao bucket de capas com o Content-Type da imagem e volta pela rota autenticada")
+    void shouldPutAndGetACoverOnTheWire() throws IOException {
+        Path file = Files.write(dir.resolve("c.png"), new byte[] {1, 2, 3});
+        String key = ProductFileKeys.newCoverKey(UUID.randomUUID(), CoverFormat.PNG);
+        String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
+        SupabaseProductFileStorage storage =
+                new SupabaseProductFileStorage(RestClient.builder(), baseUrl, SECRET, BUCKET, COVER_BUCKET);
+
+        storage.put(key, file, 3, org.springframework.http.MediaType.IMAGE_PNG);
+
+        Recorded put = recorded.get();
+        assertThat(put.method()).isEqualTo("POST");
+        assertThat(put.path()).isEqualTo("/storage/v1/object/" + COVER_BUCKET + "/" + key);
+        assertThat(put.headers().get("Content-Type")).containsExactly("image/png");
+        assertThat(put.headers().get("Content-Length")).containsExactly("3");
+
+        assertThat(storage.get(key)).contains(new byte[] {1, 2, 3});
+        Recorded get = recorded.get();
+        assertThat(get.method()).isEqualTo("GET");
+        assertThat(get.path()).isEqualTo("/storage/v1/object/authenticated/" + COVER_BUCKET + "/" + key);
+        assertThat(get.headers().get("apikey")).containsExactly(SECRET);
     }
 
     private static String sha256(byte[] bytes) {
