@@ -141,6 +141,7 @@ function run() {
   // One heavy command at a time; stop at the first failure.
   for (const s of steps) {
     appendFileSync(logPath, `\n===== ${s.cmd} (${s.cwd}) =====\n`);
+    // nosemgrep: javascript.lang.security.audit.spawn-shell-true.spawn-shell-true -- fixed commands; only repo file paths are interpolated; shell needed for .cmd shims on Windows
     const r = spawnSync(s.cmd, { cwd: s.cwd, shell: true, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
     const saida = `${r.stdout || ''}${r.stderr || ''}`;
     appendFileSync(logPath, saida);

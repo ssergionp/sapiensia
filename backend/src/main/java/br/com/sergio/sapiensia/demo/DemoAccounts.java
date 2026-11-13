@@ -14,6 +14,7 @@ public final class DemoAccounts {
     public static final String CUSTOMER_EMAIL = "cliente@example.com";
     public static final String CUSTOMER_PASSWORD = "Demo-Cliente-2026!"; // gitleaks:allow
     /** Base32 of the Administrator's TOTP secret (20 bytes), typed once into the authenticator app. */
+    // nosemgrep: generic.secrets.security.detected-generic-secret.detected-generic-secret -- fake demo key
     public static final String ADMIN_TOTP_SECRET = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP"; // gitleaks:allow
 
     private DemoAccounts() {}

@@ -3,6 +3,7 @@ import { createHmac } from "node:crypto";
 import { pathToFileURL } from "node:url";
 
 // Same value as DemoAccounts.ADMIN_TOTP_SECRET (backend). Fictitious, demo only.
+// nosemgrep: generic.secrets.security.detected-generic-secret.detected-generic-secret -- fictitious demo TOTP secret, local profile only
 export const ADMIN_TOTP_SECRET = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP"; // gitleaks:allow
 
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
