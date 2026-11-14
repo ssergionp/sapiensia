@@ -84,7 +84,15 @@ class OrderService {
     Created create(UUID customerId, String customerEmail, CreateOrderRequest request) {
         AtomicReference<String> chargeId = new AtomicReference<>();
         try {
-            return transaction.execute(status -> createInTransaction(customerId, customerEmail, request, chargeId));
+            Created result =
+                    transaction.execute(status -> createInTransaction(customerId, customerEmail, request, chargeId));
+            // after the commit, ids only: never the CPF, the e-mail, the price or the Pix code
+            if (result.isNew()) {
+                log.info("Order created: orderId={} chargeId={}", result.orderId(), chargeId.get());
+            } else {
+                log.info("Pending order reused: orderId={}", result.orderId());
+            }
+            return result;
         } catch (RuntimeException e) {
             // A2: the charge exists at the provider but no Order does. Outside the transaction, best effort; the
             // original error goes to the Customer unchanged.

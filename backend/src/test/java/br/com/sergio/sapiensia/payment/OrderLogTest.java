@@ -80,6 +80,7 @@ class OrderLogTest {
         HttpResponse<String> created = customer.order(guide, MASKED_CPF);
         assertThat(created.statusCode()).isEqualTo(201);
         String orderId = OrderHttp.json(created, "$.id");
+        String chargeId = gateway.lastChargeId();
         assertThat(customer.order(guide, MASKED_CPF).statusCode()).isEqualTo(200);
 
         // (c) an invalid CPF, from a Customer with no payment customer yet
@@ -118,6 +119,9 @@ class OrderLogTest {
                 .doesNotContain(customer.email)
                 .doesNotContain(other.email);
         // positive control: the flow did log, so the absences above mean something
-        assertThat(logs).contains(orderId).contains("step=CREATE_CHARGE");
+        assertThat(logs)
+                .contains("Order created: orderId=" + orderId + " chargeId=" + chargeId)
+                .contains("Pending order reused: orderId=" + orderId)
+                .contains("step=CREATE_CHARGE");
     }
 }
