@@ -195,6 +195,8 @@ class SupabaseProductFileStorageWireTest {
         assertThat(url).isPresent();
         assertThat(url.get()).contains(TOKEN);
         assertThat(output.getAll().substring(start))
+                .as("the capture is live: the client really logs the request body at DEBUG")
+                .contains("expiresIn")
                 .doesNotContain(TOKEN)
                 .doesNotContain("/object/sign/")
                 .doesNotContain(key)

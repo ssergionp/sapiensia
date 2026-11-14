@@ -308,6 +308,8 @@ class LibraryDownloadTest {
         assertThat(output.getAll().substring(logStart))
                 .contains("Library download unavailable (product " + product + ", "
                         + "br.com.sergio.sapiensia.product.ProductFileStorageException)")
+                .doesNotContain(issuedUrl)
+                .doesNotContain(issuedUrl.substring(issuedUrl.lastIndexOf('/') + 1))
                 .doesNotContain("/api/local-downloads/")
                 .doesNotContain("token=")
                 .doesNotContain("products/")
