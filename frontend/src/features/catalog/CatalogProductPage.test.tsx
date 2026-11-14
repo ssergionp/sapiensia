@@ -116,6 +116,27 @@ describe("CatalogProductPage", () => {
     expect(container.textContent).not.toContain("R$");
   });
 
+  test("mostra o botão Comprar com Pix num Produto carregado", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(200, product()),
+    );
+    renderProduct();
+
+    expect(
+      await screen.findByRole("button", { name: "Comprar com Pix" }),
+    ).toBeInTheDocument();
+  });
+
+  test("não mostra o botão Comprar com Pix em Produto não encontrado", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(404, {}));
+    renderProduct();
+    await screen.findByRole("heading", { name: "Produto não encontrado" });
+
+    expect(
+      screen.queryByRole("button", { name: "Comprar com Pix" }),
+    ).not.toBeInTheDocument();
+  });
+
   test("ID malformado (400) mostra o mesmo Produto não encontrado", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(400, {}));
     renderProduct("/catalogo/abc");

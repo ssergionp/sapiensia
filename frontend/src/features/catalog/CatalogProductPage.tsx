@@ -1,5 +1,6 @@
 import { Link, useParams } from "react-router";
 import { Button } from "@/components/ui/button";
+import BuyWithPix from "@/features/orders/BuyWithPix";
 import { CATEGORY_LABELS } from "@/features/products/messages";
 import { formatCents } from "@/features/products/schemas";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
@@ -84,6 +85,7 @@ export default function CatalogProductPage() {
           <p className="mt-4 whitespace-pre-line [overflow-wrap:anywhere]">
             {product.description}
           </p>
+          <BuyWithPix productId={product.id} />
         </div>
       </div>
     </main>
