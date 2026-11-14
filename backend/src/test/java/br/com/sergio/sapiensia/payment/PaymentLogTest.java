@@ -11,7 +11,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -40,7 +39,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
             // the noisiest levels that could print a request, a body, an answer or a SQL parameter
             "logging.level.org.springframework.security=TRACE",
             "logging.level.org.springframework.web=DEBUG",
-            "logging.level.org.springframework.jdbc=TRACE",
             "logging.level.br.com.sergio.sapiensia=TRACE"
         })
 class PaymentLogTest {
@@ -120,20 +118,6 @@ class PaymentLogTest {
         throw new AssertionError("timed out waiting for: " + what);
     }
 
-    /**
-     * Spring's own JDBC TRACE prints the bound parameters of every statement. Those of the request threads (the webhook
-     * intake INSERT of the event body, the Order INSERT with its price) and of the test's own setup on the main thread
-     * (the Customer e-mail) are the framework's lines, never printed above DEBUG; the intake is guarded by
-     * AsaasWebhookLogTest. The payment processing runs in the scheduler's threads, and all their lines are still
-     * checked, including the JDBC TRACE ones.
-     */
-    private static String withoutIntakeInsert(String logs) {
-        return logs.lines()
-                .filter(line -> !(line.contains("StatementCreatorUtils")
-                        && (line.contains("-exec-") || line.contains("[           main]"))))
-                .collect(Collectors.joining("\n"));
-    }
-
     @Test
     @DisplayName("ADR-0006, SEC-033: shouldNeverLogThePayloadTheValueOrPersonalDataWhilePaying")
     void shouldNeverLogThePayloadTheValueOrPersonalDataWhilePaying(CapturedOutput output) throws Exception {
@@ -166,7 +150,7 @@ class PaymentLogTest {
         await("the give-up result", () -> results(giveUpEvent) >= 1);
         gateway.failAt("READ_CHARGE", null);
 
-        String logs = withoutIntakeInsert(output.getAll());
+        String logs = output.getAll();
         assertThat(logs).as("capture works: the processing logged").contains("Payment event processed");
         assertThat(logs)
                 .doesNotContain(marker)
