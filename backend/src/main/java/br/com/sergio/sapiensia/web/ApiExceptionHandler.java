@@ -12,6 +12,7 @@ import br.com.sergio.sapiensia.payment.InvalidWebhookBodyException;
 import br.com.sergio.sapiensia.payment.OrderInProgressException;
 import br.com.sergio.sapiensia.payment.OrderNotFoundException;
 import br.com.sergio.sapiensia.payment.PaymentProviderUnavailableException;
+import br.com.sergio.sapiensia.payment.ProductAlreadyOwnedException;
 import br.com.sergio.sapiensia.product.ProductFileRequiredException;
 import br.com.sergio.sapiensia.product.ProductNotFoundException;
 import br.com.sergio.sapiensia.product.ProductVersionConflictException;
@@ -122,6 +123,11 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(OrderInProgressException.class)
     ResponseEntity<ProblemDetail> handleOrderInProgress() {
         return refusal(HttpStatus.CONFLICT, Map.of("order", "ORDER_IN_PROGRESS"));
+    }
+
+    @ExceptionHandler(ProductAlreadyOwnedException.class)
+    ResponseEntity<ProblemDetail> handleProductAlreadyOwned() {
+        return refusal(HttpStatus.CONFLICT, Map.of("order", "ALREADY_OWNED"));
     }
 
     @ExceptionHandler(PaymentProviderUnavailableException.class)

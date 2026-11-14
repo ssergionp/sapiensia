@@ -41,4 +41,10 @@ class OrderController {
     OrderResponse get(@PathVariable UUID id, Authentication authentication) {
         return orders.get(CurrentCustomer.id(authentication), id);
     }
+
+    /** Only the state of the Order, for the page's polling; never calls the provider. */
+    @GetMapping("/{id}/status")
+    OrderStatusResponse status(@PathVariable UUID id, Authentication authentication) {
+        return new OrderStatusResponse(orders.status(CurrentCustomer.id(authentication), id));
+    }
 }

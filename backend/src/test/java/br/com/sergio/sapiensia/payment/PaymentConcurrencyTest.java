@@ -21,6 +21,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -282,6 +283,57 @@ class PaymentConcurrencyTest {
             assertThat(status(orderId)).as("round %d", round).isEqualTo("PAID");
             assertThat(accessesOf(customer, product)).isEqualTo(1);
             assertThat(grantedAudits(orderId)).isEqualTo(1);
+        }
+    }
+
+    @Test
+    @DisplayName("SEC-031: shouldShowOnlyPendingThenPaidToACustomerReadingDuringThePayment")
+    void shouldShowOnlyPendingThenPaidToACustomerReadingDuringThePayment() throws Exception {
+        for (int round = 0; round < ROUNDS; round++) {
+            OrderHttp.Customer customer = OrderHttp.newCustomer(port, jdbc, encoder);
+            UUID product = OrderTestSupport.insertPublishedProduct(jdbc, "Guia " + UUID.randomUUID(), PRICE);
+            String chargeId = newChargeId();
+            UUID orderId =
+                    insertOrder(customer.id, product, chargeId, Instant.now().plus(Duration.ofMinutes(30)));
+            UUID event = storeEvent(chargeId, "PAYMENT_RECEIVED");
+            AtomicBoolean done = new AtomicBoolean();
+
+            List<Callable<List<String>>> actions = new ArrayList<>();
+            for (String path : List.of("/api/orders/" + orderId, "/api/orders/" + orderId + "/status")) {
+                actions.add(() -> {
+                    List<String> seen = new ArrayList<>();
+                    boolean last;
+                    do {
+                        last = done.get();
+                        HttpResponse<String> answer = customer.get(path);
+                        seen.add(
+                                answer.statusCode() == 200
+                                        ? OrderHttp.json(answer, "$.status")
+                                        : "HTTP " + answer.statusCode());
+                    } while (!last);
+                    return seen;
+                });
+            }
+            actions.add(() -> {
+                try {
+                    Thread.sleep(50);
+                    confirmation.process(event);
+                    return List.of();
+                } finally {
+                    done.set(true);
+                }
+            });
+
+            List<List<String>> results = together(actions);
+
+            assertThat(status(orderId)).as("round %d", round).isEqualTo("PAID");
+            for (List<String> seen : results) {
+                assertThat(seen).as("round %d", round).isSubsetOf("PENDING", "PAID");
+                int firstPaid = seen.indexOf("PAID");
+                if (firstPaid >= 0) {
+                    assertThat(seen.subList(firstPaid, seen.size())).containsOnly("PAID");
+                }
+            }
         }
     }
 
