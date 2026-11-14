@@ -920,7 +920,10 @@ function fictitiousCpf(): string {
   return digits.join("");
 }
 
-const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+const PRODUCT_EDIT_PATH =
+  /\/painel\/produtos\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
+const ORDER_PATH =
+  /\/pedidos\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 test("FR-019 SEC-012 SEC-033 SEC-011: o Visitante é levado a entrar, volta ao Produto e gera um Pedido com Pix", async ({
   page,
@@ -950,9 +953,7 @@ test("FR-019 SEC-012 SEC-033 SEC-011: o Visitante é levado a entrar, volta ao P
   await expect(
     page.getByRole("heading", { name: "Editar Produto", exact: true }),
   ).toBeVisible();
-  const productId = new RegExp(`/painel/produtos/(${UUID})$`).exec(
-    page.url(),
-  )?.[1];
+  const productId = PRODUCT_EDIT_PATH.exec(page.url())?.[1];
   if (productId === undefined) {
     throw new Error("Could not read the Product id from the edit page URL.");
   }
@@ -1005,7 +1006,9 @@ test("FR-019 SEC-012 SEC-033 SEC-011: o Visitante é levado a entrar, volta ao P
     await visitor.getByLabel("E-mail").fill(customer.email);
     await visitor.getByLabel("Senha").fill(customer.password);
     await visitor.getByRole("button", { name: "Entrar" }).click();
-    await expect(visitor).toHaveURL(new RegExp(`/catalogo/${productId}$`));
+    await expect(visitor).toHaveURL(
+      (url) => url.pathname === `/catalogo/${productId}`,
+    );
     await visitor.getByRole("button", { name: "Comprar com Pix" }).click();
 
     // First purchase: the CPF block, with its explanation.
@@ -1021,7 +1024,7 @@ test("FR-019 SEC-012 SEC-033 SEC-011: o Visitante é levado a entrar, volta ao P
     await visitor.getByRole("button", { name: "Gerar Pix" }).click();
 
     // The Order page: QR Code, copy and paste code, price and countdown.
-    await expect(visitor).toHaveURL(new RegExp(`/pedidos/${UUID}$`));
+    await expect(visitor).toHaveURL(ORDER_PATH);
     const orderUrl = visitor.url();
     await expect(
       visitor.getByRole("heading", { name: "Pague com Pix" }),
@@ -1077,7 +1080,7 @@ test("FR-019 SEC-012 SEC-033 SEC-011: o Visitante é levado a entrar, volta ao P
     await phone.getByRole("button", { name: "Comprar com Pix" }).click();
     await phone.getByLabel("CPF").fill(fictitiousCpf());
     await phone.getByRole("button", { name: "Gerar Pix" }).click();
-    await expect(phone).toHaveURL(new RegExp(`/pedidos/${UUID}$`));
+    await expect(phone).toHaveURL(ORDER_PATH);
     await expect(
       phone.getByRole("img", { name: "QR Code do Pix" }),
     ).toBeVisible();

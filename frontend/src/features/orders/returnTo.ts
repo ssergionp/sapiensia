@@ -2,9 +2,8 @@
 // account goes through an e-mail link that opens another tab. Valid for 60 minutes and erased when read.
 const KEY = "sapiensia.returnTo";
 const MAX_AGE_MS = 60 * 60 * 1000;
-const UUID =
-  "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
-const ALLOWED = new RegExp(`^/(catalogo|pedidos)/${UUID}$`);
+const ALLOWED =
+  /^\/(catalogo|pedidos)\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
 export function rememberReturnTo(path: string): void {
   try {
