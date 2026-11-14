@@ -222,8 +222,8 @@ class LibraryCoverTest {
     }
 
     @Test
-    @DisplayName("FR-029: shouldAnswerNotFoundForAMalformedId")
-    void shouldAnswerNotFoundForAMalformedId() throws Exception {
+    @DisplayName("FR-029: shouldAnswerBadRequestForAMalformedId")
+    void shouldAnswerBadRequestForAMalformedId() throws Exception {
         // the same answer as the public route (CatalogCoverTest): 400 for an id that is not a UUID
         assertThat(owner.getBytes(path("abc")).statusCode()).isEqualTo(400);
     }
