@@ -183,12 +183,14 @@ class OrderSlowProviderTest {
         for (int i = 0; i < 4; i++) {
             views.add(CompletableFuture.supplyAsync(() -> timed(() -> buyer.get("/api/orders/" + orderId))));
         }
+        // let the four reads reach the slow provider
         Thread.sleep(300);
 
         Timed catalog = timed(() -> buyer.get("/api/products"));
+        // the catalog answered while none of the slow reads had finished: they did not hold the pool
         assertThat(catalog.response().statusCode()).isEqualTo(200);
-        assertThat(catalog.millis()).isLessThan(900);
-        assertThat(activeConnections()).isZero();
+        assertThat(views).noneMatch(CompletableFuture::isDone);
+        assertThat(activeConnectionsOnceSettled()).isZero();
 
         for (CompletableFuture<Timed> view : views) {
             Timed answer = view.get();

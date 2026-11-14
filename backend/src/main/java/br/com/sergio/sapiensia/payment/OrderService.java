@@ -199,6 +199,7 @@ class OrderService {
         Instant now = clock.instant();
         boolean inTime = row.status() == OrderStatus.PENDING && row.expiresAt().isAfter(now);
         if (!inTime) {
+            // any non-pending or past-expiry row is shown as EXPIRED for now: #28 must map PAID here
             return new OrderResponse(
                     row.id(),
                     row.productId(),

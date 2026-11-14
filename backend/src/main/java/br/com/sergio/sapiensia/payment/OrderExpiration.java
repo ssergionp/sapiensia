@@ -21,6 +21,8 @@ class OrderExpiration {
 
     static final String TASK_NAME = "expire-pending-orders";
     static final int BATCH_SIZE = 50;
+    // one charge that keeps failing must not block the queue; a run of failures means the provider is down
+    static final int MAX_CONSECUTIVE_OUTAGES = 3;
 
     private static final Logger log = LoggerFactory.getLogger(OrderExpiration.class);
 
@@ -56,13 +58,20 @@ class OrderExpiration {
             int expired = 0;
             int postponed = 0;
             var due = orders.findPendingExpired(clock.instant(), BATCH_SIZE);
+            int consecutiveOutages = 0;
             for (int i = 0; i < due.size(); i++) {
                 Outcome outcome = tryExpire(due.get(i));
                 if (outcome == Outcome.PROVIDER_UNAVAILABLE) {
-                    // the provider is down: stop here instead of waiting for a timeout on each remaining Order
-                    postponed = due.size() - i;
-                    break;
+                    postponed++;
+                    consecutiveOutages++;
+                    if (consecutiveOutages >= MAX_CONSECUTIVE_OUTAGES) {
+                        // the provider looks down: stop instead of waiting for a timeout on each remaining Order
+                        postponed += due.size() - i - 1;
+                        break;
+                    }
+                    continue;
                 }
+                consecutiveOutages = 0;
                 // only the Orders this call moved to EXPIRED count (another call may have done it first)
                 if (outcome == Outcome.MARKED) {
                     expired++;
@@ -97,6 +106,13 @@ class OrderExpiration {
                         "Pix charge could not be cancelled, expiring the order anyway: orderId={} chargeId={}",
                         order.id(),
                         order.providerPaymentId());
+            } catch (RuntimeException e) {
+                // an unexpected failure on one Order must not stop the others; only the class name is logged
+                log.warn(
+                        "Pix charge cancellation failed unexpectedly: orderId={} error={}",
+                        order.id(),
+                        e.getClass().getSimpleName());
+                return Outcome.PROVIDER_UNAVAILABLE;
             }
             return orders.markExpired(order.id(), clock.instant()) ? Outcome.MARKED : Outcome.ALREADY_EXPIRED;
         }

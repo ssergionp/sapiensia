@@ -62,10 +62,14 @@ class OrderCpfNotStoredTest {
         long found = 0;
         for (String table : tables) {
             for (String needle : needles) {
+                // t::text shows a bytea column (for example scheduled_tasks.task_data) as hex, so the hex of the
+                // UTF-8 bytes is searched too
                 Long count = jdbc.queryForObject(
-                        "select count(*) from \"" + table + "\" t where t::text like ?",
+                        "select count(*) from \"" + table + "\" t where t::text like ?"
+                                + " or t::text like '%' || encode(convert_to(?, 'UTF8'), 'hex') || '%'",
                         Long.class,
-                        "%" + needle + "%");
+                        "%" + needle + "%",
+                        needle);
                 found += count;
             }
         }
@@ -82,6 +86,8 @@ class OrderCpfNotStoredTest {
         assertThat(jdbc.queryForObject("select count(*) from orders", Long.class))
                 .isEqualTo(1);
         assertThat(rowsContaining(CPF, "529.982.247-25")).isZero();
+        // positive control: the scan does see what is stored (the order id)
+        assertThat(rowsContaining(id)).isPositive();
     }
 
     @Test
@@ -92,5 +98,6 @@ class OrderCpfNotStoredTest {
 
         assertThat(code).isNotBlank();
         assertThat(rowsContaining(code)).isZero();
+        assertThat(rowsContaining(id)).isPositive();
     }
 }

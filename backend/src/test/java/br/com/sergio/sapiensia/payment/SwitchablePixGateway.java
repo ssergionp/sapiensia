@@ -25,6 +25,7 @@ public class SwitchablePixGateway implements PixGateway {
     private final AtomicReference<CountDownLatch> held = new AtomicReference<>();
     private final AtomicReference<Runnable> afterCharge = new AtomicReference<>();
     private volatile PixGatewayException.Kind failingCancel;
+    private volatile String failingCancelCharge;
     private volatile String lastCustomerCpf;
     private volatile String lastCustomerName;
     private volatile Integer lastChargeAmountCents;
@@ -95,6 +96,11 @@ public class SwitchablePixGateway implements PixGateway {
         this.failingCancel = kind;
     }
 
+    /** Makes {@code cancelCharge} of this one charge fail as unavailable; null makes it work again. */
+    public void failCancelOf(String chargeId) {
+        this.failingCancelCharge = chargeId;
+    }
+
     /** The next {@code createCharge} records itself and then waits for the latch before it creates the charge. */
     public void holdNextCharge(CountDownLatch latch) {
         held.set(latch);
@@ -113,6 +119,7 @@ public class SwitchablePixGateway implements PixGateway {
         held.set(null);
         afterCharge.set(null);
         failingCancel = null;
+        failingCancelCharge = null;
         lastCustomerCpf = null;
         lastCustomerName = null;
         lastChargeAmountCents = null;
@@ -180,6 +187,9 @@ public class SwitchablePixGateway implements PixGateway {
         calls.add("CANCEL_CHARGE");
         cancelled.add(chargeId);
         PixGatewayException.Kind failure = failingCancel;
+        if (failure == null && chargeId.equals(failingCancelCharge)) {
+            failure = PixGatewayException.Kind.UNAVAILABLE;
+        }
         if (failure != null) {
             throw new PixGatewayException(failure, "CANCEL_CHARGE", "HTTP 503");
         }

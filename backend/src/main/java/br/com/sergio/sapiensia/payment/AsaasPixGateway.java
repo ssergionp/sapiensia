@@ -10,11 +10,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,15 +50,7 @@ class AsaasPixGateway implements PixGateway {
     private static final String READ_QR_CODE = "READ_QR_CODE";
     private static final String CANCEL_CHARGE = "CANCEL_CHARGE";
 
-    // closes a response whose body stalls after the headers: the JDK read timeout covers the headers only
-    private static final ScheduledExecutorService WATCHDOG = Executors.newSingleThreadScheduledExecutor(runnable -> {
-        Thread thread = new Thread(runnable, "asaas-response-watchdog");
-        thread.setDaemon(true);
-        return thread;
-    });
-
     private final RestClient restClient;
-    private final Duration readTimeout;
 
     // no RestClient.Builder bean exists in this application, so Spring uses this one and starts from a plain builder
     @Autowired
@@ -89,7 +76,6 @@ class AsaasPixGateway implements PixGateway {
         }
         requireWithin("connect-timeout", connectTimeout, MAX_CONNECT_TIMEOUT);
         requireWithin("read-timeout", readTimeout, MAX_READ_TIMEOUT);
-        this.readTimeout = readTimeout;
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(
                 HttpClient.newBuilder().connectTimeout(connectTimeout).build());
         requestFactory.setReadTimeout(readTimeout);
@@ -195,30 +181,16 @@ class AsaasPixGateway implements PixGateway {
 
     /** Sends the request and returns the parsed JSON answer, or null when {@code lenient} and the answer is 2xx or 404. */
     private JsonNode call(String step, String chargeId, RestClient.RequestHeadersSpec<?> request, boolean lenient) {
-        long start = System.nanoTime();
         try {
             return request.exchange((req, response) -> {
                 int status = response.getStatusCode().value();
-                // the whole answer, body included, gets the read timeout counted from the start of the call
-                AtomicBoolean timedOut = new AtomicBoolean();
-                long remaining = Math.max(1, readTimeout.toNanos() - (System.nanoTime() - start));
-                ScheduledFuture<?> watchdog = WATCHDOG.schedule(
-                        () -> {
-                            timedOut.set(true);
-                            response.close();
-                        },
-                        remaining,
-                        TimeUnit.NANOSECONDS);
+                // the request factory's read timeout also closes a body that stalls after the headers: the read
+                // then fails with an IOException
                 byte[] body;
                 try {
                     body = response.getBody().readNBytes(MAX_BODY);
                 } catch (IOException e) {
                     throw unavailable(step, e.getClass().getSimpleName(), chargeId);
-                } finally {
-                    watchdog.cancel(false);
-                }
-                if (timedOut.get()) {
-                    throw unavailable(step, "response body timed out", chargeId);
                 }
                 if (response.getStatusCode().is2xxSuccessful()) {
                     if (lenient) {

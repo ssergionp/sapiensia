@@ -23,7 +23,7 @@ O mesmo do `docs/runbooks/homologacao-fly.md`.
 3. **[RESPONSÁVEL]** Entre em <https://sandbox.asaas.com> com a conta do sandbox (a mesma em que o webhook foi criado). É uma conta separada da produção; nada ali movimenta dinheiro de verdade.
 4. **[RESPONSÁVEL]** Clique no seu nome ou foto, no canto superior direito, e abra `Integrações`. Entre na aba `Chaves de API`.
 5. **[RESPONSÁVEL]** Peça uma chave nova (o rótulo do botão pode variar: "Gerar chave de API" ou "Nova chave"). Dê o nome `sapiensia-homolog`. Sem data de expiração.
-6. **[RESPONSÁVEL]** A chave aparece **uma única vez**. Copie e cole no Bitwarden com o nome `APP_ASAAS_API_KEY (homolog)`, salve, e só então feche a janela do Asaas. Ela começa com `$aact_hmlg_`; se começar com `$aact_prod_`, você está na conta errada: pare.
+6. **[RESPONSÁVEL]** A chave aparece **uma única vez**. Copie e cole no Bitwarden com o nome `APP_ASAAS_API_KEY (homolog)`, salve, e só então feche a janela do Asaas. Ela começa com `$aact_hmlg_`; se começar com `$aact_prod_`, você está na conta errada: pare. Como ela começa com `$aact_`, no PowerShell grave-a sempre entre aspas simples (`$env:APP_ASAAS_API_KEY = '...'`): com aspas duplas o `$aact_` é expandido e a chave fica vazia.
 
 ## 2. Gravar no Fly.io
 

@@ -29,7 +29,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
             "app.login-limit.ip-max-attempts=1000",
             // the real scheduler polls once an hour; the test runs the expiration itself
             "db-scheduler.polling-interval=PT1H",
-            // the noisiest levels that could print a request, a body or a SQL parameter
+            // the noisiest levels that could print a request or a body (SQL parameters are not covered:
+            // org.springframework.jdbc is not at TRACE)
             "logging.level.org.springframework.security=TRACE",
             "logging.level.org.springframework.web=TRACE",
             "logging.level.org.springframework.http=TRACE",

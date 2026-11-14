@@ -202,20 +202,41 @@ class OrderExpirationTest {
     }
 
     @Test
-    @DisplayName("ADR-0003: shouldStopAtTheFirstOutageAndPostponeTheRest")
-    void shouldStopAtTheFirstOutageAndPostponeTheRest() throws Exception {
+    @DisplayName("ADR-0003: shouldStopAfterThreeConsecutiveOutagesAndPostponeTheRest")
+    void shouldStopAfterThreeConsecutiveOutagesAndPostponeTheRest() throws Exception {
         String first = createOrder();
-        OrderHttp.Customer other = OrderHttp.newCustomer(port, jdbc, encoder);
-        assertThat(other.order(productId, CPF).statusCode()).isEqualTo(201);
+        for (int i = 0; i < 3; i++) {
+            OrderHttp.Customer other = OrderHttp.newCustomer(port, jdbc, encoder);
+            assertThat(other.order(productId, CPF).statusCode()).isEqualTo(201);
+        }
         clock.advance(TTL.plusSeconds(1));
         gateway.failCancel(PixGatewayException.Kind.UNAVAILABLE);
 
         OrderExpiration.Expirer.Result result = expirer.run();
 
         assertThat(result.expired()).isZero();
-        assertThat(result.postponed()).isEqualTo(2);
-        assertThat(gateway.count("CANCEL_CHARGE")).isEqualTo(1);
+        assertThat(result.postponed()).isEqualTo(4);
+        assertThat(gateway.count("CANCEL_CHARGE")).isEqualTo(3);
         assertThat(statusOf(first)).isEqualTo("PENDING");
+    }
+
+    @Test
+    @DisplayName("ADR-0003: shouldKeepGoingWhenOneChargeKeepsFailingAtTheProvider")
+    void shouldKeepGoingWhenOneChargeKeepsFailingAtTheProvider() throws Exception {
+        String first = createOrder();
+        gateway.failCancelOf(gateway.lastChargeId());
+        OrderHttp.Customer other = OrderHttp.newCustomer(port, jdbc, encoder);
+        HttpResponse<String> answer = other.order(productId, CPF);
+        assertThat(answer.statusCode()).isEqualTo(201);
+        String second = OrderHttp.json(answer, "$.id");
+        clock.advance(TTL.plusSeconds(1));
+
+        OrderExpiration.Expirer.Result result = expirer.run();
+
+        assertThat(result.expired()).isEqualTo(1);
+        assertThat(result.postponed()).isEqualTo(1);
+        assertThat(statusOf(first)).isEqualTo("PENDING");
+        assertThat(statusOf(second)).isEqualTo("EXPIRED");
     }
 
     @Test
