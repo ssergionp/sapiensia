@@ -45,9 +45,10 @@ export default function DownloadButton({
   return (
     <>
       <Button
-        className="min-h-11 w-full sm:w-auto"
+        className="min-h-11 w-full aria-disabled:cursor-default aria-disabled:opacity-50 sm:w-auto"
         aria-label={T.downloadLabel(title)}
-        disabled={download.isPending}
+        // Not the native `disabled`: Chrome would drop the keyboard focus to the page body. onClick ignores clicks while pending.
+        aria-disabled={download.isPending}
         onClick={onClick}
       >
         {download.isPending ? T.downloadPreparing : T.download}

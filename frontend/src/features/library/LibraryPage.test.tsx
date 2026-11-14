@@ -205,7 +205,7 @@ describe("LibraryPage", () => {
       });
       await userEvent.click(button);
 
-      expect(button).toBeDisabled();
+      expect(button).toHaveAttribute("aria-disabled", "true");
       expect(button).toHaveTextContent("Preparando…");
       await userEvent.click(button);
       const calls = downloadCalls(spy);
@@ -290,6 +290,22 @@ describe("LibraryPage", () => {
       );
       expect(button).toBeEnabled();
       expect(startDownload).not.toHaveBeenCalled();
+    });
+
+    test("teclado: o foco continua no botão depois do erro e Espaço pede de novo", async () => {
+      const spy = mockApi([jsonResponse(503), jsonResponse(503)]);
+      renderLibrary();
+
+      const button = await screen.findByRole("button", {
+        name: "Baixar Guia de saúde",
+      });
+      button.focus();
+      await userEvent.keyboard("{Enter}");
+      await screen.findByRole("alert");
+
+      expect(button).toHaveFocus();
+      await userEvent.keyboard(" ");
+      await vi.waitFor(() => expect(downloadCalls(spy)).toHaveLength(2));
     });
 
     test("404 mostra indisponível e busca a lista de novo", async () => {
