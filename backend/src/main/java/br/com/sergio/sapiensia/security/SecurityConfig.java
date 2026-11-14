@@ -268,6 +268,9 @@ public class SecurityConfig {
                         .hasRole("CUSTOMER")
                         .requestMatchers(HttpMethod.GET, "/api/orders/*/status")
                         .hasRole("CUSTOMER")
+                        // Library (#32): the logged-in Customer only
+                        .requestMatchers(HttpMethod.GET, "/api/library")
+                        .hasRole("CUSTOMER")
                         // Asaas webhook (#26, ADR-0003): the token header and the source IP are the credential; no
                         // session, no CSRF
                         .requestMatchers(HttpMethod.POST, "/api/webhooks/asaas")
