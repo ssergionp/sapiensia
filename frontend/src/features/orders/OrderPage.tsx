@@ -38,8 +38,10 @@ export default function OrderPage() {
 
   // After EXPIRED the page keeps asking for 10 minutes, counted from when the expired view appeared here.
   const [expiredWindowOver, setExpiredWindowOver] = useState(false);
+  // Keyed on the Order's status alone: a failed reload (isError) must not restart the window.
+  const statusIsExpired = order?.status === "EXPIRED";
   useEffect(() => {
-    if (!expired) return;
+    if (!statusIsExpired) return;
     const shownAt = performance.now();
     const timer = setInterval(() => {
       if (performance.now() - shownAt >= EXPIRED_WATCH_MS) {
@@ -47,7 +49,7 @@ export default function OrderPage() {
       }
     }, 1000);
     return () => clearInterval(timer);
-  }, [expired]);
+  }, [statusIsExpired]);
 
   const statusQuery = useOrderStatus(
     id,

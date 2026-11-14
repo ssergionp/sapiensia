@@ -409,6 +409,37 @@ describe("OrderPage", () => {
     expect(statusCalls(spy)).toHaveLength(after);
   });
 
+  test("a janela de 10 minutos não recomeça quando uma recarga do Pedido falha", async () => {
+    let statusAnswer = "EXPIRED";
+    let orderFails = false;
+    const spy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input) => {
+        const url = String(input);
+        if (url.endsWith("/status")) {
+          return jsonResponse(200, { status: statusAnswer });
+        }
+        if (orderFails) return jsonResponse(500);
+        return jsonResponse(200, order(EXPIRED));
+      });
+    renderOrder();
+    await screen.findByRole("heading", { name: "Este Pix expirou" });
+    await tick(300_000);
+    // The server says something else once, the reload fails, the Customer retries.
+    statusAnswer = "PENDING";
+    orderFails = true;
+    await tick(5000);
+    await screen.findByRole("alert");
+    statusAnswer = "EXPIRED";
+    orderFails = false;
+    fireEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
+    await screen.findByRole("heading", { name: "Este Pix expirou" });
+    await tick(300_000);
+    const after = statusCalls(spy).length;
+    await tick(60_000);
+    expect(statusCalls(spy)).toHaveLength(after);
+  });
+
   test("não consulta o estado de um Pedido pago", async () => {
     const spy = routeFetch({ order: order(PAID), status: "PAID" });
     renderOrder();
