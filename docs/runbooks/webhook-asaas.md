@@ -53,7 +53,7 @@ O mesmo do `docs/runbooks/homologacao-fly.md`.
    fly secrets list -a sapiensia-homolog
    ```
 
-   Mostra só nomes, digest e data. Devem aparecer 9 nomes.
+   Mostra só nomes, digest e data. Devem aparecer 10 nomes (a chave da API do Asaas, `APP_ASAAS_API_KEY`, é o décimo; veja `docs/runbooks/asaas-chave-api.md`).
 
 4. **[AGENTE]** Faça o deploy (seção 5 do `docs/runbooks/homologacao-fly.md`) e leia o log. Procure `Started` e confira que não há nenhum erro de inicialização citando `APP_ASAAS_WEBHOOK_TOKEN` ou `app.asaas.webhook` (significa segredo ausente, ou token fora de 32 a 255 caracteres).
 

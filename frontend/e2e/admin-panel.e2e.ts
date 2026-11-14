@@ -1,7 +1,13 @@
 import { randomBytes } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import {
+  devices,
+  expect,
+  type Locator,
+  type Page,
+  test,
+} from "@playwright/test";
 import { buildPng, buildWebpWithExif } from "./image";
 import {
   messagesFor,
@@ -898,5 +904,192 @@ test("SEC-010 FR-016: sem sessão, as rotas de Produto do painel negam", async (
     }
   } finally {
     await anonymous.dispose();
+  }
+});
+
+// A valid CPF for the test, built at run time from 9 random digits plus the two check digits.
+function fictitiousCpf(): string {
+  const digits = Array.from({ length: 9 }, () => randomBytes(1)[0] % 10);
+  for (const length of [9, 10]) {
+    const sum = digits
+      .slice(0, length)
+      .reduce((total, d, i) => total + d * (length + 1 - i), 0);
+    const rest = (sum * 10) % 11;
+    digits.push(rest === 10 ? 0 : rest);
+  }
+  return digits.join("");
+}
+
+const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+
+test("FR-019 SEC-012 SEC-033 SEC-011: o Visitante é levado a entrar, volta ao Produto e gera um Pedido com Pix", async ({
+  page,
+  browser,
+  baseURL,
+}) => {
+  test.setTimeout(180_000);
+  const host = new URL(baseURL ?? "").hostname;
+  if (host !== "localhost" && host !== "127.0.0.1") {
+    throw new Error(
+      "Refusing to run the administrator e2e outside localhost/127.0.0.1",
+    );
+  }
+  const title = `E2E Pix ${Date.now()}`;
+
+  // The Administrator publishes a Product (the same steps as the cover test).
+  await loginWithStoredCredentials(page);
+  await page.goto("/painel/produtos");
+  await page.getByRole("link", { name: "Novo Produto" }).click();
+  await page.getByLabel("Título").fill(title);
+  await page.getByLabel("Descrição").fill("Produto de teste do Pix.");
+  await page.getByLabel("Categoria").selectOption({ label: "Tecnologia" });
+  await page.getByLabel("Valor (R$)").fill("29,90");
+  await page.getByRole("button", { name: "Criar Produto" }).click();
+  await expect(page.getByText("Produto criado.")).toBeVisible();
+  await page.getByRole("link", { name: `Editar ${title}` }).click();
+  await expect(
+    page.getByRole("heading", { name: "Editar Produto", exact: true }),
+  ).toBeVisible();
+  const productId = new RegExp(`/painel/produtos/(${UUID})$`).exec(
+    page.url(),
+  )?.[1];
+  if (productId === undefined) {
+    throw new Error("Could not read the Product id from the edit page URL.");
+  }
+  await page.getByLabel("Arquivo PDF").setInputFiles({
+    name: "produto.pdf",
+    mimeType: "application/pdf",
+    buffer: buildPdf("pix"),
+  });
+  await page.getByRole("button", { name: "Enviar arquivo" }).click();
+  await expect(page.getByText("Arquivo enviado.")).toBeVisible();
+  await page.getByRole("button", { name: "Publicar", exact: true }).click();
+  await page.getByRole("button", { name: "Confirmar publicação" }).click();
+  await expect(page.getByText("Produto publicado.")).toBeVisible();
+
+  async function newCustomer(customerPage: Page) {
+    const email = uniqueEmail("pedido");
+    const password = strongPassword();
+    await registerAndConfirm(customerPage, email, password);
+    return { email, password };
+  }
+
+  async function logIn(
+    customerPage: Page,
+    customer: { email: string; password: string },
+  ) {
+    await customerPage.goto("/entrar");
+    await customerPage.getByLabel("E-mail").fill(customer.email);
+    await customerPage.getByLabel("Senha").fill(customer.password);
+    await customerPage.getByRole("button", { name: "Entrar" }).click();
+  }
+
+  const first = await browser.newContext({ baseURL: baseURL ?? undefined });
+  const second = await browser.newContext({ baseURL: baseURL ?? undefined });
+  const mobile = await browser.newContext({
+    ...devices["Pixel 7"],
+    baseURL: baseURL ?? undefined,
+  });
+  try {
+    // A Visitor with a confirmed account but no session clicks to buy and is sent to log in.
+    const visitor = await first.newPage();
+    const customer = await newCustomer(visitor);
+    await visitor.goto(`/catalogo/${productId}`);
+    await visitor.getByRole("button", { name: "Comprar com Pix" }).click();
+    await expect(visitor).toHaveURL(/\/entrar$/);
+    await expect(
+      visitor.getByText("Entre ou crie sua conta para continuar a compra."),
+    ).toBeVisible();
+
+    // Logging in brings the Customer back to the Product; nothing is bought on its own.
+    await visitor.getByLabel("E-mail").fill(customer.email);
+    await visitor.getByLabel("Senha").fill(customer.password);
+    await visitor.getByRole("button", { name: "Entrar" }).click();
+    await expect(visitor).toHaveURL(new RegExp(`/catalogo/${productId}$`));
+    await visitor.getByRole("button", { name: "Comprar com Pix" }).click();
+
+    // First purchase: the CPF block, with its explanation.
+    await expect(
+      visitor.getByRole("heading", { name: "Informe seu CPF" }),
+    ).toBeVisible();
+    await expect(
+      visitor.getByText(
+        "O CPF é exigido para gerar a cobrança por Pix. Ele é enviado ao Asaas, que processa o pagamento, e não fica guardado na SapiensIA.",
+      ),
+    ).toBeVisible();
+    await visitor.getByLabel("CPF").fill(fictitiousCpf());
+    await visitor.getByRole("button", { name: "Gerar Pix" }).click();
+
+    // The Order page: QR Code, copy and paste code, price and countdown.
+    await expect(visitor).toHaveURL(new RegExp(`/pedidos/${UUID}$`));
+    const orderUrl = visitor.url();
+    await expect(
+      visitor.getByRole("heading", { name: "Pague com Pix" }),
+    ).toBeVisible();
+    await expect(
+      visitor.getByRole("img", { name: "QR Code do Pix" }),
+    ).toBeVisible();
+    const code = visitor.getByLabel("Pix copia e cola");
+    await expect(code).not.toHaveValue("");
+    const shownCode = await code.inputValue();
+    await expect(visitor.getByText(title)).toBeVisible();
+    await expect(visitor.getByText("R$ 29,90")).toBeVisible();
+    await expect(
+      visitor.getByText(/Este Pix expira em \d{2}:\d{2}\./),
+    ).toBeVisible();
+
+    // The code is read from the provider on every view: a reload shows the same one.
+    await visitor.reload();
+    await expect(visitor.getByLabel("Pix copia e cola")).toHaveValue(shownCode);
+
+    // Buying again goes to the same Order and does not ask for the CPF again.
+    await visitor.goto(`/catalogo/${productId}`);
+    await visitor.getByRole("button", { name: "Comprar com Pix" }).click();
+    await expect(visitor).toHaveURL(orderUrl);
+    await expect(
+      visitor.getByRole("heading", { name: "Pague com Pix" }),
+    ).toBeVisible();
+    await expect(
+      visitor.getByRole("heading", { name: "Informe seu CPF" }),
+    ).toHaveCount(0);
+
+    // Another Customer does not see this Order.
+    const other = await second.newPage();
+    const otherCustomer = await newCustomer(other);
+    await logIn(other, otherCustomer);
+    await expect(
+      other.getByText(`Você entrou como ${otherCustomer.email}.`),
+    ).toBeVisible();
+    await other.goto(orderUrl);
+    await expect(
+      other.getByRole("heading", { name: "Pedido não encontrado" }),
+    ).toBeVisible();
+    await expect(other.getByLabel("Pix copia e cola")).toHaveCount(0);
+
+    // The same purchase on a phone screen: no horizontal scroll.
+    const phone = await mobile.newPage();
+    const phoneCustomer = await newCustomer(phone);
+    await logIn(phone, phoneCustomer);
+    await expect(
+      phone.getByText(`Você entrou como ${phoneCustomer.email}.`),
+    ).toBeVisible();
+    await phone.goto(`/catalogo/${productId}`);
+    await phone.getByRole("button", { name: "Comprar com Pix" }).click();
+    await phone.getByLabel("CPF").fill(fictitiousCpf());
+    await phone.getByRole("button", { name: "Gerar Pix" }).click();
+    await expect(phone).toHaveURL(new RegExp(`/pedidos/${UUID}$`));
+    await expect(
+      phone.getByRole("img", { name: "QR Code do Pix" }),
+    ).toBeVisible();
+    await expect(phone.getByLabel("Pix copia e cola")).not.toHaveValue("");
+    const widths = await phone.evaluate(() => ({
+      scroll: document.documentElement.scrollWidth,
+      client: document.documentElement.clientWidth,
+    }));
+    expect(widths.scroll).toBeLessThanOrEqual(widths.client);
+  } finally {
+    await first.close();
+    await second.close();
+    await mobile.close();
   }
 });
