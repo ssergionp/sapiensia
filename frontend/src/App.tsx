@@ -9,6 +9,7 @@ import ConfirmEmailPage from "@/features/customer/ConfirmEmailPage";
 import ForgotPasswordPage from "@/features/customer/ForgotPasswordPage";
 import RegisterPage from "@/features/customer/RegisterPage";
 import ResetPasswordPage from "@/features/customer/ResetPasswordPage";
+import LibraryPage from "@/features/library/LibraryPage";
 import OrderPage from "@/features/orders/OrderPage";
 import ProductFormPage from "@/features/products/ProductFormPage";
 import ProductListPage from "@/features/products/ProductListPage";
@@ -22,6 +23,7 @@ export default function App() {
       <Route path="/entrar" element={<LoginPage />} />
       <Route path="/catalogo" element={<CatalogPage />} />
       <Route path="/catalogo/:id" element={<CatalogProductPage />} />
+      <Route path="/biblioteca" element={<LibraryPage />} />
       <Route path="/pedidos/:id" element={<OrderPage />} />
       <Route path="/cadastro" element={<RegisterPage />} />
       <Route path="/confirmar-email" element={<ConfirmEmailPage />} />
