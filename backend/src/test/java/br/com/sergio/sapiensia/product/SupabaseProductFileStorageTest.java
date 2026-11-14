@@ -549,12 +549,14 @@ class SupabaseProductFileStorageTest {
             "FR-034: falha ao assinar vira exceção sem token, chave, host nem nome do arquivo, na mensagem e no log")
     void shouldFailSigningWithoutLeakingAnything(CapturedOutput output) {
         String leakyBody = "{\"statusCode\":\"500\",\"error\":\"boom\",\"message\":\"failed token=abc on %s for %s\"}";
-        String[] responses = new String[4];
+        String[] responses = new String[6];
         String key = ProductFileKeys.newKey(UUID.randomUUID());
         responses[0] = null; // HTTP 500
         responses[1] = "{\"other\":\"" + FILE_NAME + " token=abc\"}"; // no signedURL
         responses[2] = "{\"signedURL\":\"/elsewhere/" + key + "?token=abc\"}"; // wrong prefix
         responses[3] = "{\"signedURL\":123}"; // not text
+        responses[4] = "{\"signedURL\":\"/object/sign/other-bucket/" + key + "?token=abc\"}"; // another bucket
+        responses[5] = "{\"signedURL\":\"/object/sign/" + BUCKET + "/" + key + "\"}"; // no token
         for (String response : responses) {
             Fixture fixture = fixture();
             fixture.server

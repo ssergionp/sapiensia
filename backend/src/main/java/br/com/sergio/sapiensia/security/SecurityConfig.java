@@ -273,6 +273,9 @@ public class SecurityConfig {
                         .hasRole("CUSTOMER")
                         .requestMatchers(HttpMethod.GET, "/api/library/*/cover")
                         .hasRole("CUSTOMER")
+                        // local download link (#33): only exists with the file provider
+                        .requestMatchers(HttpMethod.GET, "/api/local-downloads/*")
+                        .hasRole("CUSTOMER")
                         // Asaas webhook (#26, ADR-0003): the token header and the source IP are the credential; no
                         // session, no CSRF
                         .requestMatchers(HttpMethod.POST, "/api/webhooks/asaas")

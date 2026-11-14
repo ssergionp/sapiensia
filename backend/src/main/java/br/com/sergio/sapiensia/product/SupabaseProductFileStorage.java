@@ -171,7 +171,10 @@ class SupabaseProductFileStorage implements ProductFileStorage {
                     .body(JsonNode.class);
             JsonNode signed = answer == null ? null : answer.get("signedURL");
             // never echo the answer: it carries the token
-            if (signed == null || !signed.isString() || !signed.asString().startsWith(SIGNED_PREFIX)) {
+            if (signed == null
+                    || !signed.isString()
+                    || !signed.asString().startsWith(SIGNED_PREFIX + filesBucket + "/")
+                    || !signed.asString().contains("?token=")) {
                 throw new ProductFileStorageException("Storage could not sign the file: unexpected response");
             }
             return Optional.of(baseUrl + "/storage/v1" + signed.asString() + "&download="

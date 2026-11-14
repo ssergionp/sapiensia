@@ -14,6 +14,7 @@ class SupabaseProductFileStorageConfigurationTest {
     private static final String SECRET = "test-secret-not-real";
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
+            .withBean(java.time.Clock.class, java.time.Clock::systemUTC)
             .withUserConfiguration(SupabaseProductFileStorage.class, FileProductFileStorage.class)
             .withPropertyValues(
                     "app.storage.supabase.url=https://project.example.test",
