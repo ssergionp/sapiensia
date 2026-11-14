@@ -20,6 +20,8 @@ export default function OrderPage() {
   const navigate = useNavigate();
   const query = useOrder(id);
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const deadline = useRef(0);
+  const previous = useRef(0);
   const [remaining, setRemaining] = useState<number | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [copy, setCopy] = useState<"idle" | "done" | "failed">("idle");
@@ -44,27 +46,45 @@ export default function OrderPage() {
     }
   }, [notLoggedIn, id, navigate]);
 
-  // The countdown starts from the server's seconds, never from the device clock.
+  // The countdown starts from the server's seconds and runs against a fixed deadline, never the device's wall clock.
   const arrival = query.dataUpdatedAt;
   useEffect(() => {
     if (arrival > 0 && order?.status === "PENDING") {
+      deadline.current = performance.now() + order.secondsToExpire * 1000;
+      previous.current = order.secondsToExpire;
       setRemaining(order.secondsToExpire);
       setAnnouncement("");
     }
   }, [arrival, order?.status, order?.secondsToExpire]);
 
-  const refetch = query.refetch;
   useEffect(() => {
-    if (remaining === null || !pending) return;
-    if (remaining <= 0) {
-      void refetch();
-      return;
-    }
-    if (remaining === 300) setAnnouncement(T.warnFiveMinutes);
-    if (remaining === 60) setAnnouncement(T.warnOneMinute);
-    const timer = setTimeout(() => setRemaining(remaining - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [remaining, pending, refetch]);
+    if (!pending) return;
+    const timer = setInterval(() => {
+      const left = Math.max(
+        0,
+        Math.ceil((deadline.current - performance.now()) / 1000),
+      );
+      if (previous.current > 300 && left <= 300) {
+        setAnnouncement(T.warnFiveMinutes);
+      }
+      if (previous.current > 60 && left <= 60) {
+        setAnnouncement(T.warnOneMinute);
+      }
+      previous.current = left;
+      setRemaining(left);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [pending]);
+
+  // At zero the server decides: keep asking until it says EXPIRED (or the query fails). Never expire client-side.
+  const refetch = query.refetch;
+  const atZero = pending && remaining === 0;
+  useEffect(() => {
+    if (!atZero) return;
+    void refetch();
+    const timer = setInterval(() => void refetch(), 2000);
+    return () => clearInterval(timer);
+  }, [atZero, refetch]);
 
   const view = pending ? "pending" : expired ? "expired" : "other";
   // biome-ignore lint/correctness/useExhaustiveDependencies: focus the heading when the view changes

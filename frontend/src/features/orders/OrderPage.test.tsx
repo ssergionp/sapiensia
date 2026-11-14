@@ -145,6 +145,25 @@ describe("OrderPage", () => {
     expect(document.activeElement).toBe(heading);
   });
 
+  test("em zero, enquanto o servidor ainda diz PENDING, continua consultando até expirar", async () => {
+    const spy = mockFetch(
+      jsonResponse(200, order({ secondsToExpire: 1 })),
+      jsonResponse(200, order({ secondsToExpire: 0 })),
+      jsonResponse(
+        200,
+        order({ status: "EXPIRED", secondsToExpire: 0, pixCopyPaste: null }),
+      ),
+    );
+    renderOrder();
+    await screen.findByRole("timer");
+    await tick(1000);
+    await tick(2000);
+    expect(
+      await screen.findByRole("heading", { name: "Este Pix expirou" }),
+    ).toBeTruthy();
+    expect(orderCalls(spy)).toHaveLength(3);
+  });
+
   test("Pedido já expirado abre direto na tela de expirado, com o link para o Produto", async () => {
     mockFetch(
       jsonResponse(
