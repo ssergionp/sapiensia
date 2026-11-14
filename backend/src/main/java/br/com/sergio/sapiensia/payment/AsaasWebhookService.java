@@ -1,13 +1,21 @@
 package br.com.sergio.sapiensia.payment;
 
+import com.github.kagkarlsson.scheduler.SchedulerClient;
+import com.github.kagkarlsson.scheduler.task.TaskInstance;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -26,6 +34,9 @@ class AsaasWebhookService {
     private static final Logger log = LoggerFactory.getLogger(AsaasWebhookService.class);
     private static final Pattern EVENT_ID = Pattern.compile("^[\\x21-\\x7E]{1,255}$");
     private static final Pattern EVENT_TYPE = Pattern.compile("^[A-Z0-9_]{1,64}$");
+    /** Only these events can pay an Order; every other type is just stored. */
+    private static final Set<String> PAYMENT_TYPES = Set.of("PAYMENT_RECEIVED", "PAYMENT_CONFIRMED");
+
     private static final String REDACTED = "[redacted]";
     private static final char NUL = (char) 0;
     private static final char REPLACEMENT = (char) 0xFFFD;
@@ -33,11 +44,20 @@ class AsaasWebhookService {
     private final PaymentEvents events;
     private final JsonMapper mapper;
     private final Clock clock;
+    private final SchedulerClient scheduler;
+    private final TransactionTemplate transaction;
 
-    AsaasWebhookService(PaymentEvents events, JsonMapper mapper, Clock clock) {
+    AsaasWebhookService(
+            PaymentEvents events,
+            JsonMapper mapper,
+            Clock clock,
+            SchedulerClient scheduler,
+            PlatformTransactionManager transactionManager) {
         this.events = events;
         this.mapper = mapper;
         this.clock = clock;
+        this.scheduler = scheduler;
+        this.transaction = new TransactionTemplate(transactionManager);
     }
 
     Outcome receive(String rawBody) {
@@ -53,8 +73,18 @@ class AsaasWebhookService {
         String id = text(root, "id", EVENT_ID);
         String type = text(root, "event", EVENT_TYPE);
         sanitize(root);
-        boolean stored = events.insertIfAbsent(id, type, mapper.writeValueAsString(root), OffsetDateTime.now(clock))
-                .isPresent();
+        String payload = mapper.writeValueAsString(root);
+        // the event and its task are written together: an event without a task would never be processed
+        boolean stored = Boolean.TRUE.equals(transaction.execute(status -> {
+            Optional<UUID> eventId = events.insertIfAbsent(id, type, payload, OffsetDateTime.now(clock));
+            if (eventId.isPresent() && PAYMENT_TYPES.contains(type)) {
+                scheduler.schedule(
+                        new TaskInstance<Void>(
+                                PaymentEventTasks.PROCESS, eventId.get().toString()),
+                        Instant.now(clock));
+            }
+            return eventId.isPresent();
+        }));
         log.info("Asaas webhook event {}: id={} type={}", stored ? "stored" : "duplicate", id, type);
         return stored ? Outcome.STORED : Outcome.DUPLICATE;
     }
