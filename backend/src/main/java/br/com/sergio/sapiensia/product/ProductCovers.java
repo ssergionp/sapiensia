@@ -54,6 +54,18 @@ class ProductCovers {
                 .optional();
     }
 
+    /** The cover of a Product the Customer has an active Access to, whatever the status of the Product. */
+    Optional<StoredCover> findOwned(UUID customerId, UUID productId) {
+        return jdbc.sql("select c.object_key, c.media_type, c.version from product_covers c"
+                        + " join accesses a on a.product_id = c.product_id"
+                        + " where a.customer_id = :customerId and a.product_id = :productId"
+                        + " and a.cancelled_at is null")
+                .param("customerId", customerId)
+                .param("productId", productId)
+                .query((rs, i) -> new StoredCover(rs.getString(1), rs.getString(2), rs.getString(3)))
+                .optional();
+    }
+
     Optional<StoredCover> find(UUID productId) {
         return jdbc.sql("select object_key, media_type, version from product_covers where product_id = :id")
                 .param("id", productId)

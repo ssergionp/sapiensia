@@ -67,5 +67,9 @@ class LibraryAuthorizationTest {
 
         assertThat(anonymous.get("/api/library").statusCode()).isEqualTo(401);
         assertThat(administrator.get("/api/library").statusCode()).isEqualTo(403);
+
+        String cover = "/api/library/" + UUID.randomUUID() + "/cover";
+        assertThat(anonymous.get(cover).statusCode()).isEqualTo(401);
+        assertThat(administrator.get(cover).statusCode()).isEqualTo(403);
     }
 }
