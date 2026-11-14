@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { CATALOG_TEXTS } from "@/features/catalog/messages";
+import { LIBRARY_TEXTS } from "@/features/library/messages";
 import { DEFAULT_TITLE, useDocumentTitle } from "@/lib/useDocumentTitle";
 import { useLogout, useLogoutEverywhere, useSession } from "./hooks";
 import { LOGOUT_ERROR } from "./messages";
@@ -59,9 +60,12 @@ export default function HomePage() {
           {LOGOUT_ALL_ERROR}
         </p>
       )}
-      <p className="mt-4">
+      <p className="mt-4 flex gap-4">
         <Link to="/catalogo" className="underline">
           {CATALOG_TEXTS.homeLink}
+        </Link>
+        <Link to="/biblioteca" className="underline">
+          {LIBRARY_TEXTS.heading}
         </Link>
       </p>
       <div className="mt-4 flex flex-wrap gap-4">

@@ -29,7 +29,7 @@ A vitrine pública dos Produtos publicados, visível a qualquer visitante. Mostr
 _Avoid_: Loja, vitrine
 
 **Capa**:
-Imagem de apresentação de um Produto, mostrada no Catálogo e na página do Produto; não é entregue ao Cliente.
+Imagem de apresentação de um Produto, mostrada no Catálogo, na página do Produto e na Biblioteca de quem comprou; não é entregue ao Cliente.
 _Avoid_: Imagem, thumbnail, banner
 
 **Arquivo do produto**:
@@ -49,7 +49,7 @@ Qualquer pessoa que abre o site, com ou sem conta. Vê o Catálogo e a página d
 _Avoid_: Usuário anônimo, lead
 
 **Acesso**:
-O direito de um Cliente baixar o Arquivo do produto de um Produto que comprou. Nasce quando o Pedido é pago e vale para sempre; só é cancelado por Reembolso ou fraude confirmada. Despublicar o Produto não o cancela.
+O direito de um Cliente baixar o Arquivo do produto de um Produto que comprou. Nasce quando o Pedido é pago e vale para sempre; só é cancelado por Reembolso ou fraude confirmada. Despublicar o Produto não o cancela. Um Acesso cancelado deixa de aparecer na Biblioteca.
 _Avoid_: Licença, permissão, entitlement
 
 **Download**:

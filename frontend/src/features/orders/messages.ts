@@ -46,6 +46,7 @@ export const ORDER_TEXTS = {
     "Se você já pagou, aguarde alguns minutos: esta página se atualiza sozinha quando o pagamento for confirmado.",
   backToProduct: "Voltar ao Produto",
   paidDocumentTitle: "Pagamento confirmado | SapiensIA",
+  goToLibrary: "Ir para a Biblioteca",
   paidHeading: "Pagamento confirmado",
   paidText: "Recebemos o seu Pix. Você já tem Acesso a este Produto.",
   notFoundDocumentTitle: "Pedido não encontrado | SapiensIA",

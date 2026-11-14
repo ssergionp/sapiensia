@@ -18,7 +18,14 @@ describe("returnTo", () => {
     },
   );
 
+  test("SEC-012: aceita /biblioteca", () => {
+    rememberReturnTo("/biblioteca");
+    expect(takeReturnTo()).toBe("/biblioteca");
+  });
+
   test.each([
+    "/biblioteca/x",
+    "/biblioteca?a=1",
     "https://evil.test",
     "//evil.test",
     "/catalogo/../painel",

@@ -181,6 +181,11 @@ class ProductCoverService {
         return covers.findPublished(productId);
     }
 
+    /** The cover of a Product the Customer has an active Access to, published or not; empty otherwise. */
+    Optional<StoredCover> ownedCover(UUID customerId, UUID productId) {
+        return covers.findOwned(customerId, productId);
+    }
+
     /** The cover whatever the status of the Product (panel preview). */
     Optional<StoredCover> anyCover(UUID productId) {
         return covers.find(productId);

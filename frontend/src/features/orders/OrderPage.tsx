@@ -200,6 +200,11 @@ export default function OrderPage() {
           <dt className="font-semibold">{T.valueTerm}</dt>
           <dd>{formatCents(order.priceCents)}</dd>
         </dl>
+        <p className="mt-4">
+          <Link to="/biblioteca" className="underline">
+            {T.goToLibrary}
+          </Link>
+        </p>
         <p className="mt-4">{catalogLink}</p>
       </main>
     );

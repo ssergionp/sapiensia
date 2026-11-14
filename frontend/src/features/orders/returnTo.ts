@@ -3,7 +3,7 @@
 const KEY = "sapiensia.returnTo";
 const MAX_AGE_MS = 60 * 60 * 1000;
 const ALLOWED =
-  /^\/(catalogo|pedidos)\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+  /^(\/(catalogo|pedidos)\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|\/biblioteca)$/;
 
 export function rememberReturnTo(path: string): void {
   try {
