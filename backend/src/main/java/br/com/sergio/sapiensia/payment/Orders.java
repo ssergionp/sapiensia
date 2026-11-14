@@ -105,6 +105,30 @@ class Orders {
                 == 1;
     }
 
+    Optional<Row> findByProviderPaymentId(String providerPaymentId) {
+        return jdbc.sql(SELECT + " where o.provider_payment_id = :providerPaymentId")
+                .param("providerPaymentId", providerPaymentId)
+                .query(Orders::map)
+                .optional();
+    }
+
+    Optional<Row> findById(UUID id) {
+        return jdbc.sql(SELECT + " where o.id = :id")
+                .param("id", id)
+                .query(Orders::map)
+                .optional();
+    }
+
+    /** True only for the call that moved the Order from PENDING or EXPIRED to PAID (ADR-0003). */
+    boolean markPaid(UUID id, Instant now) {
+        return jdbc.sql("update orders set status = 'PAID', paid_at = :now"
+                                + " where id = :id and status in ('PENDING', 'EXPIRED')")
+                        .param("now", java.sql.Timestamp.from(now))
+                        .param("id", id)
+                        .update()
+                == 1;
+    }
+
     /** Transaction-scoped lock per Customer; must be called inside a transaction. */
     boolean tryLockCustomer(UUID customerId) {
         return Boolean.TRUE.equals(jdbc.sql("select pg_try_advisory_xact_lock(hashtextextended(:key, 0))")

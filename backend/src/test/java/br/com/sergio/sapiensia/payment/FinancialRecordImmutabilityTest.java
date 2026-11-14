@@ -29,6 +29,9 @@ class FinancialRecordImmutabilityTest {
     private PaymentEvents events;
 
     @Autowired
+    private PaymentEventResults results;
+
+    @Autowired
     private JdbcTemplate jdbc;
 
     @Autowired
@@ -60,7 +63,8 @@ class FinancialRecordImmutabilityTest {
     void shouldRefuseToTruncate() {
         String id = insertEvent();
 
-        assertRefusedByTheGuard(() -> jdbc.execute("truncate table payment_events"));
+        // Alone, PostgreSQL refuses first: payment_event_results references payment_events (foreign key).
+        assertRefusedByTheGuard(() -> jdbc.execute("truncate table payment_events, payment_event_results"));
         assertRefusedByTheGuard(() -> jdbc.execute("truncate table payment_events cascade"));
 
         assertThat(count(id)).isEqualTo(1);
@@ -113,16 +117,72 @@ class FinancialRecordImmutabilityTest {
     void shouldStillInsertAndDeduplicate() {
         String id = "evt_" + UUID.randomUUID();
 
-        assertThat(events.insertIfAbsent(id, "PAYMENT_RECEIVED", "{}", NOW)).isTrue();
-        assertThat(events.insertIfAbsent(id, "PAYMENT_RECEIVED", "{}", NOW)).isFalse();
+        assertThat(events.insertIfAbsent(id, "PAYMENT_RECEIVED", "{}", NOW)).isPresent();
+        assertThat(events.insertIfAbsent(id, "PAYMENT_RECEIVED", "{}", NOW)).isEmpty();
 
         assertThat(count(id)).isEqualTo(1);
     }
 
+    @Test
+    @DisplayName("SEC-028: shouldRefuseUpdateDeleteAndTruncateOnPaymentEventResults")
+    void shouldRefuseUpdateDeleteAndTruncateOnPaymentEventResults() {
+        UUID eventId = events.insertIfAbsent("evt_" + UUID.randomUUID(), "PAYMENT_RECEIVED", "{}", NOW)
+                .orElseThrow();
+        results.record(eventId, PaymentResult.NO_ORDER, null, NOW.toInstant());
+
+        assertRefusedByTheGuard(
+                "payment_event_results",
+                () -> jdbc.update(
+                        "update payment_event_results set result = 'PAID' where payment_event_id = ?", eventId));
+        assertRefusedByTheGuard(
+                "payment_event_results",
+                () -> jdbc.update("delete from payment_event_results where payment_event_id = ?", eventId));
+        assertRefusedByTheGuard("payment_event_results", () -> jdbc.execute("truncate table payment_event_results"));
+
+        assertThat(results.findFinal(eventId)).contains(PaymentResult.NO_ORDER);
+    }
+
+    @Test
+    @DisplayName("SEC-028: shouldKeepPaymentEventResultsClosedToOtherRoles")
+    void shouldKeepPaymentEventResultsClosedToOtherRoles() {
+        UUID eventId = events.insertIfAbsent("evt_" + UUID.randomUUID(), "PAYMENT_RECEIVED", "{}", NOW)
+                .orElseThrow();
+        results.record(eventId, PaymentResult.NO_ORDER, null, NOW.toInstant());
+        String role = "probe_" + UUID.randomUUID().toString().substring(0, 8);
+
+        assertThat(jdbc.queryForObject(
+                        "select relrowsecurity from pg_class where relname = 'payment_event_results'", Boolean.class))
+                .isTrue();
+
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            jdbc.execute("create role " + role);
+            jdbc.execute("grant select, insert on payment_event_results to " + role);
+            jdbc.execute("set local role " + role);
+
+            assertThat(jdbc.queryForObject("select count(*) from payment_event_results", Integer.class))
+                    .isZero();
+            assertThatThrownBy(() -> jdbc.update(
+                            "insert into payment_event_results (payment_event_id, result, processed_at)"
+                                    + " values (?, 'NO_ORDER', now())",
+                            eventId))
+                    .rootCause()
+                    .isInstanceOf(PSQLException.class)
+                    .satisfies(
+                            e -> assertThat(((PSQLException) e).getSQLState()).isEqualTo("42501"))
+                    .hasMessageContaining("row-level security");
+
+            status.setRollbackOnly();
+        });
+    }
+
     private void assertRefusedByTheGuard(ThrowingCallable attempt) {
+        assertRefusedByTheGuard("payment_events", attempt);
+    }
+
+    private void assertRefusedByTheGuard(String table, ThrowingCallable attempt) {
         assertThatThrownBy(attempt).rootCause().isInstanceOfSatisfying(PSQLException.class, e -> {
             assertThat(e.getSQLState()).isEqualTo("42501");
-            assertThat(e.getServerErrorMessage().getMessage()).isEqualTo("payment_events is append-only");
+            assertThat(e.getServerErrorMessage().getMessage()).isEqualTo(table + " is append-only");
             assertThat(e.getMessage()).doesNotContain(MARKER);
         });
     }

@@ -53,7 +53,8 @@ class AsaasWebhookService {
         String id = text(root, "id", EVENT_ID);
         String type = text(root, "event", EVENT_TYPE);
         sanitize(root);
-        boolean stored = events.insertIfAbsent(id, type, mapper.writeValueAsString(root), OffsetDateTime.now(clock));
+        boolean stored = events.insertIfAbsent(id, type, mapper.writeValueAsString(root), OffsetDateTime.now(clock))
+                .isPresent();
         log.info("Asaas webhook event {}: id={} type={}", stored ? "stored" : "duplicate", id, type);
         return stored ? Outcome.STORED : Outcome.DUPLICATE;
     }

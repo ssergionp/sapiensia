@@ -2,5 +2,6 @@ package br.com.sergio.sapiensia.payment;
 
 enum OrderStatus {
     PENDING,
-    EXPIRED
+    EXPIRED,
+    PAID
 }
