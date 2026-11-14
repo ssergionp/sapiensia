@@ -52,7 +52,7 @@ class PaymentLogTest {
      * inside a UUID or a timestamp, so only "value/amount/price/cents" followed by 2990 or 29.9, or "29.90", count.
      */
     private static final Pattern VALUE_FORMS =
-            Pattern.compile("(?i)(value|amount|price|cents)\\W{0,4}(2990|29\\.9)(?![0-9])|29\\.90");
+            Pattern.compile("(?i)(value|amount|price|cents)\\W{0,4}(2990|29\\.9)(?![0-9])|29[.,]90");
 
     @LocalServerPort
     int port;
@@ -71,7 +71,7 @@ class PaymentLogTest {
         gateway.reset();
     }
 
-    private record Placed(UUID orderId, String chargeId, String email) {}
+    private record Placed(UUID orderId, String chargeId, String email, OrderHttp.Customer customer) {}
 
     private Placed placeOrder() throws Exception {
         OrderHttp.Customer customer = OrderHttp.newCustomer(port, jdbc, encoder);
@@ -81,7 +81,7 @@ class PaymentLogTest {
         UUID orderId = UUID.fromString(OrderHttp.json(created, "$.id"));
         String chargeId =
                 jdbc.queryForObject("select provider_payment_id from orders where id = ?", String.class, orderId);
-        return new Placed(orderId, chargeId, customer.email);
+        return new Placed(orderId, chargeId, customer.email, customer);
     }
 
     private void send(String eventId, String chargeId, String marker) throws Exception {
@@ -104,6 +104,14 @@ class PaymentLogTest {
                 "select count(*) from payment_event_results r join payment_events e on e.id = r.payment_event_id"
                         + " where e.provider_event_id = ?",
                 Integer.class,
+                eventId);
+    }
+
+    private String result(String eventId) {
+        return jdbc.queryForObject(
+                "select r.result from payment_event_results r join payment_events e on e.id = r.payment_event_id"
+                        + " where e.provider_event_id = ?",
+                String.class,
                 eventId);
     }
 
@@ -148,10 +156,28 @@ class PaymentLogTest {
         String giveUpEvent = uniqueId();
         send(giveUpEvent, giveUp.chargeId(), marker);
         await("the give-up result", () -> results(giveUpEvent) >= 1);
+        // the ERROR line is written after the GAVE_UP row, so wait for it too
+        await(
+                "the give-up log line",
+                () -> output.getAll().contains("Payment event processing gave up: eventId=" + giveUpEvent));
         gateway.failAt("READ_CHARGE", null);
 
+        // (d) the Pix code really passes through the app: a pending Order is read and the code is fetched
+        Placed pending = placeOrder();
+        long readsBefore = gateway.copyPasteReads();
+        HttpResponse<String> view = pending.customer().get("/api/orders/" + pending.orderId());
+        assertThat(view.statusCode()).isEqualTo(200);
+        assertThat(gateway.copyPasteReads()).as("the copy-paste code was read").isGreaterThan(readsBefore);
+
+        assertThat(result(mismatchEvent)).isEqualTo("REFERENCE_MISMATCH");
+        assertThat(result(giveUpEvent)).isEqualTo("GAVE_UP");
+
         String logs = output.getAll();
-        assertThat(logs).as("capture works: the processing logged").contains("Payment event processed");
+        assertThat(logs)
+                .as("capture works: every path logged")
+                .contains("Payment event processed")
+                .contains("Payment event needs review")
+                .contains("Payment event processing gave up: eventId=" + giveUpEvent);
         assertThat(logs)
                 .doesNotContain(marker)
                 .doesNotContain(refMarker)
