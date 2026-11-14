@@ -2,7 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** AGUARDANDO APROVAÇÃO do Sérgio (seção 12 traz as decisões que dependem dele).
+**Status:** APROVADO pelo Sérgio em 14/11/2026, com D1 a D12 como recomendado (D1: a #31 fica aberta) e os textos da seção 8 (ele confere no diff da PR). Quatro ajustes pedidos por ele, já incorporados abaixo:
+- **A1.** A consulta ao Asaas exige status recebido ou confirmado, forma de pagamento Pix, valor igual a `price_cents`, id da cobrança igual ao `provider_payment_id` do Pedido e `externalReference` igual ao id do Pedido. Cada divergência tem o seu resultado em `payment_event_results` e o seu teste (seção 3, Task 3).
+- **A2.** `payment_event_results` é só inserção, como `payment_events` (SEC-028): mesmo gatilho, RLS e privilégios da V17. O estado de repetição fica no db-scheduler. Nenhum `UPDATE` é necessário (seção 5, Task 1).
+- **A3.** O runbook ganha o SQL que reagenda o processamento de um evento (por exemplo depois de `GAVE_UP`), e um teste roda esse mesmo SQL, lido do runbook, contra o banco (Task 4).
+- **A4.** `just demo-pagar <id do Pedido>` envia ao sistema local o evento de pagamento com o token local, só contra `localhost`; um teste prova que o perfil `prod` recusa esse token. Documentado em `docs/demo.md` (Task 9).
 
 **Goal:** Quando o Asaas confirma o pagamento, o Pedido vira pago e o Acesso é concedido uma única vez, depois de o sistema conferir valor, Pedido e estado consultando o Asaas. Eventos repetidos, atrasados, fora de ordem ou de cobrança sem Pedido não corrompem o estado, e a tela do Pedido passa a mostrar o pagamento confirmado sozinha.
 
@@ -81,11 +85,11 @@ Fontes: [webhook para cobranças](https://docs.asaas.com/docs/webhook-para-cobra
 
 | Passo | O que acontece |
 |---|---|
-| Requisição | `AsaasWebhookService.receive` abre uma transação: `insert ... on conflict do nothing returning id`. Se gravou **e** o tipo é `PAYMENT_RECEIVED` ou `PAYMENT_CONFIRMED`, agenda `process-payment-event` com o id interno do evento (UUID) como dado e como id da instância. Commit. |
+| Requisição | `AsaasWebhookService.receive` abre uma transação: `insert ... on conflict do nothing returning id`. Se gravou **e** o tipo é `PAYMENT_RECEIVED` ou `PAYMENT_CONFIRMED`, agenda `process-payment-event` com o id interno do evento (UUID) como id da instância e **sem dado** (`task_data` nulo), para que o runbook possa reagendar com um `insert` simples (A3). Commit. |
 | Resposta ao Asaas | `200` sem corpo, sempre que o evento foi gravado, é repetido ou é de tipo que não tratamos. Nada do processamento acontece na requisição, então a resposta leva o tempo de um `insert`. `500` só se o próprio `insert` falhar: aí o evento não foi gravado e a reentrega do Asaas é o comportamento certo (ADR-0003, sem mudança). |
 | Processamento | A tarefa roda em segundo plano (sondagem a cada 10 s em produção, 1 s no local e no CI), chama `PaymentConfirmation.process(eventId)` e grava o resultado. |
 | Falha passageira | Asaas indisponível, banco fora, exceção inesperada: a tarefa lança, o db-scheduler repete a cada 1 minuto, até 120 vezes (2 horas). O evento nunca se perde: está em `payment_events` e a tarefa está em `scheduled_tasks`, que sobrevive a reinício (ADR-0005). |
-| Falha definitiva | Esgotadas as tentativas, grava o resultado `GAVE_UP`, registra `ERROR` no log (só ids) e remove a tarefa. A conciliação noturna (#39) é a rede de baixo. |
+| Falha definitiva | Esgotadas as tentativas, grava o resultado `GAVE_UP`, registra `ERROR` no log (só ids) e remove a tarefa. O Administrador pode reagendar com o SQL do runbook (A3); a conciliação noturna (#39) é a rede de baixo. O alerta por e-mail é obrigatório antes do lançamento (registrado pelo Sérgio no #38 e no #47). |
 
 Por quê:
 - O Asaas recomenda responder logo e processar depois; a consulta à cobrança pode levar até 13 s (3 s + 10 s) e, com envio `SEQUENTIALLY`, uma resposta lenta atrasa a fila toda.
@@ -104,11 +108,12 @@ Por quê:
 | `NO_ORDER` | Nenhum Pedido com essa cobrança (cobrança órfã ou de outra origem) | Não | Não |
 | `INVALID_PAYLOAD` | Evento sem `payment.id` ou com id fora de `[A-Za-z0-9_]{1,64}` | Não | Sim |
 | `CHARGE_NOT_FOUND` | O Asaas respondeu que a cobrança não existe ou recusou a consulta (4xx) | Não | Sim |
-| `ORDER_MISMATCH` | `id` ou `externalReference` da cobrança não são os do Pedido | Não | Sim |
+| `CHARGE_ID_MISMATCH` | O `id` da cobrança devolvida pelo Asaas não é o `provider_payment_id` do Pedido | Não | Sim |
+| `REFERENCE_MISMATCH` | O `externalReference` da cobrança não é o id do Pedido (diferente ou ausente) | Não | Sim |
 | `AMOUNT_MISMATCH` | `value` diferente de `price_cents` | Não | Sim |
 | `NOT_PIX` | `billingType` diferente de `PIX` (por exemplo `RECEIVED_IN_CASH`) | Não | Sim |
 | `NOT_PAID` | Estado no Asaas não é pago nem "ainda não" (por exemplo `REFUNDED`) | Não | Sim |
-| `GAVE_UP` | 120 tentativas sem conseguir processar | Não | Sim |
+| `GAVE_UP` | 120 tentativas sem conseguir processar. Não é final: um reprocessamento (A3) pode gravar depois um dos outros resultados | Não | Sim |
 
 "Revisão humana" neste ticket é: a linha em `payment_event_results`, uma linha `WARN` no log (`Payment event needs review: eventId=... result=... orderId=...`) e uma consulta pronta no runbook. Tela do Administrador (#37) e alerta por e-mail (#38) ficam nos tickets deles. Ver decisão D5.
 
@@ -139,20 +144,21 @@ Por quê: o Asaas não assina o corpo (ADR-0003); a única prova de origem é um
 
 Ordem em `PaymentConfirmation.process(eventId)`, fora de transação até o passo 6:
 
-1. Já existe resultado para o evento? Sai (a tarefa pode rodar duas vezes).
+1. Já existe resultado **final** (qualquer um menos `GAVE_UP`) para o evento? Devolve esse e sai (a tarefa pode rodar duas vezes; um `GAVE_UP` não impede o reprocessamento).
 2. Lê `payload->'payment'->>'id'`. Ausente ou malformado: `INVALID_PAYLOAD`.
 3. Acha o Pedido por `provider_payment_id`. Não existe: `NO_ORDER`.
 4. Pedido já `PAID`: `ALREADY_PAID`.
-5. `gateway.readCharge(chargeId)`:
+5. `gateway.readCharge(chargeId)` e as cinco exigências (A1), nesta ordem; a primeira que falhar decide:
    - `UNAVAILABLE` (timeout, 5xx, 429, 401): lança; a tarefa repete. **Nenhum Acesso sem consulta.**
    - `REFUSED` (404 e outros 4xx): `CHARGE_NOT_FOUND`.
-   - `charge.id` diferente ou `externalReference` diferente do id do Pedido: `ORDER_MISMATCH`.
+   - `charge.id` diferente de `orders.provider_payment_id`: `CHARGE_ID_MISMATCH`.
+   - `charge.externalReference` diferente de `orders.id` (ou ausente): `REFERENCE_MISMATCH`.
    - `billingType` diferente de `PIX`: `NOT_PIX`.
    - `value` diferente de `price_cents`: `AMOUNT_MISMATCH`.
-   - `status` `PENDING` ou `OVERDUE`: lança (ainda não refletiu; repete). Outro estado que não `RECEIVED` nem `CONFIRMED`: `NOT_PAID`.
+   - `status` `PENDING` ou `OVERDUE`: lança (ainda não refletiu; repete; se nunca refletir, termina em `GAVE_UP`). Outro estado que não `RECEIVED` nem `CONFIRMED`: `NOT_PAID`.
 6. Uma transação: `markPaid` (`where status in ('PENDING','EXPIRED')`); se mudou a linha, `accesses.grant` (`on conflict do nothing`), auditoria `ACCESS_GRANTED` quando o Acesso nasceu, e o resultado `PAID` ou `DUPLICATE_PURCHASE`; se não mudou (outra execução chegou antes), resultado `ALREADY_PAID`.
 
-SEC-026 item a item: **valor** (`AMOUNT_MISMATCH`), **moeda** (o Asaas só opera em reais; a conferência do valor cobre), **pedido** (`ORDER_MISMATCH`, `NO_ORDER`), **recebedor** (a consulta usa a chave da nossa conta: uma cobrança de outra conta dá 404), **estado** (`NOT_PAID` e o `update` condicional).
+SEC-026 item a item: **valor** (`AMOUNT_MISMATCH`), **moeda** (o Asaas só opera em reais; a conferência do valor cobre), **pedido** (`CHARGE_ID_MISMATCH`, `REFERENCE_MISMATCH`, `NO_ORDER`), **recebedor** (a consulta usa a chave da nossa conta: uma cobrança de outra conta dá 404), **estado** (`NOT_PAID` e o `update` condicional).
 
 ## 4. Pedido que expirou e foi pago logo depois (decisão 4)
 
@@ -183,17 +189,31 @@ create table accesses (
   constraint accesses_order_id_key unique (order_id)
 );
 
--- What processing a payment event ended with; payment_events itself is append-only (V17).
+-- What processing a payment event ended with (SEC-028: append-only, like payment_events). At most one final result
+-- per event; GAVE_UP is not final, so an event that was given up can be reprocessed and get its final result later.
 create table payment_event_results (
-  payment_event_id uuid primary key references payment_events (id),
+  id uuid primary key default gen_random_uuid(),
+  payment_event_id uuid not null references payment_events (id),
   result varchar(32) not null check (result ~ '^[A-Z_]+$'),
   order_id uuid references orders (id),
   processed_at timestamp with time zone not null
 );
+create unique index payment_event_results_one_final on payment_event_results (payment_event_id)
+  where result <> 'GAVE_UP';
 create index payment_event_results_order_id on payment_event_results (order_id);
+
+create trigger payment_event_results_guard_row before update or delete on payment_event_results
+  for each row execute function financial_record_guard();
+create trigger payment_event_results_guard_truncate before truncate on payment_event_results
+  for each statement execute function financial_record_guard();
+alter table payment_event_results enable row level security;
+revoke all on payment_event_results from public;
+-- plus the same "revoke all from anon, authenticated, service_role when the role exists" block as V17
 ```
 
 (O nome real do `check` de `orders.status` é conferido no banco antes de escrever o `drop`; se for outro, usa-se o nome real.)
+
+**Por que `payment_event_results` não precisa de `UPDATE` (A2):** cada processamento só **insere** o seu resultado. A tarefa que repete não grava nada enquanto não termina (o contador de tentativas é do db-scheduler, em `scheduled_tasks`). `GAVE_UP` é uma linha a mais, não uma troca: se o evento for reprocessado e pago, a linha `PAID` entra ao lado da `GAVE_UP`, e o resultado atual é o final, quando existe, ou o último `GAVE_UP`. O índice único parcial garante um só resultado final por evento. `accesses` e `orders` não são registro financeiro e não ganham o gatilho (o #36 vai precisar mudar os dois).
 
 - **Uma transação** para Pedido pago, Acesso, auditoria e resultado: ou tudo, ou nada.
 - **Repetir o aviso** não gera segundo Acesso: o `update` condicional só deixa uma execução passar, e o `unique (customer_id, product_id)` é a segunda barreira.
@@ -209,7 +229,7 @@ create index payment_event_results_order_id on payment_event_results (order_id);
 |---|---|---|
 | Dois avisos com o mesmo `id` ao mesmo tempo | `unique` de `payment_events`: um grava e agenda, o outro é repetido | 8 requisições simultâneas, 20 rodadas: 1 evento, 1 tarefa, 1 Acesso |
 | Dois eventos diferentes do mesmo pagamento processados juntos | `update ... where status in (...)` devolve 1 para um só; o outro grava `ALREADY_PAID` | 2 threads chamando `process`, 20 rodadas: 1 Pedido pago, 1 Acesso, 1 auditoria |
-| A mesma tarefa executada duas vezes (queda no meio) | Resultado com o evento como chave e `on conflict do nothing` | `process` duas vezes seguidas: nada muda na segunda |
+| A mesma tarefa executada duas vezes (queda no meio) | Índice único parcial do resultado final e `on conflict do nothing` | `process` duas vezes seguidas: nada muda na segunda |
 | Pagamento e expiração juntos | `markExpired` só toca `PENDING`; `markPaid` aceita `PENDING` e `EXPIRED` | Tarefa de expiração e `process` em paralelo, 20 rodadas: sempre termina `PAID` com Acesso |
 | Webhook e consulta do Cliente (`GET` do Pedido e do estado) juntos | Leituras sem trava; a escrita é uma transação curta | Leitores em laço durante o `process`: só veem `PENDING` e depois `PAID`, nunca erro nem volta |
 | Dois Pedidos do mesmo Produto pagos juntos | `unique` do Acesso com `on conflict do nothing` | 2 threads: 2 Pedidos pagos, 1 Acesso, 1 `DUPLICATE_PURCHASE` |
@@ -344,17 +364,19 @@ A vista de pago **não** fala de download nem de Biblioteca: essas telas são do
 **Files:**
 - Create: `db/migration/V20__paid_orders_and_accesses.sql`, `payment/Accesses.java`, `payment/PaymentEventResults.java`, `payment/PaymentResult.java`
 - Modify: `payment/OrderStatus.java`, `payment/Orders.java`, `payment/PaymentEvents.java`
-- Test: `payment/PaidOrdersSchemaTest.java`, `payment/PaymentEventsTest.java`
+- Test: `payment/PaidOrdersSchemaTest.java`, `payment/PaymentEventsTest.java`, `payment/FinancialRecordImmutabilityTest.java`
 
 **Interfaces:**
 - Produces: `enum OrderStatus { PENDING, EXPIRED, PAID }`.
-- Produces: `enum PaymentResult { PAID, ALREADY_PAID, DUPLICATE_PURCHASE, NO_ORDER, INVALID_PAYLOAD, CHARGE_NOT_FOUND, ORDER_MISMATCH, AMOUNT_MISMATCH, NOT_PIX, NOT_PAID, GAVE_UP; boolean needsReview() }` (`needsReview` é falso só para `PAID`, `ALREADY_PAID` e `NO_ORDER`).
+- Produces: `enum PaymentResult { PAID, ALREADY_PAID, DUPLICATE_PURCHASE, NO_ORDER, INVALID_PAYLOAD, CHARGE_NOT_FOUND, CHARGE_ID_MISMATCH, REFERENCE_MISMATCH, AMOUNT_MISMATCH, NOT_PIX, NOT_PAID, GAVE_UP; boolean needsReview(); boolean isFinal() }` (`needsReview` é falso só para `PAID`, `ALREADY_PAID` e `NO_ORDER`; `isFinal` é falso só para `GAVE_UP`).
 - Produces em `Orders`:
   - `Optional<Row> findByProviderPaymentId(String providerPaymentId)`
   - `Optional<Row> findById(UUID id)`
   - `boolean markPaid(UUID id, Instant now)` (o `update` da seção 4; devolve `rows == 1`)
 - Produces: `@Repository class Accesses`: `boolean grant(UUID customerId, UUID productId, UUID orderId, Instant now)` (`on conflict (customer_id, product_id) do nothing`; verdadeiro quando inseriu); `boolean exists(UUID customerId, UUID productId)`.
-- Produces: `@Repository class PaymentEventResults`: `boolean record(UUID paymentEventId, PaymentResult result, UUID orderId, Instant now)` (`on conflict (payment_event_id) do nothing`); `boolean exists(UUID paymentEventId)`.
+- Produces: `@Repository class PaymentEventResults` (só `insert` e `select`; nenhum `update`/`delete`):
+  - `boolean record(UUID paymentEventId, PaymentResult result, UUID orderId, Instant now)`: para resultado final, `insert ... on conflict (payment_event_id) where result <> 'GAVE_UP' do nothing` e devolve se inseriu; para `GAVE_UP`, insere só se o evento ainda não tem resultado final.
+  - `Optional<PaymentResult> findFinal(UUID paymentEventId)`.
 - Produces em `PaymentEvents`:
   - `Optional<UUID> insertIfAbsent(String providerEventId, String eventType, String payloadJson, OffsetDateTime receivedAt)` (passa a devolver o id interno com `returning id`; vazio quando repetido)
   - `record Ref(String providerEventId, String eventType, String chargeId)` e `Optional<Ref> findRef(UUID id)` (`chargeId` vem de `payload->'payment'->>'id'`, pode ser nulo; o corpo inteiro nunca é lido)
@@ -365,8 +387,11 @@ A vista de pago **não** fala de download nem de Biblioteca: essas telas são do
   - `shouldRefuseAPaidOrderWithoutPaidAt` e `shouldRefuseAPendingOrderWithPaidAt` (SQL direto; `DataIntegrityViolationException`)
   - `SEC-025: shouldGrantOneAccessPerCustomerAndProduct` (segundo `grant`, com outro Pedido, devolve `false`; `count(*) = 1`)
   - `shouldRefuseAnAccessForAnOrderThatAlreadyGrantedOne` (`unique (order_id)`, SQL direto)
-  - `SEC-025: shouldKeepTheFirstResultOfAnEvent` (segundo `record` devolve `false` e não altera)
+  - `SEC-025: shouldKeepTheFirstFinalResultOfAnEvent` (segundo `record` final devolve `false` e não altera)
+  - `shouldAcceptAFinalResultAfterGivingUp` (`GAVE_UP`, depois `PAID`: duas linhas; `findFinal` devolve `PAID`)
+  - `shouldNotRecordGivingUpAfterAFinalResult`
   - `shouldRefuseAResultForAnUnknownEvent` (FK)
+  - `FinancialRecordImmutabilityTest` (alterado): `SEC-028: shouldRefuseUpdateDeleteAndTruncateOnPaymentEventResults` (mensagem `payment_event_results is append-only`, SQLSTATE `42501`) e `SEC-028: shouldKeepPaymentEventResultsClosedToOtherRoles` (RLS ligado, sem privilégio para `public`; mesmo molde do teste de `payment_events`)
   - `shouldFindAnOrderByItsChargeId` e `shouldFindNoOrderForAnUnknownCharge`
   - `shouldLeaveANewPendingOrderPossibleAfterThePreviousOneWasPaid` (o índice de um `PENDING` não conta o pago)
   - `PaymentEventsTest`: `FR-021: shouldReturnTheInternalIdOfAStoredEventAndNothingForARepeatedOne`; `shouldReadOnlyTheChargeIdOfAnEvent` (com e sem `payment.id`)
@@ -427,10 +452,13 @@ A vista de pago **não** fala de download nem de Biblioteca: essas telas são do
   - `SEC-025: shouldDoNothingWhenTheSameEventIsProcessedAgain` (segunda chamada: mesmo resultado, 1 Acesso, 1 auditoria, **nenhuma** nova leitura no Asaas)
   - `SEC-025: shouldAnswerAlreadyPaidForASecondEventOfTheSamePayment` (sem consultar o Asaas)
   - `SEC-031: shouldRecordAnOrphanChargeAndIgnoreIt` (`NO_ORDER`; nenhuma chamada ao Asaas; nenhum Acesso)
-  - `SEC-026: shouldNotGrantWhenTheValueDiffers` (parametrizado: `29.89`, `29.91`, `2990`, `0`; `AMOUNT_MISMATCH`; Pedido continua `PENDING`)
-  - `SEC-026: shouldNotGrantWhenTheChargeBelongsToAnotherOrder` (`externalReference` de outro Pedido, nulo, e `id` diferente; `ORDER_MISMATCH`)
-  - `SEC-026: shouldNotGrantWhenTheChargeIsNotPix` (`RECEIVED_IN_CASH`; `NOT_PIX`)
-  - `SEC-026, SEC-031: shouldNotGrantWhenTheProviderSaysItWasRefunded` (estorno antes do pagamento: `REFUNDED`, `REFUND_IN_PROGRESS`, `CHARGEBACK_REQUESTED`; `NOT_PAID`)
+  - Um teste por exigência do A1; em todos, Pedido continua como estava, nenhum Acesso, nenhuma auditoria, o resultado gravado é o indicado e o log tem `Payment event needs review`:
+    - `SEC-026: shouldNotGrantWhenTheValueDiffers` (parametrizado: `29.89`, `29.91`, `2990`, `0`; `AMOUNT_MISMATCH`)
+    - `SEC-026: shouldNotGrantWhenTheProviderReturnsAnotherChargeId` (`CHARGE_ID_MISMATCH`)
+    - `SEC-026: shouldNotGrantWhenTheExternalReferenceIsAnotherOrder` (`REFERENCE_MISMATCH`)
+    - `SEC-026: shouldNotGrantWhenTheExternalReferenceIsMissing` (`REFERENCE_MISMATCH`)
+    - `SEC-026: shouldNotGrantWhenTheChargeIsNotPix` (parametrizado: `RECEIVED_IN_CASH`, `BOLETO`, `CREDIT_CARD`; `NOT_PIX`)
+    - `SEC-026, SEC-031: shouldNotGrantWhenTheStatusIsNotReceivedOrConfirmed` (parametrizado: `REFUNDED`, `REFUND_IN_PROGRESS`, `CHARGEBACK_REQUESTED`, `RECEIVED_IN_CASH`, `AWAITING_RISK_ANALYSIS`; `NOT_PAID`)
   - `SEC-026: shouldNotGrantWhenTheProviderDoesNotKnowTheCharge` (`REFUSED`; `CHARGE_NOT_FOUND`)
   - `SEC-031: shouldRecordNothingAndAskForARetryWhileTheProviderIsUnavailable` (`PaymentNotReadyException`; nenhum resultado; Pedido `PENDING`; depois, com o Asaas de volta, `PAID`)
   - `SEC-031: shouldAskForARetryWhileTheProviderStillShowsTheChargeAsPending` (`PENDING` e `OVERDUE`)
@@ -438,7 +466,8 @@ A vista de pago **não** fala de download nem de Biblioteca: essas telas são do
   - `ADR-0003: shouldGrantWhenThePaidChargeIsMarkedDeleted` (decisão D6)
   - `FR-024: shouldMarkTheSecondPaidOrderOfTheSameProductAsADuplicatePurchase` (2 Pedidos pagos, 1 Acesso do primeiro, 1 auditoria, segundo resultado `DUPLICATE_PURCHASE`)
   - `shouldGrantNothingWhenTheAuditTrailCannotBeWritten` (com `SwitchableAuditLogConfig`: a transação desfaz o Pedido pago e o Acesso; a exceção sobe)
-  - `shouldRecordThatProcessingGaveUp` (`giveUp`: `GAVE_UP` com o id do Pedido; não sobrescreve um resultado existente)
+  - `shouldRecordThatProcessingGaveUp` (`giveUp`: `GAVE_UP` com o id do Pedido; não grava nada se já há resultado final)
+  - `SEC-031: shouldPayWhenAnEventThatWasGivenUpIsProcessedAgain` (`giveUp`, depois `process` com o Asaas de volta: `PAID`, Acesso concedido)
 - [ ] **Step 2: Rodar e ver falhar.** Run: `cd backend; .\mvnw.cmd test -Dtest=PaymentConfirmationTest`. Expected: FAIL (classe inexistente).
 - [ ] **Step 3: Implementar** `PaymentConfirmation` e os dois valores de enum da auditoria.
 - [ ] **Step 4: Rodar e ver passar** (`-Dtest='PaymentConfirmationTest,AuditLogTest,AuditImmutabilityTest'`).
@@ -448,14 +477,24 @@ A vista de pago **não** fala de download nem de Biblioteca: essas telas são do
 
 **Files:**
 - Create: `payment/PaymentEventTasks.java`
-- Modify: `payment/AsaasWebhookService.java`, `application.yml`, `src/test/resources/application.properties`
+- Modify: `payment/AsaasWebhookService.java`, `application.yml`, `src/test/resources/application.properties`, `docs/runbooks/webhook-asaas.md`
 - Test: `payment/PaymentEventProcessingTest.java`, `payment/AsaasWebhookTestSupport.java`
 
 **Interfaces:**
 - Consumes: `PaymentConfirmation.process`, `PaymentConfirmation.giveUp` (Task 3); `PaymentEvents.insertIfAbsent` (Task 1); `SchedulerClient`.
-- Produces: `@Configuration(proxyBeanMethods = false) class PaymentEventTasks` com `static final String PROCESS = "process-payment-event"` e o bean `OneTimeTask<UUID> processPaymentEventTask(PaymentConfirmation confirmation)`: executa `confirmation.process(instance.getData())`; `onFailure` no mesmo molde de `CustomerEmailTasks.retryThenDrop` (`FailureHandler.<UUID>maxRetries(maxAttempts).retryEvery(retryDelay).thenRemove(...)`), cujo `thenRemove` chama `confirmation.giveUp(...)` com o dado da execução.
+- Produces: `@Configuration(proxyBeanMethods = false) class PaymentEventTasks` com `static final String PROCESS = "process-payment-event"` e o bean `OneTimeTask<Void> processPaymentEventTask(PaymentConfirmation confirmation)`: o id do evento é o **id da instância** (`UUID.fromString(instance.getId())`) e a tarefa não tem dado, para o reagendamento por SQL (A3) não precisar serializar nada. Id de instância que não é UUID: `ERROR` no log e a tarefa termina sem repetir. `onFailure` no mesmo molde de `CustomerEmailTasks.retryThenDrop` (`FailureHandler.<Void>maxRetries(maxAttempts).retryEvery(retryDelay).thenRemove(...)`), cujo `thenRemove` chama `confirmation.giveUp(...)` com o id da instância.
 - Produces: propriedades `app.orders.payment-processing.max-attempts: 120` e `app.orders.payment-processing.retry-delay: PT1M` (as duas também no `application.properties` de teste).
-- `AsaasWebhookService.receive`: o `insert` e o agendamento numa `TransactionTemplate`; agenda só quando gravou e o tipo está em `Set.of("PAYMENT_RECEIVED", "PAYMENT_CONFIRMED")`: `scheduler.schedule(new TaskInstance<>(PaymentEventTasks.PROCESS, eventId.toString(), eventId), Instant.now(clock))`. O log e o `Outcome` não mudam.
+- `AsaasWebhookService.receive`: o `insert` e o agendamento numa `TransactionTemplate`; agenda só quando gravou e o tipo está em `Set.of("PAYMENT_RECEIVED", "PAYMENT_CONFIRMED")`: `scheduler.schedule(new TaskInstance<Void>(PaymentEventTasks.PROCESS, eventId.toString()), Instant.now(clock))`. O log e o `Outcome` não mudam.
+- Runbook (A3): seção "Reprocessar um evento de pagamento" em `docs/runbooks/webhook-asaas.md`, com o SQL entre os marcadores `<!-- reprocess-sql:start -->` e `<!-- reprocess-sql:end -->`:
+  ```sql
+  insert into scheduled_tasks (task_name, task_instance, task_data, execution_time, picked, version)
+  select 'process-payment-event', e.id::text, null, now(), false, 1
+  from payment_events e
+  where e.provider_event_id = 'evt_COLE_AQUI_O_ID_DO_EVENTO'
+    and e.event_type in ('PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED')
+  on conflict (task_name, task_instance) do nothing;
+  ```
+  Mais a consulta que lista os eventos com `GAVE_UP` e sem resultado final, para achar o id. O texto avisa: reprocessar é seguro (o Pedido só vira pago uma vez), e o `on conflict` não mexe numa tarefa que ainda está repetindo.
 - `AsaasWebhookTestSupport`: novo `static String paymentEvent(String id, String type, String chargeId)` (corpo como o da documentação, com `payment.id` escolhido).
 
 - [ ] **Step 1: Escrever `PaymentEventProcessingTest`** (porta aleatória, `SwitchablePixGatewayConfig`, `db-scheduler.polling-interval=PT0.2S`, `app.orders.payment-processing.retry-delay=PT0.5S`, `app.orders.payment-processing.max-attempts=3`, contexto isolado; esperas com Awaitility ou laço com limite de 20 s, nunca espera fixa):
@@ -465,6 +504,8 @@ A vista de pago **não** fala de download nem de Biblioteca: essas telas são do
   - `SEC-025: shouldScheduleNothingForARepeatedEvent` (mesmo corpo 3 vezes: 1 evento, 1 execução, 1 Acesso)
   - `SEC-031: shouldRetryUntilTheProviderIsBack` (`failAt("READ_CHARGE", UNAVAILABLE)`; o Pedido continua `PENDING`; ao liberar, vira `PAID` sem novo webhook)
   - `SEC-031: shouldGiveUpAfterTheLastAttemptAndKeepTheEvent` (falha permanente: resultado `GAVE_UP`, evento ainda em `payment_events`, tarefa removida, Pedido `PENDING`, nenhum Acesso)
+  - `SEC-031: shouldPayAfterTheRunbookReschedulesAnEventThatWasGivenUp` (A3): depois do `GAVE_UP`, com o Asaas de volta, lê o SQL entre os marcadores do runbook (caminho relativo `../docs/runbooks/webhook-asaas.md`; o teste falha se os marcadores não existirem), troca `evt_COLE_AQUI_O_ID_DO_EVENTO` pelo id do evento, roda com `JdbcTemplate` e espera o Pedido `PAID` com Acesso; rodar o SQL de novo não cria segunda tarefa nem segundo Acesso
+  - `shouldDoNothingWhenTheRunbookSqlNamesAnEventThatIsNotAPayment` (evento `PAYMENT_CREATED`: zero linhas inseridas)
   - `SEC-031: shouldAnswerOkAndGrantNothingForAChargeWithoutAnOrder` (200; resultado `NO_ORDER`)
   - `shouldOnlyStoreEventsThatAreNotPayments` (parametrizado: `PAYMENT_CREATED`, `PAYMENT_OVERDUE`, `PAYMENT_DELETED`, `PAYMENT_REFUNDED`, `PAYMENT_CHARGEBACK_REQUESTED`, `BALANCE_VALUE_BLOCKED`, `SOMETHING_NEW`: 200, evento gravado, nenhuma tarefa, nenhum resultado, Pedido intacto)
   - `SEC-027: shouldRefuseAPaymentEventFromALoggedInCustomerWithoutTheToken` (sessão de Cliente e CSRF válidos, sem o cabeçalho do token: 401, Pedido `PENDING`)
@@ -534,7 +575,7 @@ A vista de pago **não** fala de download nem de Biblioteca: essas telas são do
 - Test: `payment/PaymentLogTest.java`
 
 - [ ] **Step 1: Escrever `PaymentLogTest`** no molde de `AsaasWebhookLogTest` (`OutputCaptureExtension`, `logging.level.br.com.sergio.sapiensia=TRACE`, `org.springframework.web=DEBUG`, `org.springframework.jdbc=TRACE`, contexto isolado):
-  - `ADR-0006, SEC-033: shouldNeverLogThePayloadTheValueOrPersonalDataWhilePaying`: evento com marcadores em `payment.description`, `payment.customer` e num campo `cpfCnpj`; consulta respondendo com marcador em `externalReference` errado (caso `ORDER_MISMATCH`) e, noutro Pedido, o caminho feliz; também uma desistência. Confere que o log **não** contém os marcadores, o token, o e-mail do Cliente, o código copia e cola nem o texto `29.9`/`2990` junto de `value`; e que **contém** `Payment event processed` (prova de que a captura funciona).
+  - `ADR-0006, SEC-033: shouldNeverLogThePayloadTheValueOrPersonalDataWhilePaying`: evento com marcadores em `payment.description`, `payment.customer` e num campo `cpfCnpj`; consulta respondendo com marcador em `externalReference` errado (caso `REFERENCE_MISMATCH`) e, noutro Pedido, o caminho feliz; também uma desistência. Confere que o log **não** contém os marcadores, o token, o e-mail do Cliente, o código copia e cola nem o texto `29.9`/`2990` junto de `value`; e que **contém** `Payment event processed` (prova de que a captura funciona).
 - [ ] **Step 2: Rodar.** Run: `cd backend; .\mvnw.cmd test -Dtest='PaymentLogTest,AsaasWebhookLogTest,OrderLogTest'`. Expected: PASS; se falhar, corrigir o log na Task 3 ou 4.
 - [ ] **Step 3: Commit** `test: payment processing never logs sensitive data (#28)`.
 
@@ -575,33 +616,50 @@ A vista de pago **não** fala de download nem de Biblioteca: essas telas são do
 - [ ] **Step 5: `/verificar-tela`** nas vistas pendente, expirado e pago e no erro da tela A, em 1280 px e 390 px, com teclado.
 - [ ] **Step 6: Commit** `feat: paid order screen with status polling (#28)`.
 
-## Task 9: E2E, CI e documentação
+## Task 9: E2E, `just demo-pagar`, CI e documentação
 
 **Files:**
-- Modify: `frontend/e2e/admin-panel.e2e.ts`, `.github/workflows/ci.yml`, `docs/adr/0003-pagamento-so-por-pix-via-asaas.md`, `docs/adr/0005-tarefas-em-segundo-plano-com-db-scheduler.md`, `docs/runbooks/webhook-asaas.md`, `CLAUDE.md`
+- Create: `scripts/demo-pagar.mjs`, `scripts/demo-pagar.test.mjs`, `backend/src/test/java/br/com/sergio/sapiensia/payment/DemoPaymentTokenTest.java`
+- Modify: `frontend/e2e/admin-panel.e2e.ts`, `.github/workflows/ci.yml`, `justfile`, `docs/demo.md`, `docs/adr/0003-pagamento-so-por-pix-via-asaas.md`, `docs/adr/0005-tarefas-em-segundo-plano-com-db-scheduler.md`, `docs/runbooks/webhook-asaas.md`, `CLAUDE.md`
+
+**`just demo-pagar <id do Pedido>` (A4):**
+- `justfile`: receita `demo-pagar pedido:` que roda `node scripts/demo-pagar.mjs {{pedido}}`, com o comentário `# demonstração local: marca um Pedido como pago, como se o Asaas tivesse confirmado o Pix`.
+- `scripts/demo-pagar.mjs` (só Node, sem pacote novo; funções exportadas para o teste, como `demo-codigo.mjs`):
+  - `export function parseOrderId(text)`: aceita só UUID; senão, sai com `Use: just demo-pagar <id do Pedido>`.
+  - `export function apiBaseUrl(env)`: `http://127.0.0.1:8081` por padrão; `DEMO_API_URL` pode trocar, mas só por `http://127.0.0.1:<porta>` ou `http://localhost:<porta>`; qualquer outro endereço sai com erro (o token local nunca vai para outro lugar).
+  - `export const LOCAL_WEBHOOK_TOKEN`: o mesmo valor fictício de `application-local.yml`, com o comentário `gitleaks:allow` e `nosemgrep` como no `demo-codigo.mjs`.
+  - `export function paymentEvent(chargeId)`: `{"id": "evt_demo_<aleatório>", "event": "PAYMENT_RECEIVED", "dateCreated": ..., "payment": {"object": "payment", "id": chargeId, "billingType": "PIX", "status": "RECEIVED"}}`.
+  - Acha o id da cobrança no banco local: contêiner publicado na porta 5433 (o mesmo jeito do `demo.ps1`), `psql -U app -tAc` com o id já validado como UUID, primeiro no banco `app_demo`, depois no `app`. Pedido não encontrado: `Pedido não encontrado no banco local.`
+  - Envia o evento com `fetch` ao `POST <apiBaseUrl>/api/webhooks/asaas`, cabeçalho `asaas-access-token`. Resposta 401: `A API recusou o token local. Ela está no perfil local?`; outra resposta diferente de 200: o status. Sucesso: `Evento enviado. Em alguns segundos o Pedido aparece como pago na página dele.`
+  - Esses textos são do terminal do Sérgio, não da tela do Cliente; ficam como estão aqui.
+- `scripts/demo-pagar.test.mjs` (`node --test`): UUID válido e inválido; `apiBaseUrl` aceita `127.0.0.1` e `localhost` e recusa `https://sapiensia-homolog.fly.dev`, `http://10.0.0.5:8081` e `http://localhost.evil.com:8081`; o evento tem o `payment.id` dado e tipo `PAYMENT_RECEIVED`; o token do script é igual ao de `backend/src/main/resources/application-local.yml` (o teste lê o arquivo).
+- `DemoPaymentTokenTest` (backend): `SEC-022: shouldNotHaveTheLocalWebhookTokenOutsideTheLocalProfile` (o valor do token local não aparece em `application.yml` nem em `application-prod.yml`, e `application.yml` declara o token sem valor padrão) e `SEC-022: shouldRefuseTheLocalDemoTokenWhenAnotherTokenIsConfigured` (contexto com o token de teste: `POST` com o token local responde 401 e nada é gravado). O perfil `prod` em si já não sobe sem `APP_ASAAS_WEBHOOK_TOKEN` e recusa o `FakePixGateway` (testes do #24 e do #26).
+- `docs/demo.md`: trocar "Ainda não dá para comprar, pagar nem baixar" por uma seção "Comprar e pagar" (o Cliente compra, a página do Pedido mostra o Pix fictício; copie o id do Pedido do endereço `/pedidos/<id>` e rode `just demo-pagar <id>`; a página vira "Pagamento confirmado"; baixar ainda não existe). Avisar que, se a API for reiniciada, Pedidos criados antes não podem ser pagos (o Asaas falso é em memória); crie outro.
 
 - [ ] **Step 1: Escrever o e2e** da seção 10 (título e roteiro de lá). O envio do evento usa `request.post("/api/webhooks/asaas", { headers: { "asaas-access-token": token, "Fly-Client-IP": "52.67.12.206" }, data: {...} })`, com `id` do evento `evt_e2e_<aleatório>` e `payment.id` extraído do código mostrado por `/(pay_[A-Za-z0-9_]+)$/`. O token vem de `process.env.E2E_ASAAS_WEBHOOK_TOKEN` ou é montado por partes com o valor fictício do `application-local.yml`.
 - [ ] **Step 2: CI.** No passo "Start the system", gravar o token gerado em `$GITHUB_ENV` como `E2E_ASAAS_WEBHOOK_TOKEN` (já mascarado pelo `add-mask`), para o passo "End-to-end tests" o receber. Nenhum valor em arquivo.
-- [ ] **Step 3: Rodar o e2e no computador.** Na pasta principal: `just db`. Na worktree: `just dev-back`, `just dev-front` e `just e2e`. Expected: PASS nos dois projetos. Encerrar os processos pelo PID.
-- [ ] **Step 4: Documentação.**
+- [ ] **Step 3: `demo-pagar`.** Escrever `scripts/demo-pagar.test.mjs` e `DemoPaymentTokenTest`, rodar e ver falhar (`node --test scripts/demo-pagar.test.mjs`; `cd backend; .\mvnw.cmd test -Dtest=DemoPaymentTokenTest`), implementar o script e a receita, rodar e ver passar.
+- [ ] **Step 4: Rodar o e2e no computador.** Na pasta principal: `just db`. Na worktree: `just dev-back`, `just dev-front` e `just e2e`. Expected: PASS nos dois projetos. Com a API ainda ligada, criar um Pedido no navegador e rodar `just demo-pagar <id>`: a página vira "Pagamento confirmado". Encerrar os processos pelo PID.
+- [ ] **Step 5: Documentação.**
   - ADR-0003: parágrafo "Pedido pago e Acesso (#28)" com as regras das seções 1 a 5 (assíncrono com tarefa; consulta sempre; tabela de resultados; `RECEIVED_IN_CASH` não concede; cobrança `deleted` paga concede; compra repetida) e a nota de que os eventos de estorno continuam só gravados até o #36.
   - ADR-0005: trocar "A retentativa de webhooks vem do registro de eventos do Spring Modulith" pela tarefa única `process-payment-event` (1 minuto, 120 tentativas, `GAVE_UP`).
-  - Runbook: seção "Conferir um pagamento" (roteiro do sandbox da seção 11) e a consulta de revisão:
+  - Runbook (além da seção de reprocessar, que é da Task 4): seção "Conferir um pagamento" (roteiro do sandbox da seção 11) e a consulta de revisão:
     ```sql
     select r.processed_at, r.result, r.order_id, e.provider_event_id, e.event_type
     from payment_event_results r join payment_events e on e.id = r.payment_event_id
     where r.result not in ('PAID', 'ALREADY_PAID', 'NO_ORDER')
     order by r.processed_at desc;
     ```
-    e a de eventos de pagamento que ainda não têm resultado (tarefa em repetição).
-  - `CLAUDE.md`, "Reaproveitar antes de criar": `backend/.../payment/PaymentConfirmation.java` é o único lugar que marca um Pedido como pago e concede o Acesso.
-- [ ] **Step 5: Commit** `test: e2e of the confirmed payment; docs: paid order rules (#28)` (dois commits: `test:` e `docs:`).
+    e a de eventos de pagamento que ainda não têm resultado (tarefa em repetição). E a nota de que `payment_event_results` também é só inserção (SEC-028), conferida pela mesma consulta de proteção, trocando o nome da tabela.
+  - `CLAUDE.md`, "Reaproveitar antes de criar": `backend/.../payment/PaymentConfirmation.java` é o único lugar que marca um Pedido como pago e concede o Acesso. Na lista de comandos: `just demo-pagar <id>`.
+- [ ] **Step 6: Commit** em três: `test: e2e of the confirmed payment (#28)`, `feat: just demo-pagar for the local demo (#28)` e `docs: paid order rules (#28)`.
 
 ## Task 10: Sistema de verdade e entrega (controlador, sem subagente)
 
 - [ ] **Step 1:** `just check-rapido` (2 GB livres antes). Se falhar, ler só as linhas que importam em `.tmp/check-rapido.log`.
 - [ ] **Step 2:** Sistema de verdade (banco da pasta principal, API e frontend da worktree): comprar no navegador, enviar o evento com `curl` e o token local, ver a tela virar "Pagamento confirmado" sozinha; repetir o evento; tentar comprar de novo; conferir `accesses`, `payment_event_results` e `audit_events` no banco.
 - [ ] **Step 3:** `requesting-code-review` na branch inteira; corrigir o que for do ticket.
-- [ ] **Step 4:** Skill `verificar-entrega`, mostrando a tabela. Texto de tela fora da seção 8 volta ao Sérgio.
-- [ ] **Step 5:** O que ficou de fora vira **uma** issue `needs-triage` citando o #28 (R1 no sandbox, itens da seção 11, o que a revisão apontar).
-- [ ] **Step 6:** Com o OK do Sérgio: `git push -u origin feat/28-pedido-pago-acesso` e PR com `Closes #28` na primeira linha, citando os IDs. Depois do merge: `just limpar-ticket` na pasta principal.
+- [ ] **Step 4:** Revisão final de segurança por um subagente independente, que não viu o trabalho (só a branch e a spec), focada em: Pedido pago sem confirmação do Asaas, Acesso duplicado, divergência de valor, evento forjado e vazamento em log. O que for do ticket se corrige aqui, com teste.
+- [ ] **Step 5:** Skill `verificar-entrega`, mostrando a tabela. Texto de tela fora da seção 8 volta ao Sérgio.
+- [ ] **Step 6:** O que ficou de fora vira **uma** issue `needs-triage` citando o #28 (R1 no sandbox, itens da seção 11, o que as revisões apontarem).
+- [ ] **Step 7:** OK do Sérgio já dado (14/11/2026) para o push quando check, e2e, revisão de segurança e `verificar-entrega` passarem: `git push -u origin feat/28-pedido-pago-acesso` e PR com `Closes #28` na primeira linha, citando os IDs. Parar com a PR aberta (sem merge). Depois do merge: `just limpar-ticket` na pasta principal.
