@@ -54,6 +54,28 @@ describe("returnTo", () => {
     expect(takeReturnTo()).toBeNull();
   });
 
+  test("hasReturnTo só vale para valor válido e dentro do prazo, sem apagar", () => {
+    rememberReturnTo(`/catalogo/${ID}`);
+    const stored = JSON.parse(localStorage.getItem(KEY) as string);
+    expect(hasReturnTo(stored.at + 59 * 60 * 1000)).toBe(true);
+    expect(hasReturnTo(stored.at + 60 * 60 * 1000 + 1)).toBe(false);
+    expect(localStorage.getItem(KEY)).not.toBeNull();
+    expect(takeReturnTo(stored.at)).toBe(`/catalogo/${ID}`);
+  });
+
+  test.each(["https://evil.test", "nao e json"])(
+    "SEC-012: hasReturnTo é falso para valor inválido: %s",
+    (value) => {
+      localStorage.setItem(
+        KEY,
+        value.startsWith("http")
+          ? JSON.stringify({ path: value, at: Date.now() })
+          : value,
+      );
+      expect(hasReturnTo()).toBe(false);
+    },
+  );
+
   test("não quebra quando o localStorage lança", () => {
     vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
       throw new Error("blocked");

@@ -22,8 +22,10 @@ function read(): string | null {
   }
 }
 
-export function hasReturnTo(): boolean {
-  return read() !== null;
+// Same validation as takeReturnTo, but leaves the stored value in place.
+export function hasReturnTo(now: number = Date.now()): boolean {
+  const raw = read();
+  return raw !== null && validate(raw, now) !== null;
 }
 
 export function takeReturnTo(now: number = Date.now()): string | null {
@@ -34,6 +36,10 @@ export function takeReturnTo(now: number = Date.now()): string | null {
   } catch {
     // Nothing to do.
   }
+  return validate(raw, now);
+}
+
+function validate(raw: string, now: number): string | null {
   try {
     const value: unknown = JSON.parse(raw);
     if (typeof value !== "object" || value === null) return null;

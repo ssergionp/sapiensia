@@ -5,9 +5,14 @@ import { Link, useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { hasReturnTo, takeReturnTo } from "../orders/returnTo";
 import { LoginBlockedError, LoginRejectedError } from "./api";
 import { useLogin } from "./hooks";
-import { LOGIN_BLOCKED, LOGIN_UNEXPECTED_ERROR } from "./messages";
+import {
+  LOGIN_BLOCKED,
+  LOGIN_PURCHASE_NOTICE,
+  LOGIN_UNEXPECTED_ERROR,
+} from "./messages";
 import { type LoginInput, loginSchema } from "./schemas";
 
 const LOGIN_FAILED =
@@ -31,11 +36,12 @@ export default function LoginPage() {
   const mutation = useLogin();
   const navigate = useNavigate();
   const [failure, setFailure] = useState<string | null>(null);
+  const [purchaseWaiting] = useState(() => hasReturnTo());
 
   function onSubmit(values: LoginInput) {
     setFailure(null);
     mutation.mutate(values, {
-      onSuccess: () => navigate("/"),
+      onSuccess: () => navigate(takeReturnTo() ?? "/"),
       onError: (error) => setFailure(failureMessage(error)),
     });
   }
@@ -43,6 +49,11 @@ export default function LoginPage() {
   return (
     <main className="mx-auto max-w-md p-8">
       <h1 className="text-2xl font-bold">Entrar</h1>
+      {purchaseWaiting && (
+        <p role="status" className="mt-4 text-sm">
+          {LOGIN_PURCHASE_NOTICE}
+        </p>
+      )}
       <form
         onSubmit={handleSubmit(onSubmit)}
         noValidate
