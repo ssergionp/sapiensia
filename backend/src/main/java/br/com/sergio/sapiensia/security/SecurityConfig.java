@@ -273,6 +273,9 @@ public class SecurityConfig {
                         .hasRole("CUSTOMER")
                         .requestMatchers(HttpMethod.GET, "/api/library/*/cover")
                         .hasRole("CUSTOMER")
+                        // download link of the Library (#33): POST only, the Customer's Access is checked in the SQL
+                        .requestMatchers(HttpMethod.POST, "/api/library/*/download")
+                        .hasRole("CUSTOMER")
                         // local download link (#33): only exists with the file provider
                         .requestMatchers(HttpMethod.GET, "/api/local-downloads/*")
                         .hasRole("CUSTOMER")
