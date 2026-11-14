@@ -33,10 +33,12 @@ class PaymentEvents {
                 .optional();
     }
 
-    /** Reads only the charge id from the payload; the whole body is never loaded. */
+    /** Reads only the charge id from the payload (null unless it is a JSON string); the whole body is never loaded. */
     Optional<Ref> findRef(UUID id) {
-        return jdbc.sql("select provider_event_id, event_type, payload->'payment'->>'id' as charge_id"
-                        + " from payment_events where id = :id")
+        return jdbc.sql(
+                        "select provider_event_id, event_type, case when jsonb_typeof(payload->'payment'->'id') = 'string'"
+                                + " then payload->'payment'->>'id' end as charge_id"
+                                + " from payment_events where id = :id")
                 .param("id", id)
                 .query((rs, n) -> new Ref(
                         rs.getString("provider_event_id"), rs.getString("event_type"), rs.getString("charge_id")))
