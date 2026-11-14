@@ -4,7 +4,7 @@ status: accepted
 
 # Tarefas em segundo plano com db-scheduler no PostgreSQL
 
-Expirar Pedidos, conciliar pagamentos toda noite e repetir webhooks falhos rodam no próprio PostgreSQL, sem fila externa. Escolhemos o db-scheduler (Apache-2.0, uma tabela criada por migration do Flyway) em vez do JobRunr, cujos recursos avançados são pagos. A retentativa de webhooks vem do registro de eventos do Spring Modulith.
+Expirar Pedidos, conciliar pagamentos toda noite e repetir webhooks falhos rodam no próprio PostgreSQL, sem fila externa. Escolhemos o db-scheduler (Apache-2.0, uma tabela criada por migration do Flyway) em vez do JobRunr, cujos recursos avançados são pagos. A retentativa de webhooks é a tarefa única `process-payment-event` (uma por evento de pagamento, agendada na mesma transação que grava o evento): se o processamento falhar, o db-scheduler repete a cada 1 minuto, até 120 vezes; esgotadas, grava o resultado `GAVE_UP` e o evento pode ser reagendado pelo runbook.
 
 ## Consequences
 

@@ -33,7 +33,20 @@ O código vale cerca de 30 segundos. Se preferir, cadastre a chave `JBSWY3DPEHPK
 
 O Cliente cria conta, entra e vê o Catálogo e os Produtos. O Administrador entra no painel, cria, edita, envia PDF e capa, publica e despublica.
 
-Ainda não dá para comprar, pagar nem baixar os conteúdos: essa parte do sistema está em construção.
+## Comprar e pagar
+
+O Cliente compra um Produto com Pix e a página do Pedido mostra o Pix fictício (não dá para pagá-lo de verdade). Para simular o pagamento:
+
+1. Copie o id do Pedido do endereço da página, `/pedidos/<id>`.
+2. Rode:
+
+```powershell
+just demo-pagar <id>
+```
+
+Em alguns segundos a página vira "Pagamento confirmado". Baixar o conteúdo ainda não existe.
+
+Se a API for reiniciada, os Pedidos criados antes não podem mais ser pagos (o Asaas falso guarda as cobranças só em memória): crie outro Pedido.
 
 ## Parar
 

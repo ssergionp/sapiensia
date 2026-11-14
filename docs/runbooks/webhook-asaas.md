@@ -147,6 +147,46 @@ Um evento `PAYMENT_RECEIVED` ou `PAYMENT_CONFIRMED` é processado em segundo pla
 
 Reprocessar é seguro: o Pedido só vira pago uma vez e o Acesso só é liberado uma vez, mesmo que o SQL rode de novo. O `on conflict` não mexe numa tarefa que ainda está repetindo, então não há risco de duplicar nem de atropelar a tentativa em andamento.
 
+## Conferir um pagamento
+
+Roteiro da homologação (o sandbox é a única prova do que o Asaas de verdade manda; o CI usa um Asaas falso).
+
+1. **[RESPONSÁVEL]** Entre na homologação como Cliente, compre um Produto com Pix e deixe a página do Pedido aberta.
+2. **[RESPONSÁVEL]** No sandbox do Asaas, ache a cobrança do Pedido e clique em "Confirmar pagamento".
+3. **[RESPONSÁVEL]** A página deve virar "Pagamento confirmado" em segundos, sem recarregar.
+4. **[RESPONSÁVEL]** No SQL Editor, veja os eventos recebidos (o sandbox pode mandar também `PAYMENT_CONFIRMED`; anote a ordem):
+
+   ```sql
+   select provider_event_id, event_type, received_at from payment_events order by received_at desc limit 5;
+   ```
+
+   Mostra os últimos eventos gravados.
+
+5. **[RESPONSÁVEL]** Revisão: resultados que não são o esperado (`PAID`, `ALREADY_PAID`, `NO_ORDER`):
+
+   ```sql
+   select r.processed_at, r.result, r.order_id, e.provider_event_id, e.event_type
+   from payment_event_results r join payment_events e on e.id = r.payment_event_id
+   where r.result not in ('PAID', 'ALREADY_PAID', 'NO_ORDER')
+   order by r.processed_at desc;
+   ```
+
+   Cada linha é um caso para revisão humana (por exemplo `DUPLICATE_PURCHASE` pede devolução do dinheiro no painel do Asaas). O log traz o mesmo aviso em `WARN`: `Payment event needs review`.
+
+6. **[RESPONSÁVEL]** Eventos de pagamento que ainda não têm resultado (a tarefa está repetindo, por exemplo com o Asaas fora do ar):
+
+   ```sql
+   select e.provider_event_id, e.event_type, e.received_at
+   from payment_events e
+   where e.event_type in ('PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED')
+     and not exists (select 1 from payment_event_results r where r.payment_event_id = e.id)
+   order by e.received_at;
+   ```
+
+   Mostra os eventos ainda em processamento; se ficarem aqui por mais de 2 horas, viram `GAVE_UP` (veja "Reprocessar um evento de pagamento").
+
+`payment_event_results` também só aceita inserção (SEC-028): a consulta de proteção da seção 3 vale para ela, trocando `payment_events` por `payment_event_results` e os nomes dos gatilhos por `payment_event_results_guard_row` e `payment_event_results_guard_truncate`.
+
 ## Se der problema
 
 - **O log mostra `Asaas webhook refused: ip=<x> reason=IP_NOT_ALLOWED`**: o sandbox usa um IP fora da lista oficial de produção (a documentação do Asaas avisa). **[AGENTE]** acrescenta no `fly.homolog.toml`, em `[env]`, `APP_ASAAS_WEBHOOK_ALLOWED_IPS = "52.67.12.206,18.230.8.159,54.94.136.112,54.94.183.101,<x>"` (só na homologação, nunca no `prod` de verdade), faz o deploy e, no Asaas, em `Integrações > Webhooks`, reativa a fila se ela pausou. Esse valor é uma lista de IPs, não um segredo.
