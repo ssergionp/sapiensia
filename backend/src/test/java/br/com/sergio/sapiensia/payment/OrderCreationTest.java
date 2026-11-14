@@ -50,8 +50,7 @@ class OrderCreationTest {
 
     @AfterEach
     void cleanUp() {
-        jdbc.update("delete from orders");
-        jdbc.update("delete from payment_customers");
+        OrderTestSupport.deleteOrdersOf(jdbc, customer.id, productId);
     }
 
     private UUID insertProduct(String status, String title) {
@@ -115,9 +114,10 @@ class OrderCreationTest {
 
         assertThat(created.statusCode()).isEqualTo(201);
         assertThat(gateway.lastChargeAmountCents()).isEqualTo(2990);
-        Integer stored = jdbc.queryForObject("select price_cents from orders", Integer.class);
+        Integer stored =
+                jdbc.queryForObject("select price_cents from orders where customer_id = ?", Integer.class, customer.id);
         assertThat(stored).isEqualTo(2990);
-        assertThat(jdbc.queryForObject("select status from orders", String.class))
+        assertThat(jdbc.queryForObject("select status from orders where customer_id = ?", String.class, customer.id))
                 .isEqualTo("PENDING");
     }
 
@@ -165,8 +165,7 @@ class OrderCreationTest {
         HttpResponse<String> without = customer.order(productId);
         assertThat(without.statusCode()).isEqualTo(400);
         assertThat(OrderHttp.json(without, "$.errors.cpf")).isEqualTo("CPF_REQUIRED");
-        assertThat(jdbc.queryForObject("select count(*) from orders", Long.class))
-                .isZero();
+        assertThat(OrderTestSupport.countOrdersOf(jdbc, customer.id)).isZero();
 
         assertThat(customer.order(productId, CPF).statusCode()).isEqualTo(201);
         assertThat(gateway.lastCustomerCpf()).isEqualTo(CPF);
@@ -212,7 +211,8 @@ class OrderCreationTest {
 
         assertThat(answer.statusCode()).isEqualTo(201);
         assertThat(gateway.count("CREATE_CUSTOMER")).isZero();
-        assertThat(jdbc.queryForObject("select count(*) from payment_customers", Long.class))
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from payment_customers where customer_id = ?", Long.class, customer.id))
                 .isEqualTo(1);
     }
 

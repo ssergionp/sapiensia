@@ -49,8 +49,7 @@ class OrderCpfNotStoredTest {
 
     @AfterEach
     void cleanUp() {
-        jdbc.update("delete from orders");
-        jdbc.update("delete from payment_customers");
+        OrderTestSupport.deleteOrdersOf(jdbc, customer.id, productId);
     }
 
     /** Rows, over every table of the public schema, whose text contains one of the needles. */
@@ -83,8 +82,7 @@ class OrderCpfNotStoredTest {
         assertThat(customer.get("/api/orders/" + id).statusCode()).isEqualTo(200);
 
         assertThat(gateway.lastCustomerCpf()).isEqualTo(CPF);
-        assertThat(jdbc.queryForObject("select count(*) from orders", Long.class))
-                .isEqualTo(1);
+        assertThat(OrderTestSupport.countOrdersOf(jdbc, customer.id)).isEqualTo(1);
         assertThat(rowsContaining(CPF, "529.982.247-25")).isZero();
         // positive control: the scan does see what is stored (the order id)
         assertThat(rowsContaining(id)).isPositive();

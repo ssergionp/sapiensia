@@ -16,7 +16,9 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 @Import(TestcontainersConfiguration.class)
-@SpringBootTest
+// Own context (and database): this class leaves Orders, Accesses and insert-only results behind, and the Customer and
+// Product tests of the default context delete whole tables, which those rows would make impossible.
+@SpringBootTest(properties = "test.isolated-context=paid-orders-schema")
 class PaidOrdersSchemaTest {
 
     private static final Instant NOW = Instant.parse("2026-11-14T12:00:00Z");

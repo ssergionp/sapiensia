@@ -57,6 +57,9 @@ class OrderLogTest {
     @Autowired
     OrderExpiration.Expirer expirer;
 
+    private UUID guide;
+    private UUID checklist;
+
     @BeforeEach
     void setUp() {
         gateway.reset();
@@ -65,8 +68,9 @@ class OrderLogTest {
     @AfterEach
     void cleanUp() {
         gateway.reset();
-        jdbc.update("delete from orders");
-        jdbc.update("delete from payment_customers");
+        if (guide != null) {
+            OrderTestSupport.deleteOrdersOfProducts(jdbc, guide, checklist);
+        }
     }
 
     @Test
@@ -74,8 +78,8 @@ class OrderLogTest {
     void shouldNeverLogTheCpfThePixCodeOrTheProviderAnswer(CapturedOutput output) throws Exception {
         OrderHttp.Customer customer = OrderHttp.newCustomer(port, jdbc, encoder);
         OrderHttp.Customer other = OrderHttp.newCustomer(port, jdbc, encoder);
-        UUID guide = OrderTestSupport.insertPublishedProduct(jdbc, "Guia de Contratos", 2990);
-        UUID checklist = OrderTestSupport.insertPublishedProduct(jdbc, "Checklist de Prazos", 1990);
+        guide = OrderTestSupport.insertPublishedProduct(jdbc, "Guia de Contratos", 2990);
+        checklist = OrderTestSupport.insertPublishedProduct(jdbc, "Checklist de Prazos", 1990);
 
         // (a) an Order with the CPF masked, (b) the same request again
         HttpResponse<String> created = customer.order(guide, MASKED_CPF);
@@ -102,7 +106,10 @@ class OrderLogTest {
         assertThat(pixCode).isNotBlank();
 
         // (f) the expiration runs
-        jdbc.update("update orders set expires_at = now() - interval '1 minute'");
+        jdbc.update(
+                "update orders set expires_at = now() - interval '1 minute' where product_id in (?, ?)",
+                guide,
+                checklist);
         assertThat(expirer.run().expired()).isEqualTo(1);
 
         // (g) the CPF as a JSON number: a body that cannot be read, which must not echo the value

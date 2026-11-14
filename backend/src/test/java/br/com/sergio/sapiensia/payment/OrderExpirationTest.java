@@ -113,8 +113,7 @@ class OrderExpirationTest {
 
     @AfterEach
     void cleanUp() {
-        jdbc.update("delete from orders");
-        jdbc.update("delete from payment_customers");
+        OrderTestSupport.deleteOrdersOf(jdbc, customer.id, productId);
     }
 
     private String createOrder() throws Exception {
@@ -128,7 +127,7 @@ class OrderExpirationTest {
     }
 
     private long orderRows() {
-        return jdbc.queryForObject("select count(*) from orders", Long.class);
+        return OrderTestSupport.countOrdersOf(jdbc, customer.id);
     }
 
     @Test

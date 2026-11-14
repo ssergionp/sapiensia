@@ -57,9 +57,7 @@ class PaidOrderReadTest {
 
     @AfterEach
     void cleanUp() {
-        jdbc.update("delete from accesses");
-        jdbc.update("delete from orders");
-        jdbc.update("delete from payment_customers");
+        OrderTestSupport.deleteOrdersOf(jdbc, customer.id, productId);
     }
 
     private UUID newOrder() throws Exception {
@@ -180,7 +178,7 @@ class PaidOrderReadTest {
         }
 
         assertThat(row(id)).isEqualTo(before);
-        assertThat(jdbc.queryForObject("select count(*) from accesses", Long.class))
+        assertThat(jdbc.queryForObject("select count(*) from accesses where customer_id = ?", Long.class, customer.id))
                 .isZero();
     }
 
@@ -198,7 +196,7 @@ class PaidOrderReadTest {
         }
 
         assertThat(row(id)).isEqualTo(before);
-        assertThat(jdbc.queryForObject("select count(*) from accesses", Long.class))
+        assertThat(jdbc.queryForObject("select count(*) from accesses where customer_id = ?", Long.class, customer.id))
                 .isZero();
     }
 
@@ -208,15 +206,14 @@ class PaidOrderReadTest {
         UUID id = newOrder();
         markPaid(id);
         grantAccess(id);
-        long orders = jdbc.queryForObject("select count(*) from orders", Long.class);
+        long orders = OrderTestSupport.countOrdersOf(jdbc, customer.id);
         long charges = gateway.count("CREATE_CHARGE");
 
         HttpResponse<String> answer = customer.order(productId, CPF);
 
         assertThat(answer.statusCode()).isEqualTo(409);
         assertThat(OrderHttp.json(answer, "$.errors.order")).isEqualTo("ALREADY_OWNED");
-        assertThat(jdbc.queryForObject("select count(*) from orders", Long.class))
-                .isEqualTo(orders);
+        assertThat(OrderTestSupport.countOrdersOf(jdbc, customer.id)).isEqualTo(orders);
         assertThat(gateway.count("CREATE_CHARGE")).isEqualTo(charges);
     }
 
