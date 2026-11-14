@@ -131,6 +131,10 @@ demo:
 demo-parar:
     powershell -NoProfile -ExecutionPolicy Bypass -File scripts/demo-parar.ps1
 
+# demonstração local: marca um Pedido como pago, como se o Asaas tivesse confirmado o Pix
+demo-pagar pedido:
+    node scripts/demo-pagar.mjs {{pedido}}
+
 # mostra o código de verificação atual do Administrador da demonstração
 demo-codigo:
     node scripts/demo-codigo.mjs
