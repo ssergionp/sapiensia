@@ -23,7 +23,14 @@ class LibraryDownloadController {
 
     private static final Logger log = LoggerFactory.getLogger(LibraryDownloadController.class);
 
-    record DownloadLink(String url) {}
+    record DownloadLink(String url) {
+
+        // never the signed URL: Spring MVC logs the response body at DEBUG
+        @Override
+        public String toString() {
+            return "DownloadLink[redacted]";
+        }
+    }
 
     private final ProductDownloadService service;
 

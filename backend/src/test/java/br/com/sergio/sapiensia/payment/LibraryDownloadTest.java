@@ -9,6 +9,9 @@ import br.com.sergio.sapiensia.product.SwitchableProductFileStorageConfig;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,6 +19,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.logging.LogLevel;
+import org.springframework.boot.logging.LoggingSystem;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
@@ -61,6 +66,14 @@ class LibraryDownloadTest {
     @Autowired
     SwitchableProductFileStorage storage;
 
+    private static final List<String> LOGGERS = List.of(
+            "org.springframework.web",
+            "org.springframework.security",
+            "org.springframework.web.client",
+            "org.springframework.http");
+
+    private final Map<String, LogLevel> savedLevels = new LinkedHashMap<>();
+    private LoggingSystem loggingSystem;
     private OrderHttp.Customer customer;
     private OrderHttp.Customer other;
     private UUID product;
@@ -68,6 +81,15 @@ class LibraryDownloadTest {
 
     @BeforeEach
     void setUp() throws Exception {
+        // The log assertions must not depend on which test class ran before: force the chatty levels, restore after.
+        loggingSystem = LoggingSystem.get(getClass().getClassLoader());
+        for (String name : LOGGERS) {
+            savedLevels.put(name, loggingSystem.getLoggerConfiguration(name).getConfiguredLevel());
+        }
+        loggingSystem.setLogLevel("org.springframework.web", LogLevel.DEBUG);
+        loggingSystem.setLogLevel("org.springframework.security", LogLevel.TRACE);
+        loggingSystem.setLogLevel("org.springframework.web.client", LogLevel.DEBUG);
+        loggingSystem.setLogLevel("org.springframework.http", LogLevel.DEBUG);
         customer = OrderHttp.newCustomer(port, jdbc, encoder);
         other = OrderHttp.newCustomer(port, jdbc, encoder);
         product = OrderTestSupport.insertPublishedProduct(jdbc, "Guia de Contratos", 2990);
@@ -76,6 +98,8 @@ class LibraryDownloadTest {
 
     @AfterEach
     void resetStorage() {
+        savedLevels.forEach(loggingSystem::setLogLevel); // null restores inheritance
+        savedLevels.clear();
         // Only the failure switch: the Customers, Products and Download records stay (insert-only guard).
         storage.failSigns(false);
     }
@@ -262,10 +286,14 @@ class LibraryDownloadTest {
     void shouldAnswer503WhenTheStorageIsDown(CapturedOutput output) throws Exception {
         grant(customer, product);
         int successStart = output.getAll().length();
-        assertThat(download(customer, product).statusCode()).isEqualTo(200);
+        HttpResponse<String> issued = download(customer, product);
+        assertThat(issued.statusCode()).isEqualTo(200);
+        String issuedUrl = OrderHttp.json(issued, "$.url");
         assertThat(output.getAll().substring(successStart))
+                .doesNotContain(issuedUrl)
                 .doesNotContain("/api/local-downloads/")
-                .doesNotContain("token")
+                .doesNotContain(issuedUrl.substring(issuedUrl.lastIndexOf('/') + 1)) // the link token itself
+                .doesNotContain("token=")
                 .doesNotContain("products/")
                 .doesNotContain(".pdf")
                 .doesNotContain(customer.email);
@@ -281,7 +309,7 @@ class LibraryDownloadTest {
                 .contains("Library download unavailable (product " + product + ", "
                         + "br.com.sergio.sapiensia.product.ProductFileStorageException)")
                 .doesNotContain("/api/local-downloads/")
-                .doesNotContain("token")
+                .doesNotContain("token=")
                 .doesNotContain("products/")
                 .doesNotContain(".pdf")
                 .doesNotContain(customer.email)
