@@ -16,6 +16,7 @@ export const ORDER_TEXTS = {
   inProgress:
     "Já existe um Pix sendo gerado para você. Aguarde alguns segundos e tente novamente.",
   productUnavailable: "Este Produto não está mais disponível.",
+  alreadyOwned: "Você já tem Acesso a este Produto.",
   unexpected: "Não foi possível concluir agora. Tente novamente.",
   // Screen B: Order (used by OrderPage, Task 8)
   documentTitle: "Pagamento por Pix | SapiensIA",
@@ -36,12 +37,17 @@ export const ORDER_TEXTS = {
   warnFiveMinutes: "Faltam 5 minutos para o Pix expirar.",
   warnOneMinute: "Falta 1 minuto para o Pix expirar.",
   afterPaying:
-    "O Acesso ao Produto é liberado depois que o pagamento for confirmado.",
+    "Depois de pagar, aguarde nesta página: ela se atualiza sozinha quando o pagamento for confirmado e o Acesso ao Produto for liberado.",
   expiredDocumentTitle: "Pix expirado | SapiensIA",
   expiredHeading: "Este Pix expirou",
   expiredText:
     "O prazo de 30 minutos para pagar terminou e este código não vale mais. Se ainda quiser o Produto, gere um novo Pix.",
+  expiredAlreadyPaid:
+    "Se você já pagou, aguarde alguns minutos: esta página se atualiza sozinha quando o pagamento for confirmado.",
   backToProduct: "Voltar ao Produto",
+  paidDocumentTitle: "Pagamento confirmado | SapiensIA",
+  paidHeading: "Pagamento confirmado",
+  paidText: "Recebemos o seu Pix. Você já tem Acesso a este Produto.",
   notFoundDocumentTitle: "Pedido não encontrado | SapiensIA",
   notFoundHeading: "Pedido não encontrado",
   notFoundText:

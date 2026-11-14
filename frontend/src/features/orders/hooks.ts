@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { createOrder, fetchOrder } from "./api";
+import { createOrder, fetchOrder, fetchOrderStatus } from "./api";
 
 // The order page fetches the order itself, so creating one does not seed the cache.
 // gcTime 0: the variables (with the CPF) must not stay in the mutation cache.
@@ -14,6 +14,20 @@ export function useOrder(id: string) {
     queryFn: () => fetchOrder(id),
     retry: false,
     refetchOnWindowFocus: false,
+    gcTime: 0,
+  });
+}
+
+// Polls only the light status route; the page refetches the full Order when the status changes.
+export function useOrderStatus(id: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["orders", id, "status"],
+    queryFn: () => fetchOrderStatus(id),
+    enabled,
+    refetchInterval: 5000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    retry: false,
     gcTime: 0,
   });
 }

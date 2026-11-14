@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  AlreadyOwnedError,
   CpfInvalidError,
   CpfRequiredError,
   NotLoggedInError,
@@ -23,6 +24,7 @@ function failureMessage(error: Error): string {
   if (error instanceof PaymentUnavailableError) return T.paymentUnavailable;
   if (error instanceof OrderInProgressError) return T.inProgress;
   if (error instanceof ProductUnavailableError) return T.productUnavailable;
+  if (error instanceof AlreadyOwnedError) return T.alreadyOwned;
   return T.unexpected;
 }
 
