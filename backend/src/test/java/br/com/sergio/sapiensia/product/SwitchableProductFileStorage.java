@@ -22,6 +22,7 @@ public class SwitchableProductFileStorage implements ProductFileStorage {
     private volatile boolean failingPuts;
     private volatile boolean failingDeletes;
     private volatile boolean failingGets;
+    private volatile boolean failingSigns;
     private volatile CyclicBarrier gate;
     private volatile Pause pause;
 
@@ -124,6 +125,18 @@ public class SwitchableProductFileStorage implements ProductFileStorage {
             throw new ProductFileStorageException("storage is down");
         }
         return delegate.get(key);
+    }
+
+    public void failSigns(boolean failing) {
+        this.failingSigns = failing;
+    }
+
+    @Override
+    public Optional<String> signedDownloadUrl(String key, java.time.Duration ttl, String fileName) {
+        if (failingSigns) {
+            throw new ProductFileStorageException("storage is down");
+        }
+        return delegate.signedDownloadUrl(key, ttl, fileName);
     }
 
     @Override

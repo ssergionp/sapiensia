@@ -12,6 +12,9 @@ export const libraryResponseSchema = z.object({
   items: z.array(libraryItemSchema),
 });
 
+// Answer of POST /api/library/{productId}/download: a link valid for 60 seconds, used once and never stored.
+export const downloadLinkSchema = z.object({ url: z.string().min(1) });
+
 export type LibraryItem = z.infer<typeof libraryItemSchema>;
 export type LibraryResponse = z.infer<typeof libraryResponseSchema>;
 

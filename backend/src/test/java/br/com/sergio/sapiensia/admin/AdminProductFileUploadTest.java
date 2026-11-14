@@ -272,7 +272,9 @@ class AdminProductFileUploadTest {
             }
         }
 
-        assertThat(storage.keys()).hasSize(1).allSatisfy(key -> assertThat(key).matches(KEY_PATTERN));
+        assertThat(storage.keys())
+                .hasSize(2)
+                .allSatisfy(key -> assertThat(key).matches(KEY_PATTERN)); // current + replaced
         String everythingStored = jdbc.queryForList("select to_jsonb(f)::text from product_files f")
                         .toString()
                 + jdbc.queryForList("select to_jsonb(a)::text from audit_events a");

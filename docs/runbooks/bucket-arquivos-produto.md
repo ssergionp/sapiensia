@@ -7,7 +7,7 @@ Os PDFs dos Produtos ficam num bucket **privado** do Supabase Storage (ADR-0002,
 No painel do Supabase do ambiente, em **Storage**:
 
 1. Crie um bucket chamado `product-files` (o nome está no `application-prod.yml`).
-2. Deixe-o **privado**: a opção de bucket público fica desligada. Nenhuma URL pública é usada; o download (#33) vai usar URL assinada curta.
+2. Deixe-o **privado**: a opção de bucket público fica desligada. Nenhuma URL pública é usada; o download (#33) usa só a URL assinada de 60 segundos, emitida a cada clique.
 3. Limite de tamanho por arquivo: **50 MB** (o mesmo limite da aplicação, 52.428.800 bytes).
 4. Se o painel oferecer restrição de tipo, permita só `application/pdf` (é o `Content-Type` que a aplicação envia).
 
@@ -37,7 +37,7 @@ O CI não tem Supabase: o adaptador é testado com respostas simuladas. Na homol
 1. Envie o PDF de um Produto em rascunho pelo painel e veja a linha "Arquivo atual".
 2. No painel do Supabase, o objeto aparece em `product-files/products/<id do Produto>/<UUID>.pdf`.
 3. Abrir a URL pública desse objeto **falha** (bucket privado).
-4. Envie outro PDF: o objeto anterior some do bucket.
+4. Envie outro PDF: o objeto anterior some do bucket entre 15 minutos e cerca de 1h15 depois (a fila de remoção só o apaga depois de 15 minutos, e a limpeza roda de hora em hora), para que um link de Download já emitido continue valendo até vencer.
 5. Envie um arquivo de exatamente 50 MB (aceito) e um um pouco maior (recusado), para conferir o limite do Supabase de verdade.
 
 ## 4. Bucket das Capas

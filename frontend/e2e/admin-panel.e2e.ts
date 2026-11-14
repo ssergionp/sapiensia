@@ -1424,3 +1424,186 @@ test("FR-025 FR-029 SEC-011: a Biblioteca mostra o Produto comprado, mesmo despu
     await mobile.close();
   }
 });
+
+test("FR-034 SEC-010 SEC-011: o Cliente baixa o Arquivo do Produto comprado, sempre na versão mais recente", async ({
+  page,
+  browser,
+  baseURL,
+  request,
+}) => {
+  test.setTimeout(300_000);
+  const host = new URL(baseURL ?? "").hostname;
+  if (host !== "localhost" && host !== "127.0.0.1") {
+    throw new Error(
+      "Refusing to run the administrator e2e outside localhost/127.0.0.1",
+    );
+  }
+  const token = process.env.E2E_ASAAS_WEBHOOK_TOKEN ?? LOCAL_WEBHOOK_TOKEN;
+  const stamp = Date.now();
+  const title = `E2E Download ${stamp}`;
+  const expectedName = `e2e-download-${stamp}.pdf`;
+  const started =
+    "Download iniciado. Se não começar, clique em Baixar de novo.";
+
+  // The Administrator publishes a Product with the first version of the file.
+  await loginWithStoredCredentials(page);
+  await page.goto("/painel/produtos");
+  await page.getByRole("link", { name: "Novo Produto" }).click();
+  await page.getByLabel("Título").fill(title);
+  await page.getByLabel("Descrição").fill("Produto de teste do download.");
+  await page.getByLabel("Categoria").selectOption({ label: "Tecnologia" });
+  await page.getByLabel("Valor (R$)").fill("29,90");
+  await page.getByRole("button", { name: "Criar Produto" }).click();
+  await expect(page.getByText("Produto criado.")).toBeVisible();
+  await page.getByRole("link", { name: `Editar ${title}` }).click();
+  await expect(
+    page.getByRole("heading", { name: "Editar Produto", exact: true }),
+  ).toBeVisible();
+  const productId = PRODUCT_EDIT_PATH.exec(page.url())?.[1];
+  if (productId === undefined) {
+    throw new Error("Could not read the Product id from the edit page URL.");
+  }
+  await page.getByLabel("Arquivo PDF").setInputFiles({
+    name: "produto.pdf",
+    mimeType: "application/pdf",
+    buffer: buildPdf("download-v1"),
+  });
+  await page.getByRole("button", { name: "Enviar arquivo" }).click();
+  await expect(page.getByText("Arquivo enviado.")).toBeVisible();
+  await page.getByRole("button", { name: "Publicar", exact: true }).click();
+  await page.getByRole("button", { name: "Confirmar publicação" }).click();
+  await expect(page.getByText("Produto publicado.")).toBeVisible();
+
+  const first = await browser.newContext({ baseURL: baseURL ?? undefined });
+  const second = await browser.newContext({ baseURL: baseURL ?? undefined });
+  const anonymous = await browser.newContext({
+    baseURL: baseURL ?? undefined,
+  });
+  const mobile = await browser.newContext({
+    ...devices["Pixel 7"],
+    baseURL: baseURL ?? undefined,
+  });
+  const downloadFrom = async (customerPage: Page) => {
+    const downloadStarted = customerPage
+      .waitForEvent("download", { timeout: 30_000 })
+      .catch((cause: unknown) => {
+        throw new Error(
+          "No download started within 30 s after clicking Baixar",
+          { cause },
+        );
+      });
+    const [download] = await Promise.all([
+      downloadStarted,
+      customerPage.getByRole("button", { name: `Baixar ${title}` }).click(),
+    ]);
+    expect(download.suggestedFilename()).toBe(expectedName);
+    return readFile(await download.path());
+  };
+  try {
+    // A new Customer buys with Pix and the payment is confirmed.
+    const buyer = await first.newPage();
+    const { chargeId } = await buyProductWithPix(buyer, productId);
+    await postPaymentReceived(
+      request,
+      token,
+      chargeId,
+      `evt_e2e_${randomBytes(8).toString("hex")}`,
+    );
+    await expect(
+      buyer.getByRole("heading", { name: PAID_HEADING }),
+    ).toBeVisible({ timeout: 30_000 });
+
+    // The Library download delivers the first version.
+    await buyer.goto("/biblioteca");
+    await expect(buyer.getByText(title)).toBeVisible();
+    const v1 = await downloadFrom(buyer);
+    expect(v1.equals(buildPdf("download-v1"))).toBe(true);
+    await expect(buyer).toHaveURL(/\/biblioteca$/);
+    await expect(buyer.getByText(started)).toBeVisible();
+
+    // The Administrator replaces the file (with reauthentication).
+    await page.reload();
+    await page.getByLabel("Arquivo PDF").setInputFiles({
+      name: "produto-v2.pdf",
+      mimeType: "application/pdf",
+      buffer: buildPdf("download-v2"),
+    });
+    await page.getByRole("button", { name: "Enviar arquivo" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Confirme sua identidade" }),
+    ).toBeVisible();
+    const password = await readStoredPassword();
+    const totp = await readStoredTotp();
+    if (password === null || totp === null) {
+      throw new Error(
+        "The stored Administrator password or two-step secret is missing.",
+      );
+    }
+    await waitForStepAfter(totp.lastStep);
+    const step = currentStep();
+    await writeStoredTotp({ secret: totp.secret, lastStep: step });
+    await fillSecret(page.getByLabel("Senha", { exact: true }), password);
+    await fillSecret(
+      page.getByLabel("Código do aplicativo autenticador"),
+      totpCode(totp.secret, step),
+    );
+    await page.getByRole("button", { name: "Confirmar e enviar" }).click();
+    await expect(page.getByText("Arquivo enviado.")).toBeVisible();
+
+    // The Customer downloads again and gets the latest version.
+    const v2 = await downloadFrom(buyer);
+    expect(v2.equals(buildPdf("download-v2"))).toBe(true);
+
+    // SEC-011: a second Customer does not see the item and gets 404.
+    const other = await second.newPage();
+    await logInNewCustomerPage(other, "downloadoutro");
+    await other.goto("/biblioteca");
+    await expect(
+      other.getByText("Você ainda não tem Produtos na Biblioteca."),
+    ).toBeVisible();
+    await expect(other.getByText(title)).toHaveCount(0);
+    const xsrf = (await second.cookies()).find((c) => c.name === "XSRF-TOKEN");
+    if (xsrf === undefined) {
+      throw new Error("The XSRF-TOKEN cookie is missing.");
+    }
+    const denied = await other.request.post(
+      `/api/library/${productId}/download`,
+      { headers: { "X-XSRF-TOKEN": decodeURIComponent(xsrf.value) } },
+    );
+    expect(denied.status()).toBe(404);
+
+    // Without login the same request is refused.
+    // (a valid CSRF token is sent so that the answer comes from authentication, not from the CSRF check)
+    const visitor = await anonymous.newPage();
+    await visitor.request.get("/api/system/health");
+    const visitorXsrf = (await anonymous.cookies()).find(
+      (c) => c.name === "XSRF-TOKEN",
+    );
+    if (visitorXsrf === undefined) {
+      throw new Error("The anonymous XSRF-TOKEN cookie is missing.");
+    }
+    const unauthenticated = await visitor.request.post(
+      `/api/library/${productId}/download`,
+      { headers: { "X-XSRF-TOKEN": decodeURIComponent(visitorXsrf.value) } },
+    );
+    expect(unauthenticated.status()).toBe(401);
+
+    // The Library on a phone screen: the button shows and there is no horizontal scroll.
+    await mobile.addCookies((await first.storageState()).cookies);
+    const phone = await mobile.newPage();
+    await phone.goto("/biblioteca");
+    await expect(
+      phone.getByRole("button", { name: `Baixar ${title}` }),
+    ).toBeVisible();
+    const widths = await phone.evaluate(() => ({
+      scroll: document.documentElement.scrollWidth,
+      inner: window.innerWidth,
+    }));
+    expect(widths.scroll).toBeLessThanOrEqual(widths.inner);
+  } finally {
+    await first.close();
+    await second.close();
+    await anonymous.close();
+    await mobile.close();
+  }
+});

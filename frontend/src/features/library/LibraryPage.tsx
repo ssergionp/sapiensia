@@ -5,6 +5,7 @@ import CoverImage from "@/features/catalog/CoverImage";
 import { rememberReturnTo } from "@/features/orders/returnTo";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { NotLoggedInError } from "./api";
+import DownloadButton from "./DownloadButton";
 import { useLibrary } from "./hooks";
 import { LIBRARY_TEXTS as T } from "./messages";
 import { libraryCoverUrl } from "./schemas";
@@ -75,7 +76,7 @@ export default function LibraryPage() {
         {library.data.items.map((item) => (
           <li
             key={item.productId}
-            className="flex items-start gap-4 rounded-lg border p-4"
+            className="flex flex-wrap items-start gap-4 rounded-lg border p-4"
           >
             <CoverImage
               src={libraryCoverUrl(item.productId, item.coverVersion)}
@@ -92,8 +93,9 @@ export default function LibraryPage() {
                 </time>
               </p>
             </div>
-            {/* Empty on purpose: the Download button (ticket #33) goes here. */}
-            <div data-slot="actions" />
+            <div data-slot="actions" className="w-full sm:w-auto">
+              <DownloadButton productId={item.productId} title={item.title} />
+            </div>
           </li>
         ))}
       </ul>

@@ -47,6 +47,7 @@ Glossário e convenções das skills: veja docs/agents/ (o domain.md diz onde fi
 - backend/.../payment/PixGateway.java: a única porta para o Asaas (cliente, cobrança, código copia e cola, cancelamento); adaptador `AsaasPixGateway` em prod e `FakePixGateway` no local e nos testes, escolhidos por `app.pix.provider`.
 - backend/.../customer/CurrentCustomer.java: o jeito de obter o Cliente da sessão num controller.
 - backend/.../payment/PaymentConfirmation.java: o único lugar que marca um Pedido como pago e concede o Acesso.
+- backend/.../product/ProductDownloadService.java: o único lugar que emite o link de Download (URL assinada de 60 s no Supabase, `/api/local-downloads/<token>` no local) e grava o Registro de download; nunca devolve nem guarda o endereço do objeto.
 - (liste aqui outros helpers e componentes que o Claude deve usar em vez de criar novos)
 
 ## Segurança e produção
