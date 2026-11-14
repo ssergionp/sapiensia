@@ -1,6 +1,6 @@
 // Minimal Asaas stand-in for the CI end-to-end job (no npm packages).
 // Supports only what AsaasPixGateway uses: GET and POST /v3/customers, POST /v3/payments,
-// GET /v3/payments/<id>/pixQrCode and DELETE /v3/payments/<id>. Objects live in memory.
+// GET /v3/payments/<id>, GET /v3/payments/<id>/pixQrCode and DELETE /v3/payments/<id>. Objects live in memory.
 // The access_token header is checked against the fake CI key. Headers and bodies are never logged.
 import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
@@ -8,7 +8,8 @@ import { createServer } from 'node:http';
 const port = Number(process.argv[2] ?? process.env.PORT ?? 54322);
 const apiKey = 'ci-fake-asaas-key-not-real';
 const customers = [];
-const payments = new Set();
+// payment id -> { value, externalReference }; only these two fields are kept from the request body
+const payments = new Map();
 
 function reply(res, status, body) {
   const json = JSON.stringify(body);
@@ -51,6 +52,23 @@ const server = createServer((req, res) => {
   }
 
   const paymentMatch = /^\/v3\/payments\/([A-Za-z0-9_]+)$/.exec(path);
+  if (method === 'GET' && paymentMatch) {
+    req.resume();
+    const id = paymentMatch[1];
+    const payment = payments.get(id);
+    if (!payment) {
+      return reply(res, 404, { errors: [{ code: 'invalid_object' }] });
+    }
+    return reply(res, 200, {
+      object: 'payment',
+      id,
+      status: 'RECEIVED',
+      value: payment.value,
+      billingType: 'PIX',
+      externalReference: payment.externalReference,
+      deleted: false,
+    });
+  }
   if (method === 'DELETE' && paymentMatch) {
     req.resume();
     if (!payments.delete(paymentMatch[1])) {
@@ -75,7 +93,7 @@ const server = createServer((req, res) => {
         return reply(res, 200, { object: 'customer', id });
       }
       const id = newId('pay');
-      payments.add(id);
+      payments.set(id, { value: body.value ?? null, externalReference: body.externalReference ?? null });
       return reply(res, 200, { object: 'payment', id, status: 'PENDING', billingType: 'PIX' });
     });
     req.on('error', () => reply(res, 400, { errors: [{ code: 'invalid_object' }] }));

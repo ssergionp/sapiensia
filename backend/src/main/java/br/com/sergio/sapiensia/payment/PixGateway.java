@@ -18,6 +18,9 @@ public interface PixGateway {
     /** Returns the Pix copy-and-paste code of the charge. */
     String readCopyPaste(String chargeId);
 
+    /** Reads the charge as the provider has it now. */
+    PixCharge readCharge(String chargeId);
+
     /** Cancels the charge; a charge that no longer exists counts as cancelled. */
     void cancelCharge(String chargeId);
 }

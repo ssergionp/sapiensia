@@ -49,6 +49,7 @@ class AsaasPixGateway implements PixGateway {
     private static final String CREATE_CHARGE = "CREATE_CHARGE";
     private static final String READ_QR_CODE = "READ_QR_CODE";
     private static final String CANCEL_CHARGE = "CANCEL_CHARGE";
+    private static final String READ_CHARGE = "READ_CHARGE";
 
     private final RestClient restClient;
 
@@ -171,6 +172,28 @@ class AsaasPixGateway implements PixGateway {
                 call(READ_QR_CODE, chargeId, restClient.get().uri("/v3/payments/{id}/pixQrCode", chargeId), false);
         // only the payload: the image is ignored
         return requiredText(READ_QR_CODE, root, "payload", chargeId);
+    }
+
+    @Override
+    public PixCharge readCharge(String chargeId) {
+        JsonNode root = call(READ_CHARGE, chargeId, restClient.get().uri("/v3/payments/{id}", chargeId), false);
+        JsonNode value = root.get("value");
+        if (value == null || !value.isNumber()) {
+            throw unavailable(READ_CHARGE, "unexpected answer", chargeId);
+        }
+        JsonNode reference = root.get("externalReference");
+        JsonNode deleted = root.get("deleted");
+        if (deleted != null && !deleted.isNull() && !deleted.isBoolean()) {
+            throw unavailable(READ_CHARGE, "unexpected answer", chargeId);
+        }
+        // only the fields the application needs are copied; the rest of the answer is dropped
+        return new PixCharge(
+                requiredText(READ_CHARGE, root, "id", chargeId),
+                requiredText(READ_CHARGE, root, "status", chargeId),
+                value.decimalValue(),
+                requiredText(READ_CHARGE, root, "billingType", chargeId),
+                reference != null && reference.isString() ? reference.asString() : null,
+                deleted != null && deleted.asBoolean());
     }
 
     @Override
