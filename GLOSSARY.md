@@ -57,7 +57,7 @@ O ato de um Cliente com Acesso baixar o Arquivo do produto, por um link temporá
 _Avoid_: Baixa, entrega (a entrega é a concessão do Acesso)
 
 **Registro de download**:
-A anotação mínima de cada Download: qual Cliente, qual Produto e quando. Não guarda o IP completo.
+A anotação mínima de cada Download: qual Cliente, qual Produto, qual versão do Arquivo e quando. Gravada quando o link é emitido, só admite inserção e não guarda IP nem origem.
 _Avoid_: Log de download, histórico
 
 **Biblioteca**:

@@ -325,6 +325,14 @@ Faça antes o "Passo zero". O padrão para cada segredo: copie o valor do Bitwar
 
     Mostra os cabeçalhos de uma requisição GET (o `-I` faz HEAD, e o `Referrer-Policy` só vem no GET). Espera a linha `Referrer-Policy: no-referrer`. Repita em `/painel/definir-senha`; em `/entrar` o cabeçalho não deve aparecer.
 
+23. **[RESPONSÁVEL]** Confira um Download real (#33). O CI não tem Supabase, então a URL assinada só é provada aqui.
+
+    1. Compre um Produto de teste (com Arquivo enviado) e abra a Biblioteca.
+    2. Clique em **Baixar** no computador e, depois, num celular (iOS e Android, se possível). O PDF deve baixar e abrir, com o nome `<título em minúsculas, sem acentos, com hífens>.pdf`.
+    3. A página da Biblioteca continua na tela e a URL do navegador não muda.
+    4. Copie o endereço do link de download (do histórico de downloads do navegador) e abra-o de novo depois de mais de 60 segundos: deve ser recusado. Não cole esse endereço em ticket, conversa nem arquivo.
+    5. Troque o Arquivo do Produto pelo painel e clique em **Baixar** de novo: o PDF baixado é o novo.
+
 ## Fly-Client-IP ausente
 
 O limite de tentativas de login por IP lê o IP do cliente do cabeçalho `Fly-Client-IP` (`app.login-limit.client-ip-header` no perfil `prod`), que o proxy do Fly.io define.
