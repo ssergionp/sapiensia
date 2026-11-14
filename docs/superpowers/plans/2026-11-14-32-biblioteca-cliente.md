@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Implementation subagents run on Sonnet.
 
-**Status:** AGUARDANDO APROVAÇÃO do Sérgio (decisões na seção 7, textos na seção 4).
+**Status:** APROVADO pelo Sérgio em 14/11/2026, com D1 a D7 como recomendado e sem ajustes (D5 vira issue `needs-triage`). O risco R1 já está registrado no #36; a nota fica também no comentário da V21.
 
 **Goal:** O Cliente logado abre a Biblioteca e vê os Produtos que comprou (título, capa, data do Acesso). Produto despublicado continua lá; Acesso cancelado some. Nunca aparece dado de outro Cliente.
 
