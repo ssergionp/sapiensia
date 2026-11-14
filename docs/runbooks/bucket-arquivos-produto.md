@@ -37,7 +37,7 @@ O CI não tem Supabase: o adaptador é testado com respostas simuladas. Na homol
 1. Envie o PDF de um Produto em rascunho pelo painel e veja a linha "Arquivo atual".
 2. No painel do Supabase, o objeto aparece em `product-files/products/<id do Produto>/<UUID>.pdf`.
 3. Abrir a URL pública desse objeto **falha** (bucket privado).
-4. Envie outro PDF: o objeto anterior some do bucket em até cerca de 1 hora (a fila de remoção o apaga depois de 15 minutos, na limpeza horária), para que um link de Download já emitido continue valendo até vencer.
+4. Envie outro PDF: o objeto anterior some do bucket entre 15 minutos e cerca de 1h15 depois (a fila de remoção só o apaga depois de 15 minutos, e a limpeza roda de hora em hora), para que um link de Download já emitido continue valendo até vencer.
 5. Envie um arquivo de exatamente 50 MB (aceito) e um um pouco maior (recusado), para conferir o limite do Supabase de verdade.
 
 ## 4. Bucket das Capas
