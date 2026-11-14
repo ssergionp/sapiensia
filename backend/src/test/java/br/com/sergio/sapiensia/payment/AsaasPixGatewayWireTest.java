@@ -485,6 +485,10 @@ class AsaasPixGatewayWireTest {
                 Arguments.of(500, "{\"errors\":[]}", READ),
                 Arguments.of(429, "{\"errors\":[]}", READ),
                 Arguments.of(401, "{\"errors\":[]}", READ),
+                // a 4xx other than 404 may be transient: retried, never a final "charge not found"
+                Arguments.of(400, "{\"errors\":[]}", READ),
+                Arguments.of(408, "{\"errors\":[]}", READ),
+                Arguments.of(409, "{\"errors\":[]}", READ),
                 Arguments.of(200, "{not json", READ),
                 Arguments.of(200, "{\"id\":\"pay_1\",\"value\":10,\"billingType\":\"PIX\"}", READ),
                 Arguments.of(

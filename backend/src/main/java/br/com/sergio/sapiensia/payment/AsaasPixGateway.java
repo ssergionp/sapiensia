@@ -265,6 +265,9 @@ class AsaasPixGateway implements PixGateway {
                 && CREATE_CUSTOMER.equals(step)
                 && codes.stream().anyMatch(code -> code.toLowerCase(Locale.ROOT).contains("cpfcnpj"))) {
             kind = PixGatewayException.Kind.DOCUMENT_REJECTED;
+        } else if (READ_CHARGE.equals(step) && status != 404 && status >= 400 && status < 500) {
+            // only a 404 is a final "charge not found"; any other 4xx may be transient and must be retried
+            kind = PixGatewayException.Kind.UNAVAILABLE;
         } else if (status >= 400 && status < 500) {
             kind = PixGatewayException.Kind.REFUSED;
         } else {

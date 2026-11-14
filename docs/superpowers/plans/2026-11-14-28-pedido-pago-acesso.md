@@ -107,7 +107,7 @@ Por quê:
 | `DUPLICATE_PURCHASE` | Tudo conferido e o Pedido virou pago, mas o Cliente já tinha o Acesso por outro Pedido | Já existia | **Sim** (devolver o dinheiro) |
 | `NO_ORDER` | Nenhum Pedido com essa cobrança (cobrança órfã ou de outra origem) | Não | Não |
 | `INVALID_PAYLOAD` | Evento sem `payment.id` ou com id fora de `[A-Za-z0-9_]{1,64}` | Não | Sim |
-| `CHARGE_NOT_FOUND` | O Asaas respondeu que a cobrança não existe ou recusou a consulta (4xx) | Não | Sim |
+| `CHARGE_NOT_FOUND` | O Asaas respondeu 404: a cobrança não existe (outros 4xx na consulta viram indisponibilidade e são repetidos) | Não | Sim |
 | `CHARGE_ID_MISMATCH` | O `id` da cobrança devolvida pelo Asaas não é o `provider_payment_id` do Pedido | Não | Sim |
 | `REFERENCE_MISMATCH` | O `externalReference` da cobrança não é o id do Pedido (diferente ou ausente) | Não | Sim |
 | `AMOUNT_MISMATCH` | `value` diferente de `price_cents` | Não | Sim |
@@ -150,7 +150,7 @@ Ordem em `PaymentConfirmation.process(eventId)`, fora de transação até o pass
 4. Pedido já `PAID`: `ALREADY_PAID`.
 5. `gateway.readCharge(chargeId)` e as cinco exigências (A1), nesta ordem; a primeira que falhar decide:
    - `UNAVAILABLE` (timeout, 5xx, 429, 401): lança; a tarefa repete. **Nenhum Acesso sem consulta.**
-   - `REFUSED` (404 e outros 4xx): `CHARGE_NOT_FOUND`.
+   - `REFUSED` (só 404): `CHARGE_NOT_FOUND`; os outros 4xx (exceto 401/403, já tratados) viram `UNAVAILABLE`, são repetidos e terminam em `GAVE_UP`, reprocessável pelo runbook.
    - `charge.id` diferente de `orders.provider_payment_id`: `CHARGE_ID_MISMATCH`.
    - `charge.externalReference` diferente de `orders.id` (ou ausente): `REFERENCE_MISMATCH`.
    - `billingType` diferente de `PIX`: `NOT_PIX`.
@@ -410,7 +410,7 @@ A vista de pago **não** fala de download nem de Biblioteca: essas telas são do
 
 **Interfaces:**
 - Produces: `public record PixCharge(String id, String status, BigDecimal value, String billingType, String externalReference, boolean deleted)` com `toString()` igual a `"PixCharge[id=<id>, status=<status>]"`; `boolean isPaid()` (status `RECEIVED` ou `CONFIRMED`); `boolean isAwaitingPayment()` (status `PENDING` ou `OVERDUE`).
-- Produces em `PixGateway`: `PixCharge readCharge(String chargeId)` ("Reads the charge as the provider has it now"). Falha: `PixGatewayException` com `Kind.REFUSED` (404 e outros 4xx) ou `Kind.UNAVAILABLE`; etapa `READ_CHARGE`.
+- Produces em `PixGateway`: `PixCharge readCharge(String chargeId)` ("Reads the charge as the provider has it now"). Falha: `PixGatewayException` com `Kind.REFUSED` (só 404; outros 4xx viram `UNAVAILABLE`) ou `Kind.UNAVAILABLE`; etapa `READ_CHARGE`.
 - `AsaasPixGateway.readCharge`: `GET /v3/payments/{id}`, não leniente; `id`, `status` e `billingType` obrigatórios como texto; `value` obrigatório como número (`decimalValue()`); `externalReference` pode faltar (nulo); `deleted` ausente conta como `false`. Campo obrigatório faltando ou de tipo errado: `UNAVAILABLE` ("unexpected answer").
 - `FakePixGateway`: guarda as cobranças que criou (`Map<String, PixCharge>`, com o valor e o id do Pedido); `readCharge` devolve a cobrança com `status = "RECEIVED"`, `billingType = "PIX"` (decisão D11); id desconhecido lança `REFUSED`; `cancelCharge` marca `deleted`. O id passa a ser `"pay_fake_" + UUID sem hifens` (cabe em `[A-Za-z0-9_]{1,64}`).
 - `SwitchablePixGateway` (testes): conta `READ_CHARGE` em `calls()`; `failAt("READ_CHARGE", kind)` já funciona pelo `enter`; novo `void answerCharge(String chargeId, PixCharge charge)` (resposta fixa para aquela cobrança; `reset()` limpa); novo `void holdNextRead(CountDownLatch latch)` (como `holdNextCharge`).

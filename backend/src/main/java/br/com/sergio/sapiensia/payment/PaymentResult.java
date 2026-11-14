@@ -7,6 +7,7 @@ enum PaymentResult {
     DUPLICATE_PURCHASE,
     NO_ORDER,
     INVALID_PAYLOAD,
+    /** The provider answered 404 for the charge; other 4xx answers are retried as UNAVAILABLE. */
     CHARGE_NOT_FOUND,
     CHARGE_ID_MISMATCH,
     REFERENCE_MISMATCH,
