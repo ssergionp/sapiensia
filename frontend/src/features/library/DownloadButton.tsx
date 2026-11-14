@@ -6,12 +6,11 @@ import { rememberReturnTo } from "@/features/orders/returnTo";
 import { DownloadUnavailableError, NotLoggedInError } from "./api";
 import { useDownloadLink } from "./hooks";
 import { LIBRARY_TEXTS as T } from "./messages";
-import { startDownload } from "./startDownload";
 
 type Outcome = "none" | "started" | "failed" | "unavailable";
 
 // One per Library item, with its own mutation, so the state of one item never shows in another.
-// The link is used once inside onSuccess and discarded: it is not kept in state, cache or the DOM.
+// The link is used once inside the mutation function (see useDownloadLink) and discarded: it is not kept in state, cache or the DOM.
 export default function DownloadButton({
   productId,
   title,
@@ -25,12 +24,10 @@ export default function DownloadButton({
   const [outcome, setOutcome] = useState<Outcome>("none");
 
   function onClick() {
+    if (download.isPending) return;
     setOutcome("none");
     download.mutate(productId, {
-      onSuccess: (url) => {
-        startDownload(url);
-        setOutcome("started");
-      },
+      onSuccess: () => setOutcome("started"),
       onError: (error) => {
         if (error instanceof NotLoggedInError) {
           rememberReturnTo("/biblioteca");

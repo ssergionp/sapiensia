@@ -25,17 +25,20 @@ function renderLibrary() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(
-    <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={["/biblioteca"]}>
-        <Routes>
-          <Route path="/biblioteca" element={<LibraryPage />} />
-          <Route path="/entrar" element={<p>tela de entrada</p>} />
-          <Route path="/catalogo" element={<p>tela do catálogo</p>} />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
-  );
+  return {
+    client,
+    ...render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/biblioteca"]}>
+          <Routes>
+            <Route path="/biblioteca" element={<LibraryPage />} />
+            <Route path="/entrar" element={<p>tela de entrada</p>} />
+            <Route path="/catalogo" element={<p>tela do catálogo</p>} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    ),
+  };
 }
 
 const DOWNLOAD_PATH = `/api/library/${ID}/download`;
@@ -223,6 +226,25 @@ describe("LibraryPage", () => {
       expect(button).toBeEnabled();
       expect(button).toHaveTextContent("Baixar");
       expect(document.body.innerHTML).not.toContain("local-downloads/abc");
+    });
+
+    test("a URL do link não fica no cache de mutações depois do clique", async () => {
+      mockApi([jsonResponse(200, { url: "/api/local-downloads/segredo" })]);
+      const { client } = renderLibrary();
+
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Baixar Guia de saúde" }),
+      );
+      await vi.waitFor(() => expect(startDownload).toHaveBeenCalledTimes(1));
+      await screen.findByText(/Download iniciado/);
+
+      // The mounted button may still hold its finished mutation, but never with the link in it.
+      const states = client
+        .getMutationCache()
+        .getAll()
+        .map((mutation) => mutation.state);
+      expect(states.every((state) => state.data === undefined)).toBe(true);
+      expect(JSON.stringify(states)).not.toContain("segredo");
     });
 
     test("segundo clique depois de terminar faz outro POST com a URL nova", async () => {
