@@ -55,13 +55,15 @@ class OrderServiceStoreFailureTest {
         when(paymentCustomers.find(customerId)).thenReturn(Optional.of("cus_1"));
         when(gateway.createCharge(eq("cus_1"), any(), anyInt(), any(), any())).thenReturn("pay_created");
 
+        Clock clock = Clock.fixed(Instant.parse("2026-11-13T12:00:00Z"), ZoneOffset.UTC);
         service = new OrderService(
                 orders,
                 paymentCustomers,
                 gateway,
                 catalog,
                 new TransactionTemplate(manager),
-                Clock.fixed(Instant.parse("2026-11-13T12:00:00Z"), ZoneOffset.UTC),
+                clock,
+                new OrderExpiration.Expirer(orders, gateway, clock),
                 Duration.ofMinutes(30));
     }
 

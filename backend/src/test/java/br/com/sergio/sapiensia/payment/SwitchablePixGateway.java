@@ -24,7 +24,7 @@ public class SwitchablePixGateway implements PixGateway {
     private final Map<String, PixGatewayException.Kind> failures = new ConcurrentHashMap<>();
     private final AtomicReference<CountDownLatch> held = new AtomicReference<>();
     private final AtomicReference<Runnable> afterCharge = new AtomicReference<>();
-    private volatile boolean failingCancel;
+    private volatile PixGatewayException.Kind failingCancel;
     private volatile String lastCustomerCpf;
     private volatile String lastCustomerName;
     private volatile Integer lastChargeAmountCents;
@@ -87,7 +87,12 @@ public class SwitchablePixGateway implements PixGateway {
     }
 
     public void failCancel(boolean failing) {
-        this.failingCancel = failing;
+        this.failingCancel = failing ? PixGatewayException.Kind.UNAVAILABLE : null;
+    }
+
+    /** Makes {@code cancelCharge} fail with the kind; a null kind makes it work again. */
+    public void failCancel(PixGatewayException.Kind kind) {
+        this.failingCancel = kind;
     }
 
     /** The next {@code createCharge} records itself and then waits for the latch before it creates the charge. */
@@ -107,7 +112,7 @@ public class SwitchablePixGateway implements PixGateway {
         failures.clear();
         held.set(null);
         afterCharge.set(null);
-        failingCancel = false;
+        failingCancel = null;
         lastCustomerCpf = null;
         lastCustomerName = null;
         lastChargeAmountCents = null;
@@ -174,8 +179,9 @@ public class SwitchablePixGateway implements PixGateway {
     public void cancelCharge(String chargeId) {
         calls.add("CANCEL_CHARGE");
         cancelled.add(chargeId);
-        if (failingCancel) {
-            throw new PixGatewayException(PixGatewayException.Kind.UNAVAILABLE, "CANCEL_CHARGE", "HTTP 503");
+        PixGatewayException.Kind failure = failingCancel;
+        if (failure != null) {
+            throw new PixGatewayException(failure, "CANCEL_CHARGE", "HTTP 503");
         }
         delegate.cancelCharge(chargeId);
     }

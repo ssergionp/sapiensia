@@ -37,6 +37,7 @@ class OrderService {
     private final CatalogService catalog;
     private final TransactionTemplate transaction;
     private final Clock clock;
+    private final OrderExpiration.Expirer expirer;
     private final Duration pixTtl;
 
     OrderService(
@@ -46,6 +47,7 @@ class OrderService {
             CatalogService catalog,
             TransactionTemplate transaction,
             Clock clock,
+            OrderExpiration.Expirer expirer,
             @Value("${app.orders.pix-ttl}") Duration pixTtl) {
         this.orders = orders;
         this.paymentCustomers = paymentCustomers;
@@ -53,6 +55,7 @@ class OrderService {
         this.catalog = catalog;
         this.transaction = transaction;
         this.clock = clock;
+        this.expirer = expirer;
         this.pixTtl = pixTtl;
     }
 
@@ -65,8 +68,17 @@ class OrderService {
             CatalogService catalog,
             PlatformTransactionManager transactionManager,
             Clock clock,
+            OrderExpiration.Expirer expirer,
             @Value("${app.orders.pix-ttl}") Duration pixTtl) {
-        this(orders, paymentCustomers, gateway, catalog, new TransactionTemplate(transactionManager), clock, pixTtl);
+        this(
+                orders,
+                paymentCustomers,
+                gateway,
+                catalog,
+                new TransactionTemplate(transactionManager),
+                clock,
+                expirer,
+                pixTtl);
     }
 
     Created create(UUID customerId, String customerEmail, CreateOrderRequest request) {
@@ -96,7 +108,10 @@ class OrderService {
             if (row.expiresAt().isAfter(clock.instant())) {
                 return new Created(row.id(), false);
             }
-            handleExpiredPending(row);
+            // Same transaction and connection as the insert below, so the unique index sees the Order as expired.
+            if (!expirer.expire(row)) {
+                throw new PaymentProviderUnavailableException();
+            }
         }
         String customerCode = customerCode(customerId, customerEmail, request.cpf());
         UUID orderId = UUID.randomUUID();
@@ -116,11 +131,6 @@ class OrderService {
             throw new OrderInProgressException();
         }
         return new Created(orderId, true);
-    }
-
-    /** A pending Order of the same Product that is past its time. Provisional: the expiry flow replaces it (#24). */
-    private void handleExpiredPending(Orders.Row row) {
-        throw new PaymentProviderUnavailableException();
     }
 
     private String customerCode(UUID customerId, String customerEmail, String rawCpf) {
