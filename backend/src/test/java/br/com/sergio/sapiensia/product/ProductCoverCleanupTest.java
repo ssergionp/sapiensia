@@ -54,6 +54,7 @@ class ProductCoverCleanupTest {
         }
         jdbc.update("delete from pending_object_deletions");
         jdbc.update("delete from product_covers");
+        jdbc.update("delete from product_files");
         jdbc.update("delete from products");
     }
 
@@ -122,6 +123,28 @@ class ProductCoverCleanupTest {
         assertThat(storage.keys()).contains(key);
         assertThat(jdbc.queryForObject("select count(*) from product_covers", Long.class))
                 .isEqualTo(1);
+        assertThat(pendingCount()).as("the stale pending row is dropped").isZero();
+    }
+
+    @Test
+    @DisplayName("SEC-050: a limpeza nunca apaga o Arquivo atual, mesmo se a chave estiver na lista")
+    void shouldNeverDeleteCurrentProductFile() throws Exception {
+        UUID productId = jdbc.queryForObject(
+                "insert into products (title, description, category, price_cents)"
+                        + " values ('t', 'd', 'OTHER', 1000) returning id",
+                UUID.class);
+        String key = ProductFileKeys.newKey(productId);
+        Path file = Files.write(Files.createTempFile(tmp, "o", ".bin"), new byte[] {1, 2, 3});
+        storage.put(key, file, 3, MediaType.APPLICATION_PDF);
+        jdbc.update(
+                "insert into product_files (product_id, object_key, size_bytes, page_count) values (?, ?, 3, 1)",
+                productId,
+                key);
+        pend(key, 60);
+
+        assertThat(cleaner.deleteOrphans()).isZero();
+
+        assertThat(storage.keys()).contains(key);
         assertThat(pendingCount()).as("the stale pending row is dropped").isZero();
     }
 

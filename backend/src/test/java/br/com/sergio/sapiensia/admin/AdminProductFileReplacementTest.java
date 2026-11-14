@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
 import br.com.sergio.sapiensia.audit.SwitchableAuditLog;
 import br.com.sergio.sapiensia.audit.SwitchableAuditLogConfig;
+import br.com.sergio.sapiensia.product.LocalDownloadFixtures;
 import br.com.sergio.sapiensia.product.SwitchableProductFileStorage;
 import br.com.sergio.sapiensia.product.SwitchableProductFileStorageConfig;
 import br.com.sergio.sapiensia.product.TestPdfs;
@@ -81,6 +82,9 @@ class AdminProductFileReplacementTest {
     SwitchableProductFileStorage storage;
 
     @Autowired
+    org.springframework.context.ApplicationContext context;
+
+    @Autowired
     SwitchableAuditLog auditLog;
 
     private AdminProductFixtures.Admin account;
@@ -114,6 +118,7 @@ class AdminProductFileReplacementTest {
         for (String key : storage.keys()) {
             storage.delete(key);
         }
+        jdbc.update("delete from pending_object_deletions");
         jdbc.update("delete from product_files");
         jdbc.update("delete from products");
         if (customerEmail != null) {
@@ -224,7 +229,7 @@ class AdminProductFileReplacementTest {
 
         assertThat(response.statusCode()).as(response.body()).isEqualTo(200);
         assertThat(currentKey(productId)).isNotEqualTo(first);
-        assertThat(storage.keys()).containsExactly(currentKey(productId));
+        assertThat(storage.keys()).containsExactlyInAnyOrder(first, currentKey(productId));
         assertThat(blocked(productId)).isZero();
     }
 
@@ -287,7 +292,8 @@ class AdminProductFileReplacementTest {
     }
 
     @Test
-    @DisplayName("SEC-008 FR-010: depois de reautenticar, a troca vale e o objeto anterior sai do Storage")
+    @DisplayName(
+            "SEC-008 FR-010: depois de reautenticar, a troca vale e o objeto anterior fica no Storage até a limpeza")
     void shouldReplaceTheFileAfterReauthenticationAndDropTheOldObject() throws Exception {
         UUID id = publishedProduct(admin, false);
         String oldKey = currentKey(id);
@@ -301,7 +307,12 @@ class AdminProductFileReplacementTest {
         assertThat(newKey).isNotEqualTo(oldKey);
         assertThat(jdbc.queryForObject("select count(*) from product_files where product_id = ?", Long.class, id))
                 .isEqualTo(1);
-        assertThat(storage.keys()).containsExactly(newKey).doesNotContain(oldKey);
+        assertThat(storage.keys()).containsExactlyInAnyOrder(oldKey, newKey);
+        assertThat(jdbc.queryForList("select object_key from pending_object_deletions", String.class))
+                .containsExactly(oldKey);
+        jdbc.update("update pending_object_deletions set created_at = now() - interval '16 minutes'");
+        LocalDownloadFixtures.runObjectCleanup(context);
+        assertThat(storage.keys()).containsExactly(newKey);
         assertThat(blocked(id)).isZero();
     }
 
@@ -451,6 +462,6 @@ class AdminProductFileReplacementTest {
 
         assertThat(jdbc.queryForList("select * from product_files where product_id = ?", b))
                 .isEqualTo(rowB);
-        assertThat(storage.keys()).contains(keyB).hasSize(2);
+        assertThat(storage.keys()).contains(keyB).hasSize(3); // B, plus A current and A replaced (pending cleanup)
     }
 }

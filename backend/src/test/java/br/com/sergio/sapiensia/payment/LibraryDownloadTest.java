@@ -212,6 +212,45 @@ class LibraryDownloadTest {
     }
 
     @Test
+    @DisplayName("FR-034 ADR-0007: depois da troca, o clique seguinte entrega a versão nova")
+    void shouldDeliverTheNewVersionOnTheNextClickAfterAReplacement() throws Exception {
+        grant(customer, product);
+        assertThat(download(customer, product).statusCode()).isEqualTo(200);
+        Timestamp newUploadedAt = Timestamp.from(LocalDownloadFixtures.replaceProductFile(context, jdbc, product, 3));
+
+        String url = OrderHttp.json(download(customer, product), "$.url");
+
+        HttpResponse<String> file = customer.get(url);
+        assertThat(file.statusCode()).isEqualTo(200);
+        assertThat(file.body()).isNotEqualTo(new String(PDF, StandardCharsets.UTF_8));
+        assertThat(newUploadedAt).isNotEqualTo(uploadedAt);
+        assertThat(downloadedVersions(customer, product)).containsExactly(uploadedAt, newUploadedAt);
+    }
+
+    @Test
+    @DisplayName("FR-034: o link emitido antes da troca ainda entrega a versão anterior dentro dos 60 segundos")
+    void shouldKeepAPreReplacementLinkWorkingWithinItsMinute() throws Exception {
+        grant(customer, product);
+        String oldLink = OrderHttp.json(download(customer, product), "$.url");
+
+        LocalDownloadFixtures.replaceProductFile(context, jdbc, product, 3);
+
+        HttpResponse<String> file = customer.get(oldLink);
+        assertThat(file.statusCode()).isEqualTo(200);
+        assertThat(file.body()).isEqualTo(new String(PDF, StandardCharsets.UTF_8));
+        assertThat(downloadedVersions(customer, product)).containsExactly(uploadedAt);
+    }
+
+    private java.util.List<Timestamp> downloadedVersions(OrderHttp.Customer who, UUID productId) {
+        return jdbc.queryForList(
+                "select file_uploaded_at from download_records where customer_id = ? and product_id = ?"
+                        + " order by downloaded_at",
+                Timestamp.class,
+                who.id,
+                productId);
+    }
+
+    @Test
     @DisplayName("FR-034: id malformado recebe 400")
     void shouldAnswer400ForAMalformedId() throws Exception {
         assertThat(customer.post("/api/library/nao-e-uuid/download", "").statusCode())

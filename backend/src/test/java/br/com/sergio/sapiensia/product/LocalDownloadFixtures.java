@@ -55,6 +55,30 @@ public final class LocalDownloadFixtures {
         }
     }
 
+    /**
+     * Replaces the Product file through the real upload flow (the swap), with a valid PDF of {@code pages} pages.
+     * Returns the new {@code uploaded_at}.
+     */
+    public static Instant replaceProductFile(ApplicationContext context, JdbcTemplate jdbc, UUID productId, int pages)
+            throws IOException {
+        ProductFileService service = context.getBean(ProductFileService.class);
+        Path source = Files.createTempFile("product-file-new", ".pdf");
+        try {
+            Files.write(source, TestPdfs.pages(pages));
+            service.upload(productId, source, "new.pdf", "application/pdf", UUID.randomUUID(), "127.0.0.1", true);
+            return jdbc.queryForObject(
+                            "select uploaded_at from product_files where product_id = ?", Timestamp.class, productId)
+                    .toInstant();
+        } finally {
+            Files.deleteIfExists(source);
+        }
+    }
+
+    /** Runs the orphan cleanup once, as the hourly task does. */
+    public static void runObjectCleanup(ApplicationContext context) {
+        context.getBean(ProductCoverCleanup.Cleaner.class).run();
+    }
+
     /** Inserts a {@code product_files} row whose object was never stored (the Storage lost it). */
     public static void insertMissingObjectRow(JdbcTemplate jdbc, UUID productId) {
         jdbc.update(

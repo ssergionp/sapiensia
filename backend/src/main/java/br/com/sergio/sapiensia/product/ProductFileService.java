@@ -21,9 +21,10 @@ import org.springframework.util.Assert;
 
 /**
  * Replaces the PDF of a Product. The row lock is never held while talking to the storage: validate, upload under a new
- * key, then a short transaction swaps the pointer, and only after the commit is the old object deleted. A failure in
- * the middle leaves at most an orphan object, never a Product pointing at a missing one. The temporary file belongs
- * to the caller. Nothing here logs a file name, key, size or content.
+ * key, then a short transaction swaps the pointer and records the old key in pending_object_deletions; the hourly
+ * cleanup deletes it once it is older than the orphan min age, so download links issued before the swap keep working.
+ * A failure in the middle leaves at most an orphan object, never a Product pointing at a missing one. The temporary
+ * file belongs to the caller. Nothing here logs a file name, key, size or content.
  */
 @Service
 class ProductFileService {
@@ -32,6 +33,7 @@ class ProductFileService {
 
     private record Swapped(Optional<String> oldKey, ProductResponse product) {}
 
+    private final PendingObjectDeletions pending;
     private final PdfFileValidator validator;
     private final ProductFileStorage storage;
     private final ProductFiles files;
@@ -40,12 +42,14 @@ class ProductFileService {
     private final TransactionTemplate transaction;
 
     ProductFileService(
+            PendingObjectDeletions pending,
             PdfFileValidator validator,
             ProductFileStorage storage,
             ProductFiles files,
             Products products,
             AuditLog audit,
             PlatformTransactionManager transactionManager) {
+        this.pending = pending;
         this.validator = validator;
         this.storage = storage;
         this.files = files;
@@ -106,6 +110,9 @@ class ProductFileService {
                 }
                 Optional<String> previous = files.currentKey(productId);
                 files.swap(productId, newKey, size, pageCount);
+                // The old object stays in the storage until the hourly cleanup (older than the orphan min age), so a
+                // download link issued just before the swap never points to a deleted object.
+                previous.ifPresent(pending::add);
                 audit.recordInTransaction(entry(AuditResult.SUCCESS, administratorId, productId, origin));
                 return new Swapped(previous, products.find(productId).orElseThrow(ProductNotFoundException::new));
             });
@@ -122,7 +129,6 @@ class ProductFileService {
             }
             throw e;
         }
-        swapped.oldKey().ifPresent(key -> deleteBestEffort(key, productId));
         return swapped.product();
     }
 

@@ -59,6 +59,9 @@ class ProductFileServiceTest {
     @Autowired
     SwitchableAuditLog auditLog;
 
+    @Autowired
+    ProductCoverCleanup.Cleaner cleaner;
+
     @TempDir
     Path tmp;
 
@@ -84,8 +87,17 @@ class ProductFileServiceTest {
         for (String key : storage.keys()) {
             storage.delete(key);
         }
+        jdbc.update("delete from pending_object_deletions");
         jdbc.update("delete from product_files");
         jdbc.update("delete from products");
+    }
+
+    private List<String> pendingKeys() {
+        return jdbc.queryForList("select object_key from pending_object_deletions", String.class);
+    }
+
+    private void ageThePendingRows() {
+        jdbc.update("update pending_object_deletions set created_at = now() - interval '16 minutes'");
     }
 
     private UUID insertProduct() {
@@ -141,16 +153,50 @@ class ProductFileServiceTest {
     }
 
     @Test
-    @DisplayName("SEC-047: uma só versão atual: the second upload swaps the row and deletes the previous object")
-    void shouldSwapRowAndDeleteOldObject() throws Exception {
+    @DisplayName(
+            "SEC-047: uma só versão atual: the second upload swaps the row and keeps the previous object pending until the cleanup")
+    void shouldSwapRowAndKeepOldObjectUntilCleanup() throws Exception {
         upload(productId, pdf(1));
         String oldKey = rowKeys().get(0);
 
         upload(productId, pdf(3));
 
+        String newKey = rowKeys().get(0);
         assertThat(rowKeys()).hasSize(1).doesNotContain(oldKey);
-        assertThat(storage.keys()).containsExactlyElementsOf(rowKeys());
-        assertThat(storage.keys()).doesNotContain(oldKey);
+        assertThat(storage.keys()).containsExactlyInAnyOrder(oldKey, newKey);
+        assertThat(pendingKeys()).containsExactly(oldKey);
+
+        ageThePendingRows();
+        cleaner.run();
+
+        assertThat(storage.keys()).containsExactly(newKey);
+        assertThat(pendingKeys()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("SEC-050: a failed swap leaves no pending record for the old key")
+    void shouldNotRecordPendingWhenSwapFails() throws Exception {
+        upload(productId, pdf(1));
+        auditLog.failWrites(true);
+
+        assertThatThrownBy(() -> upload(productId, pdf(2))).isInstanceOf(DataAccessException.class);
+
+        assertThat(pendingKeys()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("SEC-050: a limpeza nunca apaga o Arquivo atual, mesmo se a chave estiver na lista")
+    void shouldNeverDeleteTheCurrentFileEvenIfListed() throws Exception {
+        upload(productId, pdf(1));
+        String currentKey = rowKeys().get(0);
+        jdbc.update("insert into pending_object_deletions (object_key) values (?)", currentKey);
+        ageThePendingRows();
+
+        cleaner.run();
+
+        assertThat(storage.keys()).containsExactly(currentKey);
+        assertThat(rowKeys()).containsExactly(currentKey);
+        assertThat(pendingKeys()).as("the stale record is dropped").isEmpty();
     }
 
     @Test
@@ -182,8 +228,8 @@ class ProductFileServiceTest {
     }
 
     @Test
-    @DisplayName("SEC-047: failing to delete the old object does not change the result and logs no key or name")
-    void shouldIgnoreOldDeleteFailure(CapturedOutput output) throws Exception {
+    @DisplayName("SEC-047: a storage that cannot delete does not affect the swap, and the old key stays pending")
+    void shouldNotDependOnStorageDeleteDuringSwap(CapturedOutput output) throws Exception {
         upload(productId, pdf(1));
         String oldKey = rowKeys().get(0);
         storage.failDeletes(true);
@@ -192,12 +238,9 @@ class ProductFileServiceTest {
 
         assertThat(response.file().pageCount()).isEqualTo(2);
         assertThat(rowKeys()).hasSize(1).doesNotContain(oldKey);
-        assertThat(storage.keys()).contains(oldKey).hasSize(2); // the intended orphan stays in storage
-        assertThat(output.getAll())
-                .contains("could not be deleted")
-                .contains(productId.toString())
-                .doesNotContain(oldKey)
-                .doesNotContain(SUBMITTED_NAME);
+        assertThat(storage.keys()).contains(oldKey).hasSize(2);
+        assertThat(pendingKeys()).containsExactly(oldKey);
+        assertThat(output.getAll()).doesNotContain(oldKey).doesNotContain(SUBMITTED_NAME);
     }
 
     @Test
@@ -220,7 +263,7 @@ class ProductFileServiceTest {
         }
 
         assertThat(rowKeys()).hasSize(1);
-        assertThat(storage.keys()).containsExactlyElementsOf(rowKeys());
+        assertThat(storage.keys()).hasSize(2).containsAll(rowKeys()).containsAll(pendingKeys());
     }
 
     // The validator runs one check at a time and answers "busy" to the other caller: retry like a client would.
@@ -325,7 +368,7 @@ class ProductFileServiceTest {
 
         assertThat(response.file().pageCount()).isEqualTo(2);
         assertThat(rowKeys()).hasSize(1).doesNotContain(oldKey);
-        assertThat(storage.keys()).containsExactlyElementsOf(rowKeys());
+        assertThat(storage.keys()).hasSize(2).containsAll(rowKeys()).contains(oldKey);
         assertThat(auditCount("BLOCKED")).isZero();
         assertThat(auditCount("SUCCESS")).isEqualTo(2);
     }
