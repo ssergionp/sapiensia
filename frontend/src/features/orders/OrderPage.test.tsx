@@ -476,6 +476,19 @@ describe("OrderPage", () => {
     ).toBeTruthy();
   });
 
+  test("FR-024: a sessão que expira durante a espera leva ao login e guarda o caminho do Pedido", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/status")) return jsonResponse(401);
+      return jsonResponse(200, order());
+    });
+    renderOrder();
+    expect(await screen.findByText("tela de entrada")).toBeTruthy();
+    const stored = JSON.parse(
+      localStorage.getItem("sapiensia.returnTo") ?? "{}",
+    );
+    expect(stored.path).toBe(`/pedidos/${ORDER_ID}`);
+  });
+
   test("SEC-027: parâmetros na URL não mudam o que a tela mostra", async () => {
     routeFetch({ order: order(), status: "PENDING" });
     renderOrder(`/pedidos/${ORDER_ID}?status=PAID&paid=true`);

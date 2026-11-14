@@ -30,7 +30,6 @@ export default function OrderPage() {
   const [copy, setCopy] = useState<"idle" | "done" | "failed">("idle");
 
   const order = query.data;
-  const notLoggedIn = query.error instanceof NotLoggedInError;
   const notFound = query.error instanceof OrderNotFoundError;
   const pending = order?.status === "PENDING" && !query.isError;
   const expired = order?.status === "EXPIRED" && !query.isError;
@@ -55,7 +54,11 @@ export default function OrderPage() {
     id,
     pending || (expired && !expiredWindowOver),
   );
-  // A polling error is ignored: the next tick tries again and the page keeps what it shows.
+  // Only a 401 of the polling matters (the session ended while waiting); any other polling error is ignored:
+  // the next tick tries again and the page keeps what it shows.
+  const notLoggedIn =
+    query.error instanceof NotLoggedInError ||
+    statusQuery.error instanceof NotLoggedInError;
   const polledStatus = statusQuery.data;
   const polledAt = statusQuery.dataUpdatedAt;
   const shownStatus = order?.status;
