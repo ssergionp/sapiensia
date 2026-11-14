@@ -22,7 +22,10 @@ import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
-/** Validates an Asaas webhook body, redacts any CPF/CNPJ and stores it; a repeated event id is dropped. */
+/**
+ * Validates an Asaas webhook body, redacts any CPF/CNPJ and stores it; a repeated event id is dropped. A stored payment
+ * event is scheduled for processing in the same transaction.
+ */
 @Service
 class AsaasWebhookService {
 

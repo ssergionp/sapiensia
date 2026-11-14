@@ -36,7 +36,7 @@ import org.springframework.transaction.support.TransactionTemplate;
             "app.login-limit.ip-max-attempts=1000",
             "db-scheduler.polling-interval=PT0.2S",
             "app.orders.payment-processing.retry-delay=PT0.5S",
-            "app.orders.payment-processing.max-attempts=3"
+            "app.orders.payment-processing.max-attempts=5"
         })
 class PaymentEventProcessingTest {
 
@@ -237,7 +237,7 @@ class PaymentEventProcessingTest {
         assertThat(post(uniqueId(), "PAYMENT_RECEIVED", placed.chargeId()).statusCode())
                 .isEqualTo(200);
 
-        await("the first failed attempt", () -> gateway.count("READ_CHARGE") >= 1);
+        await("two failed attempts", () -> gateway.count("READ_CHARGE") >= 2);
         assertThat(status(placed.orderId())).isEqualTo("PENDING");
         gateway.failAt("READ_CHARGE", null);
 
@@ -258,7 +258,7 @@ class PaymentEventProcessingTest {
         await("the GAVE_UP result", () -> results(eventId, "GAVE_UP") == 1);
         await("the task to be removed", () -> tasks(eventId) == 0);
         assertThat(events(eventId)).isEqualTo(1);
-        assertThat(gateway.count("READ_CHARGE")).isEqualTo(3);
+        assertThat(gateway.count("READ_CHARGE")).isEqualTo(5);
         assertThat(status(placed.orderId())).isEqualTo("PENDING");
         assertThat(accesses(placed.orderId())).isZero();
     }
