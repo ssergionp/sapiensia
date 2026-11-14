@@ -24,6 +24,7 @@ public class SwitchablePixGateway implements PixGateway {
     private final Map<String, PixGatewayException.Kind> failures = new ConcurrentHashMap<>();
     private final AtomicReference<CountDownLatch> held = new AtomicReference<>();
     private final AtomicReference<Runnable> afterCharge = new AtomicReference<>();
+    private final AtomicReference<Runnable> afterCancel = new AtomicReference<>();
     private final AtomicReference<CountDownLatch> heldRead = new AtomicReference<>();
     private final Map<String, PixCharge> answers = new ConcurrentHashMap<>();
     private volatile PixGatewayException.Kind failingCancel;
@@ -113,7 +114,13 @@ public class SwitchablePixGateway implements PixGateway {
         afterCharge.set(action);
     }
 
+    /** Runs the code right after the next {@code cancelCharge} was recorded and answered, before it returns. */
+    public void afterNextCancel(Runnable action) {
+        afterCancel.set(action);
+    }
+
     public void reset() {
+        afterCancel.set(null);
         calls.clear();
         cancelled.clear();
         chargeIds.clear();
@@ -226,5 +233,9 @@ public class SwitchablePixGateway implements PixGateway {
             throw new PixGatewayException(failure, "CANCEL_CHARGE", "HTTP 503");
         }
         delegate.cancelCharge(chargeId);
+        Runnable action = afterCancel.getAndSet(null);
+        if (action != null) {
+            action.run();
+        }
     }
 }
