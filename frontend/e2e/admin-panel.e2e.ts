@@ -1484,8 +1484,16 @@ test("FR-034 SEC-010 SEC-011: o Cliente baixa o Arquivo do Produto comprado, sem
     baseURL: baseURL ?? undefined,
   });
   const downloadFrom = async (customerPage: Page) => {
+    const downloadStarted = customerPage
+      .waitForEvent("download", { timeout: 30_000 })
+      .catch((cause: unknown) => {
+        throw new Error(
+          "No download started within 30 s after clicking Baixar",
+          { cause },
+        );
+      });
     const [download] = await Promise.all([
-      customerPage.waitForEvent("download"),
+      downloadStarted,
       customerPage.getByRole("button", { name: `Baixar ${title}` }).click(),
     ]);
     expect(download.suggestedFilename()).toBe(expectedName);
