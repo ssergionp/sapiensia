@@ -55,12 +55,11 @@ class OrderIdempotencyTest {
 
     @AfterEach
     void cleanUp() {
-        jdbc.update("delete from orders");
-        jdbc.update("delete from payment_customers");
+        OrderTestSupport.deleteOrdersOf(jdbc, customer.id, productId);
     }
 
-    private long orderRows() {
-        return jdbc.queryForObject("select count(*) from orders", Long.class);
+    private long orderRows(OrderHttp.Customer buyer) {
+        return OrderTestSupport.countOrdersOf(jdbc, buyer.id);
     }
 
     @Test
@@ -73,7 +72,7 @@ class OrderIdempotencyTest {
         assertThat(second.statusCode()).isEqualTo(200);
         assertThat(OrderHttp.json(second, "$.id")).isEqualTo(OrderHttp.json(first, "$.id"));
         assertThat(gateway.count("CREATE_CHARGE")).isEqualTo(1);
-        assertThat(orderRows()).isEqualTo(1);
+        assertThat(orderRows(customer)).isEqualTo(1);
     }
 
     @Test
@@ -81,7 +80,7 @@ class OrderIdempotencyTest {
     void shouldCreateOneChargeForTwoSimultaneousRequests() throws Exception {
         for (int round = 0; round < 20; round++) {
             gateway.reset();
-            jdbc.update("delete from orders");
+            OrderTestSupport.deleteOrdersOfProducts(jdbc, productId);
             OrderHttp.Customer buyer = OrderHttp.newCustomer(port, jdbc, encoder);
             CountDownLatch release = new CountDownLatch(1);
             gateway.holdNextCharge(release);
@@ -100,7 +99,7 @@ class OrderIdempotencyTest {
             assertThat(second.statusCode()).as("round " + round).isEqualTo(409);
             assertThat(OrderHttp.json(second, "$.errors.order")).isEqualTo("ORDER_IN_PROGRESS");
             assertThat(first.statusCode()).as("round " + round).isEqualTo(201);
-            assertThat(orderRows()).isEqualTo(1);
+            assertThat(orderRows(buyer)).isEqualTo(1);
             assertThat(gateway.count("CREATE_CHARGE")).isEqualTo(1);
         }
     }
@@ -134,7 +133,8 @@ class OrderIdempotencyTest {
 
         assertThat(customer.order(productId, CPF).statusCode()).isEqualTo(201);
         assertThat(other.order(productId, CPF).statusCode()).isEqualTo(201);
-        assertThat(orderRows()).isEqualTo(2);
+        assertThat(jdbc.queryForObject("select count(*) from orders where product_id = ?", Long.class, productId))
+                .isEqualTo(2);
     }
 
     @Test
@@ -147,7 +147,7 @@ class OrderIdempotencyTest {
         assertThat(answer.statusCode()).isEqualTo(409);
         assertThat(OrderHttp.json(answer, "$.errors.order")).isEqualTo("ORDER_IN_PROGRESS");
         assertThat(gateway.cancelledCharges()).containsExactly(gateway.lastChargeId());
-        assertThat(orderRows()).isEqualTo(1);
+        assertThat(orderRows(customer)).isEqualTo(1);
     }
 
     @Test
@@ -160,7 +160,7 @@ class OrderIdempotencyTest {
 
         assertThat(answer.statusCode()).isEqualTo(409);
         assertThat(OrderHttp.json(answer, "$.errors.order")).isEqualTo("ORDER_IN_PROGRESS");
-        assertThat(orderRows()).isEqualTo(1);
+        assertThat(orderRows(customer)).isEqualTo(1);
         assertThat(output.getAll()).contains("Pix charge left without an Order: chargeId=" + gateway.lastChargeId());
     }
 

@@ -2,17 +2,21 @@ import { z } from "zod";
 import { isValidCpf } from "./cpf";
 import { ORDER_TEXTS as T } from "./messages";
 
+const orderStatusEnum = z.enum(["PENDING", "EXPIRED", "PAID"]);
+
 // Mirrors OrderResponse in the backend. The Pix code is read from the provider on every view; it is never stored.
 export const orderSchema = z.object({
   id: z.string(),
   productId: z.string(),
   productTitle: z.string(),
   priceCents: z.number().int(),
-  status: z.enum(["PENDING", "EXPIRED"]),
+  status: orderStatusEnum,
   expiresAt: z.string(),
   secondsToExpire: z.number().int(),
   pixCopyPaste: z.string().nullable(),
 });
+
+export const orderStatusSchema = z.object({ status: orderStatusEnum });
 
 export type Order = z.infer<typeof orderSchema>;
 

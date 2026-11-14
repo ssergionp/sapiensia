@@ -1,5 +1,6 @@
 package br.com.sergio.sapiensia.payment;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Map;
 import java.util.Optional;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Component;
 class FakePixGateway implements PixGateway {
 
     private final Map<UUID, String> customerCodes = new ConcurrentHashMap<>();
+    private final Map<String, PixCharge> charges = new ConcurrentHashMap<>();
 
     FakePixGateway(Environment environment) {
         // a fake charge can never be paid: production must use the real provider
@@ -38,7 +40,21 @@ class FakePixGateway implements PixGateway {
     @Override
     public String createCharge(
             String customerCode, UUID orderId, int amountCents, LocalDate dueDate, String description) {
-        return "pay_fake_" + UUID.randomUUID();
+        String id = "pay_fake_" + UUID.randomUUID().toString().replace("-", "");
+        charges.put(
+                id, new PixCharge(id, "PENDING", BigDecimal.valueOf(amountCents, 2), "PIX", orderId.toString(), false));
+        return id;
+    }
+
+    @Override
+    public PixCharge readCharge(String chargeId) {
+        PixCharge charge = charges.get(chargeId);
+        if (charge == null) {
+            throw new PixGatewayException(PixGatewayException.Kind.REFUSED, "READ_CHARGE", "HTTP 404");
+        }
+        // a fake charge counts as paid as soon as it is read (decision D11)
+        return new PixCharge(
+                charge.id(), "RECEIVED", charge.value(), "PIX", charge.externalReference(), charge.deleted());
     }
 
     @Override
@@ -48,6 +64,8 @@ class FakePixGateway implements PixGateway {
 
     @Override
     public void cancelCharge(String chargeId) {
-        // nothing to cancel in memory
+        charges.computeIfPresent(
+                chargeId,
+                (id, c) -> new PixCharge(c.id(), c.status(), c.value(), c.billingType(), c.externalReference(), true));
     }
 }

@@ -70,6 +70,15 @@ class OrderRouteAccessTest {
     }
 
     @Test
+    @DisplayName("SEC-010: shouldRefuseTheStatusToTheAdministrator")
+    void shouldRefuseTheStatusToTheAdministrator() throws Exception {
+        String status = ORDERS + "/" + UUID.randomUUID() + "/status";
+
+        mvc.perform(get(status).with(user("admin@example.com").roles("ADMIN"))).andExpect(status().isForbidden());
+        mvc.perform(get(status)).andExpect(status().isUnauthorized());
+    }
+
+    @Test
     @DisplayName("SEC-010: shouldRefuseAPostWithoutTheCsrfToken")
     void shouldRefuseAPostWithoutTheCsrfToken() throws Exception {
         mvc.perform(post(ORDERS)

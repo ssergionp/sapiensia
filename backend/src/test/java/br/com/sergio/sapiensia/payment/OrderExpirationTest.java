@@ -96,6 +96,9 @@ class OrderExpirationTest {
     OrderExpiration.Expirer expirer;
 
     @Autowired
+    Orders orders;
+
+    @Autowired
     ApplicationContext context;
 
     private OrderHttp.Customer customer;
@@ -110,8 +113,7 @@ class OrderExpirationTest {
 
     @AfterEach
     void cleanUp() {
-        jdbc.update("delete from orders");
-        jdbc.update("delete from payment_customers");
+        OrderTestSupport.deleteOrdersOf(jdbc, customer.id, productId);
     }
 
     private String createOrder() throws Exception {
@@ -125,7 +127,7 @@ class OrderExpirationTest {
     }
 
     private long orderRows() {
-        return jdbc.queryForObject("select count(*) from orders", Long.class);
+        return OrderTestSupport.countOrdersOf(jdbc, customer.id);
     }
 
     @Test
@@ -279,6 +281,28 @@ class OrderExpirationTest {
         assertThat(result.postponed()).isZero();
         assertThat(statusOf(id)).isEqualTo("PENDING");
         assertThat(gateway.cancelledCharges()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("ADR-0003: shouldNotCancelTheChargeOfAnOrderPaidAfterItWasListed")
+    void shouldNotCancelTheChargeOfAnOrderPaidAfterItWasListed() throws Exception {
+        String first = createOrder();
+        String firstCharge = gateway.lastChargeId();
+        OrderHttp.Customer other = OrderHttp.newCustomer(port, jdbc, encoder);
+        HttpResponse<String> answer = other.order(productId, CPF);
+        assertThat(answer.statusCode()).isEqualTo(201);
+        String second = OrderHttp.json(answer, "$.id");
+        clock.advance(TTL.plusSeconds(1));
+        // both are listed as due; while the first is being cancelled the second one is paid
+        gateway.afterNextCancel(() -> assertThat(orders.markPaid(UUID.fromString(second), clock.instant()))
+                .isTrue());
+
+        OrderExpiration.Expirer.Result result = expirer.run();
+
+        assertThat(result.expired()).isEqualTo(1);
+        assertThat(statusOf(first)).isEqualTo("EXPIRED");
+        assertThat(statusOf(second)).isEqualTo("PAID");
+        assertThat(gateway.cancelledCharges()).containsExactly(firstCharge);
     }
 
     @Test

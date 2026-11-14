@@ -75,6 +75,7 @@ jobs:
           echo "::add-mask::$MFA_KEY"
           ASAAS_WEBHOOK_TOKEN="$(openssl rand -hex 32)"
           echo "::add-mask::$ASAAS_WEBHOOK_TOKEN"
+          echo "E2E_ASAAS_WEBHOOK_TOKEN=$ASAAS_WEBHOOK_TOKEN" >> "$GITHUB_ENV"
           mkdir -p .tmp/outbox && chmod 777 .tmp/outbox
           docker run -d --name app --network host \
             -v "$PWD/.tmp/outbox:/outbox" \

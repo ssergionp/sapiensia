@@ -105,10 +105,13 @@ class OrderSlowProviderTest {
     @Autowired
     DataSource dataSource;
 
+    private UUID productId;
+
     @AfterEach
     void cleanUp() {
-        jdbc.update("delete from orders");
-        jdbc.update("delete from payment_customers");
+        if (productId != null) {
+            OrderTestSupport.deleteOrdersOfProducts(jdbc, productId);
+        }
     }
 
     private record Timed(HttpResponse<String> response, long millis) {}
@@ -142,7 +145,7 @@ class OrderSlowProviderTest {
     @Test
     @DisplayName("SEC-018: shouldAnswer502AndFreeThePoolWhenTheProviderIsSlow")
     void shouldAnswer502AndFreeThePoolWhenTheProviderIsSlow() throws Exception {
-        UUID productId = OrderTestSupport.insertPublishedProduct(jdbc, "Guia de Contratos", 2990);
+        productId = OrderTestSupport.insertPublishedProduct(jdbc, "Guia de Contratos", 2990);
         List<OrderHttp.Customer> buyers = new ArrayList<>();
         for (int i = 0; i < 4; i++) {
             buyers.add(OrderHttp.newCustomer(port, jdbc, encoder));
@@ -160,14 +163,14 @@ class OrderSlowProviderTest {
         }
         assertThat(activeConnectionsOnceSettled()).isZero();
         assertThat(buyers.get(0).get("/api/products").statusCode()).isEqualTo(200);
-        assertThat(jdbc.queryForObject("select count(*) from orders", Long.class))
+        assertThat(jdbc.queryForObject("select count(*) from orders where product_id = ?", Long.class, productId))
                 .isZero();
     }
 
     @Test
     @DisplayName("SEC-018: shouldAnswer502WithoutHoldingAConnectionWhenTheProviderIsSlowOnView")
     void shouldAnswer502WithoutHoldingAConnectionWhenTheProviderIsSlowOnView() throws Exception {
-        UUID productId = OrderTestSupport.insertPublishedProduct(jdbc, "Guia de Contratos", 2990);
+        productId = OrderTestSupport.insertPublishedProduct(jdbc, "Guia de Contratos", 2990);
         OrderHttp.Customer buyer = OrderHttp.newCustomer(port, jdbc, encoder);
         UUID orderId = UUID.randomUUID();
         jdbc.update(

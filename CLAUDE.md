@@ -19,6 +19,7 @@ Plataforma web para criar e revisar e-books, cartilhas, tutoriais e checklists c
 - `just check`: o que o CI roda na PR; localmente só se o Sérgio pedir
 - `just check-resumo`: o mesmo check completo, com resumo curto; o log completo fica em .tmp/check.log
 - `just demo` · `just demo-parar` · `just demo-codigo`: sobe a demonstração local com dados fictícios (banco, API e frontend em segundo plano), para só os processos dela e mostra o código de verificação do Administrador da demonstração
+- `just demo-pagar <id do Pedido>`: na demonstração, marca o Pedido como pago, como se o Asaas tivesse confirmado o Pix (só contra a API local)
 - `just doctor`: confere o computador (Java, Docker, portas do banco e da API...)
 - `just e2e`: testes de ponta a ponta no navegador, contra o sistema de verdade (antes: `just db`, `just dev-back` e `just dev-front`)
 - `just imagem`: gera a imagem Docker do sistema inteiro, a mesma que vai para homologação e produção
@@ -45,6 +46,7 @@ Glossário e convenções das skills: veja docs/agents/ (o domain.md diz onde fi
 - backend/.../customer/ClientIpResolver.java: o único jeito de obter o IP do cliente (Fly-Client-IP em prod; X-Forwarded-For nunca). Usado pelo limite de login e pelo webhook do Asaas.
 - backend/.../payment/PixGateway.java: a única porta para o Asaas (cliente, cobrança, código copia e cola, cancelamento); adaptador `AsaasPixGateway` em prod e `FakePixGateway` no local e nos testes, escolhidos por `app.pix.provider`.
 - backend/.../customer/CurrentCustomer.java: o jeito de obter o Cliente da sessão num controller.
+- backend/.../payment/PaymentConfirmation.java: o único lugar que marca um Pedido como pago e concede o Acesso.
 - (liste aqui outros helpers e componentes que o Claude deve usar em vez de criar novos)
 
 ## Segurança e produção

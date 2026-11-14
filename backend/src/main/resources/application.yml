@@ -113,6 +113,10 @@ app:
   orders:
     # how long a pending order waits for its Pix payment
     pix-ttl: PT30M
+    payment-processing:
+      # a payment event is tried this many times in total, once every retry-delay, then given up (the event stays)
+      max-attempts: 120
+      retry-delay: PT1M
   asaas:
     api:
       # every call to Asaas: at most 3 s to connect and 10 s to answer (larger values stop the application)

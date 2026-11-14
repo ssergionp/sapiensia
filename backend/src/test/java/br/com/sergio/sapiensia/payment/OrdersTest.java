@@ -51,9 +51,8 @@ class OrdersTest {
 
     @AfterEach
     void cleanUp() {
-        // Orders reference products and customers without cascade; other suites delete those rows.
-        jdbc.update("delete from orders");
-        jdbc.update("delete from payment_customers");
+        // Only this test's own rows: other tests of the context leave Orders that undeletable results point to.
+        OrderTestSupport.deleteOrdersOf(jdbc, customerId, productId);
     }
 
     private UUID insertPending(String paymentId, Instant expiresAt) {
@@ -196,6 +195,7 @@ class OrdersTest {
                 NOW.plus(5, ChronoUnit.MINUTES));
 
         assertThat(orders.findPendingExpired(NOW, 10))
+                .filteredOn(row -> row.productId().equals(productId))
                 .extracting(Orders.Row::id)
                 .containsExactly(late, later);
         assertThat(orders.findPendingExpired(NOW, 1)).extracting(Orders.Row::id).containsExactly(late);

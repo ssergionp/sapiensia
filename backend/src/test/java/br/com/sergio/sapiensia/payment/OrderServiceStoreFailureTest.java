@@ -58,6 +58,7 @@ class OrderServiceStoreFailureTest {
         Clock clock = Clock.fixed(Instant.parse("2026-11-13T12:00:00Z"), ZoneOffset.UTC);
         service = new OrderService(
                 orders,
+                mock(Accesses.class),
                 paymentCustomers,
                 gateway,
                 catalog,

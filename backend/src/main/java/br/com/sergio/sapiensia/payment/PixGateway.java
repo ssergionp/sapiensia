@@ -18,6 +18,12 @@ public interface PixGateway {
     /** Returns the Pix copy-and-paste code of the charge. */
     String readCopyPaste(String chargeId);
 
+    /**
+     * Reads the charge as the provider has it now. Only a 404 fails as REFUSED (the charge does not exist); any other
+     * 4xx fails as UNAVAILABLE so the read is retried.
+     */
+    PixCharge readCharge(String chargeId);
+
     /** Cancels the charge; a charge that no longer exists counts as cancelled. */
     void cancelCharge(String chargeId);
 }

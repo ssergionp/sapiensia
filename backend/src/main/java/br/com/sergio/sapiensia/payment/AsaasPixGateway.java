@@ -49,6 +49,7 @@ class AsaasPixGateway implements PixGateway {
     private static final String CREATE_CHARGE = "CREATE_CHARGE";
     private static final String READ_QR_CODE = "READ_QR_CODE";
     private static final String CANCEL_CHARGE = "CANCEL_CHARGE";
+    private static final String READ_CHARGE = "READ_CHARGE";
 
     private final RestClient restClient;
 
@@ -174,6 +175,28 @@ class AsaasPixGateway implements PixGateway {
     }
 
     @Override
+    public PixCharge readCharge(String chargeId) {
+        JsonNode root = call(READ_CHARGE, chargeId, restClient.get().uri("/v3/payments/{id}", chargeId), false);
+        JsonNode value = root.get("value");
+        if (value == null || !value.isNumber()) {
+            throw unavailable(READ_CHARGE, "unexpected answer", chargeId);
+        }
+        JsonNode reference = root.get("externalReference");
+        JsonNode deleted = root.get("deleted");
+        if (deleted != null && !deleted.isNull() && !deleted.isBoolean()) {
+            throw unavailable(READ_CHARGE, "unexpected answer", chargeId);
+        }
+        // only the fields the application needs are copied; the rest of the answer is dropped
+        return new PixCharge(
+                requiredText(READ_CHARGE, root, "id", chargeId),
+                requiredText(READ_CHARGE, root, "status", chargeId),
+                value.decimalValue(),
+                requiredText(READ_CHARGE, root, "billingType", chargeId),
+                reference != null && reference.isString() ? reference.asString() : null,
+                deleted != null && deleted.asBoolean());
+    }
+
+    @Override
     public void cancelCharge(String chargeId) {
         // a 404 means the charge is already gone: that is a success
         call(CANCEL_CHARGE, chargeId, restClient.delete().uri("/v3/payments/{id}", chargeId), true);
@@ -242,6 +265,9 @@ class AsaasPixGateway implements PixGateway {
                 && CREATE_CUSTOMER.equals(step)
                 && codes.stream().anyMatch(code -> code.toLowerCase(Locale.ROOT).contains("cpfcnpj"))) {
             kind = PixGatewayException.Kind.DOCUMENT_REJECTED;
+        } else if (READ_CHARGE.equals(step) && status != 404 && status >= 400 && status < 500) {
+            // only a 404 is a final "charge not found"; any other 4xx may be transient and must be retried
+            kind = PixGatewayException.Kind.UNAVAILABLE;
         } else if (status >= 400 && status < 500) {
             kind = PixGatewayException.Kind.REFUSED;
         } else {

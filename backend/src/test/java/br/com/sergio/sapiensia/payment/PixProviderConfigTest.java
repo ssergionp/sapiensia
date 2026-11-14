@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
 import java.time.Duration;
+import java.time.LocalDate;
+import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -98,5 +100,33 @@ class PixProviderConfigTest {
         prod.setActiveProfiles("prod");
         assertThatThrownBy(() -> new FakePixGateway(prod)).isInstanceOf(IllegalStateException.class);
         assertThat(new FakePixGateway(new MockEnvironment())).isNotNull();
+    }
+
+    @Test
+    @DisplayName("SEC-026: shouldRefuseToReadAChargeTheFakeNeverCreated")
+    void shouldRefuseToReadAChargeTheFakeNeverCreated() {
+        assertThatThrownBy(() -> gateway.readCharge("pay_fake_unknown"))
+                .isInstanceOfSatisfying(
+                        PixGatewayException.class,
+                        e -> assertThat(e.kind()).isEqualTo(PixGatewayException.Kind.REFUSED));
+    }
+
+    @Test
+    @DisplayName("SEC-026: shouldAnswerACreatedFakeChargeAsReceivedWithItsValueAndOrder")
+    void shouldAnswerACreatedFakeChargeAsReceivedWithItsValueAndOrder() {
+        UUID orderId = UUID.randomUUID();
+        String id = gateway.createCharge("cus_fake_1", orderId, 2990, LocalDate.now(), "d");
+
+        PixCharge charge = gateway.readCharge(id);
+
+        assertThat(id).matches("pay_fake_[0-9a-f]{32}");
+        assertThat(charge.id()).isEqualTo(id);
+        assertThat(charge.status()).isEqualTo("RECEIVED");
+        assertThat(charge.billingType()).isEqualTo("PIX");
+        assertThat(charge.value()).isEqualByComparingTo("29.90");
+        assertThat(charge.externalReference()).isEqualTo(orderId.toString());
+        assertThat(charge.deleted()).isFalse();
+        gateway.cancelCharge(id);
+        assertThat(gateway.readCharge(id).deleted()).isTrue();
     }
 }

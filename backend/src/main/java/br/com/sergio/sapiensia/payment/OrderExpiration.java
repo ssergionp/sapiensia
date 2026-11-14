@@ -96,6 +96,13 @@ class OrderExpiration {
         }
 
         private Outcome tryExpire(Orders.Row order) {
+            // the Order may have been paid since it was listed: never cancel the charge of a paid Order (ADR-0003)
+            boolean stillPending = orders.findById(order.id())
+                    .map(current -> current.status() == OrderStatus.PENDING)
+                    .orElse(false);
+            if (!stillPending) {
+                return Outcome.ALREADY_EXPIRED;
+            }
             try {
                 gateway.cancelCharge(order.providerPaymentId());
             } catch (PixGatewayException e) {

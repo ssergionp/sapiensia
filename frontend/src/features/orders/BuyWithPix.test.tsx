@@ -180,17 +180,27 @@ describe("BuyWithPix", () => {
       { errors: { order: "ORDER_IN_PROGRESS" } },
       "Já existe um Pix sendo gerado para você. Aguarde alguns segundos e tente novamente.",
     ],
+    [
+      409,
+      { errors: { order: "ALREADY_OWNED" } },
+      "Você já tem Acesso a este Produto.",
+    ],
     [404, undefined, "Este Produto não está mais disponível."],
     [500, {}, "Não foi possível concluir agora. Tente novamente."],
-  ])("mostra a mensagem de cada erro (%i)", async (status, body, message) => {
-    setCsrfCookie("t");
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(status, body));
-    renderBuy();
+  ])(
+    "FR-024: mostra a mensagem de cada erro (%i)",
+    async (status, body, message) => {
+      setCsrfCookie("t");
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        jsonResponse(status, body),
+      );
+      renderBuy();
 
-    await click("Comprar com Pix");
+      await click("Comprar com Pix");
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(message);
-  });
+      expect(await screen.findByRole("alert")).toHaveTextContent(message);
+    },
+  );
 
   test('o botão fica desabilitado e diz "Gerando o Pix…" enquanto envia', async () => {
     setCsrfCookie("t");

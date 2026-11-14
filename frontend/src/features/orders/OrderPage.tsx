@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button";
 import { formatCents } from "@/features/products/schemas";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { NotLoggedInError, OrderNotFoundError } from "./api";
-import { useOrder } from "./hooks";
+import { useOrder, useOrderStatus } from "./hooks";
 import { ORDER_TEXTS as T } from "./messages";
 import { rememberReturnTo } from "./returnTo";
+
+const EXPIRED_WATCH_MS = 10 * 60 * 1000;
 
 function mmss(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60);
@@ -19,6 +21,7 @@ export default function OrderPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
   const query = useOrder(id);
+  const refetchOrder = query.refetch;
   const headingRef = useRef<HTMLHeadingElement>(null);
   const deadline = useRef(0);
   const previous = useRef(0);
@@ -27,14 +30,49 @@ export default function OrderPage() {
   const [copy, setCopy] = useState<"idle" | "done" | "failed">("idle");
 
   const order = query.data;
-  const notLoggedIn = query.error instanceof NotLoggedInError;
   const notFound = query.error instanceof OrderNotFoundError;
   const pending = order?.status === "PENDING" && !query.isError;
   const expired = order?.status === "EXPIRED" && !query.isError;
+  const paid = order?.status === "PAID" && !query.isError;
+
+  // After EXPIRED the page keeps asking for 10 minutes, counted from when the expired view appeared here.
+  const [expiredWindowOver, setExpiredWindowOver] = useState(false);
+  // Keyed on the Order's status alone: a failed reload (isError) must not restart the window.
+  const statusIsExpired = order?.status === "EXPIRED";
+  useEffect(() => {
+    if (!statusIsExpired) return;
+    const shownAt = performance.now();
+    const timer = setInterval(() => {
+      if (performance.now() - shownAt >= EXPIRED_WATCH_MS) {
+        setExpiredWindowOver(true);
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [statusIsExpired]);
+
+  const statusQuery = useOrderStatus(
+    id,
+    pending || (expired && !expiredWindowOver),
+  );
+  // Only a 401 of the polling matters (the session ended while waiting); any other polling error is ignored:
+  // the next tick tries again and the page keeps what it shows.
+  const notLoggedIn =
+    query.error instanceof NotLoggedInError ||
+    statusQuery.error instanceof NotLoggedInError;
+  const polledStatus = statusQuery.data;
+  const polledAt = statusQuery.dataUpdatedAt;
+  const shownStatus = order?.status;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: run on each answer that differs from what is shown
+  useEffect(() => {
+    if (polledStatus && shownStatus && polledStatus !== shownStatus) {
+      void refetchOrder({ cancelRefetch: false });
+    }
+  }, [polledAt, polledStatus, shownStatus]);
 
   let documentTitle: string = T.loadingDocumentTitle;
   if (notFound) documentTitle = T.notFoundDocumentTitle;
   else if (query.isError && !notLoggedIn) documentTitle = T.documentTitle;
+  else if (paid) documentTitle = T.paidDocumentTitle;
   else if (expired) documentTitle = T.expiredDocumentTitle;
   else if (pending) documentTitle = T.documentTitle;
   useDocumentTitle(documentTitle);
@@ -86,7 +124,13 @@ export default function OrderPage() {
     return () => clearInterval(timer);
   }, [atZero, refetch]);
 
-  const view = pending ? "pending" : expired ? "expired" : "other";
+  const view = pending
+    ? "pending"
+    : expired
+      ? "expired"
+      : paid
+        ? "paid"
+        : "other";
   // biome-ignore lint/correctness/useExhaustiveDependencies: focus the heading when the view changes
   useEffect(() => {
     if (view !== "other") headingRef.current?.focus();
@@ -143,6 +187,24 @@ export default function OrderPage() {
     );
   }
 
+  if (order.status === "PAID") {
+    return (
+      <main className="mx-auto max-w-md p-8">
+        <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-bold">
+          {T.paidHeading}
+        </h1>
+        <p className="mt-4">{T.paidText}</p>
+        <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+          <dt className="font-semibold">{T.productTerm}</dt>
+          <dd className="[overflow-wrap:anywhere]">{order.productTitle}</dd>
+          <dt className="font-semibold">{T.valueTerm}</dt>
+          <dd>{formatCents(order.priceCents)}</dd>
+        </dl>
+        <p className="mt-4">{catalogLink}</p>
+      </main>
+    );
+  }
+
   if (order.status === "EXPIRED") {
     return (
       <main className="mx-auto max-w-md p-8">
@@ -150,6 +212,7 @@ export default function OrderPage() {
           {T.expiredHeading}
         </h1>
         <p className="mt-4">{T.expiredText}</p>
+        <p className="mt-4">{T.expiredAlreadyPaid}</p>
         <p className="mt-4">
           <Link to={`/catalogo/${order.productId}`} className="underline">
             {T.backToProduct}

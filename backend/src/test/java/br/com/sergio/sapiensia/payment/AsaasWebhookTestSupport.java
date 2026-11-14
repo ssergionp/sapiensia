@@ -28,6 +28,14 @@ final class AsaasWebhookTestSupport {
                              "billingType": "PIX", "status": "RECEIVED"}}""".formatted(id, type, value);
     }
 
+    /** A payment event as in the provider's documentation, for the charge with this id. */
+    static String paymentEvent(String id, String type, String chargeId) {
+        return """
+                {"id": "%s", "event": "%s", "dateCreated": "2026-11-11 10:00:00",
+                 "payment": {"object": "payment", "id": "%s", "customer": "cus_000", "value": 29.9,
+                             "billingType": "PIX", "status": "RECEIVED"}}""".formatted(id, type, chargeId);
+    }
+
     /** A unique event id, so tests never collide in the shared database. */
     static String uniqueId() {
         return "evt_" + UUID.randomUUID();

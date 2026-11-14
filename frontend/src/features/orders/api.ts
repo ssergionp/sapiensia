@@ -1,5 +1,5 @@
 import { apiFetch } from "@/lib/api";
-import { type Order, orderSchema } from "./schemas";
+import { type Order, orderSchema, orderStatusSchema } from "./schemas";
 
 export class NotLoggedInError extends Error {}
 export class CpfRequiredError extends Error {}
@@ -8,6 +8,7 @@ export class OrderInProgressError extends Error {}
 export class ProductUnavailableError extends Error {}
 export class PaymentUnavailableError extends Error {}
 export class OrderNotFoundError extends Error {}
+export class AlreadyOwnedError extends Error {}
 
 async function errorsOf(response: Response): Promise<Record<string, unknown>> {
   const body: unknown = await response.json().catch(() => null);
@@ -45,9 +46,9 @@ export async function createOrder(input: {
   if (response.status === 404) throw new ProductUnavailableError();
   if (response.status === 502) throw new PaymentUnavailableError();
   if (response.status === 409) {
-    if ((await errorsOf(response)).order === "ORDER_IN_PROGRESS") {
-      throw new OrderInProgressError();
-    }
+    const code = (await errorsOf(response)).order;
+    if (code === "ORDER_IN_PROGRESS") throw new OrderInProgressError();
+    if (code === "ALREADY_OWNED") throw new AlreadyOwnedError();
   }
   if (response.status === 400) {
     const errors = await errorsOf(response);
@@ -65,5 +66,20 @@ export async function fetchOrder(id: string): Promise<Order> {
   }
   if (response.status === 401) throw new NotLoggedInError();
   if (response.status === 502) throw new PaymentUnavailableError();
+  throw new Error(`Unexpected status ${response.status}`);
+}
+
+// Light read of the status only (database, never the provider); polled while the page waits for the payment.
+export async function fetchOrderStatus(id: string): Promise<Order["status"]> {
+  const response = await apiFetch(
+    `/api/orders/${encodeURIComponent(id)}/status`,
+  );
+  if (response.status === 200) {
+    return orderStatusSchema.parse(await response.json()).status;
+  }
+  if (response.status === 404 || response.status === 400) {
+    throw new OrderNotFoundError();
+  }
+  if (response.status === 401) throw new NotLoggedInError();
   throw new Error(`Unexpected status ${response.status}`);
 }

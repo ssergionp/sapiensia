@@ -23,13 +23,13 @@ function order(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function renderOrder() {
+function renderOrder(path = `/pedidos/${ORDER_ID}`) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[`/pedidos/${ORDER_ID}`]}>
+      <MemoryRouter initialEntries={[path]}>
         <Routes>
           <Route path="/pedidos/:id" element={<OrderPage />} />
           <Route path="/entrar" element={<p>tela de entrada</p>} />
@@ -42,17 +42,51 @@ function renderOrder() {
 }
 
 function mockFetch(...responses: Array<Response | Error>) {
-  const spy = vi.spyOn(globalThis, "fetch");
-  for (const r of responses) {
-    if (r instanceof Error) spy.mockRejectedValueOnce(r);
-    else spy.mockResolvedValueOnce(r);
-  }
-  return spy;
+  // The queue serves the full Order calls; the polling route has its own tests and is ignored here.
+  const queue = [...responses];
+  return vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+    if (String(input).endsWith("/status"))
+      throw new TypeError("not under test");
+    const next = queue.shift();
+    if (next === undefined) throw new TypeError("no more responses");
+    if (next instanceof Error) throw next;
+    return next;
+  });
 }
 
+// Answers by URL: the full Order from `current.order`, the light route from `current.status`.
+function routeFetch(current: {
+  order: Record<string, unknown>;
+  status: string | Error;
+}) {
+  return vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+    const url = String(input);
+    if (url.endsWith("/status")) {
+      if (current.status instanceof Error) throw current.status;
+      return jsonResponse(200, { status: current.status });
+    }
+    return jsonResponse(200, current.order);
+  });
+}
+
+function statusCalls(spy: ReturnType<typeof mockFetch>) {
+  return spy.mock.calls.filter(([url]) => String(url).endsWith("/status"));
+}
+
+function fullOrderCalls(spy: ReturnType<typeof mockFetch>) {
+  return spy.mock.calls.filter(
+    ([url]) => String(url) === `/api/orders/${ORDER_ID}`,
+  );
+}
+
+const PAID = { status: "PAID", secondsToExpire: 0, pixCopyPaste: null };
+const EXPIRED = { status: "EXPIRED", secondsToExpire: 0, pixCopyPaste: null };
+
 function orderCalls(spy: ReturnType<typeof mockFetch>) {
-  return spy.mock.calls.filter(([url]) =>
-    String(url).startsWith("/api/orders/"),
+  return spy.mock.calls.filter(
+    ([url]) =>
+      String(url).startsWith("/api/orders/") &&
+      !String(url).endsWith("/status"),
   );
 }
 
@@ -285,5 +319,185 @@ describe("OrderPage", () => {
     expect(
       JSON.stringify({ ...localStorage, ...sessionStorage }),
     ).not.toContain(PIX_CODE);
+  });
+
+  test('FR-024: mostra "Pagamento confirmado", o Produto e o valor quando o Pedido está pago', async () => {
+    mockFetch(jsonResponse(200, order(PAID)));
+    renderOrder();
+    const heading = await screen.findByRole("heading", {
+      name: "Pagamento confirmado",
+    });
+    expect(
+      screen.getByText(
+        "Recebemos o seu Pix. Você já tem Acesso a este Produto.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText("Guia de saúde")).toBeTruthy();
+    expect(screen.getByText(/19,90/)).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "Voltar ao Catálogo" }),
+    ).toBeTruthy();
+    expect(document.title).toBe("Pagamento confirmado | SapiensIA");
+    expect(document.activeElement).toBe(heading);
+    expect(screen.queryByRole("img", { name: "QR Code do Pix" })).toBeNull();
+    expect(screen.queryByLabelText("Pix copia e cola")).toBeNull();
+    expect(screen.queryByRole("timer")).toBeNull();
+  });
+
+  test('FR-024: troca de "Pague com Pix" para "Pagamento confirmado" sem recarregar quando a consulta devolve PAID', async () => {
+    const current = { order: order(), status: "PENDING" as string | Error };
+    routeFetch(current);
+    renderOrder();
+    await screen.findByRole("heading", { name: "Pague com Pix" });
+    current.order = order(PAID);
+    current.status = "PAID";
+    await tick(5000);
+    const heading = await screen.findByRole("heading", {
+      name: "Pagamento confirmado",
+    });
+    expect(document.activeElement).toBe(heading);
+    expect(document.title).toBe("Pagamento confirmado | SapiensIA");
+  });
+
+  test('ADR-0003: troca de "Este Pix expirou" para "Pagamento confirmado" quando o pagamento chega depois', async () => {
+    const current = {
+      order: order(EXPIRED),
+      status: "EXPIRED" as string | Error,
+    };
+    routeFetch(current);
+    renderOrder();
+    await screen.findByRole("heading", { name: "Este Pix expirou" });
+    current.order = order(PAID);
+    current.status = "PAID";
+    await tick(5000);
+    expect(
+      await screen.findByRole("heading", { name: "Pagamento confirmado" }),
+    ).toBeTruthy();
+  });
+
+  test("mostra o aviso para quem já pagou na tela de expirado", async () => {
+    mockFetch(jsonResponse(200, order(EXPIRED)));
+    renderOrder();
+    await screen.findByRole("heading", { name: "Este Pix expirou" });
+    expect(
+      screen.getByText(
+        "Se você já pagou, aguarde alguns minutos: esta página se atualiza sozinha quando o pagamento for confirmado.",
+      ),
+    ).toBeTruthy();
+  });
+
+  test("mostra a frase nova depois do pagamento na tela pendente", async () => {
+    mockFetch(jsonResponse(200, order()));
+    renderOrder();
+    await screen.findByRole("timer");
+    expect(
+      screen.getByText(
+        "Depois de pagar, aguarde nesta página: ela se atualiza sozinha quando o pagamento for confirmado e o Acesso ao Produto for liberado.",
+      ),
+    ).toBeTruthy();
+  });
+
+  test("para de consultar 10 minutos depois de expirar", async () => {
+    const spy = routeFetch({ order: order(EXPIRED), status: "EXPIRED" });
+    renderOrder();
+    await screen.findByRole("heading", { name: "Este Pix expirou" });
+    await tick(600_000);
+    const after = statusCalls(spy).length;
+    expect(after).toBeGreaterThanOrEqual(100);
+    expect(after).toBeLessThanOrEqual(121);
+    await tick(30_000);
+    expect(statusCalls(spy)).toHaveLength(after);
+  });
+
+  test("a janela de 10 minutos não recomeça quando uma recarga do Pedido falha", async () => {
+    let statusAnswer = "EXPIRED";
+    let orderFails = false;
+    const spy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input) => {
+        const url = String(input);
+        if (url.endsWith("/status")) {
+          return jsonResponse(200, { status: statusAnswer });
+        }
+        if (orderFails) return jsonResponse(500);
+        return jsonResponse(200, order(EXPIRED));
+      });
+    renderOrder();
+    await screen.findByRole("heading", { name: "Este Pix expirou" });
+    await tick(300_000);
+    // The server says something else once, the reload fails, the Customer retries.
+    statusAnswer = "PENDING";
+    orderFails = true;
+    await tick(5000);
+    await screen.findByRole("alert");
+    statusAnswer = "EXPIRED";
+    orderFails = false;
+    fireEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
+    await screen.findByRole("heading", { name: "Este Pix expirou" });
+    await tick(300_000);
+    const after = statusCalls(spy).length;
+    await tick(60_000);
+    expect(statusCalls(spy)).toHaveLength(after);
+  });
+
+  test("não consulta o estado de um Pedido pago", async () => {
+    const spy = routeFetch({ order: order(PAID), status: "PAID" });
+    renderOrder();
+    await screen.findByRole("heading", { name: "Pagamento confirmado" });
+    await tick(20_000);
+    expect(statusCalls(spy)).toHaveLength(0);
+  });
+
+  test("consulta só a rota do estado, e não o Pedido inteiro, enquanto nada muda", async () => {
+    const spy = routeFetch({ order: order(), status: "PENDING" });
+    renderOrder();
+    await screen.findByRole("timer");
+    await tick(20_000);
+    expect(statusCalls(spy).length).toBeGreaterThanOrEqual(3);
+    expect(fullOrderCalls(spy)).toHaveLength(1);
+  });
+
+  test("uma falha na consulta do estado não tira a tela do Pix", async () => {
+    const current = {
+      order: order(),
+      status: new TypeError("network") as string | Error,
+    };
+    routeFetch(current);
+    renderOrder();
+    await screen.findByRole("timer");
+    await tick(10_000);
+    expect(screen.getByRole("heading", { name: "Pague com Pix" })).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+    current.order = order(PAID);
+    current.status = "PAID";
+    await tick(5000);
+    expect(
+      await screen.findByRole("heading", { name: "Pagamento confirmado" }),
+    ).toBeTruthy();
+  });
+
+  test("FR-024: a sessão que expira durante a espera leva ao login e guarda o caminho do Pedido", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/status")) return jsonResponse(401);
+      return jsonResponse(200, order());
+    });
+    renderOrder();
+    expect(await screen.findByText("tela de entrada")).toBeTruthy();
+    const stored = JSON.parse(
+      localStorage.getItem("sapiensia.returnTo") ?? "{}",
+    );
+    expect(stored.path).toBe(`/pedidos/${ORDER_ID}`);
+  });
+
+  test("SEC-027: parâmetros na URL não mudam o que a tela mostra", async () => {
+    routeFetch({ order: order(), status: "PENDING" });
+    renderOrder(`/pedidos/${ORDER_ID}?status=PAID&paid=true`);
+    expect(
+      await screen.findByRole("heading", { name: "Pague com Pix" }),
+    ).toBeTruthy();
+    await tick(10_000);
+    expect(
+      screen.queryByRole("heading", { name: "Pagamento confirmado" }),
+    ).toBeNull();
   });
 });

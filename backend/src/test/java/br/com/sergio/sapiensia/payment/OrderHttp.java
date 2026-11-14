@@ -74,6 +74,18 @@ final class OrderHttp {
                     HttpResponse.BodyHandlers.ofString());
         }
 
+        /** Any verb with a valid CSRF token and a JSON body, for the routes that must not change anything. */
+        HttpResponse<String> send(String method, String path, String json) throws Exception {
+            return http.send(
+                    HttpRequest.newBuilder(uri(path))
+                            .timeout(Duration.ofSeconds(60))
+                            .header("Content-Type", "application/json")
+                            .header("X-XSRF-TOKEN", xsrf())
+                            .method(method, HttpRequest.BodyPublishers.ofString(json))
+                            .build(),
+                    HttpResponse.BodyHandlers.ofString());
+        }
+
         HttpResponse<String> get(String path) throws Exception {
             return http.send(
                     HttpRequest.newBuilder(uri(path))

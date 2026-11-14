@@ -1096,3 +1096,186 @@ test("FR-019 SEC-012 SEC-033 SEC-011: o Visitante é levado a entrar, volta ao P
     await mobile.close();
   }
 });
+
+// Local profile webhook token (fictitious), built at run time so no secret-looking literal sits in the repo.
+const LOCAL_WEBHOOK_TOKEN = [
+  "local-only-asaas-webhook-token",
+  "000000000000",
+].join("-");
+// An official Asaas address: the prod profile of the CI reads it from Fly-Client-IP; locally the header is ignored.
+const ASAAS_IP = "52.67.12.206";
+const PAID_HEADING = "Pagamento confirmado";
+const PAID_TEXT = "Recebemos o seu Pix. Você já tem Acesso a este Produto.";
+
+test("FR-021 FR-024 SEC-025 SEC-026 SEC-027 SEC-031: o pagamento confirmado pelo Asaas libera o Acesso", async ({
+  page,
+  browser,
+  baseURL,
+  request,
+}) => {
+  test.setTimeout(180_000);
+  const host = new URL(baseURL ?? "").hostname;
+  if (host !== "localhost" && host !== "127.0.0.1") {
+    throw new Error(
+      "Refusing to run the administrator e2e outside localhost/127.0.0.1",
+    );
+  }
+  const token = process.env.E2E_ASAAS_WEBHOOK_TOKEN ?? LOCAL_WEBHOOK_TOKEN;
+  const title = `E2E Pago ${Date.now()}`;
+  const eventId = () => `evt_e2e_${randomBytes(8).toString("hex")}`;
+
+  // The Administrator publishes a Product.
+  await loginWithStoredCredentials(page);
+  await page.goto("/painel/produtos");
+  await page.getByRole("link", { name: "Novo Produto" }).click();
+  await page.getByLabel("Título").fill(title);
+  await page.getByLabel("Descrição").fill("Produto de teste do pagamento.");
+  await page.getByLabel("Categoria").selectOption({ label: "Tecnologia" });
+  await page.getByLabel("Valor (R$)").fill("29,90");
+  await page.getByRole("button", { name: "Criar Produto" }).click();
+  await expect(page.getByText("Produto criado.")).toBeVisible();
+  await page.getByRole("link", { name: `Editar ${title}` }).click();
+  await expect(
+    page.getByRole("heading", { name: "Editar Produto", exact: true }),
+  ).toBeVisible();
+  const productId = PRODUCT_EDIT_PATH.exec(page.url())?.[1];
+  if (productId === undefined) {
+    throw new Error("Could not read the Product id from the edit page URL.");
+  }
+  await page.getByLabel("Arquivo PDF").setInputFiles({
+    name: "produto.pdf",
+    mimeType: "application/pdf",
+    buffer: buildPdf("pago"),
+  });
+  await page.getByRole("button", { name: "Enviar arquivo" }).click();
+  await expect(page.getByText("Arquivo enviado.")).toBeVisible();
+  await page.getByRole("button", { name: "Publicar", exact: true }).click();
+  await page.getByRole("button", { name: "Confirmar publicação" }).click();
+  await expect(page.getByText("Produto publicado.")).toBeVisible();
+
+  // The provider event is sent outside the browser, to the real endpoint, with the accepted token and IP.
+  async function sendPaymentReceived(chargeId: string, id: string) {
+    const response = await request.post("/api/webhooks/asaas", {
+      headers: { "asaas-access-token": token, "Fly-Client-IP": ASAAS_IP },
+      data: {
+        id,
+        event: "PAYMENT_RECEIVED",
+        dateCreated: new Date().toISOString().replace("T", " ").slice(0, 19),
+        payment: {
+          object: "payment",
+          id: chargeId,
+          billingType: "PIX",
+          status: "RECEIVED",
+        },
+      },
+    });
+    expect(response.status()).toBe(200);
+  }
+
+  async function logInNewCustomer(customerPage: Page, prefix: string) {
+    const email = uniqueEmail(prefix);
+    const password = strongPassword();
+    await registerAndConfirm(customerPage, email, password);
+    await customerPage.goto("/entrar");
+    await customerPage.getByLabel("E-mail").fill(email);
+    await customerPage.getByLabel("Senha").fill(password);
+    await customerPage.getByRole("button", { name: "Entrar" }).click();
+    await expect(
+      customerPage.getByText(`Você entrou como ${email}.`),
+    ).toBeVisible();
+  }
+
+  async function buyFirstTime(customerPage: Page) {
+    await logInNewCustomer(customerPage, "pago");
+    await customerPage.goto(`/catalogo/${productId}`);
+    await customerPage.getByRole("button", { name: "Comprar com Pix" }).click();
+    await customerPage.getByLabel("CPF").fill(fictitiousCpf());
+    await customerPage.getByRole("button", { name: "Gerar Pix" }).click();
+    await expect(customerPage).toHaveURL(ORDER_PATH);
+    await expect(
+      customerPage.getByRole("heading", { name: "Pague com Pix" }),
+    ).toBeVisible();
+    const shown = await customerPage
+      .getByLabel("Pix copia e cola")
+      .inputValue();
+    const chargeId = /(pay_[A-Za-z0-9_]+)$/.exec(shown)?.[1];
+    if (chargeId === undefined) {
+      throw new Error("Could not read the charge id from the shown Pix code.");
+    }
+    return { chargeId, orderUrl: customerPage.url() };
+  }
+
+  const first = await browser.newContext({ baseURL: baseURL ?? undefined });
+  const second = await browser.newContext({ baseURL: baseURL ?? undefined });
+  const mobile = await browser.newContext({
+    ...devices["Pixel 7"],
+    baseURL: baseURL ?? undefined,
+  });
+  try {
+    const buyer = await first.newPage();
+    const { chargeId, orderUrl } = await buyFirstTime(buyer);
+
+    // Parameters in the URL never decide the state: before the event the page still asks for the payment.
+    await buyer.goto(`${orderUrl}?status=PAID`);
+    await expect(
+      buyer.getByRole("heading", { name: "Pague com Pix" }),
+    ).toBeVisible();
+    await expect(buyer.getByText(PAID_HEADING)).toHaveCount(0);
+    await buyer.goto(orderUrl);
+    await expect(
+      buyer.getByRole("heading", { name: "Pague com Pix" }),
+    ).toBeVisible();
+
+    // The confirmed payment arrives; the same page, without a reload, turns to paid.
+    await sendPaymentReceived(chargeId, eventId());
+    await expect(
+      buyer.getByRole("heading", { name: PAID_HEADING }),
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(buyer.getByText(PAID_TEXT)).toBeVisible();
+    await expect(buyer.getByLabel("Pix copia e cola")).toHaveCount(0);
+
+    // The same event again (same id) and a new id for the same payment change nothing.
+    const repeatedId = eventId();
+    await sendPaymentReceived(chargeId, repeatedId);
+    await sendPaymentReceived(chargeId, repeatedId);
+    await sendPaymentReceived(chargeId, eventId());
+    await buyer.reload();
+    await expect(
+      buyer.getByRole("heading", { name: PAID_HEADING }),
+    ).toBeVisible();
+    await expect(buyer.getByText(PAID_TEXT)).toBeVisible();
+
+    // Buying the same Product again is refused: the Customer already has Access.
+    await buyer.goto(`/catalogo/${productId}`);
+    await buyer.getByRole("button", { name: "Comprar com Pix" }).click();
+    await expect(
+      buyer.getByText("Você já tem Acesso a este Produto."),
+    ).toBeVisible();
+
+    // Another Customer does not see the paid Order.
+    const other = await second.newPage();
+    await logInNewCustomer(other, "pagooutro");
+    await other.goto(orderUrl);
+    await expect(
+      other.getByRole("heading", { name: "Pedido não encontrado" }),
+    ).toBeVisible();
+    await expect(other.getByText(PAID_HEADING)).toHaveCount(0);
+
+    // The paid view on a phone screen: no horizontal scroll.
+    const phone = await mobile.newPage();
+    const phoneOrder = await buyFirstTime(phone);
+    await sendPaymentReceived(phoneOrder.chargeId, eventId());
+    await expect(
+      phone.getByRole("heading", { name: PAID_HEADING }),
+    ).toBeVisible({ timeout: 30_000 });
+    const widths = await phone.evaluate(() => ({
+      scroll: document.documentElement.scrollWidth,
+      client: document.documentElement.clientWidth,
+    }));
+    expect(widths.scroll).toBeLessThanOrEqual(widths.client);
+  } finally {
+    await first.close();
+    await second.close();
+    await mobile.close();
+  }
+});

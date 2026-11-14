@@ -430,4 +430,127 @@ class AsaasPixGatewayWireTest {
                 .allSatisfy(message -> assertThat(message).doesNotContain(MARKER));
         assertThat(output.getAll()).doesNotContain(MARKER).doesNotContain(CPF);
     }
+
+    @Test
+    @DisplayName("SEC-026: shouldReadTheChargeWithTheApiKey")
+    void shouldReadTheChargeWithTheApiKey() {
+        replyWith(
+                200,
+                "{\"id\":\"pay_1\",\"status\":\"RECEIVED\",\"value\":29.9,\"billingType\":\"PIX\","
+                        + "\"externalReference\":\"order-1\",\"deleted\":true}");
+
+        PixCharge charge = gateway().readCharge("pay_1");
+
+        Seen seen = requests.get(0);
+        assertThat(seen.method()).isEqualTo("GET");
+        assertThat(seen.path()).isEqualTo("/v3/payments/pay_1");
+        assertThat(seen.headers().get("access_token")).containsExactly(KEY);
+        assertThat(seen.headers().get("User-Agent")).containsExactly("sapiensia");
+        assertThat(charge.id()).isEqualTo("pay_1");
+        assertThat(charge.status()).isEqualTo("RECEIVED");
+        assertThat(charge.value()).isEqualByComparingTo("29.90");
+        assertThat(charge.billingType()).isEqualTo("PIX");
+        assertThat(charge.externalReference()).isEqualTo("order-1");
+        assertThat(charge.deleted()).isTrue();
+        assertThat(charge.isPaid()).isTrue();
+        assertThat(charge.toString()).isEqualTo("PixCharge[id=pay_1, status=RECEIVED]");
+    }
+
+    @Test
+    @DisplayName("shouldReadAChargeWithoutExternalReference")
+    void shouldReadAChargeWithoutExternalReference() {
+        replyWith(200, "{\"id\":\"pay_1\",\"status\":\"PENDING\",\"value\":10,\"billingType\":\"PIX\"}");
+
+        PixCharge charge = gateway().readCharge("pay_1");
+
+        assertThat(charge.externalReference()).isNull();
+        assertThat(charge.deleted()).isFalse();
+        assertThat(charge.isAwaitingPayment()).isTrue();
+        assertThat(charge.isPaid()).isFalse();
+    }
+
+    @Test
+    @DisplayName("SEC-026: shouldReportAMissingChargeAsRefused")
+    void shouldReportAMissingChargeAsRefused() {
+        replyWith(404, "{\"errors\":[{\"code\":\"invalid_object\"}]}");
+
+        assertThatThrownBy(() -> gateway().readCharge("pay_1")).isInstanceOfSatisfying(PixGatewayException.class, e -> {
+            assertThat(e.kind()).isEqualTo(PixGatewayException.Kind.REFUSED);
+            assertThat(e.step()).isEqualTo("READ_CHARGE");
+        });
+    }
+
+    static Stream<Arguments> unreadableChargeAnswers() {
+        return Stream.of(
+                Arguments.of(500, "{\"errors\":[]}", READ),
+                Arguments.of(429, "{\"errors\":[]}", READ),
+                Arguments.of(401, "{\"errors\":[]}", READ),
+                // a 4xx other than 404 may be transient: retried, never a final "charge not found"
+                Arguments.of(400, "{\"errors\":[]}", READ),
+                Arguments.of(408, "{\"errors\":[]}", READ),
+                Arguments.of(409, "{\"errors\":[]}", READ),
+                Arguments.of(200, "{not json", READ),
+                Arguments.of(200, "{\"id\":\"pay_1\",\"value\":10,\"billingType\":\"PIX\"}", READ),
+                Arguments.of(
+                        200,
+                        "{\"id\":\"pay_1\",\"status\":\"RECEIVED\",\"value\":\"10\",\"billingType\":\"PIX\"}",
+                        READ),
+                // timeout: the server sleeps longer than the read timeout
+                Arguments.of(-1, "", Duration.ofMillis(500)));
+    }
+
+    @ParameterizedTest
+    @MethodSource("unreadableChargeAnswers")
+    @DisplayName("SEC-031: shouldReportTheProviderAsUnavailableWhenTheChargeCannotBeRead")
+    void shouldReportTheProviderAsUnavailableWhenTheChargeCannotBeRead(int status, String body, Duration readTimeout) {
+        if (status < 0) {
+            handler = seen -> {
+                try {
+                    Thread.sleep(5000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                return new Reply(200, "{}");
+            };
+        } else {
+            replyWith(status, body);
+        }
+        AsaasPixGateway gateway = gateway(readTimeout);
+
+        assertThatThrownBy(() -> gateway.readCharge("pay_1")).isInstanceOfSatisfying(PixGatewayException.class, e -> {
+            assertThat(e.kind()).isEqualTo(PixGatewayException.Kind.UNAVAILABLE);
+            assertThat(e.step()).isEqualTo("READ_CHARGE");
+        });
+    }
+
+    @Test
+    @DisplayName("SEC-018: shouldNeverPutTheChargeAnswerInAnExceptionOrLog")
+    void shouldNeverPutTheChargeAnswerInAnExceptionOrLog(CapturedOutput output) {
+        AsaasPixGateway gateway = gateway();
+        List<String> messages = new ArrayList<>();
+        // a good answer carrying the marker in fields the adapter must ignore
+        replyWith(
+                200,
+                "{\"id\":\"pay_1\",\"status\":\"RECEIVED\",\"value\":10,\"billingType\":\"PIX\"," + "\"description\":\""
+                        + MARKER + "\",\"customer\":\"" + MARKER + "\"}");
+        PixCharge charge = gateway.readCharge("pay_1");
+        assertThat(charge.toString()).doesNotContain(MARKER);
+        // failing answers carrying the marker
+        for (Reply answer : List.of(
+                new Reply(404, "{\"errors\":[{\"code\":\"c\",\"description\":\"" + MARKER + "\"}]}"),
+                new Reply(500, "{\"description\":\"" + MARKER + "\",\"customer\":\"" + MARKER + "\"}"),
+                new Reply(200, "{\"description\":\"" + MARKER + "\",\"customer\":\"" + MARKER + "\"}"))) {
+            replyWith(answer.status(), answer.body());
+            try {
+                gateway.readCharge("pay_1");
+            } catch (PixGatewayException e) {
+                messages.add(e.getMessage());
+            }
+        }
+
+        assertThat(messages)
+                .hasSize(3)
+                .allSatisfy(message -> assertThat(message).doesNotContain(MARKER));
+        assertThat(output.getAll()).doesNotContain(MARKER);
+    }
 }

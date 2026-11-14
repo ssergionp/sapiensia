@@ -55,8 +55,7 @@ class OrderProviderFailureTest {
 
     @AfterEach
     void cleanUp() {
-        jdbc.update("delete from orders");
-        jdbc.update("delete from payment_customers");
+        OrderTestSupport.deleteOrdersOf(jdbc, customer.id, productId);
     }
 
     private void assertPaymentProblem(HttpResponse<String> answer) {
@@ -83,8 +82,7 @@ class OrderProviderFailureTest {
         HttpResponse<String> answer = customer.order(productId, CPF);
 
         assertPaymentProblem(answer);
-        assertThat(jdbc.queryForObject("select count(*) from orders", Long.class))
-                .isZero();
+        assertThat(OrderTestSupport.countOrdersOf(jdbc, customer.id)).isZero();
     }
 
     @Test

@@ -32,6 +32,7 @@ class OrderService {
     record Created(UUID orderId, boolean isNew) {}
 
     private final Orders orders;
+    private final Accesses accesses;
     private final PaymentCustomers paymentCustomers;
     private final PixGateway gateway;
     private final CatalogService catalog;
@@ -42,6 +43,7 @@ class OrderService {
 
     OrderService(
             Orders orders,
+            Accesses accesses,
             PaymentCustomers paymentCustomers,
             PixGateway gateway,
             CatalogService catalog,
@@ -50,6 +52,7 @@ class OrderService {
             OrderExpiration.Expirer expirer,
             @Value("${app.orders.pix-ttl}") Duration pixTtl) {
         this.orders = orders;
+        this.accesses = accesses;
         this.paymentCustomers = paymentCustomers;
         this.gateway = gateway;
         this.catalog = catalog;
@@ -63,6 +66,7 @@ class OrderService {
     @Autowired
     OrderService(
             Orders orders,
+            Accesses accesses,
             PaymentCustomers paymentCustomers,
             PixGateway gateway,
             CatalogService catalog,
@@ -72,6 +76,7 @@ class OrderService {
             @Value("${app.orders.pix-ttl}") Duration pixTtl) {
         this(
                 orders,
+                accesses,
                 paymentCustomers,
                 gateway,
                 catalog,
@@ -110,6 +115,9 @@ class OrderService {
             throw new OrderInProgressException();
         }
         CatalogProduct product = catalog.get(request.productId());
+        if (accesses.exists(customerId, product.id())) {
+            throw new ProductAlreadyOwnedException();
+        }
         var pending = orders.findPending(customerId, product.id());
         if (pending.isPresent()) {
             Orders.Row row = pending.get();
@@ -193,22 +201,29 @@ class OrderService {
         }
     }
 
+    /** A pending Order past its time is shown as expired even before the expiration task runs. */
+    private static OrderStatus shownStatus(Orders.Row row, Instant now) {
+        if (row.status() == OrderStatus.PENDING && !row.expiresAt().isAfter(now)) {
+            return OrderStatus.EXPIRED;
+        }
+        return row.status();
+    }
+
+    /** The state of the Order, for the page's polling. Only the database is read, never the provider. */
+    OrderStatus status(UUID customerId, UUID orderId) {
+        Orders.Row row = orders.findForCustomer(orderId, customerId).orElseThrow(OrderNotFoundException::new);
+        return shownStatus(row, clock.instant());
+    }
+
     /** Reads the Order of the Customer. No transaction is open while the provider is called. */
     OrderResponse get(UUID customerId, UUID orderId) {
         Orders.Row row = orders.findForCustomer(orderId, customerId).orElseThrow(OrderNotFoundException::new);
         Instant now = clock.instant();
-        boolean inTime = row.status() == OrderStatus.PENDING && row.expiresAt().isAfter(now);
-        if (!inTime) {
-            // any non-pending or past-expiry row is shown as EXPIRED for now: #28 must map PAID here
+        OrderStatus shown = shownStatus(row, now);
+        if (shown != OrderStatus.PENDING) {
+            // PAID or EXPIRED: nothing to pay, so the provider is not called and there is no Pix code
             return new OrderResponse(
-                    row.id(),
-                    row.productId(),
-                    row.productTitle(),
-                    row.priceCents(),
-                    OrderStatus.EXPIRED,
-                    row.expiresAt(),
-                    0,
-                    null);
+                    row.id(), row.productId(), row.productTitle(), row.priceCents(), shown, row.expiresAt(), 0, null);
         }
         String code;
         try {

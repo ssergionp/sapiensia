@@ -24,6 +24,9 @@ public class SwitchablePixGateway implements PixGateway {
     private final Map<String, PixGatewayException.Kind> failures = new ConcurrentHashMap<>();
     private final AtomicReference<CountDownLatch> held = new AtomicReference<>();
     private final AtomicReference<Runnable> afterCharge = new AtomicReference<>();
+    private final AtomicReference<Runnable> afterCancel = new AtomicReference<>();
+    private final AtomicReference<CountDownLatch> heldRead = new AtomicReference<>();
+    private final Map<String, PixCharge> answers = new ConcurrentHashMap<>();
     private volatile PixGatewayException.Kind failingCancel;
     private volatile String failingCancelCharge;
     private volatile String lastCustomerCpf;
@@ -36,7 +39,7 @@ public class SwitchablePixGateway implements PixGateway {
         this.delegate = delegate;
     }
 
-    /** Every call, in order, by step (FIND_CUSTOMER, CREATE_CUSTOMER, CREATE_CHARGE, READ_QR_CODE, CANCEL_CHARGE). */
+    /** Every call, in order, by step (FIND_CUSTOMER, CREATE_CUSTOMER, CREATE_CHARGE, READ_QR_CODE, READ_CHARGE, CANCEL_CHARGE). */
     public List<String> calls() {
         return List.copyOf(calls);
     }
@@ -111,13 +114,21 @@ public class SwitchablePixGateway implements PixGateway {
         afterCharge.set(action);
     }
 
+    /** Runs the code right after the next {@code cancelCharge} was recorded and answered, before it returns. */
+    public void afterNextCancel(Runnable action) {
+        afterCancel.set(action);
+    }
+
     public void reset() {
+        afterCancel.set(null);
         calls.clear();
         cancelled.clear();
         chargeIds.clear();
         failures.clear();
         held.set(null);
         afterCharge.set(null);
+        heldRead.set(null);
+        answers.clear();
         failingCancel = null;
         failingCancelCharge = null;
         lastCustomerCpf = null;
@@ -182,6 +193,34 @@ public class SwitchablePixGateway implements PixGateway {
         return delegate.readCopyPaste(chargeId);
     }
 
+    /** Makes {@code readCharge} of this one charge answer with the given charge; {@link #reset()} clears it. */
+    public void answerCharge(String chargeId, PixCharge charge) {
+        answers.put(chargeId, charge);
+    }
+
+    /** The next {@code readCharge} records itself and then waits for the latch before it reads the charge. */
+    public void holdNextRead(CountDownLatch latch) {
+        heldRead.set(latch);
+    }
+
+    @Override
+    public PixCharge readCharge(String chargeId) {
+        enter("READ_CHARGE");
+        CountDownLatch latch = heldRead.getAndSet(null);
+        if (latch != null) {
+            try {
+                if (!latch.await(30, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("held read was never released");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("held read interrupted");
+            }
+        }
+        PixCharge fixed = answers.get(chargeId);
+        return fixed != null ? fixed : delegate.readCharge(chargeId);
+    }
+
     @Override
     public void cancelCharge(String chargeId) {
         calls.add("CANCEL_CHARGE");
@@ -194,5 +233,9 @@ public class SwitchablePixGateway implements PixGateway {
             throw new PixGatewayException(failure, "CANCEL_CHARGE", "HTTP 503");
         }
         delegate.cancelCharge(chargeId);
+        Runnable action = afterCancel.getAndSet(null);
+        if (action != null) {
+            action.run();
+        }
     }
 }
