@@ -57,8 +57,14 @@ class SupabaseProductFileStorageWireTest {
                     headers,
                     body));
             boolean read = "GET".equals(exchange.getRequestMethod());
-            byte[] answer = read ? new byte[] {1, 2, 3} : "{\"Key\":\"x\"}".getBytes(StandardCharsets.UTF_8);
-            exchange.getResponseHeaders().add("Content-Type", read ? "image/png" : "application/json");
+            boolean sign = exchange.getRequestURI().getRawPath().contains("/object/sign/");
+            byte[] answer = sign
+                    ? ("{\"signedURL\":\""
+                                    + exchange.getRequestURI().getRawPath().replace("/storage/v1", "")
+                                    + "?token=abc\"}")
+                            .getBytes(StandardCharsets.UTF_8)
+                    : read ? new byte[] {1, 2, 3} : "{\"Key\":\"x\"}".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", read && !sign ? "image/png" : "application/json");
             exchange.sendResponseHeaders(200, answer.length);
             exchange.getResponseBody().write(answer);
             exchange.close();
@@ -126,6 +132,26 @@ class SupabaseProductFileStorageWireTest {
         assertThat(get.method()).isEqualTo("GET");
         assertThat(get.path()).isEqualTo("/storage/v1/object/authenticated/" + COVER_BUCKET + "/" + key);
         assertThat(get.headers().get("apikey")).containsExactly(SECRET);
+    }
+
+    @Test
+    @DisplayName("FR-034: a assinatura vai ao Storage como POST com apikey e corpo expiresIn 60")
+    void shouldSendTheSignRequestOnTheWire() {
+        String key = ProductFileKeys.newKey(UUID.randomUUID());
+        String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
+        SupabaseProductFileStorage storage =
+                new SupabaseProductFileStorage(RestClient.builder(), baseUrl, SECRET, BUCKET, COVER_BUCKET);
+
+        assertThat(storage.signedDownloadUrl(key, java.time.Duration.ofSeconds(60), "guia-de-contratos.pdf"))
+                .contains(baseUrl + "/storage/v1/object/sign/" + BUCKET + "/" + key
+                        + "?token=abc&download=guia-de-contratos.pdf");
+
+        Recorded request = recorded.get();
+        assertThat(request.method()).isEqualTo("POST");
+        assertThat(request.path()).isEqualTo("/storage/v1/object/sign/" + BUCKET + "/" + key);
+        assertThat(request.headers().get("apikey")).containsExactly(SECRET);
+        assertThat(request.headers().get("Content-Type").get(0)).startsWith("application/json");
+        assertThat(new String(request.body(), StandardCharsets.UTF_8)).isEqualTo("{\"expiresIn\":60}");
     }
 
     private static String sha256(byte[] bytes) {

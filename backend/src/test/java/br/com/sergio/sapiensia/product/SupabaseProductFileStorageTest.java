@@ -505,6 +505,97 @@ class SupabaseProductFileStorageTest {
         assertThat(output.getAll()).doesNotContain("Storage could not");
     }
 
+    private static final String FILE_NAME = "guia-de-contratos.pdf";
+    private static final java.time.Duration TTL = java.time.Duration.ofSeconds(60);
+
+    @Test
+    @DisplayName("FR-034: pede ao Storage uma URL assinada de 60 s e devolve a URL com o nome do arquivo")
+    void shouldSignAndBuildTheDownloadUrl() {
+        Fixture fixture = fixture();
+        String key = ProductFileKeys.newKey(UUID.randomUUID());
+        fixture.server
+                .expect(requestTo(URL + "/storage/v1/object/sign/" + BUCKET + "/" + key))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("apikey", SECRET))
+                .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers.content()
+                        .json("{\"expiresIn\":60}", true))
+                .andRespond(withSuccess(
+                        "{\"signedURL\":\"/object/sign/" + BUCKET + "/" + key + "?token=abc\"}",
+                        MediaType.APPLICATION_JSON));
+
+        assertThat(fixture.storage.signedDownloadUrl(key, TTL, FILE_NAME))
+                .contains(URL + "/storage/v1/object/sign/" + BUCKET + "/" + key + "?token=abc&download=" + FILE_NAME);
+        fixture.server.verify();
+    }
+
+    @Test
+    @DisplayName("FR-034: objeto ausente na assinatura (404, ou 400 com statusCode 404) dá vazio")
+    void shouldReturnEmptyWhenSigningAMissingObject() {
+        for (HttpStatus status : new HttpStatus[] {HttpStatus.NOT_FOUND, HttpStatus.BAD_REQUEST}) {
+            Fixture fixture = fixture();
+            String key = ProductFileKeys.newKey(UUID.randomUUID());
+            fixture.server
+                    .expect(requestTo(URL + "/storage/v1/object/sign/" + BUCKET + "/" + key))
+                    .andRespond(withStatus(status)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .body("{\"statusCode\":\"404\",\"error\":\"not_found\",\"message\":\"Object not found\"}"));
+
+            assertThat(fixture.storage.signedDownloadUrl(key, TTL, FILE_NAME)).isEmpty();
+        }
+    }
+
+    @Test
+    @DisplayName(
+            "FR-034: falha ao assinar vira exceção sem token, chave, host nem nome do arquivo, na mensagem e no log")
+    void shouldFailSigningWithoutLeakingAnything(CapturedOutput output) {
+        String leakyBody = "{\"statusCode\":\"500\",\"error\":\"boom\",\"message\":\"failed token=abc on %s for %s\"}";
+        String[] responses = new String[4];
+        String key = ProductFileKeys.newKey(UUID.randomUUID());
+        responses[0] = null; // HTTP 500
+        responses[1] = "{\"other\":\"" + FILE_NAME + " token=abc\"}"; // no signedURL
+        responses[2] = "{\"signedURL\":\"/elsewhere/" + key + "?token=abc\"}"; // wrong prefix
+        responses[3] = "{\"signedURL\":123}"; // not text
+        for (String response : responses) {
+            Fixture fixture = fixture();
+            fixture.server
+                    .expect(requestTo(URL + "/storage/v1/object/sign/" + BUCKET + "/" + key))
+                    .andRespond(
+                            response == null
+                                    ? withStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+                                            .contentType(MediaType.APPLICATION_JSON)
+                                            .body(leakyBody.formatted(
+                                                    "/storage/v1/object/sign/" + BUCKET + "/" + key, FILE_NAME))
+                                    : withSuccess(response, MediaType.APPLICATION_JSON));
+
+            assertThatThrownBy(() -> fixture.storage.signedDownloadUrl(key, TTL, FILE_NAME))
+                    .isInstanceOf(ProductFileStorageException.class)
+                    .hasNoCause()
+                    .message()
+                    .doesNotContain("token=")
+                    .doesNotContain(key)
+                    .doesNotContain("project.example.test")
+                    .doesNotContain(FILE_NAME)
+                    .doesNotContain(SECRET);
+        }
+        assertThat(output.getAll())
+                .doesNotContain("token=")
+                .doesNotContain(key)
+                .doesNotContain("project.example.test")
+                .doesNotContain(FILE_NAME)
+                .doesNotContain("/object/sign/");
+    }
+
+    @Test
+    @DisplayName("FR-034: só chaves de arquivo são assinadas; capa é recusada")
+    void shouldRefuseToSignACoverKey() {
+        Fixture fixture = fixture();
+        String cover = ProductFileKeys.newCoverKey(UUID.randomUUID(), CoverFormat.PNG);
+
+        assertThatThrownBy(() -> fixture.storage.signedDownloadUrl(cover, TTL, FILE_NAME))
+                .isInstanceOf(ProductFileStorageException.class)
+                .hasMessage("Invalid storage key");
+    }
+
     private Fixture fixture() {
         RestClient.Builder builder = spy(RestClient.builder());
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();

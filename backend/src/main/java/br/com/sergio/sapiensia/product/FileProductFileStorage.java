@@ -66,6 +66,12 @@ class FileProductFileStorage implements ProductFileStorage {
     }
 
     @Override
+    public Optional<String> signedDownloadUrl(String key, java.time.Duration ttl, String fileName) {
+        // replaced by the local token link in the next task of #33
+        throw new UnsupportedOperationException("not implemented yet");
+    }
+
+    @Override
     public void delete(String key) {
         try {
             Files.deleteIfExists(resolve(key));

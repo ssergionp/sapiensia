@@ -1,6 +1,7 @@
 package br.com.sergio.sapiensia.product;
 
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.Optional;
 import org.springframework.http.MediaType;
 
@@ -21,6 +22,13 @@ interface ProductFileStorage {
      * throws ProductFileStorageException on any failure, or when the object is bigger than {@code MAX_BYTES}.
      */
     Optional<byte[]> get(String key);
+
+    /**
+     * A URL that delivers the object as an attachment named {@code fileName} until {@code ttl} runs out; empty when the
+     * object does not exist. Only {@code products/...} keys (a cover key is "Invalid storage key"). Throws
+     * ProductFileStorageException on any failure; the URL, the key and the file name never go in a message or a log.
+     */
+    Optional<String> signedDownloadUrl(String key, Duration ttl, String fileName);
 
     /** Deletes the object; a missing object is not an error. Throws ProductFileStorageException on failure. */
     void delete(String key);

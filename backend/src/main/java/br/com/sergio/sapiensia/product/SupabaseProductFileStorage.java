@@ -1,6 +1,7 @@
 package br.com.sergio.sapiensia.product;
 
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -44,6 +45,8 @@ class SupabaseProductFileStorage implements ProductFileStorage {
             Pattern.compile("sb_(secret|publishable)_[A-Za-z0-9_-]*|eyJ[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+){1,2}");
     // anything that looks like a file name (no space, a dot, then 1 to 6 letters or digits): on doubt, hide it
     private static final Pattern FILE_NAME_PATTERN = Pattern.compile("\\S*\\.[A-Za-z0-9]{1,6}\\S*");
+    private static final String SIGNED_PREFIX = "/object/sign/";
+    private static final Pattern TOKEN_PATTERN = Pattern.compile("token=\\S*");
     private static final String REDACTED = "<redacted>";
     private static final int MAX_FIELD = 200;
     // an error body is only read to log three short fields
@@ -102,6 +105,10 @@ class SupabaseProductFileStorage implements ProductFileStorage {
         return "/storage/v1/object/" + bucketOf(key) + "/" + key;
     }
 
+    private String signPath(String key) {
+        return "/storage/v1/object/sign/" + filesBucket + "/" + key;
+    }
+
     private String authenticatedPath(String key) {
         return "/storage/v1/object/authenticated/" + bucketOf(key) + "/" + key;
     }
@@ -145,6 +152,39 @@ class SupabaseProductFileStorage implements ProductFileStorage {
             });
         } catch (RestClientException e) {
             throw failure("read", key, e);
+        }
+    }
+
+    @Override
+    public Optional<String> signedDownloadUrl(String key, Duration ttl, String fileName) {
+        requireValid(key);
+        if (ProductFileKeys.isCover(key)) {
+            throw new ProductFileStorageException("Invalid storage key");
+        }
+        try {
+            JsonNode answer = restClient
+                    .post()
+                    .uri(signPath(key))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body("{\"expiresIn\":" + ttl.toSeconds() + "}")
+                    .retrieve()
+                    .body(JsonNode.class);
+            JsonNode signed = answer == null ? null : answer.get("signedURL");
+            // never echo the answer: it carries the token
+            if (signed == null || !signed.isString() || !signed.asString().startsWith(SIGNED_PREFIX)) {
+                throw new ProductFileStorageException("Storage could not sign the file: unexpected response");
+            }
+            return Optional.of(baseUrl + "/storage/v1" + signed.asString() + "&download="
+                    + URLEncoder.encode(fileName, StandardCharsets.UTF_8));
+        } catch (RestClientResponseException e) {
+            String body = e.getResponseBodyAsString();
+            if (e.getStatusCode().value() == 404
+                    || (e.getStatusCode().value() == 400 && bodyStatusCode(body).equals("404"))) {
+                return Optional.empty();
+            }
+            throw failure("sign", key, e);
+        } catch (RestClientException e) {
+            throw failure("sign", key, e);
         }
     }
 
@@ -220,6 +260,8 @@ class SupabaseProductFileStorage implements ProductFileStorage {
                 host,
                 "/storage/v1/object/authenticated/" + filesBucket + "/",
                 "/storage/v1/object/authenticated/" + coverBucket + "/",
+                "/storage/v1/object/sign/" + filesBucket + "/",
+                SIGNED_PREFIX + filesBucket + "/",
                 "/storage/v1/object/" + filesBucket + "/",
                 "/storage/v1/object/" + coverBucket + "/",
                 key)) {
@@ -227,6 +269,7 @@ class SupabaseProductFileStorage implements ProductFileStorage {
                 text = text.replace(hidden, REDACTED);
             }
         }
+        text = TOKEN_PATTERN.matcher(text).replaceAll(REDACTED);
         text = SECRET_PATTERN.matcher(text).replaceAll(REDACTED).replaceAll("\\p{Cntrl}", " ");
         text = FILE_NAME_PATTERN.matcher(text).replaceAll(REDACTED);
         return text.length() > MAX_FIELD ? text.substring(0, MAX_FIELD) : text;
