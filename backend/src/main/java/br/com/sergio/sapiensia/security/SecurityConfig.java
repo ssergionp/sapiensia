@@ -260,6 +260,12 @@ public class SecurityConfig {
                         .access(panel(Capability.PRODUCTS_PUBLISH))
                         .requestMatchers(PUBLIC_CATALOG)
                         .permitAll()
+                        // Orders (#24): the logged-in Customer only; the Order is filtered by its owner in the SQL
+                        // (SEC-011)
+                        .requestMatchers(HttpMethod.POST, "/api/orders")
+                        .hasRole("CUSTOMER")
+                        .requestMatchers(HttpMethod.GET, "/api/orders/*")
+                        .hasRole("CUSTOMER")
                         // Asaas webhook (#26, ADR-0003): the token header and the source IP are the credential; no
                         // session, no CSRF
                         .requestMatchers(HttpMethod.POST, "/api/webhooks/asaas")

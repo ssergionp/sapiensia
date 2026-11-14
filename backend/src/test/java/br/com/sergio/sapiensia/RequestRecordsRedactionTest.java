@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 class RequestRecordsRedactionTest {
 
-    private static final Set<String> SENSITIVE_WORDS = Set.of("email", "password", "token", "code", "secret");
+    private static final Set<String> SENSITIVE_WORDS = Set.of("email", "password", "token", "code", "secret", "cpf");
 
     @Test
     @DisplayName(
@@ -31,7 +31,9 @@ class RequestRecordsRedactionTest {
     void shouldRedactToStringOfEveryRequestRecordWithSensitiveFields() throws Exception {
         Set<Class<?>> requestRecords = requestRecords();
         // the scan is not vacuous
-        assertThat(requestRecords).extracting(Class::getSimpleName).contains("AdminLoginRequest", "LoginRequest");
+        assertThat(requestRecords)
+                .extracting(Class::getSimpleName)
+                .contains("AdminLoginRequest", "LoginRequest", "CreateOrderRequest");
 
         Set<String> problems = new TreeSet<>();
         for (Class<?> type : requestRecords) {

@@ -6,7 +6,12 @@ import br.com.sergio.sapiensia.customer.IncorrectConfirmationPasswordException;
 import br.com.sergio.sapiensia.customer.InvalidConfirmationTokenException;
 import br.com.sergio.sapiensia.customer.PasswordCompromisedException;
 import br.com.sergio.sapiensia.customer.WrongPasswordLimitReachedException;
+import br.com.sergio.sapiensia.payment.CpfInvalidException;
+import br.com.sergio.sapiensia.payment.CpfRequiredException;
 import br.com.sergio.sapiensia.payment.InvalidWebhookBodyException;
+import br.com.sergio.sapiensia.payment.OrderInProgressException;
+import br.com.sergio.sapiensia.payment.OrderNotFoundException;
+import br.com.sergio.sapiensia.payment.PaymentProviderUnavailableException;
 import br.com.sergio.sapiensia.product.ProductFileRequiredException;
 import br.com.sergio.sapiensia.product.ProductNotFoundException;
 import br.com.sergio.sapiensia.product.ProductVersionConflictException;
@@ -96,6 +101,38 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         ProblemDetail problem = problem(Map.of("file", "FILE_REQUIRED"));
         problem.setStatus(HttpStatus.CONFLICT);
         return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    /** Orders (#24): the answer never says whether an Order of another Customer exists. */
+    @ExceptionHandler(OrderNotFoundException.class)
+    ResponseEntity<Void> handleOrderNotFound() {
+        return ResponseEntity.notFound().build();
+    }
+
+    @ExceptionHandler(CpfRequiredException.class)
+    ResponseEntity<ProblemDetail> handleCpfRequired() {
+        return ResponseEntity.badRequest().body(problem(Map.of("cpf", "CPF_REQUIRED")));
+    }
+
+    @ExceptionHandler(CpfInvalidException.class)
+    ResponseEntity<ProblemDetail> handleCpfInvalid() {
+        return ResponseEntity.badRequest().body(problem(Map.of("cpf", "CPF_INVALID")));
+    }
+
+    @ExceptionHandler(OrderInProgressException.class)
+    ResponseEntity<ProblemDetail> handleOrderInProgress() {
+        return refusal(HttpStatus.CONFLICT, Map.of("order", "ORDER_IN_PROGRESS"));
+    }
+
+    @ExceptionHandler(PaymentProviderUnavailableException.class)
+    ResponseEntity<ProblemDetail> handlePaymentProviderUnavailable() {
+        return refusal(HttpStatus.BAD_GATEWAY, Map.of("payment", "PAYMENT_PROVIDER_UNAVAILABLE"));
+    }
+
+    private static ResponseEntity<ProblemDetail> refusal(HttpStatus status, Map<String, String> errors) {
+        ProblemDetail problem = problem(errors);
+        problem.setStatus(status);
+        return ResponseEntity.status(status).body(problem);
     }
 
     private static ProblemDetail problem(Map<String, String> errors) {

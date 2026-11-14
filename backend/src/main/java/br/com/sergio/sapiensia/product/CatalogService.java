@@ -7,7 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /** Public reading of the Catalog: published Products only, the filter is in the SQL. */
 @Service
-class CatalogService {
+public class CatalogService {
 
     private final Products products;
 
@@ -25,7 +25,7 @@ class CatalogService {
 
     /** A draft, an unpublished and a missing Product are the same {@link ProductNotFoundException} (SEC-010). */
     @Transactional(readOnly = true)
-    CatalogProduct get(UUID id) {
+    public CatalogProduct get(UUID id) {
         return products.findPublished(id).orElseThrow(ProductNotFoundException::new);
     }
 }
