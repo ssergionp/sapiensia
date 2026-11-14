@@ -52,7 +52,15 @@ class SupabaseProductFileStorage implements ProductFileStorage {
     // an error body is only read to log three short fields
     private static final int MAX_ERROR_BODY = 8192;
 
+    // put, get and delete move files: 2 s to connect and 60 s to read
+    private static final Duration UPLOAD_CONNECT_TIMEOUT = Duration.ofSeconds(2);
+    private static final Duration UPLOAD_READ_TIMEOUT = Duration.ofSeconds(60);
+    // signing runs while the download service holds a database connection and a row lock: give up fast
+    static final Duration SIGN_CONNECT_TIMEOUT = Duration.ofSeconds(3);
+    static final Duration SIGN_READ_TIMEOUT = Duration.ofSeconds(5);
+
     private final RestClient restClient;
+    private final RestClient signClient;
     private final String filesBucket;
     private final String coverBucket;
     private final String secretKey;
@@ -83,17 +91,24 @@ class SupabaseProductFileStorage implements ProductFileStorage {
         String parsedHost = URI.create(url).getHost();
         this.host = parsedHost == null ? "" : parsedHost;
         // the new secret keys go in the apikey header only, not as a Bearer token
+        // the signing client is cloned first, before the builder gets the long-timeout factory
+        RestClient.Builder signBuilder = builder.clone();
         this.restClient = builder.baseUrl(url)
-                .requestFactory(requestFactory())
+                .requestFactory(requestFactory(UPLOAD_CONNECT_TIMEOUT, UPLOAD_READ_TIMEOUT))
+                .defaultHeader("apikey", secretKey)
+                .build();
+        this.signClient = signBuilder
+                .baseUrl(url)
+                .requestFactory(requestFactory(SIGN_CONNECT_TIMEOUT, SIGN_READ_TIMEOUT))
                 .defaultHeader("apikey", secretKey)
                 .build();
     }
 
-    // a slow Storage must not hold the caller forever: 2 s to connect and 60 s to read
-    private static JdkClientHttpRequestFactory requestFactory() {
+    // a slow Storage must not hold the caller forever; the timeouts differ per use
+    private static JdkClientHttpRequestFactory requestFactory(Duration connectTimeout, Duration readTimeout) {
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(
-                HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build());
-        requestFactory.setReadTimeout(Duration.ofSeconds(60));
+                HttpClient.newBuilder().connectTimeout(connectTimeout).build());
+        requestFactory.setReadTimeout(readTimeout);
         return requestFactory;
     }
 
@@ -162,7 +177,7 @@ class SupabaseProductFileStorage implements ProductFileStorage {
             throw new ProductFileStorageException("Invalid storage key");
         }
         try {
-            JsonNode answer = restClient
+            JsonNode answer = signClient
                     .post()
                     .uri(signPath(key))
                     .contentType(MediaType.APPLICATION_JSON)
