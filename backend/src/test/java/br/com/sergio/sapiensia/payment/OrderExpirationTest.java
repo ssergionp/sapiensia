@@ -31,7 +31,13 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 @Import({TestcontainersConfiguration.class, SwitchablePixGatewayConfig.class, OrderExpirationTest.ClockConfig.class})
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = {"test.isolated-context=order-expiration", "app.login-limit.ip-max-attempts=1000"})
+        properties = {
+            "test.isolated-context=order-expiration",
+            "app.login-limit.ip-max-attempts=1000",
+            // The test calls the Expirer itself; the real scheduler (needed by other beans, so not disabled) polls only
+            // once an hour, so it never expires Orders between the steps.
+            "db-scheduler.polling-interval=PT1H"
+        })
 class OrderExpirationTest {
 
     private static final String CPF = "52998224725";
@@ -193,6 +199,23 @@ class OrderExpirationTest {
 
         assertThat(second.expired()).isEqualTo(1);
         assertThat(statusOf(id)).isEqualTo("EXPIRED");
+    }
+
+    @Test
+    @DisplayName("ADR-0003: shouldStopAtTheFirstOutageAndPostponeTheRest")
+    void shouldStopAtTheFirstOutageAndPostponeTheRest() throws Exception {
+        String first = createOrder();
+        OrderHttp.Customer other = OrderHttp.newCustomer(port, jdbc, encoder);
+        assertThat(other.order(productId, CPF).statusCode()).isEqualTo(201);
+        clock.advance(TTL.plusSeconds(1));
+        gateway.failCancel(PixGatewayException.Kind.UNAVAILABLE);
+
+        OrderExpiration.Expirer.Result result = expirer.run();
+
+        assertThat(result.expired()).isZero();
+        assertThat(result.postponed()).isEqualTo(2);
+        assertThat(gateway.count("CANCEL_CHARGE")).isEqualTo(1);
+        assertThat(statusOf(first)).isEqualTo("PENDING");
     }
 
     @Test

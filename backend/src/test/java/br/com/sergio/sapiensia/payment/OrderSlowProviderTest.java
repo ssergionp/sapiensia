@@ -40,6 +40,9 @@ import org.springframework.test.context.DynamicPropertySource;
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
             "test.isolated-context=order-slow-provider",
+            // the scheduler (needed by other beans, so not disabled) must not poll the database while the test counts
+            // connections
+            "db-scheduler.polling-interval=PT1H",
             "app.pix.provider=asaas",
             "app.asaas.api.read-timeout=PT1S",
             "app.login-limit.ip-max-attempts=1000",
@@ -125,6 +128,17 @@ class OrderSlowProviderTest {
         return dataSource.unwrap(HikariDataSource.class).getHikariPoolMXBean().getActiveConnections();
     }
 
+    /** The connection of a request that just answered may still be on its way back to the pool: wait up to 5 s. */
+    private int activeConnectionsOnceSettled() throws Exception {
+        long deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos();
+        int active = activeConnections();
+        while (active != 0 && System.nanoTime() < deadline) {
+            Thread.sleep(50);
+            active = activeConnections();
+        }
+        return active;
+    }
+
     @Test
     @DisplayName("SEC-018: shouldAnswer502AndFreeThePoolWhenTheProviderIsSlow")
     void shouldAnswer502AndFreeThePoolWhenTheProviderIsSlow() throws Exception {
@@ -144,7 +158,7 @@ class OrderSlowProviderTest {
             assertThat(OrderHttp.json(answer.response(), "$.errors.payment")).isEqualTo("PAYMENT_PROVIDER_UNAVAILABLE");
             assertThat(answer.millis()).isLessThan(5_000);
         }
-        assertThat(activeConnections()).isZero();
+        assertThat(activeConnectionsOnceSettled()).isZero();
         assertThat(buyers.get(0).get("/api/products").statusCode()).isEqualTo(200);
         assertThat(jdbc.queryForObject("select count(*) from orders", Long.class))
                 .isZero();

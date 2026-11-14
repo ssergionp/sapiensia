@@ -55,14 +55,26 @@ class OrderExpiration {
         Result run() {
             int expired = 0;
             int postponed = 0;
-            for (Orders.Row order : orders.findPendingExpired(clock.instant(), BATCH_SIZE)) {
-                if (expire(order)) {
+            var due = orders.findPendingExpired(clock.instant(), BATCH_SIZE);
+            for (int i = 0; i < due.size(); i++) {
+                Outcome outcome = tryExpire(due.get(i));
+                if (outcome == Outcome.PROVIDER_UNAVAILABLE) {
+                    // the provider is down: stop here instead of waiting for a timeout on each remaining Order
+                    postponed = due.size() - i;
+                    break;
+                }
+                // only the Orders this call moved to EXPIRED count (another call may have done it first)
+                if (outcome == Outcome.MARKED) {
                     expired++;
-                } else {
-                    postponed++;
                 }
             }
             return new Result(expired, postponed);
+        }
+
+        private enum Outcome {
+            MARKED,
+            ALREADY_EXPIRED,
+            PROVIDER_UNAVAILABLE
         }
 
         /**
@@ -71,19 +83,22 @@ class OrderExpiration {
          * marking uses the caller's transaction, if there is one.
          */
         boolean expire(Orders.Row order) {
+            return tryExpire(order) != Outcome.PROVIDER_UNAVAILABLE;
+        }
+
+        private Outcome tryExpire(Orders.Row order) {
             try {
                 gateway.cancelCharge(order.providerPaymentId());
             } catch (PixGatewayException e) {
                 if (e.kind() == PixGatewayException.Kind.UNAVAILABLE) {
-                    return false;
+                    return Outcome.PROVIDER_UNAVAILABLE;
                 }
                 log.warn(
                         "Pix charge could not be cancelled, expiring the order anyway: orderId={} chargeId={}",
                         order.id(),
                         order.providerPaymentId());
             }
-            orders.markExpired(order.id(), clock.instant());
-            return true;
+            return orders.markExpired(order.id(), clock.instant()) ? Outcome.MARKED : Outcome.ALREADY_EXPIRED;
         }
     }
 }
