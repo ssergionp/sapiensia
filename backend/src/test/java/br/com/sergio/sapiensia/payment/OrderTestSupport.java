@@ -28,7 +28,8 @@ final class OrderTestSupport {
      * Deletes the Orders (and their Accesses and provider link) of one Customer and of the given Products, and
      * nothing else. Never delete the whole table: other tests of the same context leave Orders that
      * payment_event_results rows point to, and that table is insert-only (SEC-028), so such an Order can never be
-     * deleted.
+     * deleted. The same holds for download_records (ADR-0007): it is insert-only and references the Customer and the
+     * Product, so a test that wrote Download records must use its own Customer and Product and never delete them.
      */
     static void deleteOrdersOf(JdbcTemplate jdbc, UUID customerId, UUID... productIds) {
         deleteOrdersOfProducts(jdbc, productIds);
