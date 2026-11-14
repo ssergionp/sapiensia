@@ -18,6 +18,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.transaction.PlatformTransactionManager;
 
 /**
  * FR-034: the service never returns a link without a Download record, and a Storage failure writes no record.
@@ -54,6 +55,9 @@ class ProductDownloadServiceTest {
 
     @Autowired
     ApplicationContext context;
+
+    @Autowired
+    PlatformTransactionManager transactionManager;
 
     private UUID customer;
     private UUID product;
@@ -137,7 +141,7 @@ class ProductDownloadServiceTest {
                 throw new DataAccessResourceFailureException("database is down");
             }
         };
-        ProductDownloadService broken = new ProductDownloadService(failing, storage, clock);
+        ProductDownloadService broken = new ProductDownloadService(failing, storage, clock, transactionManager);
 
         assertThatThrownBy(() -> broken.issue(customer, product))
                 .isInstanceOf(DataAccessResourceFailureException.class);
