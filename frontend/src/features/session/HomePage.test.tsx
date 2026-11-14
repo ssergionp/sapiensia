@@ -80,6 +80,24 @@ describe("HomePage", () => {
     expect(screen.getByRole("button", { name: "Sair" })).toBeInTheDocument();
   });
 
+  test("com sessão mostra o link Biblioteca; sem sessão não mostra", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(200, { email: "ana@example.com" }));
+    const first = renderPage();
+    expect(
+      await screen.findByRole("link", { name: "Biblioteca" }),
+    ).toHaveAttribute("href", "/biblioteca");
+    first.unmount();
+
+    fetchSpy.mockResolvedValue(jsonResponse(401));
+    renderPage();
+    await screen.findByRole("link", { name: "Entrar" });
+    expect(
+      screen.queryByRole("link", { name: "Biblioteca" }),
+    ).not.toBeInTheDocument();
+  });
+
   test("com sessão mostra o e-mail e o botão Sair", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       jsonResponse(200, { email: "ana@example.com" }),

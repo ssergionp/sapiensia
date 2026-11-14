@@ -344,6 +344,22 @@ describe("OrderPage", () => {
     expect(screen.queryByRole("timer")).toBeNull();
   });
 
+  test("FR-029: o Pedido pago leva à Biblioteca; o pendente não", async () => {
+    mockFetch(jsonResponse(200, order(PAID)));
+    const paid = renderOrder();
+    expect(
+      await screen.findByRole("link", { name: "Ir para a Biblioteca" }),
+    ).toHaveAttribute("href", "/biblioteca");
+    paid.unmount();
+
+    mockFetch(jsonResponse(200, order()));
+    renderOrder();
+    await screen.findByRole("heading", { name: "Pague com Pix" });
+    expect(
+      screen.queryByRole("link", { name: "Ir para a Biblioteca" }),
+    ).toBeNull();
+  });
+
   test('FR-024: troca de "Pague com Pix" para "Pagamento confirmado" sem recarregar quando a consulta devolve PAID', async () => {
     const current = { order: order(), status: "PENDING" as string | Error };
     routeFetch(current);
