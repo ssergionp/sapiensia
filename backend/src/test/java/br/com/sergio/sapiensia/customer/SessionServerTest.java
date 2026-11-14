@@ -36,7 +36,9 @@ import org.springframework.test.context.ActiveProfiles;
             "APP_PUBLIC_BASE_URL=http://localhost:5173",
             "RESEND_API_KEY=test-key",
             "APP_STORAGE_SUPABASE_URL=http://localhost:1",
-            "APP_STORAGE_SUPABASE_SECRET_KEY=test-secret-not-real"
+            "APP_STORAGE_SUPABASE_SECRET_KEY=test-secret-not-real",
+            "APP_ASAAS_API_BASE_URL=http://localhost:1",
+            "APP_ASAAS_API_KEY=test-asaas-key-not-real"
         })
 class SessionServerTest {
 

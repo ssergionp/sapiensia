@@ -12,7 +12,13 @@ app:
   mfa:
     # fictitious key (32 identical bytes), local profile only: never a real secret, and prod has no default
     encryption-key: ${APP_MFA_ENCRYPTION_KEY:QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUE=} # gitleaks:allow
+  pix:
+    # with no variable the local profile uses the in-memory fake, so no API key is needed
+    provider: ${APP_PIX_PROVIDER:fake}
   asaas:
+    api:
+      base-url: ${APP_ASAAS_API_BASE_URL:https://api-sandbox.asaas.com}
+      key: ${APP_ASAAS_API_KEY:}
     webhook:
       # fictitious token, local profile only: prod has no default
       token: ${APP_ASAAS_WEBHOOK_TOKEN:local-only-asaas-webhook-token-000000000000} # gitleaks:allow

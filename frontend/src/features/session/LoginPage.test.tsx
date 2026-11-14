@@ -2,7 +2,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
-import { afterEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { hasReturnTo, rememberReturnTo } from "../orders/returnTo";
 import LoginPage from "./LoginPage";
 
 function renderPage() {
@@ -175,6 +176,89 @@ describe("LoginPage", () => {
 
     const button = await screen.findByRole("button", { name: "Entrando…" });
     await waitFor(() => expect(button).toBeDisabled());
+  });
+
+  describe("compra esperando", () => {
+    const ID = "3f2b8c1e-4d5a-4b6c-9d7e-1a2b3c4d5e6f";
+    const NOTICE = "Entre ou crie sua conta para continuar a compra.";
+
+    // The earlier "Entrando…" test leaves the CSRF priming call in lib/api pending; a cookie skips it.
+    beforeEach(() => {
+      document.cookie = "XSRF-TOKEN=test";
+    });
+
+    afterEach(() => {
+      localStorage.clear();
+      document.cookie = "XSRF-TOKEN=; max-age=0";
+    });
+
+    function renderWithProduct() {
+      const client = new QueryClient({
+        defaultOptions: { mutations: { retry: false } },
+      });
+      return render(
+        <QueryClientProvider client={client}>
+          <MemoryRouter initialEntries={["/entrar"]}>
+            <Routes>
+              <Route path="/entrar" element={<LoginPage />} />
+              <Route path="/" element={<p>pagina inicial</p>} />
+              <Route path="/catalogo/:id" element={<p>pagina do produto</p>} />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>,
+      );
+    }
+
+    test("depois de entrar, volta ao Produto guardado", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(204));
+      rememberReturnTo(`/catalogo/${ID}`);
+      renderWithProduct();
+
+      await fillAndSubmit("ana@example.com", "curta");
+
+      expect(await screen.findByText("pagina do produto")).toBeInTheDocument();
+    });
+
+    test("sem nada guardado, vai para a página inicial como antes", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(204));
+      renderWithProduct();
+
+      await fillAndSubmit("ana@example.com", "curta");
+
+      expect(await screen.findByText("pagina inicial")).toBeInTheDocument();
+    });
+
+    test("SEC-012: caminho forjado para outro site é ignorado", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(204));
+      rememberReturnTo("https://evil.test/catalogo");
+      renderWithProduct();
+      expect(screen.queryByText(NOTICE)).not.toBeInTheDocument();
+
+      await fillAndSubmit("ana@example.com", "curta");
+
+      expect(await screen.findByText("pagina inicial")).toBeInTheDocument();
+    });
+
+    test("mostra o aviso só quando há compra esperando", () => {
+      const first = renderWithProduct();
+      expect(screen.queryByText(NOTICE)).not.toBeInTheDocument();
+      first.unmount();
+
+      rememberReturnTo(`/catalogo/${ID}`);
+      renderWithProduct();
+      expect(screen.getByRole("status")).toHaveTextContent(NOTICE);
+    });
+
+    test("o caminho guardado é apagado depois de usado", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(204));
+      rememberReturnTo(`/catalogo/${ID}`);
+      renderWithProduct();
+
+      await fillAndSubmit("ana@example.com", "curta");
+
+      await screen.findByText("pagina do produto");
+      expect(hasReturnTo()).toBe(false);
+    });
   });
 
   test("o link Esqueci minha senha aponta para /esqueci-senha", () => {

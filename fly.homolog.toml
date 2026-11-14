@@ -4,6 +4,7 @@ primary_region = "gru"
 [env]
   APP_PUBLIC_BASE_URL = "https://sapiensia-homolog.fly.dev"
   APP_EMAIL_FROM = "SapiensIA <nao-responda@homolog.sapiensia.app.br>"
+  APP_ASAAS_API_BASE_URL = "https://api-sandbox.asaas.com"
   # replaces the image's value, so MaxRAMPercentage is repeated; C1 only makes the cold start cheaper on a shared CPU
   JAVA_TOOL_OPTIONS = "-XX:MaxRAMPercentage=75 -XX:TieredStopAtLevel=1"
 

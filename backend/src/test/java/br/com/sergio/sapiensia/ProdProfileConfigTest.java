@@ -46,6 +46,20 @@ class ProdProfileConfigTest {
     }
 
     @Test
+    @DisplayName("ADR-0003: prod profile uses the Asaas gateway, with no default address and a blank key by default")
+    void prodProfileUsesAsaasWithoutDefaults() throws IOException {
+        assertThat(prod("app.pix.provider")).isEqualTo("asaas");
+        assertThat(prod("app.asaas.api.base-url")).isEqualTo("${APP_ASAAS_API_BASE_URL}");
+        assertThat(prod("app.asaas.api.key")).isEqualTo("${APP_ASAAS_API_KEY:}");
+
+        StandardEnvironment missing = environment(Map.of());
+        assertThatThrownBy(() -> missing.getRequiredProperty("app.asaas.api.base-url"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Could not resolve placeholder");
+        assertThat(missing.getRequiredProperty("app.asaas.api.key")).isEmpty();
+    }
+
+    @Test
     @DisplayName("SEC-022: prod profile has no default for the database settings")
     void prodProfileHasNoDatabaseDefaults() throws IOException {
         assertThat(prod("spring.datasource.url")).isEqualTo("${DB_URL}");

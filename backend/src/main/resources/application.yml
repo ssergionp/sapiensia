@@ -107,7 +107,17 @@ app:
     ip-window: PT15M
     # request header carrying the client IP; blank uses the socket address (set only a header the platform overwrites)
     client-ip-header:
+  pix:
+    # who creates the Pix charges: "fake" (in memory, never in prod) or "asaas" (the prod profile sets it)
+    provider: fake
+  orders:
+    # how long a pending order waits for its Pix payment
+    pix-ttl: PT30M
   asaas:
+    api:
+      # every call to Asaas: at most 3 s to connect and 10 s to answer (larger values stop the application)
+      connect-timeout: PT3S
+      read-timeout: PT10S
     webhook:
       # shared secret sent by Asaas in the asaas-access-token header (secret APP_ASAAS_WEBHOOK_TOKEN); a missing or
       # invalid value stops the application

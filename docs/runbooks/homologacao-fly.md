@@ -25,6 +25,7 @@ Regras que valem para tudo aqui:
 | `APP_STORAGE_SUPABASE_URL` | Supabase `sapiensia-homolog` > configurações de API (endereço do projeto) | Arquivos dos Produtos (#18); sem ela a aplicação não sobe em `prod` |
 | `APP_STORAGE_SUPABASE_SECRET_KEY` | Supabase > chaves de API (a *secret key*, no Bitwarden) | Segredo de verdade; vazia, a aplicação não sobe em `prod` |
 | `APP_ASAAS_WEBHOOK_TOKEN` | Gerado pelo responsável (64 hex), guardado no Bitwarden; o mesmo valor vai no webhook do sandbox do Asaas (`docs/runbooks/webhook-asaas.md`) | Sem ele a aplicação não sobe em `prod` |
+| `APP_ASAAS_API_KEY` | Chave de API do sandbox do Asaas, guardada no Bitwarden (`docs/runbooks/asaas-chave-api.md`) | Segredo de verdade, diferente do token do webhook; sem ela a aplicação não sobe em `prod`. A produção terá outra |
 
 ### Variáveis comuns (`[env]` do `fly.homolog.toml`, versionadas)
 
@@ -32,6 +33,7 @@ Regras que valem para tudo aqui:
 |---|---|
 | `APP_PUBLIC_BASE_URL` | Base dos links dos e-mails (endereço `fly.dev` do app) |
 | `APP_EMAIL_FROM` | Remetente no domínio verificado no Resend da homologação |
+| `APP_ASAAS_API_BASE_URL` | Endereço da API do Asaas: `https://api-sandbox.asaas.com` na homologação (não é segredo) |
 | `APP_ASAAS_WEBHOOK_ALLOWED_IPS` | Opcional: lista de IPs que substitui a padrão do Asaas, só se o sandbox precisar de IP extra (`docs/runbooks/webhook-asaas.md`) |
 
 `SPRING_PROFILES_ACTIVE`, `SERVER_PORT` e `JAVA_TOOL_OPTIONS` já vêm do `Dockerfile`: não redefina.
@@ -239,6 +241,8 @@ Faça antes o "Passo zero". O padrão para cada segredo: copie o valor do Bitwar
 
     Mesmo padrão; o valor nunca é digitado no comando, mostrado na tela nem colado no chat.
 
+13c. **[RESPONSÁVEL]** Gere e grave `APP_ASAAS_API_KEY` (a chave de API do sandbox do Asaas) seguindo o `docs/runbooks/asaas-chave-api.md`. É necessária antes do deploy da versão com o Pedido por Pix.
+
 14. **[RESPONSÁVEL]** Limpe a área de transferência.
 
     ```powershell
@@ -253,7 +257,7 @@ Faça antes o "Passo zero". O padrão para cada segredo: copie o valor do Bitwar
     fly secrets list -a sapiensia-homolog
     ```
 
-    Mostra só nomes, digest e data. Devem estar os 9 nomes da tabela e nenhum a mais.
+    Mostra só nomes, digest e data. Devem estar os 10 nomes da tabela e nenhum a mais.
 
 ## 5. Imagem e deploy
 

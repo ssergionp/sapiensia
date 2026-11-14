@@ -44,6 +44,15 @@ app:
       bucket: product-files
       # private bucket for the product cover images (2 MB, image/png, image/jpeg, image/webp), also created by hand
       cover-bucket: product-covers
+  pix:
+    # the in-memory fake refuses to start in prod
+    provider: asaas
+  asaas:
+    api:
+      # Asaas address from the platform (APP_ASAAS_API_BASE_URL); no default, so a missing value stops the application
+      base-url: ${APP_ASAAS_API_BASE_URL}
+      # secret from the platform (APP_ASAAS_API_KEY); blank makes the application refuse to start
+      key: ${APP_ASAAS_API_KEY:}
   admin:
     # a blank or invalid APP_ADMIN_EMAIL stops the application
     required: true
