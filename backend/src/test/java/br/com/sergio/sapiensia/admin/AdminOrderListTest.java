@@ -238,7 +238,14 @@ class AdminOrderListTest {
         assertThat(json(expired, "$.items.length()")).isEqualTo("2");
         assertThat(json(paid, "$.items.length()")).isEqualTo("1");
         assertThat(json(paid, "$.totalPages")).isEqualTo("1");
-        assertThat(list("?status=REFUNDED").statusCode()).isEqualTo(400);
+        UUID refunded = insertOrder(
+                jdbc, customer, insertProduct(jdbc, "E"), 1000, "PAID", now.minusSeconds(900), now.plusSeconds(900));
+        jdbc.update("update orders set status = 'REFUNDED', refunded_at = now() where id = ?", refunded);
+        HttpResponse<String> refundedList = list("?status=REFUNDED");
+        assertThat(json(refundedList, "$.items.length()")).isEqualTo("1");
+        assertThat(json(refundedList, "$.items[0].productTitle")).isEqualTo("E");
+        assertThat(json(refundedList, "$.items[0].status")).isEqualTo("REFUNDED");
+        assertThat(json(list("?status=PAID"), "$.items.length()")).isEqualTo("1");
     }
 
     @Test
@@ -314,7 +321,7 @@ class AdminOrderListTest {
         for (String query : List.of(
                 "?status=" + injection,
                 "?status=paid",
-                "?status=REFUNDED",
+                "?status=refunded",
                 "?page=-1",
                 "?page=abc",
                 "?page=99999999999")) {

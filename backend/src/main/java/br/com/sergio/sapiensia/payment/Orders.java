@@ -58,6 +58,7 @@ class Orders {
             case PAID -> " where o.status = 'PAID'";
             case PENDING -> " where o.status = 'PENDING' and o.expires_at > :now";
             case EXPIRED -> " where (o.status = 'EXPIRED' or (o.status = 'PENDING' and o.expires_at <= :now))";
+            case REFUNDED -> " where o.status = 'REFUNDED'";
         };
     }
 
@@ -195,6 +196,16 @@ class Orders {
     boolean markPaid(UUID id, Instant now) {
         return jdbc.sql("update orders set status = 'PAID', paid_at = :now"
                                 + " where id = :id and status in ('PENDING', 'EXPIRED')")
+                        .param("now", java.sql.Timestamp.from(now))
+                        .param("id", id)
+                        .update()
+                == 1;
+    }
+
+    /** True only for the call that moved the Order from PENDING, EXPIRED or PAID to REFUNDED. */
+    boolean markRefunded(UUID id, Instant now) {
+        return jdbc.sql("update orders set status = 'REFUNDED', refunded_at = :now"
+                                + " where id = :id and status in ('PENDING', 'EXPIRED', 'PAID')")
                         .param("now", java.sql.Timestamp.from(now))
                         .param("id", id)
                         .update()
