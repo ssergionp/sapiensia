@@ -10,6 +10,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -189,7 +190,7 @@ class DownloadDailyLimitTest {
 
             int issued = 0;
             int refused = 0;
-            for (Future<Optional<String>> result : java.util.List.of(first, second)) {
+            for (Future<Optional<String>> result : List.of(first, second)) {
                 try {
                     assertThat(result.get(10, TimeUnit.SECONDS)).isPresent();
                     issued++;

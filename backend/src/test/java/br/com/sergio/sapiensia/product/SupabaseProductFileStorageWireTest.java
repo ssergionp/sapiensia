@@ -12,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -188,7 +189,7 @@ class SupabaseProductFileStorageWireTest {
         SupabaseProductFileStorage storage =
                 new SupabaseProductFileStorage(RestClient.builder(), baseUrl, SECRET, BUCKET, COVER_BUCKET);
 
-        assertThat(storage.signedDownloadUrl(key, java.time.Duration.ofSeconds(60), "guia-de-contratos.pdf"))
+        assertThat(storage.signedDownloadUrl(key, Duration.ofSeconds(60), "guia-de-contratos.pdf"))
                 .contains(baseUrl + "/storage/v1/object/sign/" + BUCKET + "/" + key + "?token=" + TOKEN
                         + "&download=guia-de-contratos.pdf");
 
@@ -210,7 +211,7 @@ class SupabaseProductFileStorageWireTest {
                 new SupabaseProductFileStorage(RestClient.builder(), baseUrl, SECRET, BUCKET, COVER_BUCKET);
         int start = output.getAll().length();
 
-        java.util.Optional<String> url = storage.signedDownloadUrl(key, java.time.Duration.ofSeconds(60), fileName);
+        java.util.Optional<String> url = storage.signedDownloadUrl(key, Duration.ofSeconds(60), fileName);
 
         assertThat(url).isPresent();
         assertThat(url.get()).contains(TOKEN);
@@ -234,7 +235,7 @@ class SupabaseProductFileStorageWireTest {
                 new SupabaseProductFileStorage(RestClient.builder(), baseUrl, SECRET, BUCKET, COVER_BUCKET);
         long start = System.nanoTime();
 
-        assertThatThrownBy(() -> storage.signedDownloadUrl(key, java.time.Duration.ofSeconds(60), "guia.pdf"))
+        assertThatThrownBy(() -> storage.signedDownloadUrl(key, Duration.ofSeconds(60), "guia.pdf"))
                 .isInstanceOf(ProductFileStorageException.class)
                 .message()
                 .doesNotContain(baseUrl)
@@ -242,12 +243,13 @@ class SupabaseProductFileStorageWireTest {
                 .doesNotContain(key)
                 .doesNotContain("token");
 
-        assertThat(java.time.Duration.ofNanos(System.nanoTime() - start)).isLessThan(java.time.Duration.ofSeconds(7));
+        assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(Duration.ofSeconds(7));
     }
 
     @Test
     @DisplayName("O envio de arquivo continua com o tempo limite longo")
     void shouldKeepTheLongTimeoutForUploads() throws IOException {
+        // 6 s is above the 5 s signing limit, so a successful put proves uploads do not use it
         putDelayMillis = 6000;
         Path file = Files.write(dir.resolve("slow.png"), new byte[] {1, 2, 3});
         String key = ProductFileKeys.newCoverKey(UUID.randomUUID(), CoverFormat.PNG);
