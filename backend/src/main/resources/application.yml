@@ -64,6 +64,15 @@ app:
     # a failing e-mail task is tried this many times in total, once every retry-delay, then dropped
     max-attempts: 5
     retry-delay: PT5M
+  alerts:
+    # how often the recurring task looks for pending Administrator alerts (NFR-009)
+    dispatch-interval: PT1M
+    # at most one alert e-mail per type in this window
+    group-window: PT15M
+    # at most this many alert e-mails in the last hour; the rest waits, most serious type first
+    max-emails-per-hour: 8
+    # a pending alert that could not be e-mailed for this long is given up (longer than the other e-mails on purpose)
+    give-up-after: PT24H
   storage:
     # where the product files go: "file" (local disk, never in prod) or "supabase" (the prod profile sets it)
     provider: file
