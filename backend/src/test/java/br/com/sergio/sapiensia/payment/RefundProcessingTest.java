@@ -490,6 +490,71 @@ class RefundProcessingTest {
     }
 
     @Test
+    @DisplayName("SEC-026, SEC-031: estorno de uma cobrança sem Pedido só fica registrado como NO_ORDER")
+    void shouldOnlyRecordARefundForAChargeWithoutAnOrder() throws Exception {
+        Placed placed = placePaidOrder();
+        String eventId = uniqueId();
+
+        assertThat(post(paymentEvent(
+                                eventId,
+                                "PAYMENT_REFUNDED",
+                                "pay_no_order_" + UUID.randomUUID().toString().replace("-", "")))
+                        .statusCode())
+                .isEqualTo(200);
+
+        awaitResult(eventId, "NO_ORDER");
+        assertThat(gateway.count("READ_CHARGE")).isZero();
+        assertAccessKept(placed);
+    }
+
+    @Test
+    @DisplayName("SEC-026, SEC-031: estorno sem o id da cobrança fica como INVALID_PAYLOAD e não cancela nada")
+    void shouldRecordInvalidPayloadForARefundWithoutAChargeId() throws Exception {
+        Placed placed = placePaidOrder();
+        String eventId = uniqueId();
+        String body = "{\"id\": \"" + eventId + "\", \"event\": \"PAYMENT_REFUNDED\", \"payment\": {}}";
+
+        assertThat(post(body).statusCode()).isEqualTo(200);
+
+        awaitResult(eventId, "INVALID_PAYLOAD");
+        assertThat(gateway.count("READ_CHARGE")).isZero();
+        assertAccessKept(placed);
+    }
+
+    @Test
+    @DisplayName(
+            "SEC-026, SEC-031: cobrança que o Asaas não conhece (404) fica como CHARGE_NOT_FOUND e não cancela nada")
+    void shouldCancelNothingWhenAsaasDoesNotKnowTheCharge() throws Exception {
+        Placed placed = placePaidOrder();
+        gateway.failAt("READ_CHARGE", PixGatewayException.Kind.REFUSED);
+        String eventId = uniqueId();
+
+        postEvent(eventId, "PAYMENT_REFUNDED", placed);
+
+        awaitResult(eventId, "CHARGE_NOT_FOUND");
+        gateway.failAt("READ_CHARGE", null);
+        assertAccessKept(placed);
+    }
+
+    @Test
+    @DisplayName("SEC-026, SEC-031: estado da cobrança desconhecido ou vazio fica como NOT_REFUNDED e não cancela nada")
+    void shouldCancelNothingWhenTheChargeStateIsUnknownOrMissing() throws Exception {
+        Placed placed = placePaidOrder();
+        String unknown = uniqueId();
+        provider(placed, "SOMETHING_NEW");
+        postEvent(unknown, "PAYMENT_REFUNDED", placed);
+        awaitResult(unknown, "NOT_REFUNDED");
+        assertAccessKept(placed);
+
+        String missing = uniqueId();
+        provider(placed, null);
+        postEvent(missing, "PAYMENT_REFUNDED", placed);
+
+        awaitResult(missing, "NOT_REFUNDED");
+        assertAccessKept(placed);
+    }
+
+    @Test
     @DisplayName("SEC-031: evento de estorno com token inválido recebe 401 e não é gravado")
     void shouldRefuseARefundEventWithAnInvalidToken() throws Exception {
         Placed placed = placePaidOrder();
