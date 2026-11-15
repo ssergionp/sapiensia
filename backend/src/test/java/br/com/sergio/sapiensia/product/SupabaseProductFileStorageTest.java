@@ -603,6 +603,8 @@ class SupabaseProductFileStorageTest {
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         // keep the mock request factory: the storage would otherwise replace it with the real one
         doReturn(builder).when(builder).requestFactory(any());
+        // the signing client comes from clone(): hand back the same spy so both clients use the mock server
+        doReturn(builder).when(builder).clone();
         return new Fixture(server, new SupabaseProductFileStorage(builder, URL, SECRET, BUCKET, COVER_BUCKET));
     }
 

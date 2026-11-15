@@ -14,6 +14,8 @@ export const LIBRARY_TEXTS = {
   downloadStarted:
     "Download iniciado. Se não começar, clique em Baixar de novo.",
   downloadError: "Não foi possível preparar o download. Tente novamente.",
+  downloadLimit:
+    "Você já baixou este Produto 10 vezes hoje. Tente novamente amanhã.",
   downloadUnavailable:
     "Este Produto não está mais disponível na sua Biblioteca.",
 } as const;

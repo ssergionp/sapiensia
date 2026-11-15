@@ -1,6 +1,7 @@
 package br.com.sergio.sapiensia.product;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
@@ -11,12 +12,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,6 +29,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.logging.LogLevel;
+import org.springframework.boot.logging.LoggerConfiguration;
 import org.springframework.boot.logging.LoggingSystem;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
@@ -58,12 +63,16 @@ class SupabaseProductFileStorageWireTest {
 
     private HttpServer server;
     private final AtomicReference<Recorded> recorded = new AtomicReference<>();
+    private volatile long signDelayMillis;
+    private volatile long putDelayMillis;
 
     @BeforeEach
     void startServer() throws IOException {
         loggingSystem = LoggingSystem.get(getClass().getClassLoader());
         for (String name : LOGGERS) {
-            savedLevels.put(name, loggingSystem.getLoggerConfiguration(name).getConfiguredLevel());
+            // the configuration is null when no logger of that name exists yet (this class run alone)
+            LoggerConfiguration configuration = loggingSystem.getLoggerConfiguration(name);
+            savedLevels.put(name, configuration == null ? null : configuration.getConfiguredLevel());
         }
         loggingSystem.setLogLevel("org.springframework.web", LogLevel.DEBUG);
         loggingSystem.setLogLevel("org.springframework.security", LogLevel.TRACE);
@@ -82,6 +91,7 @@ class SupabaseProductFileStorageWireTest {
                     body));
             boolean read = "GET".equals(exchange.getRequestMethod());
             boolean sign = exchange.getRequestURI().getRawPath().contains("/object/sign/");
+            sleep(sign ? signDelayMillis : "POST".equals(exchange.getRequestMethod()) ? putDelayMillis : 0);
             byte[] answer = sign
                     ? ("{\"signedURL\":\""
                                     + exchange.getRequestURI().getRawPath().replace("/storage/v1", "")
@@ -93,7 +103,17 @@ class SupabaseProductFileStorageWireTest {
             exchange.getResponseBody().write(answer);
             exchange.close();
         });
+        // a handler that sleeps must not block the other requests
+        server.setExecutor(Executors.newCachedThreadPool());
         server.start();
+    }
+
+    private static void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     @AfterEach
@@ -101,6 +121,7 @@ class SupabaseProductFileStorageWireTest {
         savedLevels.forEach(loggingSystem::setLogLevel); // null restores inheritance
         savedLevels.clear();
         server.stop(0);
+        ((ExecutorService) server.getExecutor()).shutdownNow();
     }
 
     @Test
@@ -168,7 +189,7 @@ class SupabaseProductFileStorageWireTest {
         SupabaseProductFileStorage storage =
                 new SupabaseProductFileStorage(RestClient.builder(), baseUrl, SECRET, BUCKET, COVER_BUCKET);
 
-        assertThat(storage.signedDownloadUrl(key, java.time.Duration.ofSeconds(60), "guia-de-contratos.pdf"))
+        assertThat(storage.signedDownloadUrl(key, Duration.ofSeconds(60), "guia-de-contratos.pdf"))
                 .contains(baseUrl + "/storage/v1/object/sign/" + BUCKET + "/" + key + "?token=" + TOKEN
                         + "&download=guia-de-contratos.pdf");
 
@@ -190,7 +211,7 @@ class SupabaseProductFileStorageWireTest {
                 new SupabaseProductFileStorage(RestClient.builder(), baseUrl, SECRET, BUCKET, COVER_BUCKET);
         int start = output.getAll().length();
 
-        java.util.Optional<String> url = storage.signedDownloadUrl(key, java.time.Duration.ofSeconds(60), fileName);
+        java.util.Optional<String> url = storage.signedDownloadUrl(key, Duration.ofSeconds(60), fileName);
 
         assertThat(url).isPresent();
         assertThat(url.get()).contains(TOKEN);
@@ -202,6 +223,43 @@ class SupabaseProductFileStorageWireTest {
                 .doesNotContain(key)
                 .doesNotContain(fileName)
                 .doesNotContain(SECRET);
+    }
+
+    @Test
+    @DisplayName("SEC-015: a assinatura desiste em 5 s quando o Storage demora")
+    void shouldGiveUpSigningWhenStorageIsSlow() {
+        signDelayMillis = 8000;
+        String key = ProductFileKeys.newKey(UUID.randomUUID());
+        String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
+        SupabaseProductFileStorage storage =
+                new SupabaseProductFileStorage(RestClient.builder(), baseUrl, SECRET, BUCKET, COVER_BUCKET);
+        long start = System.nanoTime();
+
+        assertThatThrownBy(() -> storage.signedDownloadUrl(key, Duration.ofSeconds(60), "guia.pdf"))
+                .isInstanceOf(ProductFileStorageException.class)
+                .message()
+                .doesNotContain(baseUrl)
+                .doesNotContain("127.0.0.1")
+                .doesNotContain(key)
+                .doesNotContain("token");
+
+        assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(Duration.ofSeconds(7));
+    }
+
+    @Test
+    @DisplayName("O envio de arquivo continua com o tempo limite longo")
+    void shouldKeepTheLongTimeoutForUploads() throws IOException {
+        // 6 s is above the 5 s signing limit, so a successful put proves uploads do not use it
+        putDelayMillis = 6000;
+        Path file = Files.write(dir.resolve("slow.png"), new byte[] {1, 2, 3});
+        String key = ProductFileKeys.newCoverKey(UUID.randomUUID(), CoverFormat.PNG);
+        String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
+        SupabaseProductFileStorage storage =
+                new SupabaseProductFileStorage(RestClient.builder(), baseUrl, SECRET, BUCKET, COVER_BUCKET);
+
+        storage.put(key, file, 3, MediaType.IMAGE_PNG);
+
+        assertThat(recorded.get().method()).isEqualTo("POST");
     }
 
     private static String sha256(byte[] bytes) {

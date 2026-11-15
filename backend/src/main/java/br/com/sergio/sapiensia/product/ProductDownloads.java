@@ -20,19 +20,37 @@ class ProductDownloads {
         this.jdbc = jdbc;
     }
 
-    /** The file of a Product with an active Access of the Customer, whatever the status of the Product (ADR-0007). */
+    /**
+     * The file of a Product with an active Access of the Customer, whatever the status of the Product (ADR-0007). It
+     * locks the Access row ({@code for update of a}), so it is only valid inside a transaction: the lock is what
+     * serializes the daily limit check.
+     */
     Optional<OwnedFile> findOwned(UUID customerId, UUID productId) {
         return jdbc.sql("select f.object_key, f.uploaded_at, p.title"
                         + " from accesses a"
                         + " join product_files f on f.product_id = a.product_id"
                         + " join products p on p.id = a.product_id"
                         + " where a.customer_id = :customerId and a.product_id = :productId"
-                        + " and a.cancelled_at is null")
+                        + " and a.cancelled_at is null"
+                        + " for update of a")
                 .param("customerId", customerId)
                 .param("productId", productId)
                 .query((rs, i) ->
                         new OwnedFile(rs.getString(1), rs.getTimestamp(2).toInstant(), rs.getString(3)))
                 .optional();
+    }
+
+    /** Links issued to the Customer for the Product in {@code [from, to)}. */
+    long countIssued(UUID customerId, UUID productId, Instant from, Instant to) {
+        return jdbc.sql("select count(*) from download_records"
+                        + " where customer_id = :customerId and product_id = :productId"
+                        + " and downloaded_at >= :from and downloaded_at < :to")
+                .param("customerId", customerId)
+                .param("productId", productId)
+                .param("from", Timestamp.from(from))
+                .param("to", Timestamp.from(to))
+                .query(Long.class)
+                .single();
     }
 
     void record(UUID customerId, UUID productId, Instant fileUploadedAt, Instant now) {

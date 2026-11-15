@@ -319,6 +319,25 @@ class LibraryDownloadTest {
     }
 
     @Test
+    @DisplayName("SEC-015: o 11º pedido do dia responde 429 DOWNLOAD_LIMIT sem link")
+    void shouldAnswer429OnTheEleventhDownloadOfTheDay(CapturedOutput output) throws Exception {
+        grant(customer, product);
+        for (int i = 0; i < 10; i++) {
+            assertThat(download(customer, product).statusCode()).isEqualTo(200);
+        }
+        int logStart = output.getAll().length();
+
+        HttpResponse<String> answer = download(customer, product);
+
+        assertThat(answer.statusCode()).isEqualTo(429);
+        assertThat(OrderHttp.json(answer, "$.errors.download")).isEqualTo("DOWNLOAD_LIMIT");
+        assertThat(answer.body()).doesNotContain("url").doesNotContain("local-downloads");
+        assertThat(answer.headers().firstValue("Cache-Control").orElse("")).contains("no-store");
+        assertThat(records(customer, product)).isEqualTo(10);
+        assertThat(output.getAll().substring(logStart)).doesNotContain("ERROR");
+    }
+
+    @Test
     @DisplayName("FR-034: objeto ausente no Storage dá 503 sem Registro")
     void shouldAnswer503WhenTheObjectIsMissing() throws Exception {
         UUID lost = OrderTestSupport.insertPublishedProduct(jdbc, "Perdido", 1000);

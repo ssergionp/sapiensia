@@ -3,11 +3,15 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import { rememberReturnTo } from "@/features/orders/returnTo";
-import { DownloadUnavailableError, NotLoggedInError } from "./api";
+import {
+  DownloadLimitError,
+  DownloadUnavailableError,
+  NotLoggedInError,
+} from "./api";
 import { useDownloadLink } from "./hooks";
 import { LIBRARY_TEXTS as T } from "./messages";
 
-type Outcome = "none" | "started" | "failed" | "unavailable";
+type Outcome = "none" | "started" | "failed" | "unavailable" | "limit";
 
 // One per Library item, with its own mutation, so the state of one item never shows in another.
 // The link is used once inside the mutation function (see useDownloadLink) and discarded: it is not kept in state, cache or the DOM.
@@ -35,6 +39,8 @@ export default function DownloadButton({
         } else if (error instanceof DownloadUnavailableError) {
           setOutcome("unavailable");
           void queryClient.invalidateQueries({ queryKey: ["library"] });
+        } else if (error instanceof DownloadLimitError) {
+          setOutcome("limit");
         } else {
           setOutcome("failed");
         }
@@ -58,6 +64,11 @@ export default function DownloadButton({
         {outcome === "failed" && (
           <p role="alert" className="text-destructive">
             {T.downloadError}
+          </p>
+        )}
+        {outcome === "limit" && (
+          <p role="alert" className="text-destructive">
+            {T.downloadLimit}
           </p>
         )}
         {outcome === "unavailable" && (

@@ -9,6 +9,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.springframework.http.MediaType;
 
 /**
@@ -23,6 +24,8 @@ public class SwitchableProductFileStorage implements ProductFileStorage {
     private volatile boolean failingDeletes;
     private volatile boolean failingGets;
     private volatile boolean failingSigns;
+    private final AtomicInteger signCalls = new AtomicInteger();
+    private volatile CountDownLatch signHold;
     private volatile CyclicBarrier gate;
     private volatile Pause pause;
 
@@ -131,8 +134,30 @@ public class SwitchableProductFileStorage implements ProductFileStorage {
         this.failingSigns = failing;
     }
 
+    /** Number of signing calls so far (cumulative: tests assert a delta from a baseline). */
+    public int signCalls() {
+        return signCalls.get();
+    }
+
+    /** Makes each signing wait on the latch, after being counted; {@code null} turns it off. */
+    public void holdSigns(CountDownLatch release) {
+        this.signHold = release;
+    }
+
     @Override
     public Optional<String> signedDownloadUrl(String key, java.time.Duration ttl, String fileName) {
+        signCalls.incrementAndGet();
+        CountDownLatch held = signHold;
+        if (held != null) {
+            try {
+                if (!held.await(20, TimeUnit.SECONDS)) {
+                    throw new ProductFileStorageException("sign hold never released");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new ProductFileStorageException("sign hold interrupted");
+            }
+        }
         if (failingSigns) {
             throw new ProductFileStorageException("storage is down");
         }

@@ -1425,7 +1425,7 @@ test("FR-025 FR-029 SEC-011: a Biblioteca mostra o Produto comprado, mesmo despu
   }
 });
 
-test("FR-034 SEC-010 SEC-011: o Cliente baixa o Arquivo do Produto comprado, sempre na versão mais recente", async ({
+test("FR-034 SEC-010 SEC-011 SEC-015: o Cliente baixa o Arquivo do Produto comprado, sempre na versão mais recente", async ({
   page,
   browser,
   baseURL,
@@ -1600,6 +1600,38 @@ test("FR-034 SEC-010 SEC-011: o Cliente baixa o Arquivo do Produto comprado, sem
       inner: window.innerWidth,
     }));
     expect(widths.scroll).toBeLessThanOrEqual(widths.inner);
+
+    // SEC-015: the daily limit is 10 downloads per Customer and Product.
+    // Two were done above; eight more through the API still answer 200.
+    const buyerXsrf = (await first.cookies()).find(
+      (c) => c.name === "XSRF-TOKEN",
+    );
+    if (buyerXsrf === undefined) {
+      throw new Error("The buyer XSRF-TOKEN cookie is missing.");
+    }
+    const buyerHeaders = {
+      "X-XSRF-TOKEN": decodeURIComponent(buyerXsrf.value),
+    };
+    for (let i = 0; i < 8; i += 1) {
+      const allowed = await buyer.request.post(
+        `/api/library/${productId}/download`,
+        { headers: buyerHeaders },
+      );
+      expect(allowed.status()).toBe(200);
+    }
+    // The 11th download, made by the button, shows the limit message.
+    await buyer.getByRole("button", { name: `Baixar ${title}` }).click();
+    await expect(
+      buyer.getByRole("alert").filter({
+        hasText:
+          "Você já baixou este Produto 10 vezes hoje. Tente novamente amanhã.",
+      }),
+    ).toBeVisible();
+    const limited = await buyer.request.post(
+      `/api/library/${productId}/download`,
+      { headers: buyerHeaders },
+    );
+    expect(limited.status()).toBe(429);
   } finally {
     await first.close();
     await second.close();
