@@ -27,7 +27,7 @@ function renderOrders() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(
+  const view = render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={["/pedidos"]}>
         <Routes>
@@ -38,6 +38,7 @@ function renderOrders() {
       </MemoryRouter>
     </QueryClientProvider>,
   );
+  return { ...view, client };
 }
 
 function mockItems(items: unknown[]) {
@@ -191,6 +192,21 @@ describe("OrdersPage", () => {
       localStorage.getItem("sapiensia.returnTo") ?? "null",
     );
     expect(stored.path).toBe("/pedidos");
+  });
+
+  test("SEC-011: a lista de Pedidos não fica no cache depois de sair da página", async () => {
+    mockItems([summary()]);
+    const { client, unmount } = renderOrders();
+
+    expect(await screen.findByText("Guia de saúde")).toBeInTheDocument();
+    expect(client.getQueryData(["orders"])).toBeDefined();
+    unmount();
+
+    await vi.waitFor(() =>
+      expect(
+        client.getQueryCache().find({ queryKey: ["orders"] }),
+      ).toBeUndefined(),
+    );
   });
 
   test("o título da aba é Meus Pedidos | SapiensIA e o foco vai para o h1", async () => {

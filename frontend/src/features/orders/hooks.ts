@@ -2,11 +2,13 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { createOrder, fetchOrder, fetchOrderStatus, listOrders } from "./api";
 
 // The list reads only the database; default refetching (on open and on window focus), no polling.
+// gcTime 0: another Customer logging in on the same tab must not see this list.
 export function useOrders() {
   return useQuery({
     queryKey: ["orders"],
     queryFn: listOrders,
     retry: false,
+    gcTime: 0,
   });
 }
 
