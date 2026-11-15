@@ -884,7 +884,7 @@ test("FR-016 SEC-017 SEC-010: capa enviada no painel aparece no Catálogo e capa
   }
 });
 
-test("SEC-010 FR-016: sem sessão, as rotas de Produto do painel negam", async ({
+test("SEC-010 FR-016 FR-020: sem sessão, as rotas de Produto e de Pedidos do painel negam", async ({
   playwright,
   baseURL,
 }) => {
@@ -892,7 +892,11 @@ test("SEC-010 FR-016: sem sessão, as rotas de Produto do painel negam", async (
   const anonymous = await playwright.request.newContext({ baseURL });
   try {
     // Reads are denied by the authorization rules: 401 for an anonymous visitor.
-    for (const url of ["/api/admin/products", "/api/admin/products/1"]) {
+    for (const url of [
+      "/api/admin/products",
+      "/api/admin/products/1",
+      "/api/admin/orders",
+    ]) {
       expect((await anonymous.get(url)).status(), `GET ${url}`).toBe(401);
     }
     // Writes without a session never succeed: 401, or 403 when the CSRF check answers first.
@@ -1258,6 +1262,18 @@ test("FR-020 FR-021 FR-024 SEC-011 SEC-025 SEC-026 SEC-027 SEC-031: o pagamento 
       ordersTab.getByRole("heading", { name: "Pague com Pix" }),
     ).toBeVisible();
 
+    // FR-020: the Administrator's list shows the Order as awaiting payment, with the buyer's masked e-mail.
+    const [local, domain] = email.split("@");
+    const maskedEmail = `${local[0]}***@${domain}`;
+    await page.goto("/painel");
+    await page.getByRole("link", { name: "Pedidos", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: "Pedidos", exact: true }),
+    ).toBeVisible();
+    const adminRow = page.getByRole("row", { name: new RegExp(title) });
+    await expect(adminRow).toHaveCount(1);
+    await expect(adminRow.getByText("Aguardando pagamento")).toBeVisible();
+
     // The confirmed payment arrives; the same page, without a reload, turns to paid.
     await sendPaymentReceived(chargeId, eventId());
     await expect(
@@ -1270,6 +1286,14 @@ test("FR-020 FR-021 FR-024 SEC-011 SEC-025 SEC-026 SEC-027 SEC-031: o pagamento 
     const paidEmail = await waitForMessage(email, PAID_EMAIL_SUBJECT);
     expect(paidEmail.body).toContain(title);
     expect(paidEmail.body).toContain("/biblioteca");
+
+    // FR-020: after the reload the Administrator's list shows the paid Order; the e-mail never appears in full.
+    await page.reload();
+    const paidAdminRow = page.getByRole("row", { name: new RegExp(title) });
+    await expect(paidAdminRow.getByText("Pago", { exact: true })).toBeVisible();
+    await expect(paidAdminRow.getByText("R$ 29,90")).toBeVisible();
+    await expect(paidAdminRow.getByText(maskedEmail)).toBeVisible();
+    await expect(page.getByText(email)).toHaveCount(0);
 
     // After payment the reloaded list shows the Order as paid, linking to the Library.
     await ordersTab.goto("/pedidos");
