@@ -14,6 +14,7 @@ import org.springframework.boot.jdbc.autoconfigure.JdbcConnectionDetails;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.SpringProperties;
 
 class TestcontainersConfigurationTest {
 
@@ -98,6 +99,12 @@ class TestcontainersConfigurationTest {
         } finally {
             other.drop();
         }
+    }
+
+    @Test
+    void shouldKeepAtMostEightSpringContextsAlive() {
+        assertThat(SpringProperties.getProperty("spring.test.context.cache.maxSize"))
+                .isEqualTo("8");
     }
 
     @Configuration(proxyBeanMethods = false)
