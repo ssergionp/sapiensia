@@ -1285,8 +1285,6 @@ test("FR-020 FR-021 FR-024 SEC-011 SEC-025 SEC-026 SEC-027 SEC-031: o pagamento 
     await sendPaymentReceived(chargeId, repeatedId);
     await sendPaymentReceived(chargeId, repeatedId);
     await sendPaymentReceived(chargeId, eventId());
-    // FR-024: the repeated events never send a second e-mail.
-    expect(await messagesFor(email, PAID_EMAIL_SUBJECT)).toHaveLength(1);
     await buyer.reload();
     await expect(
       buyer.getByRole("heading", { name: PAID_HEADING }),
@@ -1339,6 +1337,11 @@ test("FR-020 FR-021 FR-024 SEC-011 SEC-025 SEC-026 SEC-027 SEC-031: o pagamento 
       client: document.documentElement.clientWidth,
     }));
     expect(listWidths.scroll).toBeLessThanOrEqual(listWidths.client);
+
+    // FR-024: after the repeated events had time to be processed (they are scheduled, not handled inline),
+    // the buyer still has exactly one paid e-mail. The backend tests (OrderPaidEmailTest, PaymentConfirmationTest)
+    // are the strict proof; this is the end-to-end confirmation.
+    expect(await messagesFor(email, PAID_EMAIL_SUBJECT)).toHaveLength(1);
   } finally {
     await first.close();
     await second.close();
