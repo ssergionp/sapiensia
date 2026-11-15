@@ -1,5 +1,6 @@
 package br.com.sergio.sapiensia.admin;
 
+import java.time.Duration;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
 
@@ -15,6 +16,6 @@ public class AdministratorContact {
 
     /** The e-mail of the Administrator account (the oldest, if there were several); empty when none exists. */
     public Optional<String> findEmail() {
-        return administrators.findOldestEmail();
+        return administrators.findOnly(Duration.ZERO).map(Administrators.Row::email);
     }
 }

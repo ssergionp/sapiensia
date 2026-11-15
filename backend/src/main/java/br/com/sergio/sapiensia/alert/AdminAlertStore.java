@@ -73,10 +73,14 @@ class AdminAlertStore {
                 .single();
     }
 
-    /** Marks as given up the pending rows of the type first seen before {@code cutoff}; returns their occurrences. */
+    /**
+     * Marks as given up the pending rows of the type first seen before {@code cutoff} that had a failed send attempt;
+     * returns their occurrences. A row held back only by the window or the hourly cap is never given up.
+     */
     int giveUp(AdminAlertType type, Instant cutoff, Instant now) {
         return jdbc.sql("with given_up as (update admin_alerts set email_failed_at = :now"
-                        + " where type = :type and occurred_at <= :cutoff and " + PENDING
+                        + " where type = :type and occurred_at <= :cutoff and email_attempted_at is not null and "
+                        + PENDING
                         + " returning occurrences) select coalesce(sum(occurrences), 0)::int from given_up")
                 .param("now", Timestamp.from(now))
                 .param("type", type.name())

@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.fail;
 import br.com.sergio.sapiensia.RecordingEmailSender;
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
 import br.com.sergio.sapiensia.email.EmailMessage;
+import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -251,6 +252,39 @@ class AdminAlertDispatchTest {
         // later runs leave it alone
         dispatch.run();
         assertThat(sender.attemptsTo(admin)).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("NFR-009: alerta segurado só pelo limite por hora não desiste sem tentar o envio")
+    void shouldNotGiveUpARowHeldBackOnlyByTheHourlyCap(CapturedOutput output) {
+        Instant now = clock.instant();
+        // eight e-mails of other (made-up) types went out just now: the hourly cap is full
+        for (int i = 0; i < 8; i++) {
+            jdbc.update(
+                    "insert into admin_alerts (type, occurred_at, email_sent_at) values (?, ?, ?)",
+                    "CAP_FILL_" + "ABCDEFGH".charAt(i),
+                    Timestamp.from(now),
+                    Timestamp.from(now));
+        }
+        // a pending row older than the give-up horizon that never had a send attempt
+        jdbc.update(
+                "insert into admin_alerts (type, detail, occurred_at) values ('TASK_GAVE_UP', 'task-a', ?)",
+                Timestamp.from(now.minus(Duration.ofHours(25))));
+
+        AdminAlertDispatch.Result held = dispatch.run();
+
+        assertThat(held).isEqualTo(new AdminAlertDispatch.Result(0, 0, 0));
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from admin_alerts where type = 'TASK_GAVE_UP' and email_failed_at is null"
+                                + " and email_sent_at is null",
+                        Integer.class))
+                .isEqualTo(1);
+        assertThat(output.getAll()).doesNotContain("Admin alert e-mail gave up");
+        assertThat(alertMails()).isEmpty();
+
+        clock.advance(Duration.ofMinutes(61));
+        assertThat(dispatch.run().sent()).isEqualTo(1);
+        assertThat(alertMails()).hasSize(1);
     }
 
     @Test

@@ -42,13 +42,6 @@ class Administrators {
                 .optional();
     }
 
-    /** The e-mail of the oldest account, where the alerts go (there is only one account in practice). */
-    Optional<String> findOldestEmail() {
-        return jdbc.sql("select email from administrators order by created_at, id limit 1")
-                .query(String.class)
-                .optional();
-    }
-
     /** Inserts the Administrator only if the table is empty. */
     Optional<UUID> insertIfEmpty(String email) {
         return jdbc.sql("insert into administrators (email) select :email"
