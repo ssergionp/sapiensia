@@ -1163,7 +1163,7 @@ async function buyProductWithPix(customerPage: Page, productId: string) {
   return { chargeId, orderUrl: customerPage.url() };
 }
 
-test("FR-021 FR-024 SEC-025 SEC-026 SEC-027 SEC-031: o pagamento confirmado pelo Asaas libera o Acesso", async ({
+test("FR-020 FR-021 FR-024 SEC-011 SEC-025 SEC-026 SEC-027 SEC-031: o pagamento confirmado pelo Asaas libera o Acesso", async ({
   page,
   browser,
   baseURL,
@@ -1236,6 +1236,26 @@ test("FR-021 FR-024 SEC-025 SEC-026 SEC-027 SEC-031: o pagamento confirmado pelo
       buyer.getByRole("heading", { name: "Pague com Pix" }),
     ).toBeVisible();
 
+    // My Orders (new tab, so the Order page stays open): the pending Order is listed.
+    const ordersTab = await first.newPage();
+    await ordersTab.goto("/");
+    await ordersTab.getByRole("link", { name: "Meus Pedidos" }).click();
+    await expect(
+      ordersTab.getByRole("heading", { name: "Meus Pedidos", exact: true }),
+    ).toBeVisible();
+    const pendingItem = ordersTab
+      .getByRole("listitem")
+      .filter({ hasText: title });
+    await expect(pendingItem).toHaveCount(1);
+    await expect(pendingItem.getByText("Aguardando pagamento")).toBeVisible();
+    await pendingItem
+      .getByRole("link", { name: `Ver o Pix de ${title}` })
+      .click();
+    await expect(ordersTab).toHaveURL(orderUrl);
+    await expect(
+      ordersTab.getByRole("heading", { name: "Pague com Pix" }),
+    ).toBeVisible();
+
     // The confirmed payment arrives; the same page, without a reload, turns to paid.
     await sendPaymentReceived(chargeId, eventId());
     await expect(
@@ -1243,6 +1263,15 @@ test("FR-021 FR-024 SEC-025 SEC-026 SEC-027 SEC-031: o pagamento confirmado pelo
     ).toBeVisible({ timeout: 30_000 });
     await expect(buyer.getByText(PAID_TEXT)).toBeVisible();
     await expect(buyer.getByLabel("Pix copia e cola")).toHaveCount(0);
+
+    // After payment the reloaded list shows the Order as paid, linking to the Library.
+    await ordersTab.goto("/pedidos");
+    const paidItem = ordersTab.getByRole("listitem").filter({ hasText: title });
+    await expect(paidItem).toHaveCount(1);
+    await expect(paidItem.getByText("Pago", { exact: true })).toBeVisible();
+    await paidItem.getByRole("link", { name: "Ir para a Biblioteca" }).click();
+    await expect(ordersTab).toHaveURL(/\/biblioteca$/);
+    await ordersTab.close();
 
     // The same event again (same id) and a new id for the same payment change nothing.
     const repeatedId = eventId();
@@ -1271,6 +1300,13 @@ test("FR-021 FR-024 SEC-025 SEC-026 SEC-027 SEC-031: o pagamento confirmado pelo
     ).toBeVisible();
     await expect(other.getByText(PAID_HEADING)).toHaveCount(0);
 
+    // Another Customer's list is empty and never shows the buyer's Product.
+    await other.goto("/pedidos");
+    await expect(
+      other.getByText("Você ainda não fez nenhum Pedido."),
+    ).toBeVisible();
+    await expect(other.getByText(title)).toHaveCount(0);
+
     // The paid view on a phone screen: no horizontal scroll.
     const phone = await mobile.newPage();
     const phoneOrder = await buyFirstTime(phone);
@@ -1283,6 +1319,17 @@ test("FR-021 FR-024 SEC-025 SEC-026 SEC-027 SEC-031: o pagamento confirmado pelo
       client: document.documentElement.clientWidth,
     }));
     expect(widths.scroll).toBeLessThanOrEqual(widths.client);
+
+    // My Orders on a phone screen, after payment: no horizontal scroll.
+    await phone.goto("/pedidos");
+    await expect(
+      phone.getByRole("listitem").filter({ hasText: title }),
+    ).toBeVisible();
+    const listWidths = await phone.evaluate(() => ({
+      scroll: document.documentElement.scrollWidth,
+      client: document.documentElement.clientWidth,
+    }));
+    expect(listWidths.scroll).toBeLessThanOrEqual(listWidths.client);
   } finally {
     await first.close();
     await second.close();
