@@ -244,16 +244,32 @@ class RefundProcessingTest {
     }
 
     @Test
-    @DisplayName("SEC-026, SEC-031: aviso de estorno com a cobrança ainda RECEIVED não cancela nada")
-    void shouldCancelNothingWhenTheChargeIsStillReceived() throws Exception {
-        Placed placed = placePaidOrder();
-        provider(placed, "RECEIVED");
-        String eventId = uniqueId();
+    @DisplayName(
+            "SEC-026, SEC-031: aviso de estorno com a cobrança ainda paga repete, não cancela e termina em GAVE_UP; reprocessado com REFUNDED, cancela")
+    void shouldRetryARefundNoticeWhileTheChargeStillReadsAsPaid() throws Exception {
+        for (String paid : new String[] {"RECEIVED", "CONFIRMED"}) {
+            Placed placed = placePaidOrder();
+            provider(placed, paid);
+            String eventId = uniqueId();
 
-        postEvent(eventId, "PAYMENT_REFUNDED", placed);
+            postEvent(eventId, "PAYMENT_REFUNDED", placed);
 
-        awaitResult(eventId, "NOT_REFUNDED");
-        assertAccessKept(placed);
+            await("two reads while the charge reads as " + paid, () -> gateway.count("READ_CHARGE") >= 2);
+            assertThat(allResults(eventId)).isZero();
+            assertAccessKept(placed);
+            await("the GAVE_UP result", () -> results(eventId, "GAVE_UP") == 1);
+            await("the task to be removed", () -> tasks(eventId) == 0);
+            assertThat(results(eventId, "NOT_REFUNDED")).isZero();
+            assertAccessKept(placed);
+
+            provider(placed, "REFUNDED");
+            assertThat(jdbc.update(runbookSql().replace(PLACEHOLDER, eventId))).isEqualTo(1);
+
+            awaitResult(eventId, "REFUNDED");
+            assertThat(status(placed.orderId())).isEqualTo("REFUNDED");
+            assertThat(accessCancelled(placed.orderId())).isTrue();
+            gateway.reset();
+        }
     }
 
     @Test

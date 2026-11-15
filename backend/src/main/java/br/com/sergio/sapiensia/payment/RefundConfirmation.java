@@ -26,6 +26,7 @@ class RefundConfirmation {
 
     private static final Logger log = LoggerFactory.getLogger(RefundConfirmation.class);
     private static final String BALANCE_BLOCKED_EVENT = "BALANCE_VALUE_BLOCKED";
+    private static final String REFUND_EVENT = "PAYMENT_REFUNDED";
     private static final String PARTIAL_REFUND_EVENT = "PAYMENT_PARTIALLY_REFUNDED";
     private static final String MED_TYPE = "PIX_INFRACTION";
 
@@ -113,7 +114,9 @@ class RefundConfirmation {
         if (!order.id().toString().equals(charge.externalReference())) {
             return outcome.finish(paymentEventId, ref, PaymentResult.REFERENCE_MISMATCH, order.id(), chargeId);
         }
-        if (charge.isRefundInProgress()) {
+        // a refund notice can beat the charge update at Asaas: retry like a payment (ends in GAVE_UP, reprocessable)
+        if (charge.isRefundInProgress()
+                || (charge.isPaid() && REFUND_EVENT.equals(ref.eventType()))) {
             throw new PaymentConfirmation.PaymentNotReadyException();
         }
         if (!charge.isRefunded()) {
