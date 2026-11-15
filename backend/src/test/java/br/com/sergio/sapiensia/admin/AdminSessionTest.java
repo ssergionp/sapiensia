@@ -121,7 +121,7 @@ class AdminSessionTest {
         assertThat(current.body())
                 .isEqualTo(
                         "{\"email\":\"" + email
-                                + "\",\"capabilities\":[\"PANEL_ACCESS\",\"RECOVERY_CODES_MANAGE\",\"PRODUCTS_EDIT\",\"PRODUCTS_PRICE\",\"PRODUCTS_FILE\",\"PRODUCTS_PUBLISH\"]}");
+                                + "\",\"capabilities\":[\"PANEL_ACCESS\",\"RECOVERY_CODES_MANAGE\",\"PRODUCTS_EDIT\",\"PRODUCTS_PRICE\",\"PRODUCTS_FILE\",\"PRODUCTS_PUBLISH\",\"ORDERS_VIEW\"]}");
     }
 
     @Test
@@ -406,7 +406,7 @@ class AdminSessionTest {
         assertThat(current.body())
                 .isEqualTo(
                         "{\"email\":\"" + email
-                                + "\",\"capabilities\":[\"PANEL_ACCESS\",\"RECOVERY_CODES_MANAGE\",\"PRODUCTS_EDIT\",\"PRODUCTS_PRICE\",\"PRODUCTS_FILE\",\"PRODUCTS_PUBLISH\"]}");
+                                + "\",\"capabilities\":[\"PANEL_ACCESS\",\"RECOVERY_CODES_MANAGE\",\"PRODUCTS_EDIT\",\"PRODUCTS_PRICE\",\"PRODUCTS_FILE\",\"PRODUCTS_PUBLISH\",\"ORDERS_VIEW\"]}");
     }
 
     @Test

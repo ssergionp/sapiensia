@@ -3,6 +3,7 @@ import AdminHomePage from "@/features/admin/AdminHomePage";
 import AdminLoginPage from "@/features/admin/AdminLoginPage";
 import AdminMfaPage from "@/features/admin/AdminMfaPage";
 import SetAdminPasswordPage from "@/features/admin/SetAdminPasswordPage";
+import AdminOrdersPage from "@/features/admin-orders/AdminOrdersPage";
 import CatalogPage from "@/features/catalog/CatalogPage";
 import CatalogProductPage from "@/features/catalog/CatalogProductPage";
 import ConfirmEmailPage from "@/features/customer/ConfirmEmailPage";
@@ -35,6 +36,7 @@ export default function App() {
       <Route path="/painel/entrar" element={<AdminLoginPage />} />
       <Route path="/painel/verificacao" element={<AdminMfaPage />} />
       <Route path="/painel/definir-senha" element={<SetAdminPasswordPage />} />
+      <Route path="/painel/pedidos" element={<AdminOrdersPage />} />
       <Route path="/painel/produtos" element={<ProductListPage />} />
       <Route path="/painel/produtos/novo" element={<ProductFormPage />} />
       <Route path="/painel/produtos/:id" element={<ProductFormPage />} />

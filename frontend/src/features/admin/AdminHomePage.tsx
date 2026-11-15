@@ -39,6 +39,13 @@ export default function AdminHomePage() {
               </Link>
             </p>
           )}
+          {admin.capabilities.includes("ORDERS_VIEW") && (
+            <p className="mt-4">
+              <Link to="/painel/pedidos" className="underline">
+                Pedidos
+              </Link>
+            </p>
+          )}
           <RecoveryCodesSection />
           {logout.isError && (
             <p role="alert" className="mt-2 text-sm text-destructive">
