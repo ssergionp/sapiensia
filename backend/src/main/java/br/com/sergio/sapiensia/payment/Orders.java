@@ -137,6 +137,35 @@ class Orders {
                 == 1;
     }
 
+    /** True while the Order is paid and its confirmation e-mail has not been sent. */
+    boolean paymentEmailPending(UUID id) {
+        return jdbc.sql("select count(*) from orders where id = :id and status = 'PAID'"
+                                + " and payment_email_sent_at is null")
+                        .param("id", id)
+                        .query(Long.class)
+                        .single()
+                == 1;
+    }
+
+    /** True only for the call that filled the column. */
+    boolean markPaymentEmailSent(UUID id, Instant now) {
+        return jdbc.sql("update orders set payment_email_sent_at = :now"
+                                + " where id = :id and payment_email_sent_at is null")
+                        .param("now", java.sql.Timestamp.from(now))
+                        .param("id", id)
+                        .update()
+                == 1;
+    }
+
+    /** Records that the e-mail gave up; does nothing once it has been sent. */
+    void markPaymentEmailFailed(UUID id, Instant now) {
+        jdbc.sql("update orders set payment_email_failed_at = :now"
+                        + " where id = :id and payment_email_sent_at is null")
+                .param("now", java.sql.Timestamp.from(now))
+                .param("id", id)
+                .update();
+    }
+
     /** Transaction-scoped lock per Customer; must be called inside a transaction. */
     boolean tryLockCustomer(UUID customerId) {
         return Boolean.TRUE.equals(jdbc.sql("select pg_try_advisory_xact_lock(hashtextextended(:key, 0))")

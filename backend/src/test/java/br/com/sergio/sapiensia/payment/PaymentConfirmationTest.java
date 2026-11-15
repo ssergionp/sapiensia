@@ -562,4 +562,68 @@ class PaymentConfirmationTest {
         assertThat(statusOf(f.orderId())).isEqualTo("PAID");
         assertThat(accesses(f)).isEqualTo(1);
     }
+
+    private long emailTasks(UUID orderId) {
+        return jdbc.queryForObject(
+                "select count(*) from scheduled_tasks where task_name = 'order-paid-email' and task_instance = ?",
+                Long.class,
+                orderId.toString());
+    }
+
+    @Test
+    @DisplayName("FR-024: shouldScheduleAnEmailTaskInTheSameTransactionAsThePayment")
+    void shouldScheduleAnEmailTaskInTheSameTransactionAsThePayment() {
+        Fixture f = fixture();
+        provider(f, paid(f));
+
+        assertThat(confirmation.process(f.eventId())).isEqualTo(PaymentResult.PAID);
+
+        assertThat(emailTasks(f.orderId())).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                        "select task_data from scheduled_tasks where task_name = 'order-paid-email'"
+                                + " and task_instance = ?",
+                        byte[].class,
+                        f.orderId().toString()))
+                .isNull();
+    }
+
+    @Test
+    @DisplayName("FR-024: shouldNotScheduleAnotherEmailForADuplicateNoticeFromTheProvider")
+    void shouldNotScheduleAnotherEmailForADuplicateNoticeFromTheProvider() {
+        Fixture first = fixture();
+        provider(first, paid(first));
+        confirmation.process(first.eventId());
+        Fixture second = secondEventOf(first);
+
+        assertThat(confirmation.process(second.eventId())).isEqualTo(PaymentResult.ALREADY_PAID);
+
+        assertThat(emailTasks(first.orderId())).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("FR-024: shouldLeaveNoEmailTaskWhenThePaymentTransactionIsRolledBack")
+    void shouldLeaveNoEmailTaskWhenThePaymentTransactionIsRolledBack() {
+        Fixture f = fixture();
+        provider(f, paid(f));
+        audit.failWrites(true);
+
+        assertThatThrownBy(() -> confirmation.process(f.eventId())).isInstanceOf(RuntimeException.class);
+
+        assertThat(statusOf(f.orderId())).isEqualTo("PENDING");
+        assertThat(emailTasks(f.orderId())).isZero();
+    }
+
+    @Test
+    @DisplayName("FR-024: shouldNotScheduleAnEmailForADuplicatePurchase")
+    void shouldNotScheduleAnEmailForADuplicatePurchase() {
+        Fixture first = fixture();
+        provider(first, paid(first));
+        confirmation.process(first.eventId());
+        Fixture second = fixtureFor(first.customerId(), first.productId());
+        provider(second, paid(second));
+
+        assertThat(confirmation.process(second.eventId())).isEqualTo(PaymentResult.DUPLICATE_PURCHASE);
+
+        assertThat(emailTasks(second.orderId())).isZero();
+    }
 }
