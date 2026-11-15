@@ -49,6 +49,7 @@ Glossário e convenções das skills: veja docs/agents/ (o domain.md diz onde fi
 - backend/.../payment/PaymentConfirmation.java: o único lugar que marca um Pedido como pago e concede o Acesso.
 - backend/.../product/ProductDownloadService.java: o único lugar que emite o link de Download (URL assinada de 60 s no Supabase, `/api/local-downloads/<token>` no local) e grava o Registro de download; nunca devolve nem guarda o endereço do objeto.
 - backend/.../payment/OrderPaidEmail.java: o único lugar que envia o e-mail de pagamento confirmado.
+- backend/src/test/.../TestcontainersConfiguration.java: um único Postgres para a suíte de testes; cada contexto Spring ganha um banco próprio, apagado quando o contexto fecha. Teste que precisa de um banco fora de um contexto (ex.: reiniciar o sistema sobre o mesmo banco) usa `TestcontainersConfiguration.newDatabase()` e `drop()`; nunca um `PostgreSQLContainer` próprio. O cache de contextos de teste guarda no máximo 8 (`backend/src/test/resources/spring.properties`).
 - (liste aqui outros helpers e componentes que o Claude deve usar em vez de criar novos)
 
 ## Segurança e produção
