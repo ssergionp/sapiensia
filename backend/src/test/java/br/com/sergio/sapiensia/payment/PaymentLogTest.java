@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
 import java.math.BigDecimal;
 import java.net.http.HttpResponse;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
@@ -50,9 +51,10 @@ class PaymentLogTest {
     /**
      * The value in the forms it could take next to a field name. A bare "2990" is not checked alone: it can appear
      * inside a UUID or a timestamp, so only "value/amount/price/cents" followed by 2990 or 29.9, or "29.90", count.
+     * A "29.90" right after two digits and a colon is the seconds of a clock time, not a value, and is not flagged.
      */
     private static final Pattern VALUE_FORMS =
-            Pattern.compile("(?i)(value|amount|price|cents)\\W{0,4}(2990|29\\.9)(?![0-9])|29[.,]90");
+            Pattern.compile("(?i)(value|amount|price|cents)\\W{0,4}(2990|29\\.9)(?![0-9])|(?<![0-9]{2}:)29[.,]90");
 
     @LocalServerPort
     int port;
@@ -124,6 +126,20 @@ class PaymentLogTest {
             Thread.sleep(150);
         }
         throw new AssertionError("timed out waiting for: " + what);
+    }
+
+    @Test
+    @DisplayName("ADR-0006, SEC-033: the value pattern ignores the seconds of a timestamp")
+    void shouldCatchTheValueButNotTheSecondsOfATimestamp() {
+        assertThat(VALUE_FORMS
+                        .matcher("\"@timestamp\":\"2026-11-15T15:52:29.904482300Z\"")
+                        .find())
+                .isFalse();
+        assertThat(VALUE_FORMS.matcher("2026-11-15 15:52:29,904 INFO").find()).isFalse();
+        for (String leak : List.of(
+                "\"value\":29.90", "\"value\":29.9}", "amount=2990", "price: 29.9 ", "R$ 29,90", "total 29.90")) {
+            assertThat(VALUE_FORMS.matcher(leak).find()).as(leak).isTrue();
+        }
     }
 
     @Test
