@@ -93,7 +93,7 @@ export default function LibraryPage() {
                 </time>
               </p>
             </div>
-            <div data-slot="actions" className="w-full sm:w-auto">
+            <div data-slot="actions" className="w-full sm:w-auto sm:max-w-60">
               <DownloadButton productId={item.productId} title={item.title} />
             </div>
           </li>
