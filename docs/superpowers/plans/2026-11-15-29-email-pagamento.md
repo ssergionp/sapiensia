@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** AGUARDANDO APROVAÇÃO do Sérgio (decisões D1 a D8 na seção 8). Nenhum código antes do OK.
+**Status:** APROVADO pelo Sérgio em 15/11/2026: D1 a D8 aceitas como recomendado; texto do e-mail (seção 7) aprovado sem mudança; sem e-mail retroativo para Pedido pago antes do deploy. Execução por subagent-driven-development (subagentes em Sonnet).
 
 **Goal:** Quando o Pedido vira pago, o Cliente recebe um único e-mail de confirmação, sem que o e-mail possa atrasar ou desfazer o Pedido pago e o Acesso.
 
@@ -246,5 +246,7 @@ Nenhuma tela muda; não há texto de "carregando", erro ou confirmação novos.
 | D6 | SQL de reenvio manual no runbook | Sim, uma seção curta, exercitada pelo teste da Task 4 |
 | D7 | e2e: duas conferências no teste de pagamento que já existe | Sim, custa segundos |
 | D8 | Textos do `demo-pagar` e do `docs/demo.md` (seção 7) | Aprovar como estão |
+
+**Decisão do Sérgio (15/11/2026):** D1 a D8 aprovadas conforme a coluna "Recomendação". Texto do e-mail aprovado sem mudança. Nenhum e-mail retroativo para Pedido pago antes do deploy. Regras da execução: na transação do pagamento entra só o agendamento da tarefa (nenhuma chamada ao Resend dentro de transação); falha do e-mail nunca toca no Pedido pago nem no Acesso; log só com o id do Pedido e o motivo.
 
 **Fora do ticket, só para registro:** as tarefas de e-mail do #9 usam `maxRetries(maxAttempts)`, o que pela conta feita no #28 dá 6 execuções em vez das 5 que o log e o ADR dizem. Não conferi rodando. Se confirmar, vira issue `needs-triage` citando o #29.
