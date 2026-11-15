@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** AGUARDANDO APROVAÇÃO do Sérgio (decisões D1 a D6 e textos da seção 4).
+**Status:** APROVADO pelo Sérgio em 2026-11-15: D1 a D6 aceitas como recomendado (ver seção 7), textos da seção 4 sem mudança. Condições da aprovação na seção "Condições da aprovação".
 
 **Goal:** O Administrador abre "Pedidos" no painel e vê todos os Pedidos, do mais recente para o mais antigo, em páginas de 20, com o estado de cada um. Só leitura. O Cliente e o anônimo são negados.
 
-**Architecture:** Uma rota de leitura nova, `GET /api/admin/orders`, num controller novo do pacote `payment`, aberta na `SecurityConfig` só por uma capacidade nova (`ORDERS_VIEW`) mais os dois fatores (`panel(...)`). Um `select` em `orders` + `products` + `customers`, paginado no SQL; o e-mail do Cliente é mascarado já na leitura da linha, então o e-mail completo nunca chega ao DTO. O estado mostrado sai da mesma regra `shownStatus` do `OrderService`. No frontend, uma pasta nova `features/admin-orders/`, a rota `/painel/pedidos` e um link no painel.
+**Architecture:** Uma rota de leitura nova, `GET /api/admin/orders`, num controller novo do pacote `payment`, aberta na `SecurityConfig` só por uma capacidade nova (`ORDERS_VIEW`) mais os dois fatores (`panel(...)`). Um `select` em `orders` + `products` + `customers`, paginado no SQL; o e-mail do Cliente é mascarado já na leitura da linha, então o e-mail completo nunca chega ao DTO. O estado mostrado é a mesma regra `shownStatus` do `OrderService` (pendente vencido = expirado), mas calculada no próprio SQL, para o filtro, a página e a contagem concordarem. No frontend, uma pasta nova `features/admin-orders/`, a rota `/painel/pedidos` e um link no painel.
 
 **Tech Stack:** o que já existe (Spring Boot 4.1 com `JdbcClient`, Testcontainers; React, TanStack Query, Zod, Vitest, Playwright). **Nenhuma dependência nova, nenhuma migration.**
 
@@ -29,7 +29,16 @@
 - Controller e repositório package-private, DTOs como `record`. ID do requisito no `@DisplayName`/título do teste. `@Import(TestcontainersConfiguration.class)`, sem `@MockitoBean`.
 - Toda chamada do frontend via `apiFetch`. Textos de tela **só os da seção 4**.
 - Memória (issue #126): o check que vale é o do CI. Localmente só `just lint` e as rodadas focadas da seção 5, **um comando pesado por vez**.
-- Push só com `git push -u origin feat/37-pedidos-admin`, depois do OK do Sérgio.
+- Push só com `git push -u origin feat/37-pedidos-admin` (OK dado na aprovação; ver abaixo).
+
+## Condições da aprovação (Sérgio, 2026-11-15)
+
+- **Filtro e paginação concordam:** o estado mostrado (pendente vencido = `EXPIRED`) é calculado **no próprio SQL** (`case when o.status = 'PENDING' and o.expires_at <= :now then 'EXPIRED' else o.status end`), e o filtro usa essa mesma expressão. A página e o `count(*)` recebem o **mesmo** `now` (um só `clock.instant()` por requisição). Há um teste que prova isso (Task 1, teste 7).
+- **Máscara no servidor:** o e-mail inteiro nunca sai na resposta nem no log.
+- **Asserções de capacidades** (`AdminMfaLoginTest`, `AdminSessionTest`): só ganham `ORDERS_VIEW`; nada mais muda nelas.
+- **Localmente** só lint e testes focados (incluindo as classes que citam FR-020 e SEC-010), um comando pesado por vez; o check que vale é o do CI.
+- Antes de declarar pronto: skill `verificar-entrega`, com o CI no lugar do check completo.
+- Push e PR (citando FR-020 e SEC-010) sem parar para pedir OK; com o CI verde, resumo ao Sérgio.
 
 ## Review Focus
 
@@ -48,7 +57,7 @@
 **b) Campos (D2, D3).** `GET /api/admin/orders?page=0&status=PAID` → `200 {"items":[{...}],"page":0,"totalPages":3}`.
 - `id`: o UUID do Pedido. A tela mostra só os 8 primeiros caracteres (D3).
 - `productTitle`, `priceCents`.
-- `status`: o estado mostrado, pela mesma regra `shownStatus` (pendente vencido sai `EXPIRED`).
+- `status`: o estado mostrado, pela mesma regra `shownStatus` (pendente vencido sai `EXPIRED`), calculada no SQL.
 - `createdAt`; `paidAt` (nulo se não pago).
 - `customerEmail`: **mascarado no servidor** (D2): primeira letra + `***` + `@domínio`, ex.: `s***@gmail.com`. Sempre três asteriscos, para não revelar o tamanho. Sem `@` ou sem nada antes dele: `***`. Por que mostrar: sem nenhuma pista do Cliente a lista não serve para atender um pedido de suporte nem para distinguir "um Cliente comprou 3 vezes" de "3 Clientes". Por que mascarar: para isso o e-mail completo não é necessário (minimização, spec linhas 83 e 843), e mascarando no servidor ele não trafega nem fica no cache do navegador.
 
@@ -67,9 +76,9 @@ O mesmo `where` vale para o `count(*)` do `totalPages`. **Índice: não.** No vo
 
 **e) Código.**
 - `payment/MaskedEmail.java`: `static String of(String email)`.
-- `payment/Orders.java`: `static final int ADMIN_PAGE_SIZE = 20`; `record AdminRow(UUID id, String productTitle, int priceCents, OrderStatus status, String maskedEmail, Instant createdAt, Instant expiresAt, Instant paidAt)`; `List<AdminRow> pageForAdministrator(OrderStatus shown, Instant now, int page)`; `long countForAdministrator(OrderStatus shown, Instant now)`. O mapper chama `MaskedEmail.of(rs.getString("email"))`: nenhum objeto carrega o e-mail completo. Join com `products` sem filtro de estado do Produto.
+- `payment/Orders.java`: `static final int ADMIN_PAGE_SIZE = 20`; `record AdminRow(UUID id, String productTitle, int priceCents, OrderStatus shownStatus, String maskedEmail, Instant createdAt, Instant paidAt)` (o `shownStatus` já vem calculado pelo SQL, ver "Condições da aprovação"); `List<AdminRow> pageForAdministrator(OrderStatus shown, Instant now, int page)`; `long countForAdministrator(OrderStatus shown, Instant now)`. O mapper chama `MaskedEmail.of(rs.getString("email"))`: nenhum objeto carrega o e-mail completo. Join com `products` sem filtro de estado do Produto.
 - `payment/AdminOrderItem.java`: `record AdminOrderItem(UUID id, String productTitle, int priceCents, OrderStatus status, String customerEmail, Instant createdAt, Instant paidAt)`; `payment/AdminOrderPage.java`: `record AdminOrderPage(List<AdminOrderItem> items, int page, int totalPages)`.
-- `payment/OrderService.java`: `shownStatus` passa a `shownStatus(OrderStatus status, Instant expiresAt, Instant now)` (os três usos atuais acompanham); novo `AdminOrderPage listForAdministrator(int page, OrderStatus shown)`, um só `clock.instant()` para a página e a contagem.
+- `payment/OrderService.java`: novo `AdminOrderPage listForAdministrator(int page, OrderStatus shown)`, um só `clock.instant()` para a página e a contagem.
 - `payment/AdminOrderController.java`: `@RequestMapping("/api/admin/orders")`, `@GetMapping AdminOrderPage list(@RequestParam(defaultValue = "0") @Min(0) int page, @RequestParam(required = false) OrderStatus status)`.
 
 ## 2. Arquivos
@@ -128,6 +137,7 @@ As duas classes de integração usam **as mesmas anotações**, para dividirem u
     4. `FR-020: Pedido pendente vencido aparece como expirado, nada é gravado e o Asaas não é chamado`: no banco continua `PENDING` com `expired_at` nulo; `gateway.calls()` não cresce.
     5. `FR-020: o filtro usa o estado mostrado`: um pendente no prazo, um pendente vencido, um expirado, um pago → `PENDING` traz 1, `EXPIRED` traz 2, `PAID` traz 1, e `totalPages` segue o filtro; `status=REFUNDED` dá 400.
     6. `FR-020: o Pedido de um Produto despublicado continua na lista`.
+    7. `FR-020 SEC-015: filtro, estado mostrado e contagem usam o mesmo agora`: relógio fixo em T; 20 Pedidos `EXPIRED` e 1 `PENDING` com `expires_at = T` exato (vence no limite). `status=EXPIRED` → `totalPages` 2, e a página 1 traz esse Pedido com `status` `EXPIRED`; `status=PENDING` → lista vazia e `totalPages` 0; sem filtro → 21 linhas em 2 páginas, nenhuma `PENDING`. Avançar o relógio não é preciso: o ponto é o limite `expires_at <= now` valer igual na página e na contagem.
   - `AdminOrderAccessTest`:
     1. `SEC-010: anônimo recebe 401 e Cliente recebe 403, sem nenhum dado` (logins de verdade; o corpo não tem o título do Produto).
     2. `SEC-010 SEC-001: só a senha, sem o código, recebe 401`.
@@ -137,15 +147,16 @@ As duas classes de integração usam **as mesmas anotações**, para dividirem u
     6. `SEC-010: POST, PUT, DELETE e /api/admin/orders/{id} seguem negados (403) até para o Administrador completo`.
 - [ ] **Step 2:** rodada A (seção 5.1): falha por 403/compilação.
 - [ ] **Step 3:** implementar a seção 1e, a capacidade e a regra; atualizar as três listas de capacidades esperadas.
-- [ ] **Step 4:** rodadas A, B e C verdes, uma por vez; `just lint`.
+- [ ] **Step 4:** rodadas A, B, C1 e C2 verdes, uma por vez; `just lint`.
 - [ ] **Step 5:** commit `feat: order list for the Administrator (#37)`.
 
 **5.1 Rodadas focadas** (dentro de `backend/`, uma por vez):
 - A: `.\mvnw.cmd test "-Dtest=MaskedEmailTest,AdminOrderListTest,AdminOrderAccessTest"`
 - B (lista de capacidades e negação por padrão): `.\mvnw.cmd test "-Dtest=AdminMfaLoginTest,AdminSessionTest,AdminRouteDenyByDefaultTest"`
-- C (quem usa o `shownStatus`): `.\mvnw.cmd test "-Dtest=MyOrdersTest,PaidOrderReadTest,OrderCreationTest"`
+- C1 (as outras classes que citam FR-020 ou SEC-010, fora de `admin`; inclui quem usa o `shownStatus`): `.\mvnw.cmd test "-Dtest=PublicCatalogMatcherTest,CatalogTest,PaidOrderReadTest,OrderRouteAccessTest,LibraryTest,LocalDownloadProdTest,LocalDownloadTest,MyOrdersTest,OrderCreationTest,AsaasWebhookRouteVariantsTest,AsaasWebhookAuthenticationTest,LoginRequestTest"`
+- C2 (as que citam FR-020 ou SEC-010 em `admin`, fora da B): `.\mvnw.cmd test "-Dtest=CatalogCoverTest,LibraryAuthorizationTest,LibraryDownloadAuthorizationTest,AdminProductPublicationTest,AdminProductAuthorizationTest,AdminProductCapabilityTest,AdminProductCoverTest,AdminProductFileAuthorizationTest,AdminProductFileCapabilityTest,AdminProductFileUploadTest,AdminProductPublicationAuthorizationTest,AdminProductPublicationCapabilityTest,AdminLoginTimingTest,AdminMfaBypassTest"`
 
-As outras classes que citam SEC-010 e FR-020 não tocam em código alterado e rodam no CI.
+(Lista tirada de `git grep -l -E "FR-020|SEC-010" -- backend/src/test` em 2026-11-15; pedido do Sérgio na aprovação.)
 
 ### Task 2: Tela e link no painel (frontend)
 
@@ -154,7 +165,7 @@ As outras classes que citam SEC-010 e FR-020 não tocam em código alterado e ro
 - [ ] **Step 1: testes que falham** (`AdminOrdersPage.test.tsx`, `fetch` simulado como nos testes de Produtos): mostra as linhas (8 caracteres do id, título, `R$ 29,90`, estado em português, e-mail mascarado, datas formatadas, "—" sem pagamento); "Carregando…"; vazio sem filtro e com filtro; erro e "Tentar novamente" refaz a busca; 403 mostra a mensagem de sem permissão; 401 leva a `/painel/entrar`; "Próxima" pede `page=1`; trocar o filtro pede `status=PAID&page=0` estando na página 2; sem `ORDERS_VIEW` a página mostra a mensagem e não chama a API de Pedidos. `AdminHomeOrdersLink.test.tsx`: o link "Pedidos" aparece com `ORDERS_VIEW` (`href="/painel/pedidos"`) e some sem ela.
 - [ ] **Step 2:** `pnpm exec vitest run src/features/admin-orders src/features/admin/AdminHomeOrdersLink.test.tsx` (em `frontend/`): falha.
 - [ ] **Step 3:** implementar. `schemas.ts` espelha `AdminOrderPage` (`paidAt` anulável; `status` como enum dos três estados); `api.ts` com `AdminOrdersSessionEndedError` (401) e `AdminOrdersForbiddenError` (403); textos só em `messages.ts`.
-- [ ] **Step 4:** o mesmo comando verde, mais `src/App.test.tsx`; `just lint`.
+- [ ] **Step 4:** o mesmo comando verde, mais `src/App.test.tsx`, `src/features/orders/OrdersPage.test.tsx` e `src/features/catalog/CatalogProductPage.test.tsx` (citam FR-020/SEC-010); `just lint`.
 - [ ] **Step 5:** commit `feat: Orders page in the Administrator panel (#37)`.
 
 ### Task 3: E2E, sistema de verdade e documentação
@@ -165,7 +176,7 @@ As outras classes que citam SEC-010 e FR-020 não tocam em código alterado e ro
 - [ ] **Step 2:** `/verificar-tela` em `/painel/pedidos`: 1280 px e 390 px, teclado (filtro, região da tabela, paginação), sem rolagem horizontal da página.
 - [ ] **Step 3: sistema de verdade**, com os testes do Maven parados: `just db` na pasta principal; `just dev-back` e `just dev-front` na worktree; `pnpm exec playwright test admin-panel -g "SEC-001|pagamento confirmado|sem sessão"`. Porta ocupada por outro projeto: perguntar antes de parar.
 - [ ] **Step 4:** linha nova no `CLAUDE.md` (seção 2); commit `test: e2e and docs for the Administrator's order list (#37)`.
-- [ ] **Step 5:** skill `verificar-entrega`; depois do OK do Sérgio, push e PR com `Closes #37`, citando FR-020 e SEC-010. O ticket só está pronto com o CI verde.
+- [ ] **Step 5:** skill `verificar-entrega` (o CI no lugar do check completo); push e PR com `Closes #37`, citando FR-020 e SEC-010 (OK dado na aprovação). O ticket só está pronto com o CI verde.
 
 ## 6. O que não será provado
 
@@ -191,3 +202,5 @@ As outras classes que citam SEC-010 e FR-020 não tocam em código alterado e ro
 | D5 | Auditar a consulta | não auditar agora (seção 1d) | gravar `ADMIN_ORDERS_VIEWED` a cada requisição, sem derrubar a leitura se a gravação falhar |
 | D6 | Formato da tela | tabela com rolagem própria no celular, como Produtos | cartões empilhados, como Meus Pedidos |
 | Textos | seção 4 | como listados | os seus ajustes |
+
+**Decididas em 2026-11-15:** D1 `ORDERS_VIEW`; D2 e-mail mascarado no servidor; D3 id inteiro na API, 8 caracteres na tela; D4 filtro incluído; D5 consulta sem auditoria; D6 tabela com rolagem própria; textos da seção 4 aprovados sem mudança.
