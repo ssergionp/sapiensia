@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import AdminGuard from "@/features/admin/AdminGuard";
 import { formatCents } from "@/features/products/schemas";
+import { saoPauloDateAndTime } from "@/lib/saoPauloDate";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { AdminOrdersForbiddenError } from "./api";
 import { useAdminOrders } from "./hooks";
@@ -11,23 +12,10 @@ import { ORDER_STATUSES, type OrderStatus } from "./schemas";
 
 const HEADING_ID = "admin-orders-heading";
 
-const dateTimeParts = new Intl.DateTimeFormat("pt-BR", {
-  timeZone: "America/Sao_Paulo",
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-  hourCycle: "h23",
-});
-
-// "09/11/2026 14:32" in Brasilia time, whatever the zone of the browser.
+// "09/11/2026 14:32" in Brasilia time.
 function formatDateTime(iso: string): string {
-  const parts: Record<string, string> = {};
-  for (const part of dateTimeParts.formatToParts(new Date(iso))) {
-    parts[part.type] = part.value;
-  }
-  return `${parts.day}/${parts.month}/${parts.year} ${parts.hour}:${parts.minute}`;
+  const { date, time } = saoPauloDateAndTime(iso);
+  return `${date} ${time}`;
 }
 
 function DateCell({ iso }: { iso: string | null }) {
