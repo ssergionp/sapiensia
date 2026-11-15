@@ -50,6 +50,22 @@ Por que tantos contextos (detalhe no censo):
 - 81 chaves de uma classe só. **37 classes diferem apenas pelo valor de `test.isolated-context`**, de propósito: estado em memória (limite de login, relógio mutável, repositório de CSRF trocado pelo `csrf()` do MockMvc) e `delete from administrators`/`products` no `@BeforeEach`. Juntá-las economizaria 36 contextos.
 - As outras diferem de verdade: propriedades de limite de login, `@MockitoSpyBean` (3 classes), `@Import` próprio (relógio, Pix, armazenamento, auditoria, sondas), níveis de log, perfil `prod`/`local`, intervalo do db-scheduler, diretório de arquivos por classe, `@DynamicPropertySource` (1), `@Nested` com configuração própria (4).
 
+### Medição depois (branch, 15/11/2026)
+
+| Medida | Antes (main) | Depois (branch) | Como |
+|---|---|---|---|
+| Testes do backend no CI | 9:44 (1306 testes) | **7:12** (1312 testes, 0 falhas, 0 puladas) | log do CI da PR #124 |
+| Postgres criados na suíte (CI) | 87 | **1** | `Creating container for image: postgres` |
+| Postgres simultâneos | até 33 | **1** | CI: 1 criado; local: amostras |
+| Contextos Spring iniciados (CI) | 93 | 96 (+3 recriados depois de despejados, como a simulação previu) | `Started <X> in` |
+| Contextos despejados do cache (CI) | 50 (cache de 32) | **78** (cache de 8) | pools do Hikari fechados no meio da execução, menos os 13 de classes que reiniciam o sistema ou usam `@DirtiesContext` |
+| Bancos criados (CI) | — | ~99, derivado: 88 contextos + 11 `newDatabase()` diretos (8 no teste novo, 1 contexto mínimo dele, 2 dos testes de reinício); o log não tem uma linha por banco | contagem |
+| `drop database` com falha (CI) | — | **0**; também 0 conexões encerradas à força, 0 erros de pool, 0 "too many clients" | `Could not drop test database`, `destroy method`, `administrator command`, `HikariPool` |
+| Check local com IntelliJ aberto | não termina: trava de 3 GB aos 60 s (2,81 GB, 3 Postgres) | **não termina**: trava de 3 GB aos 81 s (2,90 GB, 1 Postgres) | `medir.ps1`; Maven + JVM de teste já levam a memória livre de ~4,1 a ~3,6 GB antes de qualquer Postgres → issue #126 |
+| Ryuk | — | Maven morto pelo PID com o Postgres de pé → 0 contêiner do Testcontainers depois | `docker ps` |
+
+Os fechamentos de contexto no fim da JVM não aparecem no log do CI (nem antes nem depois), então um `drop` que falhasse ali não seria visto; o contêiner é removido pelo Ryuk de qualquer jeito.
+
 ### a) Um contêiner; um banco por contexto Spring
 
 - `TestcontainersConfiguration` ganha um contêiner `static` iniciado na primeira chamada e nunca parado à mão (o Ryuk o remove no fim da JVM).
