@@ -2,6 +2,7 @@ import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { CATALOG_TEXTS } from "@/features/catalog/messages";
 import { LIBRARY_TEXTS } from "@/features/library/messages";
+import { ORDER_TEXTS } from "@/features/orders/messages";
 import { DEFAULT_TITLE, useDocumentTitle } from "@/lib/useDocumentTitle";
 import { useLogout, useLogoutEverywhere, useSession } from "./hooks";
 import { LOGOUT_ERROR } from "./messages";
@@ -66,6 +67,9 @@ export default function HomePage() {
         </Link>
         <Link to="/biblioteca" className="underline">
           {LIBRARY_TEXTS.heading}
+        </Link>
+        <Link to="/pedidos" className="underline">
+          {ORDER_TEXTS.listHeading}
         </Link>
       </p>
       <div className="mt-4 flex flex-wrap gap-4">

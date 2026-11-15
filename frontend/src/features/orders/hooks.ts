@@ -1,5 +1,14 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { createOrder, fetchOrder, fetchOrderStatus } from "./api";
+import { createOrder, fetchOrder, fetchOrderStatus, listOrders } from "./api";
+
+// The list reads only the database; default refetching (on open and on window focus), no polling.
+export function useOrders() {
+  return useQuery({
+    queryKey: ["orders"],
+    queryFn: listOrders,
+    retry: false,
+  });
+}
 
 // The order page fetches the order itself, so creating one does not seed the cache.
 // gcTime 0: the variables (with the CPF) must not stay in the mutation cache.
