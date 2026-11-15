@@ -215,6 +215,20 @@ class OrderService {
         return shownStatus(row, clock.instant());
     }
 
+    /** The Customer's Orders, newest first. Only the database is read: no provider call, nothing is changed. */
+    OrderListResponse list(UUID customerId) {
+        Instant now = clock.instant();
+        return new OrderListResponse(orders.findAllForCustomer(customerId).stream()
+                .map(row -> new OrderSummary(
+                        row.id(),
+                        row.productTitle(),
+                        row.priceCents(),
+                        shownStatus(row, now),
+                        row.createdAt(),
+                        row.expiresAt()))
+                .toList());
+    }
+
     /** Reads the Order of the Customer. No transaction is open while the provider is called. */
     OrderResponse get(UUID customerId, UUID orderId) {
         Orders.Row row = orders.findForCustomer(orderId, customerId).orElseThrow(OrderNotFoundException::new);

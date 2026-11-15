@@ -98,6 +98,24 @@ describe("HomePage", () => {
     ).not.toBeInTheDocument();
   });
 
+  test("com sessão mostra o link Meus Pedidos; sem sessão não mostra", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(200, { email: "ana@example.com" }));
+    const first = renderPage();
+    expect(
+      await screen.findByRole("link", { name: "Meus Pedidos" }),
+    ).toHaveAttribute("href", "/pedidos");
+    first.unmount();
+
+    fetchSpy.mockResolvedValue(jsonResponse(401));
+    renderPage();
+    await screen.findByRole("link", { name: "Entrar" });
+    expect(
+      screen.queryByRole("link", { name: "Meus Pedidos" }),
+    ).not.toBeInTheDocument();
+  });
+
   test("com sessão mostra o e-mail e o botão Sair", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       jsonResponse(200, { email: "ana@example.com" }),

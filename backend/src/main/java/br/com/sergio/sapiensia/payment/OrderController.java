@@ -37,6 +37,11 @@ class OrderController {
         return ResponseEntity.ok(body);
     }
 
+    @GetMapping
+    OrderListResponse list(Authentication authentication) {
+        return orders.list(CurrentCustomer.id(authentication));
+    }
+
     @GetMapping("/{id}")
     OrderResponse get(@PathVariable UUID id, Authentication authentication) {
         return orders.get(CurrentCustomer.id(authentication), id);

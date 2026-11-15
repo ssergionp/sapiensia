@@ -16,7 +16,23 @@ export const orderSchema = z.object({
   pixCopyPaste: z.string().nullable(),
 });
 
+// Mirrors OrderListResponse in the backend; the status is already the shown one (a pending past its time arrives as EXPIRED).
+export const orderListSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.string(),
+      productTitle: z.string(),
+      priceCents: z.number().int(),
+      status: orderStatusEnum,
+      createdAt: z.string(),
+      expiresAt: z.string(),
+    }),
+  ),
+});
+
 export const orderStatusSchema = z.object({ status: orderStatusEnum });
+
+export type OrderList = z.infer<typeof orderListSchema>;
 
 export type Order = z.infer<typeof orderSchema>;
 

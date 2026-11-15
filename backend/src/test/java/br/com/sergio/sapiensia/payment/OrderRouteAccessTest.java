@@ -94,9 +94,21 @@ class OrderRouteAccessTest {
         var customer = user("cliente@example.com").roles("CUSTOMER");
         String one = ORDERS + "/" + UUID.randomUUID();
 
-        mvc.perform(get(ORDERS).with(customer)).andExpect(status().isForbidden());
+        mvc.perform(post(one).with(customer).with(csrf())).andExpect(status().isForbidden());
         mvc.perform(put(one).with(customer).with(csrf())).andExpect(status().isForbidden());
         mvc.perform(delete(one).with(customer).with(csrf())).andExpect(status().isForbidden());
         mvc.perform(get(one + "/pix").with(customer)).andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("SEC-010: shouldRefuseTheListToAnAnonymousVisitor")
+    void shouldRefuseTheListToAnAnonymousVisitor() throws Exception {
+        mvc.perform(get(ORDERS)).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("SEC-010: shouldRefuseTheListToAnAdministrator")
+    void shouldRefuseTheListToAnAdministrator() throws Exception {
+        mvc.perform(get(ORDERS).with(user("admin@example.com").roles("ADMIN"))).andExpect(status().isForbidden());
     }
 }

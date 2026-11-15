@@ -56,6 +56,19 @@ export const ORDER_TEXTS = {
   loadError: "Não foi possível carregar o Pedido agora. Tente novamente.",
   retry: "Tentar novamente",
   backToCatalog: "Voltar ao Catálogo",
+  // My Orders list
+  listDocumentTitle: "Meus Pedidos | SapiensIA",
+  listHeading: "Meus Pedidos",
+  orderedOn: (date: string) => `Pedido em ${date}`,
+  statusPending: "Aguardando pagamento",
+  statusPaid: "Pago",
+  statusExpired: "Expirado",
+  pixValidUntil: (time: string) => `Pix válido até ${time}.`,
+  viewPix: "Ver o Pix",
+  viewPixLabel: (title: string) => `Ver o Pix de ${title}`,
+  listEmpty: "Você ainda não fez nenhum Pedido.",
+  goToCatalog: "Ver o Catálogo",
+  listLoadError: "Não foi possível carregar os seus Pedidos. Tente novamente.",
   // Screen C: Login notice (used by LoginPage, Task 9)
   loginNotice: "Entre ou crie sua conta para continuar a compra.",
 } as const;

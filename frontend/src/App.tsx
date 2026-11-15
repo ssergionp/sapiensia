@@ -11,6 +11,7 @@ import RegisterPage from "@/features/customer/RegisterPage";
 import ResetPasswordPage from "@/features/customer/ResetPasswordPage";
 import LibraryPage from "@/features/library/LibraryPage";
 import OrderPage from "@/features/orders/OrderPage";
+import OrdersPage from "@/features/orders/OrdersPage";
 import ProductFormPage from "@/features/products/ProductFormPage";
 import ProductListPage from "@/features/products/ProductListPage";
 import HomePage from "@/features/session/HomePage";
@@ -24,6 +25,7 @@ export default function App() {
       <Route path="/catalogo" element={<CatalogPage />} />
       <Route path="/catalogo/:id" element={<CatalogProductPage />} />
       <Route path="/biblioteca" element={<LibraryPage />} />
+      <Route path="/pedidos" element={<OrdersPage />} />
       <Route path="/pedidos/:id" element={<OrderPage />} />
       <Route path="/cadastro" element={<RegisterPage />} />
       <Route path="/confirmar-email" element={<ConfirmEmailPage />} />

@@ -1,5 +1,11 @@
 import { apiFetch } from "@/lib/api";
-import { type Order, orderSchema, orderStatusSchema } from "./schemas";
+import {
+  type Order,
+  type OrderList,
+  orderListSchema,
+  orderSchema,
+  orderStatusSchema,
+} from "./schemas";
 
 export class NotLoggedInError extends Error {}
 export class CpfRequiredError extends Error {}
@@ -55,6 +61,15 @@ export async function createOrder(input: {
     if (errors.cpf === "CPF_REQUIRED") throw new CpfRequiredError();
     if (errors.cpf === "CPF_INVALID") throw new CpfInvalidError();
   }
+  throw new Error(`Unexpected status ${response.status}`);
+}
+
+export async function listOrders(): Promise<OrderList> {
+  const response = await apiFetch("/api/orders");
+  if (response.status === 200) {
+    return orderListSchema.parse(await response.json());
+  }
+  if (response.status === 401) throw new NotLoggedInError();
   throw new Error(`Unexpected status ${response.status}`);
 }
 

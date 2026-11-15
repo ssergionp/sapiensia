@@ -77,6 +77,14 @@ class Orders {
                 .optional();
     }
 
+    /** Every Order of the Customer, newest first; no filter on the Product, so an unpublished one stays. */
+    List<Row> findAllForCustomer(UUID customerId) {
+        return jdbc.sql(SELECT + " where o.customer_id = :customerId order by o.created_at desc, o.id")
+                .param("customerId", customerId)
+                .query(Orders::map)
+                .list();
+    }
+
     Optional<Row> findPending(UUID customerId, UUID productId) {
         return jdbc.sql(SELECT
                         + " where o.customer_id = :customerId and o.product_id = :productId and o.status = 'PENDING'")
