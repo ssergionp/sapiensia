@@ -48,6 +48,7 @@ Glossário e convenções das skills: veja docs/agents/ (o domain.md diz onde fi
 - backend/.../customer/CurrentCustomer.java: o jeito de obter o Cliente da sessão num controller.
 - backend/.../payment/PaymentConfirmation.java: o único lugar que marca um Pedido como pago e concede o Acesso.
 - backend/.../product/ProductDownloadService.java: o único lugar que emite o link de Download (URL assinada de 60 s no Supabase, `/api/local-downloads/<token>` no local) e grava o Registro de download; nunca devolve nem guarda o endereço do objeto.
+- backend/.../payment/OrderPaidEmail.java: o único lugar que envia o e-mail de pagamento confirmado.
 - (liste aqui outros helpers e componentes que o Claude deve usar em vez de criar novos)
 
 ## Segurança e produção

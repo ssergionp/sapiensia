@@ -44,7 +44,7 @@ O Cliente compra um Produto com Pix e a página do Pedido mostra o Pix fictício
 just demo-pagar <id>
 ```
 
-Em alguns segundos a página vira "Pagamento confirmado". Baixar o conteúdo ainda não existe.
+Em alguns segundos a página vira "Pagamento confirmado" e o Produto aparece na Biblioteca. O e-mail de confirmação de pagamento não é enviado de verdade: ele é gravado como um arquivo de texto em `.tmp/demo/outbox`.
 
 Se a API for reiniciada, os Pedidos criados antes não podem mais ser pagos (o Asaas falso guarda as cobranças só em memória): crie outro Pedido.
 

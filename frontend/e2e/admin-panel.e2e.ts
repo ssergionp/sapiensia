@@ -38,6 +38,7 @@ const TOTP_FILE = resolve(
 );
 
 const FIRST_ACCESS_SUBJECT = "Defina sua senha de Administrador na SapiensIA";
+const PAID_EMAIL_SUBJECT = "Seu pagamento na SapiensIA foi confirmado";
 const LOGIN_FAILED = "E-mail ou senha incorretos.";
 const DEAD_LINK_START = "Este link venceu ou já foi usado.";
 const PASSWORD_SET = "Senha definida. Entre no painel com a nova senha.";
@@ -1143,10 +1144,11 @@ async function logInNewCustomerPage(customerPage: Page, prefix: string) {
   await expect(
     customerPage.getByText(`Você entrou como ${email}.`),
   ).toBeVisible();
+  return email;
 }
 
 async function buyProductWithPix(customerPage: Page, productId: string) {
-  await logInNewCustomerPage(customerPage, "pago");
+  const email = await logInNewCustomerPage(customerPage, "pago");
   await customerPage.goto(`/catalogo/${productId}`);
   await customerPage.getByRole("button", { name: "Comprar com Pix" }).click();
   await customerPage.getByLabel("CPF").fill(fictitiousCpf());
@@ -1160,7 +1162,7 @@ async function buyProductWithPix(customerPage: Page, productId: string) {
   if (chargeId === undefined) {
     throw new Error("Could not read the charge id from the shown Pix code.");
   }
-  return { chargeId, orderUrl: customerPage.url() };
+  return { chargeId, orderUrl: customerPage.url(), email };
 }
 
 test("FR-020 FR-021 FR-024 SEC-011 SEC-025 SEC-026 SEC-027 SEC-031: o pagamento confirmado pelo Asaas libera o Acesso", async ({
@@ -1223,7 +1225,7 @@ test("FR-020 FR-021 FR-024 SEC-011 SEC-025 SEC-026 SEC-027 SEC-031: o pagamento 
   });
   try {
     const buyer = await first.newPage();
-    const { chargeId, orderUrl } = await buyFirstTime(buyer);
+    const { chargeId, orderUrl, email } = await buyFirstTime(buyer);
 
     // Parameters in the URL never decide the state: before the event the page still asks for the payment.
     await buyer.goto(`${orderUrl}?status=PAID`);
@@ -1264,6 +1266,11 @@ test("FR-020 FR-021 FR-024 SEC-011 SEC-025 SEC-026 SEC-027 SEC-031: o pagamento 
     await expect(buyer.getByText(PAID_TEXT)).toBeVisible();
     await expect(buyer.getByLabel("Pix copia e cola")).toHaveCount(0);
 
+    // FR-024: the payment confirmation e-mail names the Product and links to the Library.
+    const paidEmail = await waitForMessage(email, PAID_EMAIL_SUBJECT);
+    expect(paidEmail.body).toContain(title);
+    expect(paidEmail.body).toContain("/biblioteca");
+
     // After payment the reloaded list shows the Order as paid, linking to the Library.
     await ordersTab.goto("/pedidos");
     const paidItem = ordersTab.getByRole("listitem").filter({ hasText: title });
@@ -1278,6 +1285,8 @@ test("FR-020 FR-021 FR-024 SEC-011 SEC-025 SEC-026 SEC-027 SEC-031: o pagamento 
     await sendPaymentReceived(chargeId, repeatedId);
     await sendPaymentReceived(chargeId, repeatedId);
     await sendPaymentReceived(chargeId, eventId());
+    // FR-024: the repeated events never send a second e-mail.
+    expect(await messagesFor(email, PAID_EMAIL_SUBJECT)).toHaveLength(1);
     await buyer.reload();
     await expect(
       buyer.getByRole("heading", { name: PAID_HEADING }),
