@@ -50,6 +50,15 @@ class CustomerServiceTest {
     }
 
     @Test
+    void shouldFindEmailOfExistingCustomerAndNothingForUnknownId() {
+        customerService.register("ana@example.com", PASSWORD);
+        java.util.UUID id = jdbc.queryForObject("select id from customers", java.util.UUID.class);
+
+        assertThat(customerService.findEmail(id)).contains("ana@example.com");
+        assertThat(customerService.findEmail(java.util.UUID.randomUUID())).isEmpty();
+    }
+
+    @Test
     @DisplayName("SEC-003: o banco guarda Argon2id, nunca a senha")
     void shouldStoreArgon2idHashInsteadOfPassword() {
         customerService.register("ana@example.com", PASSWORD);

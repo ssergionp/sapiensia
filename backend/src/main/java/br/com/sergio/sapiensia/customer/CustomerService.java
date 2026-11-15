@@ -111,6 +111,11 @@ public class CustomerService {
         schedule(CustomerEmailTasks.PASSWORD_CHANGED_NOTICE, customerId);
     }
 
+    /** The e-mail address of the account, or empty when it does not exist (anymore). */
+    public java.util.Optional<String> findEmail(UUID customerId) {
+        return customers.findEmailById(customerId);
+    }
+
     /**
      * Deletes the accounts whose e-mail stayed unconfirmed for longer than the retention (counted from creation);
      * their links go with them. Frees the e-mail for a new registration.
