@@ -72,6 +72,10 @@ _Avoid_: Compra, transação, carrinho
 O aviso que o Asaas envia ao sistema (webhook) sobre uma cobrança ou o saldo, identificado pelo `id` do Asaas. É gravado antes de qualquer processamento, e um aviso repetido é descartado sem efeito.
 _Avoid_: Notificação, callback
 
+**Alerta**:
+O aviso por e-mail ao Administrador de que algo no pagamento precisa dele: webhook recusado, Evento de pagamento que desistiu ou que terminou com resultado para revisar, e-mail de pagamento que desistiu ou tarefa em segundo plano descartada. Alertas iguais viram um só com contagem, e o e-mail sai agrupado por tipo, no máximo um a cada 15 minutos. Traz só tipo, ids, hora e contagem, nunca dado pessoal.
+_Avoid_: Notificação, aviso (quando for ao Cliente)
+
 **Reembolso**:
 Devolução do valor de um Pedido pago, aceita em até 7 dias após a compra (arrependimento) ou por defeito no Arquivo do produto. O Administrador devolve o dinheiro no painel do Asaas; o sistema não tem botão de reembolso: o sistema cancela o Acesso quando o Asaas mostra a cobrança como estornada; a abertura de um MED, que é um bloqueio de saldo, só fica registrada para revisão. Um estorno parcial também só fica registrado: quem quer cancelar o Acesso devolve o valor total.
 _Avoid_: Estorno (é do cartão), chargeback

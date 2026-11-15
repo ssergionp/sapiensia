@@ -9,5 +9,6 @@ O sistema segue o OWASP ASVS nível 2 como critério de segurança, o que justif
 ## Consequences
 
 - Alertas e logs nunca levam CPF, e-mail de cliente, token ou senha, só o tipo de problema e o número do Pedido.
+- O e-mail de alerta ao Administrador e as linhas de log do alerta (`Admin alert ...`) levam só o tipo, um código fechado, os UUIDs do Pedido e do evento de pagamento, a hora e a contagem; nunca CPF, e-mail de Cliente, token, senha, corpo do webhook nem IP. O `AdminAlertPrivacyTest` (SEC-036) gera os cinco tipos com esses dados plantados e confere o e-mail e o log. O log antigo `Asaas webhook refused` continua com o IP, para permitir corrigir a lista de IPs.
 - O gate de lançamento verifica os itens aplicáveis do ASVS nível 2 antes da primeira venda.
 - Trilha de auditoria (SEC-065): a tabela `audit_events` registra ator, ação, objeto, resultado, hora, origem e correlation id, e só a limpeza de retenção (mínimo de 365 dias, garantido por um gatilho no banco) apaga linhas; ninguém edita. Logs e auditoria nunca levam senha, código, token, segredo nem dado pessoal completo, e o `AuditPrivacyTest` guarda isso.

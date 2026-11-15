@@ -250,6 +250,60 @@ Roteiro da homologação (o sandbox é a única prova do que o Asaas de verdade 
 
 `payment_event_results` também só aceita inserção (SEC-028): a consulta de proteção da seção 3 vale para ela, trocando `payment_events` por `payment_event_results` e os nomes dos gatilhos por `payment_event_results_guard_row` e `payment_event_results_guard_truncate`.
 
+## Alertas por e-mail
+
+Quando algo no pagamento precisa de você, o sistema manda um e-mail ao Administrador (o e-mail da conta do Administrador, o mesmo do login), com o assunto `Alerta SapiensIA: <título> (<total>)`. O e-mail nunca traz CPF, e-mail de Cliente, token, senha, corpo do webhook nem IP: só o tipo, ids, hora e contagem.
+
+**Limites:**
+
+- Alerta igual repetido vira uma linha só, com contador.
+- No máximo 1 e-mail por tipo a cada 15 minutos (o primeiro sai em até 1 minuto).
+- No máximo 8 e-mails de alerta por hora; o que passar espera e sai depois.
+- O e-mail lista no máximo 20 registros; o resto vira "e mais N registros".
+- Se o envio falhar (por exemplo, o Resend fora do ar), repete a cada 5 minutos; passadas 24 horas o sistema desiste, grava `ERROR` no log (`Admin alert e-mail gave up`) e a linha fica na tabela `admin_alerts` como histórico.
+
+### O que cada tipo quer dizer
+
+| Tipo (título no e-mail) | Significado | O que fazer |
+|---|---|---|
+| `PAYMENT_EVENT_GAVE_UP` (evento de pagamento não processado) | O sistema esgotou as tentativas de processar um evento de pagamento. Pode haver Cliente que pagou e não recebeu o Acesso. | Reprocesse pela seção "Reprocessar um evento de pagamento". |
+| `PAYMENT_EVENT_NEEDS_REVIEW` (evento de pagamento para revisar) | Um evento terminou com um resultado que precisa de conferência; o código do resultado vem em cada linha do e-mail. | Veja as seções "Conferir um pagamento" e "Reembolso e MED". |
+| `ORDER_PAID_EMAIL_GAVE_UP` (e-mail de pagamento não enviado) | O Pedido está pago e o Acesso foi concedido; só o e-mail ao Cliente falhou. | Reenvie pela seção "Reenviar o e-mail de pagamento confirmado". |
+| `WEBHOOK_REJECTED` (webhook do Asaas recusado) | O sistema recusou chamadas ao webhook; enquanto o Asaas for recusado, os pagamentos não são confirmados. O motivo vem na linha (veja abaixo). | Confira o token e a lista de IPs. |
+| `TASK_GAVE_UP` (tarefa em segundo plano descartada) | Uma tarefa de e-mail falhou em todas as tentativas e foi descartada; a linha traz o nome da tarefa. | Procure o nome da tarefa no log para ver o motivo; o Cliente pode pedir o e-mail de novo pelo site. |
+
+### Motivos do `WEBHOOK_REJECTED`
+
+O alerta só nasce quando exatamente uma das duas credenciais confere. IP e token errados juntos (qualquer robô da internet) ficam só no log, sem e-mail.
+
+- `TOKEN_INVALID`: a chamada veio de IP do Asaas, mas o token está errado. Token trocado ou mal configurado: os pagamentos estão parados. Veja "Se der problema" e "Rotação do token".
+- `IP_NOT_ALLOWED`: o token está certo, mas o IP não está na lista. Pode ser um IP novo do Asaas (acrescente-o em `APP_ASAAS_WEBHOOK_ALLOWED_IPS`) ou o token vazado (gire o token). O IP aparece só no log da aplicação (`Asaas webhook refused: ip=... reason=...`).
+- `BODY_INVALID`: o corpo não é um JSON válido (resposta 400).
+- `BODY_TOO_LARGE`: o corpo passa do limite de tamanho (resposta 413).
+
+### Achar o evento de um alerta
+
+O e-mail mostra o UUID interno do evento (`payment_events.id`), não o `evt_...` do Asaas. **[RESPONSÁVEL]** no SQL Editor, troque `COLE_AQUI_O_UUID_DO_EVENTO` pelo UUID da linha do e-mail:
+
+```sql
+select e.provider_event_id, e.event_type, e.received_at, r.result, r.order_id
+from payment_events e
+left join payment_event_results r on r.payment_event_id = e.id
+where e.id = 'COLE_AQUI_O_UUID_DO_EVENTO';
+```
+
+Mostra o id do Asaas, o tipo e a hora do evento e o resultado gravado, se já houver. Com o `provider_event_id` você segue a seção "Reprocessar um evento de pagamento". O UUID do Pedido da linha é o id do Pedido no painel.
+
+### Ver um alerta na demonstração
+
+Com `just demo` rodando, mande um token errado ao webhook (a demonstração aceita o IP local, então só o token confere errado):
+
+```powershell
+curl.exe -i -X POST http://localhost:8081/api/webhooks/asaas -H "Content-Type: application/json" -H "asaas-access-token: errado" -d "{}"
+```
+
+Responde `401` e, em até 1 minuto, aparece um arquivo `.txt` em `.tmp/demo/outbox` (em `just dev-back`, em `.tmp/outbox`) com o alerta `WEBHOOK_REJECTED` para o Administrador da demonstração.
+
 ## Se der problema
 
 - **O log mostra `Asaas webhook refused: ip=<x> reason=IP_NOT_ALLOWED`**: o sandbox usa um IP fora da lista oficial de produção (a documentação do Asaas avisa). **[AGENTE]** acrescenta no `fly.homolog.toml`, em `[env]`, `APP_ASAAS_WEBHOOK_ALLOWED_IPS = "52.67.12.206,18.230.8.159,54.94.136.112,54.94.183.101,<x>"` (só na homologação, nunca no `prod` de verdade), faz o deploy e, no Asaas, em `Integrações > Webhooks`, reativa a fila se ela pausou. Esse valor é uma lista de IPs, não um segredo.
