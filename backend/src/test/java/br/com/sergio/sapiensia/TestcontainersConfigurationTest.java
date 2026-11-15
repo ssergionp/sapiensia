@@ -79,7 +79,7 @@ class TestcontainersConfigurationTest {
     }
 
     @Test
-    void shouldDropTheDatabaseOnlyAfterThePoolCloses() throws SQLException {
+    void shouldCloseThePoolAndDropTheDatabaseWhenTheContextCloses() throws SQLException {
         TestDatabase other = TestcontainersConfiguration.newDatabase();
         try {
             HikariDataSource pool;
@@ -102,7 +102,7 @@ class TestcontainersConfigurationTest {
     }
 
     @Test
-    void shouldKeepAtMostEightSpringContextsAlive() {
+    void shouldConfigureTheContextCacheSizeAsEight() {
         assertThat(SpringProperties.getProperty("spring.test.context.cache.maxSize"))
                 .isEqualTo("8");
     }

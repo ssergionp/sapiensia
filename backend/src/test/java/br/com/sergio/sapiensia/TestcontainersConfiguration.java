@@ -64,8 +64,9 @@ public class TestcontainersConfiguration {
         }
         // getJdbcUrl() ends in /<databaseName>, optionally followed by ?params.
         String baseUrl = postgres.getJdbcUrl();
-        int nameStart = baseUrl.lastIndexOf('/', baseUrl.contains("?") ? baseUrl.indexOf('?') : baseUrl.length()) + 1;
-        int nameEnd = baseUrl.contains("?") ? baseUrl.indexOf('?') : baseUrl.length();
+        int query = baseUrl.indexOf('?');
+        int nameEnd = query < 0 ? baseUrl.length() : query;
+        int nameStart = baseUrl.lastIndexOf('/', nameEnd) + 1;
         String url = baseUrl.substring(0, nameStart) + name + baseUrl.substring(nameEnd);
         return new TestDatabase(url, postgres.getUsername(), postgres.getPassword(), name);
     }
