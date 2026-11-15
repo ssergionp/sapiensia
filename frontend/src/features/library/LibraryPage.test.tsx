@@ -328,6 +328,30 @@ describe("LibraryPage", () => {
       expect(startDownload).not.toHaveBeenCalled();
     });
 
+    test("SEC-015: o 429 mostra a mensagem do limite e o botão continua ativo", async () => {
+      const spy = mockApi([
+        jsonResponse(429, { errors: { download: "DOWNLOAD_LIMIT" } }),
+      ]);
+      renderLibrary();
+
+      const button = await screen.findByRole("button", {
+        name: "Baixar Guia de saúde",
+      });
+      button.focus();
+      await userEvent.keyboard("{Enter}");
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Você já baixou este Produto 10 vezes hoje. Tente novamente amanhã.",
+      );
+      expect(button).toHaveAttribute("aria-disabled", "false");
+      expect(button).toHaveFocus();
+      expect(startDownload).not.toHaveBeenCalled();
+      const listCalls = spy.mock.calls.filter(
+        ([url]) => String(url) === "/api/library",
+      );
+      expect(listCalls).toHaveLength(1);
+    });
+
     test("401 leva a /entrar com retorno para /biblioteca, sem mensagem de erro", async () => {
       mockApi([jsonResponse(401)]);
       renderLibrary();

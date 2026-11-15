@@ -9,6 +9,8 @@ export class NotLoggedInError extends Error {}
 
 export class DownloadUnavailableError extends Error {}
 
+export class DownloadLimitError extends Error {}
+
 export async function fetchLibrary(): Promise<LibraryResponse> {
   const response = await apiFetch("/api/library");
   if (response.status === 200) {
@@ -28,5 +30,6 @@ export async function requestDownloadLink(productId: string): Promise<string> {
   }
   if (response.status === 401) throw new NotLoggedInError();
   if (response.status === 404) throw new DownloadUnavailableError();
+  if (response.status === 429) throw new DownloadLimitError();
   throw new Error(`Unexpected status ${response.status}`);
 }
