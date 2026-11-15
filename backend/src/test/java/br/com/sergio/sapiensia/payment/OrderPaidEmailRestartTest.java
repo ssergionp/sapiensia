@@ -3,6 +3,8 @@ package br.com.sergio.sapiensia.payment;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import br.com.sergio.sapiensia.SapiensiaApplication;
+import br.com.sergio.sapiensia.TestcontainersConfiguration;
+import br.com.sergio.sapiensia.TestcontainersConfiguration.TestDatabase;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -22,8 +24,6 @@ import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
 
 /**
  * FR-024, NFR-004: the paid e-mail is scheduled in the payment transaction, survives an application restart and goes
@@ -35,9 +35,9 @@ class OrderPaidEmailRestartTest {
     private static final String RUNBOOK = "../docs/runbooks/webhook-asaas.md";
     private static final String PLACEHOLDER = "COLE_AQUI_O_ID_DO_PEDIDO";
 
-    // Own container on purpose (same exception as DbSchedulerRestartTest): the database must outlive the Spring
-    // context to simulate the restart.
-    static PostgreSQLContainer postgres;
+    // Own database on purpose (same as DbSchedulerRestartTest): it lives outside the Spring contexts, so it outlives
+    // the context to simulate the restart.
+    static TestDatabase postgres;
 
     private static JdbcTemplate jdbc;
 
@@ -46,15 +46,14 @@ class OrderPaidEmailRestartTest {
 
     @BeforeAll
     static void startDatabase() {
-        postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:18"));
-        postgres.start();
+        postgres = TestcontainersConfiguration.newDatabase();
         jdbc = new JdbcTemplate(
-                new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword()));
+                new DriverManagerDataSource(postgres.jdbcUrl(), postgres.username(), postgres.password()));
     }
 
     @AfterAll
     static void stopDatabase() {
-        postgres.stop();
+        postgres.drop();
     }
 
     @Test
@@ -184,9 +183,9 @@ class OrderPaidEmailRestartTest {
         // Command-line arguments (not builder properties) so they win over the values in application.yml.
         return new SpringApplicationBuilder(SapiensiaApplication.class)
                 .run(
-                        "--spring.datasource.url=" + postgres.getJdbcUrl(),
-                        "--spring.datasource.username=" + postgres.getUsername(),
-                        "--spring.datasource.password=" + postgres.getPassword(),
+                        "--spring.datasource.url=" + postgres.jdbcUrl(),
+                        "--spring.datasource.username=" + postgres.username(),
+                        "--spring.datasource.password=" + postgres.password(),
                         "--server.port=0",
                         "--db-scheduler.polling-interval=" + pollingInterval,
                         "--app.email.provider=file",
