@@ -258,6 +258,10 @@ public class SecurityConfig {
                         .access(panel(Capability.PRODUCTS_PUBLISH))
                         .requestMatchers(HttpMethod.DELETE, "/api/admin/products/*/publication")
                         .access(panel(Capability.PRODUCTS_PUBLISH))
+                        // the Administrator's list of Orders (#37): GET of the list only; /{id} and the other verbs
+                        // stay denied
+                        .requestMatchers(HttpMethod.GET, "/api/admin/orders")
+                        .access(panel(Capability.ORDERS_VIEW))
                         .requestMatchers(PUBLIC_CATALOG)
                         .permitAll()
                         // Orders (#24): the logged-in Customer only; the Order is filtered by its owner in the SQL

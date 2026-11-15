@@ -28,6 +28,68 @@ class Orders {
             + " o.provider_payment_id, o.created_at, o.expires_at"
             + " from orders o join products p on p.id = o.product_id";
 
+    static final int ADMIN_PAGE_SIZE = 20;
+
+    /** One line of the Administrator's list; the e-mail is masked in the mapper, so no object holds the full one. */
+    record AdminRow(
+            UUID id,
+            String productTitle,
+            int priceCents,
+            OrderStatus shownStatus,
+            String maskedEmail,
+            Instant createdAt,
+            Instant paidAt) {}
+
+    /** The shown state (FR-020): a pending Order past its time counts as expired, decided in the SQL itself. */
+    private static final String SHOWN_STATUS =
+            "case when o.status = 'PENDING' and o.expires_at <= :now then 'EXPIRED' else o.status end";
+
+    private static final String ADMIN_FROM =
+            " from orders o join products p on p.id = o.product_id" + " join customers c on c.id = o.customer_id";
+
+    /** The filter on the shown state: constants only, nothing from the request reaches the SQL text. */
+    private static String adminWhere(OrderStatus shown) {
+        if (shown == null) {
+            return "";
+        }
+        return switch (shown) {
+            case PAID -> " where o.status = 'PAID'";
+            case PENDING -> " where o.status = 'PENDING' and o.expires_at > :now";
+            case EXPIRED -> " where (o.status = 'EXPIRED' or (o.status = 'PENDING' and o.expires_at <= :now))";
+        };
+    }
+
+    private static AdminRow mapAdmin(ResultSet rs, int rowNum) throws SQLException {
+        java.time.OffsetDateTime paidAt = rs.getObject("paid_at", java.time.OffsetDateTime.class);
+        return new AdminRow(
+                rs.getObject("id", UUID.class),
+                rs.getString("title"),
+                rs.getInt("price_cents"),
+                OrderStatus.valueOf(rs.getString("shown_status")),
+                MaskedEmail.of(rs.getString("email")),
+                rs.getObject("created_at", java.time.OffsetDateTime.class).toInstant(),
+                paidAt == null ? null : paidAt.toInstant());
+    }
+
+    /** One page of every Order, newest first; no filter on the Product, so an unpublished one stays. */
+    List<AdminRow> pageForAdministrator(OrderStatus shown, Instant now, int page) {
+        return jdbc.sql("select o.id, p.title, o.price_cents, " + SHOWN_STATUS + " as shown_status, c.email,"
+                        + " o.created_at, o.paid_at" + ADMIN_FROM + adminWhere(shown)
+                        + " order by o.created_at desc, o.id desc limit :limit offset :offset")
+                .param("now", java.sql.Timestamp.from(now))
+                .param("limit", ADMIN_PAGE_SIZE)
+                .param("offset", (long) page * ADMIN_PAGE_SIZE)
+                .query(Orders::mapAdmin)
+                .list();
+    }
+
+    long countForAdministrator(OrderStatus shown, Instant now) {
+        return jdbc.sql("select count(*)" + ADMIN_FROM + adminWhere(shown))
+                .param("now", java.sql.Timestamp.from(now))
+                .query(Long.class)
+                .single();
+    }
+
     private final JdbcClient jdbc;
 
     Orders(JdbcClient jdbc) {

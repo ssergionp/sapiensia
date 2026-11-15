@@ -7,6 +7,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
@@ -227,6 +228,26 @@ class OrderService {
                         row.createdAt(),
                         row.expiresAt()))
                 .toList());
+    }
+
+    /**
+     * One page of the Administrator's Orders (FR-020). One clock reading serves the page and the count, so the shown
+     * state, the filter and the number of pages agree. Only the database is read: no provider call, nothing is changed.
+     */
+    AdminOrderPage listForAdministrator(int page, OrderStatus shown) {
+        Instant now = clock.instant();
+        List<AdminOrderItem> items = orders.pageForAdministrator(shown, now, page).stream()
+                .map(row -> new AdminOrderItem(
+                        row.id(),
+                        row.productTitle(),
+                        row.priceCents(),
+                        row.shownStatus(),
+                        row.maskedEmail(),
+                        row.createdAt(),
+                        row.paidAt()))
+                .toList();
+        long total = orders.countForAdministrator(shown, now);
+        return new AdminOrderPage(items, page, (int) ((total + Orders.ADMIN_PAGE_SIZE - 1) / Orders.ADMIN_PAGE_SIZE));
     }
 
     /** Reads the Order of the Customer. No transaction is open while the provider is called. */

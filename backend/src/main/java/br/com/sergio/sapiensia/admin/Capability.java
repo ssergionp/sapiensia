@@ -21,7 +21,9 @@ public enum Capability {
      * Publish and unpublish a Product (#19): separate from editing, because publishing is what puts a Product in front
      * of Customers.
      */
-    PRODUCTS_PUBLISH;
+    PRODUCTS_PUBLISH,
+    /** Read the list of Orders (#37): apart from the Product ones, so a future profile can run the catalog without seeing who bought. */
+    ORDERS_VIEW;
 
     public String authority() {
         return "CAPABILITY_" + name();
