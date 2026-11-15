@@ -241,6 +241,7 @@ describe("OrderPage", () => {
         .getAttribute("href"),
     ).toBe(`/catalogo/${PRODUCT_ID}`);
     expect(document.activeElement).toBe(heading);
+    expect(document.title).toBe("Pedido reembolsado | SapiensIA");
     await tick(5000);
     expect(statusCalls(spy)).toHaveLength(0);
     expect(orderCalls(spy)).toHaveLength(1);

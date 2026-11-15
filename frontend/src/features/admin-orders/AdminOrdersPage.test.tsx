@@ -123,10 +123,8 @@ describe("AdminOrdersPage", () => {
   });
 
   test('FR-020: the filter has "Reembolsado" and the row shows the status', async () => {
-    const spy = mockApi((url) =>
-      url === LIST
-        ? jsonResponse(200, page([order({ status: "REFUNDED" })]))
-        : jsonResponse(200, page([order({ status: "REFUNDED" })])),
+    const spy = mockApi(() =>
+      jsonResponse(200, page([order({ status: "REFUNDED" })])),
     );
     renderPage();
 
