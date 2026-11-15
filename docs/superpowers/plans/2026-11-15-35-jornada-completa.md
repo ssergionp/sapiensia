@@ -10,6 +10,16 @@
 
 **Spec:** `docs/spec/sapiensia-spec.md` §10.1 ("End-to-end para compra, pagamento, entrega"); issues #35 and #128.
 
+## Approval (2026-11-15)
+
+Approved by Sérgio with these decisions:
+- The test goes at the end of `admin-panel.e2e.ts` (Decision c).
+- The PR uses `Closes #35` and `Refs #128` (issue #128 stays open: only its item 1 is fixed here). After the PR is open, a comment on #128 says item 1 was resolved and cites the PR.
+- The Administrator's credentials are read only by the test (through `E2E_ADMIN_PASSWORD_FILE`/`E2E_ADMIN_TOTP_FILE`); no person or agent opens, prints or copies those files.
+- The #128 fix starts with the test reproducing the failure with the exact log line from the issue; the test keeps rejecting `"value":29.90` and `total 29.90`.
+- The new test's duration in the CI is measured and reported.
+- Push and PR without a further stop; with the CI green, report back.
+
 ## Global Constraints
 
 - Requirement IDs in the test title: FR-016 (Catálogo), FR-019 (Checkout), FR-021 (Webhooks), FR-024 (Entrega), FR-029 (Biblioteca), FR-034 (Download seguro).
@@ -108,4 +118,4 @@ for (String leak : List.of("\"value\":29.90", "\"value\":29.9}", "amount=2990", 
 ### Task 3: Delivery
 
 - [ ] `just check-rapido` (hook requirement), skill `verificar-entrega` with its table.
-- [ ] After your OK: push, PR with `Closes #35` and `Refs #128`, citing FR-016, FR-019, FR-021, FR-024, FR-029, FR-034; the ticket is done only with the CI `e2e` job green.
+- [ ] Push (`git push -u origin test/35-jornada-completa`), PR with `Closes #35` and `Refs #128`, citing FR-016, FR-019, FR-021, FR-024, FR-029, FR-034; comment on #128 that item 1 is resolved by the PR; the ticket is done only with the CI `e2e` job green, and the new test's CI duration is reported.
