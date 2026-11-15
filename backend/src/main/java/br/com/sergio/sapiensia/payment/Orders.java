@@ -2,7 +2,9 @@ package br.com.sergio.sapiensia.payment;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -45,7 +47,7 @@ class Orders {
             "case when o.status = 'PENDING' and o.expires_at <= :now then 'EXPIRED' else o.status end";
 
     private static final String ADMIN_FROM =
-            " from orders o join products p on p.id = o.product_id" + " join customers c on c.id = o.customer_id";
+            " from orders o join products p on p.id = o.product_id join customers c on c.id = o.customer_id";
 
     /** The filter on the shown state: constants only, nothing from the request reaches the SQL text. */
     private static String adminWhere(OrderStatus shown) {
@@ -60,14 +62,14 @@ class Orders {
     }
 
     private static AdminRow mapAdmin(ResultSet rs, int rowNum) throws SQLException {
-        java.time.OffsetDateTime paidAt = rs.getObject("paid_at", java.time.OffsetDateTime.class);
+        OffsetDateTime paidAt = rs.getObject("paid_at", OffsetDateTime.class);
         return new AdminRow(
                 rs.getObject("id", UUID.class),
                 rs.getString("title"),
                 rs.getInt("price_cents"),
                 OrderStatus.valueOf(rs.getString("shown_status")),
                 MaskedEmail.of(rs.getString("email")),
-                rs.getObject("created_at", java.time.OffsetDateTime.class).toInstant(),
+                rs.getObject("created_at", OffsetDateTime.class).toInstant(),
                 paidAt == null ? null : paidAt.toInstant());
     }
 
@@ -76,7 +78,7 @@ class Orders {
         return jdbc.sql("select o.id, p.title, o.price_cents, " + SHOWN_STATUS + " as shown_status, c.email,"
                         + " o.created_at, o.paid_at" + ADMIN_FROM + adminWhere(shown)
                         + " order by o.created_at desc, o.id desc limit :limit offset :offset")
-                .param("now", java.sql.Timestamp.from(now))
+                .param("now", Timestamp.from(now))
                 .param("limit", ADMIN_PAGE_SIZE)
                 .param("offset", (long) page * ADMIN_PAGE_SIZE)
                 .query(Orders::mapAdmin)
@@ -85,7 +87,7 @@ class Orders {
 
     long countForAdministrator(OrderStatus shown, Instant now) {
         return jdbc.sql("select count(*)" + ADMIN_FROM + adminWhere(shown))
-                .param("now", java.sql.Timestamp.from(now))
+                .param("now", Timestamp.from(now))
                 .query(Long.class)
                 .single();
     }

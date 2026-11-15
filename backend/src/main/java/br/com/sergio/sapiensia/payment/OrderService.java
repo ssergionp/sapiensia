@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -38,6 +39,7 @@ class OrderService {
     private final PixGateway gateway;
     private final CatalogService catalog;
     private final TransactionTemplate transaction;
+    private final TransactionTemplate snapshot;
     private final Clock clock;
     private final OrderExpiration.Expirer expirer;
     private final Duration pixTtl;
@@ -58,9 +60,18 @@ class OrderService {
         this.gateway = gateway;
         this.catalog = catalog;
         this.transaction = transaction;
+        this.snapshot = readSnapshot(transaction);
         this.clock = clock;
         this.expirer = expirer;
         this.pixTtl = pixTtl;
+    }
+
+    /** Read-only, REPEATABLE READ: PostgreSQL then serves every statement of the transaction from one snapshot. */
+    private static TransactionTemplate readSnapshot(TransactionTemplate base) {
+        TransactionTemplate template = new TransactionTemplate(base.getTransactionManager());
+        template.setReadOnly(true);
+        template.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+        return template;
     }
 
     /** Spring builds the template from the transaction manager; tests pass their own. */
@@ -231,23 +242,27 @@ class OrderService {
     }
 
     /**
-     * One page of the Administrator's Orders (FR-020). One clock reading serves the page and the count, so the shown
-     * state, the filter and the number of pages agree. Only the database is read: no provider call, nothing is changed.
+     * One page of the Administrator's Orders (FR-020). One database snapshot (a read-only REPEATABLE READ transaction)
+     * and one clock reading serve the page and the count, so the shown state, the filter and the number of pages
+     * agree even with concurrent inserts. Only the database is read: no provider call, nothing is changed.
      */
     AdminOrderPage listForAdministrator(int page, OrderStatus shown) {
         Instant now = clock.instant();
-        List<AdminOrderItem> items = orders.pageForAdministrator(shown, now, page).stream()
-                .map(row -> new AdminOrderItem(
-                        row.id(),
-                        row.productTitle(),
-                        row.priceCents(),
-                        row.shownStatus(),
-                        row.maskedEmail(),
-                        row.createdAt(),
-                        row.paidAt()))
-                .toList();
-        long total = orders.countForAdministrator(shown, now);
-        return new AdminOrderPage(items, page, (int) ((total + Orders.ADMIN_PAGE_SIZE - 1) / Orders.ADMIN_PAGE_SIZE));
+        return snapshot.execute(status -> {
+            List<AdminOrderItem> items = orders.pageForAdministrator(shown, now, page).stream()
+                    .map(row -> new AdminOrderItem(
+                            row.id(),
+                            row.productTitle(),
+                            row.priceCents(),
+                            row.shownStatus(),
+                            row.maskedEmail(),
+                            row.createdAt(),
+                            row.paidAt()))
+                    .toList();
+            long total = orders.countForAdministrator(shown, now);
+            return new AdminOrderPage(
+                    items, page, (int) ((total + Orders.ADMIN_PAGE_SIZE - 1) / Orders.ADMIN_PAGE_SIZE));
+        });
     }
 
     /** Reads the Order of the Customer. No transaction is open while the provider is called. */
