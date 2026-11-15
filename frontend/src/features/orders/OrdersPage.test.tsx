@@ -82,6 +82,18 @@ describe("OrdersPage", () => {
     );
   });
 
+  test("FR-020: a data do Pedido usa o fuso de São Paulo", async () => {
+    mockItems([summary({ createdAt: "2026-11-15T01:30:00Z" })]);
+    const { container } = renderOrders();
+
+    // 01:30Z on the 15th is still the 14th in São Paulo.
+    expect(await screen.findByText("Pedido em 14/11/2026")).toBeVisible();
+    expect(container.querySelector("time")).toHaveAttribute(
+      "datetime",
+      "2026-11-15T01:30:00Z",
+    );
+  });
+
   test("FR-020: Pedido pendente tem o link Ver o Pix para o detalhe", async () => {
     mockItems([summary()]);
     renderOrders();

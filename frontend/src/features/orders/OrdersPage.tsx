@@ -37,7 +37,7 @@ function OrderItem({ order }: { order: OrderList["items"][number] }) {
         {order.productTitle}
       </p>
       <p className="mt-1 text-sm">
-        {formatCents(order.priceCents)} ·{" "}
+        {formatCents(order.priceCents)} <span aria-hidden="true">·</span>{" "}
         <time dateTime={order.createdAt}>
           {T.orderedOn(dateFormat.format(new Date(order.createdAt)))}
         </time>
