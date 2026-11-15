@@ -150,7 +150,7 @@ Reprocessar é seguro: o Pedido só vira pago uma vez, só vira reembolsado uma 
 
 ## Reembolso e MED
 
-O Administrador devolve o dinheiro no painel do Asaas. O app não tem botão de reembolso: quando o Asaas manda `PAYMENT_REFUNDED`, `PAYMENT_PARTIALLY_REFUNDED` ou `BALANCE_VALUE_BLOCKED`, a tarefa consulta a cobrança e só cancela o Acesso se ela estiver `REFUNDED` (ADR-0003, #36). Se o Asaas estiver fora do ar ou o estorno ainda em andamento (`REFUND_REQUESTED`, `REFUND_IN_PROGRESS`), a tarefa repete a cada minuto (`app.orders.payment-processing.retry-delay`, `PT1M`) até 120 tentativas (`max-attempts`); esgotadas elas, o resultado é `GAVE_UP` (veja "Reprocessar um evento de pagamento"). `PAYMENT_REFUND_IN_PROGRESS` e `BALANCE_VALUE_UNBLOCKED` só são gravados.
+O Administrador devolve o dinheiro no painel do Asaas. O app não tem botão de reembolso: quando o Asaas manda `PAYMENT_REFUNDED`, `PAYMENT_PARTIALLY_REFUNDED` ou `BALANCE_VALUE_BLOCKED`, a tarefa consulta a cobrança e só cancela o Acesso se ela estiver `REFUNDED` (ADR-0003, #36). Se o Asaas estiver fora do ar ou o estorno ainda em andamento (`REFUND_REQUESTED`, `REFUND_IN_PROGRESS`) ou, num aviso `PAYMENT_REFUNDED`, a cobrança ainda paga (`RECEIVED`, `CONFIRMED`: o aviso chegou antes da atualização), a tarefa repete a cada minuto (`app.orders.payment-processing.retry-delay`, `PT1M`) até 120 tentativas (`max-attempts`); esgotadas elas, o resultado é `GAVE_UP` (veja "Reprocessar um evento de pagamento"). `PAYMENT_REFUND_IN_PROGRESS` e `BALANCE_VALUE_UNBLOCKED` só são gravados.
 
 Resultados novos, na tabela `payment_event_results` (só `REFUNDED`, `ALREADY_REFUNDED` e `NO_ORDER` não pedem revisão; os demais aparecem como `WARN` `Payment event needs review`):
 
@@ -158,7 +158,7 @@ Resultados novos, na tabela `payment_event_results` (só `REFUNDED`, `ALREADY_RE
 |---|---|---|
 | `REFUNDED` | Pedido reembolsado e Acesso do Pedido cancelado | Nada |
 | `ALREADY_REFUNDED` | O Pedido já estava reembolsado (segundo aviso, ou pagamento que chegou depois do estorno) | Nada: o Pedido não volta a pago e não concede Acesso |
-| `NOT_REFUNDED` | Aviso de estorno, mas o Asaas ainda mostra a cobrança como não estornada (aviso adiantado ou forjado) | Conferir a cobrança no painel do Asaas; se o estorno foi mesmo feito, reagende o evento depois |
+| `NOT_REFUNDED` | Aviso de estorno, mas o Asaas mostra a cobrança com um estado que o app não conhece ou vazio (com a cobrança ainda paga, o aviso repete e, esgotadas as tentativas, termina em `GAVE_UP`) | Conferir a cobrança no painel do Asaas; se o estorno foi mesmo feito, reagende o evento depois |
 | `PARTIAL_REFUND` | Estorno parcial; o Acesso **continua** | Se o Cliente deve perder o Acesso, estorne o restante no painel do Asaas (a cobrança fica `REFUNDED` e o aviso seguinte cancela); se não, nada |
 | `MED_BLOCKED` | Bloqueio de saldo por MED (`PIX_INFRACTION`) com a cobrança ainda não estornada; o Acesso **continua** | Ação manual abaixo |
 | `MED_WITHOUT_CHARGE` | MED sem o id da cobrança (`paymentId` vazio) | Ação manual abaixo, achando a cobrança pelo valor e pela data no painel do Asaas |
@@ -188,7 +188,7 @@ A documentação do Asaas não responde a estes pontos e os testes usam um Asaas
 2. **Estornos parciais que somam o total.** Em outra compra, estorne parte do valor, depois o resto. Anote: o estado da cobrança depois do primeiro e depois do segundo estorno, e se o resultado foi `PARTIAL_REFUND` e depois `REFUNDED`. Se a cobrança continuar sem virar `REFUNDED` mesmo com a soma total, o app não cancela: registre como problema.
 3. **`PAYMENT_REFUND_IN_PROGRESS`.** Anote se esse evento acontece num estorno de Pix e se o `PAYMENT_REFUNDED` vem depois (o app só grava o primeiro e espera o segundo).
 4. **MED.** Se o sandbox permitir simular um MED: anote o estado da cobrança durante o bloqueio (esperado: o app responde `MED_BLOCKED`, ou `MED_WITHOUT_CHARGE` se o `paymentId` vier vazio); depois, se um MED aceito gera `PAYMENT_REFUNDED` ou muda a cobrança para `REFUNDED`, ou se a cobrança continua `RECEIVED`. Se o sandbox não simular o MED, registre isso e deixe o ponto em aberto para a produção.
-5. **Aviso de estorno de uma cobrança que não foi estornada**, se o sandbox deixar reenviar um evento: o resultado esperado é `NOT_REFUNDED`, sem mudança no Pedido.
+5. **Aviso de estorno de uma cobrança que não foi estornada**, se o sandbox deixar reenviar um evento: a tarefa repete enquanto a cobrança estiver paga e termina em `GAVE_UP`, sem mudança no Pedido.
 
 ## Reenviar o e-mail de pagamento confirmado
 
