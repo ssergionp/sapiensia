@@ -35,4 +35,5 @@ export const STATUS_TEXT: Record<OrderStatus, string> = {
   PENDING: ORDER_TEXTS.statusPending,
   PAID: ORDER_TEXTS.statusPaid,
   EXPIRED: ORDER_TEXTS.statusExpired,
+  REFUNDED: ORDER_TEXTS.statusRefunded,
 };

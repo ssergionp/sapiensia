@@ -122,6 +122,27 @@ describe("AdminOrdersPage", () => {
     expect(within(pending).getByText("—")).toBeInTheDocument();
   });
 
+  test('FR-020: the filter has "Reembolsado" and the row shows the status', async () => {
+    const spy = mockApi((url) =>
+      url === LIST
+        ? jsonResponse(200, page([order({ status: "REFUNDED" })]))
+        : jsonResponse(200, page([order({ status: "REFUNDED" })])),
+    );
+    renderPage();
+
+    const row = await screen.findByRole("row", { name: /Guia de saúde/ });
+    expect(within(row).getByText("Reembolsado")).toBeInTheDocument();
+    await userEvent.selectOptions(
+      screen.getByLabelText("Filtrar por estado"),
+      "Reembolsado",
+    );
+    await waitFor(() =>
+      expect(orderCalls(spy)).toContain(
+        "/api/admin/orders?status=REFUNDED&page=0",
+      ),
+    );
+  });
+
   test("shows Carregando… while loading", async () => {
     mockApi((url) =>
       url === LIST ? new Promise<Response>(() => {}) : undefined,

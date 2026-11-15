@@ -1,6 +1,11 @@
 import { z } from "zod";
 
-export const ORDER_STATUSES = ["PENDING", "PAID", "EXPIRED"] as const;
+export const ORDER_STATUSES = [
+  "PENDING",
+  "PAID",
+  "EXPIRED",
+  "REFUNDED",
+] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
 // Mirrors AdminOrderPage in the backend; customerEmail is already masked by the server.
