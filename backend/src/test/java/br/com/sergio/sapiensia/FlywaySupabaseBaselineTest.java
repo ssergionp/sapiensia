@@ -25,7 +25,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Supabase leaves the function rls_auto_enable in the public schema. Flyway treats that schema as non-empty and, with
@@ -46,7 +45,7 @@ class FlywaySupabaseBaselineTest {
     private JdbcTemplate jdbc;
 
     @Autowired
-    private PostgreSQLContainer postgres;
+    private TestcontainersConfiguration.TestDatabase postgres;
 
     @Test
     @DisplayName("shouldRefuseANonEmptySchemaWithoutTheBaselineSettings")
@@ -107,7 +106,7 @@ class FlywaySupabaseBaselineTest {
         jdbc.execute("create role " + role + " login password '" + password + "'");
         jdbc.execute("create schema " + schema + " authorization " + role);
 
-        try (Connection connection = DriverManager.getConnection(postgres.getJdbcUrl(), role, password);
+        try (Connection connection = DriverManager.getConnection(postgres.jdbcUrl(), role, password);
                 Statement statement = connection.createStatement()) {
             statement.execute("create table " + schema + ".notes (id int primary key, body text)");
             statement.execute("alter table " + schema + ".notes enable row level security");

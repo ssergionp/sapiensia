@@ -3,6 +3,8 @@ package br.com.sergio.sapiensia.scheduling;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import br.com.sergio.sapiensia.SapiensiaApplication;
+import br.com.sergio.sapiensia.TestcontainersConfiguration;
+import br.com.sergio.sapiensia.TestcontainersConfiguration.TestDatabase;
 import com.github.kagkarlsson.scheduler.Scheduler;
 import com.github.kagkarlsson.scheduler.task.TaskInstance;
 import com.github.kagkarlsson.scheduler.task.helper.OneTimeTask;
@@ -27,8 +29,6 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
 
 /**
  * Spike for db-scheduler on Java 25 and PostgreSQL: tasks run, and pending and recurring tasks survive a restart of the
@@ -38,11 +38,11 @@ class DbSchedulerRestartTest {
 
     private static final long TIMEOUT_SECONDS = 20;
 
-    // This class creates its own container instead of using TestcontainersConfiguration on purpose: the database must
-    // stay alive while the Spring context is shut down and started again to simulate the restart, and the default
-    // container dies together with the context. This is a deliberate exception to the "no container per test class"
-    // convention.
-    static PostgreSQLContainer postgres;
+    // This class creates its own database on the shared container instead of using the TestcontainersConfiguration
+    // beans on purpose: the database must stay alive while the Spring context is shut down and started again to
+    // simulate the restart, and a bean-managed database is dropped together with its context. Here it lives outside
+    // the contexts.
+    static TestDatabase postgres;
 
     private static JdbcTemplate jdbc;
 
@@ -55,15 +55,14 @@ class DbSchedulerRestartTest {
 
     @BeforeAll
     static void startDatabase() {
-        postgres = new PostgreSQLContainer(DockerImageName.parse("postgres:18"));
-        postgres.start();
+        postgres = TestcontainersConfiguration.newDatabase();
         jdbc = new JdbcTemplate(
-                new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword()));
+                new DriverManagerDataSource(postgres.jdbcUrl(), postgres.username(), postgres.password()));
     }
 
     @AfterAll
     static void stopDatabase() {
-        postgres.stop();
+        postgres.drop();
     }
 
     @BeforeEach
@@ -139,9 +138,9 @@ class DbSchedulerRestartTest {
         // Command-line arguments (not builder properties) so they win over the values in application.yml.
         return new SpringApplicationBuilder(SapiensiaApplication.class, TestTasks.class)
                 .run(
-                        "--spring.datasource.url=" + postgres.getJdbcUrl(),
-                        "--spring.datasource.username=" + postgres.getUsername(),
-                        "--spring.datasource.password=" + postgres.getPassword(),
+                        "--spring.datasource.url=" + postgres.jdbcUrl(),
+                        "--spring.datasource.username=" + postgres.username(),
+                        "--spring.datasource.password=" + postgres.password(),
                         "--server.port=0",
                         "--db-scheduler.polling-interval=" + pollingInterval,
                         // without TestcontainersConfiguration there is no fake sender: write e-mails to a temp folder
