@@ -150,9 +150,9 @@ Reprocessar é seguro: o Pedido só vira pago uma vez, só vira reembolsado uma 
 
 ## Reembolso e MED
 
-O Administrador devolve o dinheiro no painel do Asaas. O app não tem botão de reembolso: quando o Asaas manda `PAYMENT_REFUNDED`, `PAYMENT_PARTIALLY_REFUNDED` ou `BALANCE_VALUE_BLOCKED`, a tarefa consulta a cobrança e só cancela o Acesso se ela estiver `REFUNDED` (ADR-0003, #36). Se o Asaas estiver fora do ar ou o estorno ainda em andamento (`REFUND_REQUESTED`, `REFUND_IN_PROGRESS`), a tarefa repete a cada minuto; esgotadas as tentativas, o resultado é `GAVE_UP` (veja "Reprocessar um evento de pagamento"). `PAYMENT_REFUND_IN_PROGRESS` e `BALANCE_VALUE_UNBLOCKED` só são gravados.
+O Administrador devolve o dinheiro no painel do Asaas. O app não tem botão de reembolso: quando o Asaas manda `PAYMENT_REFUNDED`, `PAYMENT_PARTIALLY_REFUNDED` ou `BALANCE_VALUE_BLOCKED`, a tarefa consulta a cobrança e só cancela o Acesso se ela estiver `REFUNDED` (ADR-0003, #36). Se o Asaas estiver fora do ar ou o estorno ainda em andamento (`REFUND_REQUESTED`, `REFUND_IN_PROGRESS`), a tarefa repete a cada minuto (`app.orders.payment-processing.retry-delay`, `PT1M`) até 120 tentativas (`max-attempts`); esgotadas elas, o resultado é `GAVE_UP` (veja "Reprocessar um evento de pagamento"). `PAYMENT_REFUND_IN_PROGRESS` e `BALANCE_VALUE_UNBLOCKED` só são gravados.
 
-Resultados novos, na tabela `payment_event_results` (todos, menos os dois primeiros, aparecem como `WARN` `Payment event needs review`):
+Resultados novos, na tabela `payment_event_results` (só `REFUNDED`, `ALREADY_REFUNDED` e `NO_ORDER` não pedem revisão; os demais aparecem como `WARN` `Payment event needs review`):
 
 | Resultado | O que significa | O que fazer |
 |---|---|---|
@@ -233,7 +233,7 @@ Roteiro da homologação (o sandbox é a única prova do que o Asaas de verdade 
    order by r.processed_at desc;
    ```
 
-   Cada linha é um caso para revisão humana (por exemplo `DUPLICATE_PURCHASE` pede devolução do dinheiro no painel do Asaas). O log traz o mesmo aviso em `WARN`: `Payment event needs review`. Adicione `'REFUNDED', 'ALREADY_REFUNDED'` à lista de exclusão para não ver os estornos que deram certo. A seção "Reembolso e MED" abaixo diz o que fazer com cada resultado de estorno.
+   Cada linha é um caso para revisão humana (por exemplo `DUPLICATE_PURCHASE` pede devolução do dinheiro no painel do Asaas). O log traz o mesmo aviso em `WARN`: `Payment event needs review`. Adicione `'REFUNDED', 'ALREADY_REFUNDED'` à lista de exclusão para não ver os estornos que deram certo. A seção "Reembolso e MED" acima diz o que fazer com cada resultado de estorno.
 
 6. **[RESPONSÁVEL]** Eventos de pagamento que ainda não têm resultado (a tarefa está repetindo, por exemplo com o Asaas fora do ar):
 
