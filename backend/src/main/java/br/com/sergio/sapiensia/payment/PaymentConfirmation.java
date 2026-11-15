@@ -146,11 +146,11 @@ class PaymentConfirmation {
         }
         boolean granted = accesses.grant(order.customerId(), order.productId(), order.id(), now);
         if (granted) {
-            audit.recordInTransaction(new AuditEntry(
-                    AuditAction.ACCESS_GRANTED, AuditResult.SUCCESS, null, AuditObject.ORDER, order.id(), null));
             // same transaction as the payment: the e-mail exists if and only if the payment was committed
             scheduler.scheduleIfNotExists(
                     new TaskInstance<Void>(OrderPaidEmailTasks.SEND, order.id().toString()), now);
+            audit.recordInTransaction(new AuditEntry(
+                    AuditAction.ACCESS_GRANTED, AuditResult.SUCCESS, null, AuditObject.ORDER, order.id(), null));
         }
         PaymentResult result = granted ? PaymentResult.PAID : PaymentResult.DUPLICATE_PURCHASE;
         results.record(paymentEventId, result, order.id(), now);
