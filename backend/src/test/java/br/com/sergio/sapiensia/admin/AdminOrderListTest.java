@@ -301,4 +301,27 @@ class AdminOrderListTest {
         assertThat(all0.body()).doesNotContain("\"PENDING\"");
         assertThat(all1.body()).doesNotContain("\"PENDING\"");
     }
+
+    @Test
+    @DisplayName("SEC-013: page e status inválidos dão 400 e não chegam ao SQL")
+    void shouldRejectInvalidPageAndStatusWithoutReachingTheSql() throws Exception {
+        UUID customer = insertCustomer(jdbc, passwordEncoder, "maria.silva@example.com");
+        UUID product = insertProduct(jdbc, "Guia Validado");
+        Instant now = clock.instant();
+        insertOrder(jdbc, customer, product, 1000, "PAID", now.minusSeconds(600), now.plusSeconds(600));
+        String injection = java.net.URLEncoder.encode("PAID' or '1'='1", java.nio.charset.StandardCharsets.UTF_8);
+
+        for (String query : List.of(
+                "?status=" + injection,
+                "?status=paid",
+                "?status=REFUNDED",
+                "?page=-1",
+                "?page=abc",
+                "?page=99999999999")) {
+            HttpResponse<String> answer = list(query);
+
+            assertThat(answer.statusCode()).as(query).isEqualTo(400);
+            assertThat(answer.body()).as(query).doesNotContain("Guia Validado").doesNotContain("m***@");
+        }
+    }
 }
