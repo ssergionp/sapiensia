@@ -65,7 +65,9 @@ class AdminAlertDispatch {
         this.retryDelay = retryDelay;
     }
 
-    Result run() {
+    // db-scheduler already runs the recurring task on one node at a time; this also keeps a
+    // direct call (tests) from overlapping it in the same JVM, since rows are marked only after the send.
+    synchronized Result run() {
         Instant now = clock.instant();
         int sent = 0;
         int failed = 0;
