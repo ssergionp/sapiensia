@@ -60,13 +60,12 @@ class ResendEmailSender implements EmailSender {
                 "subject", message.subject(),
                 "text", message.text());
         try {
-            restClient
-                    .post()
-                    .uri("/emails")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(body)
-                    .retrieve()
-                    .toBodilessEntity();
+            RestClient.RequestBodySpec request =
+                    restClient.post().uri("/emails").contentType(MediaType.APPLICATION_JSON);
+            if (message.idempotencyKey() != null) {
+                request.header("Idempotency-Key", message.idempotencyKey());
+            }
+            request.body(body).retrieve().toBodilessEntity();
         } catch (RestClientResponseException e) {
             // only the status: the body may echo the recipient
             throw new EmailDeliveryException(

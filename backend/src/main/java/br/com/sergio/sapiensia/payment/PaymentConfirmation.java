@@ -5,6 +5,8 @@ import br.com.sergio.sapiensia.audit.AuditEntry;
 import br.com.sergio.sapiensia.audit.AuditLog;
 import br.com.sergio.sapiensia.audit.AuditObject;
 import br.com.sergio.sapiensia.audit.AuditResult;
+import com.github.kagkarlsson.scheduler.SchedulerClient;
+import com.github.kagkarlsson.scheduler.task.TaskInstance;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
@@ -13,6 +15,7 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -42,6 +45,7 @@ class PaymentConfirmation {
     private final PixGateway gateway;
     private final AuditLog audit;
     private final Clock clock;
+    private final SchedulerClient scheduler;
     private final TransactionTemplate transaction;
 
     PaymentConfirmation(
@@ -52,6 +56,7 @@ class PaymentConfirmation {
             PixGateway gateway,
             AuditLog audit,
             Clock clock,
+            @Lazy SchedulerClient scheduler,
             PlatformTransactionManager transactionManager) {
         this.events = events;
         this.results = results;
@@ -60,6 +65,7 @@ class PaymentConfirmation {
         this.gateway = gateway;
         this.audit = audit;
         this.clock = clock;
+        this.scheduler = scheduler;
         this.transaction = new TransactionTemplate(transactionManager);
     }
 
@@ -140,6 +146,9 @@ class PaymentConfirmation {
         }
         boolean granted = accesses.grant(order.customerId(), order.productId(), order.id(), now);
         if (granted) {
+            // same transaction as the payment: the e-mail exists if and only if the payment was committed
+            scheduler.scheduleIfNotExists(
+                    new TaskInstance<Void>(OrderPaidEmailTasks.SEND, order.id().toString()), now);
             audit.recordInTransaction(new AuditEntry(
                     AuditAction.ACCESS_GRANTED, AuditResult.SUCCESS, null, AuditObject.ORDER, order.id(), null));
         }

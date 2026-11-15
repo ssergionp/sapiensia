@@ -48,6 +48,32 @@ class ResendEmailSenderTest {
         fixture.server.verify();
     }
 
+    @Test
+    void shouldSendIdempotencyKeyHeaderWhenMessageHasKey() {
+        Fixture fixture = fixture();
+        fixture.server
+                .expect(requestTo("https://api.resend.com/emails"))
+                .andExpect(header("Idempotency-Key", "order-paid-email/abc"))
+                .andRespond(withSuccess("{\"id\":\"abc\"}", MediaType.APPLICATION_JSON));
+
+        fixture.sender.send(new EmailMessage("ana@example.com", "s", "t", "order-paid-email/abc"));
+        fixture.server.verify();
+    }
+
+    @Test
+    void shouldOmitIdempotencyKeyHeaderWhenMessageHasNoKey() {
+        Fixture fixture = fixture();
+        fixture.server
+                .expect(requestTo("https://api.resend.com/emails"))
+                .andExpect(request -> org.assertj.core.api.Assertions.assertThat(
+                                request.getHeaders().containsHeader("Idempotency-Key"))
+                        .isFalse())
+                .andRespond(withSuccess("{\"id\":\"abc\"}", MediaType.APPLICATION_JSON));
+
+        fixture.sender.send(MESSAGE);
+        fixture.server.verify();
+    }
+
     @ParameterizedTest
     @ValueSource(ints = {500, 422, 429})
     @DisplayName("SEC-007: falha do Resend vira EmailDeliveryException sem e-mail nem corpo na mensagem")

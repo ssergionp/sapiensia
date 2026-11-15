@@ -147,6 +147,25 @@ Um evento `PAYMENT_RECEIVED` ou `PAYMENT_CONFIRMED` é processado em segundo pla
 
 Reprocessar é seguro: o Pedido só vira pago uma vez e o Acesso só é liberado uma vez, mesmo que o SQL rode de novo. O `on conflict` não mexe numa tarefa que ainda está repetindo, então não há risco de duplicar nem de atropelar a tentativa em andamento.
 
+## Reenviar o e-mail de pagamento confirmado
+
+O e-mail de pagamento confirmado é enviado em segundo plano, depois que o Pedido vira pago. Se o envio falhar todas as tentativas, a coluna `orders.payment_email_failed_at` é preenchida (e o log traz `Order paid e-mail gave up`); o Pedido e o Acesso não mudam. Use este passo quando essa coluna estiver preenchida ou quando o Cliente disser que o e-mail não chegou. **[RESPONSÁVEL]** roda no SQL Editor do Supabase, no navegador.
+
+Troque `COLE_AQUI_O_ID_DO_PEDIDO` pelo id do Pedido e rode:
+
+<!-- resend-email-sql:start -->
+```sql
+insert into scheduled_tasks (task_name, task_instance, task_data, execution_time, picked, version)
+select 'order-paid-email', o.id::text, null, now(), false, 1
+from orders o
+where o.id = 'COLE_AQUI_O_ID_DO_PEDIDO'
+  and o.status = 'PAID'
+on conflict (task_name, task_instance) do nothing;
+```
+<!-- resend-email-sql:end -->
+
+Agenda o envio para agora; o app o pega em segundos. Resultado `INSERT 0 1` é o esperado; `INSERT 0 0` quer dizer que o Pedido não existe, não está pago, ou já tem um envio na fila. Se o e-mail já tinha sido enviado, rodar de novo é seguro: a tarefa vê que ele já saiu e não envia outro.
+
 ## Conferir um pagamento
 
 Roteiro da homologação (o sandbox é a única prova do que o Asaas de verdade manda; o CI usa um Asaas falso).

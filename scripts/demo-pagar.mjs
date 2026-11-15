@@ -80,6 +80,7 @@ async function main() {
   if (response.status === 401) fail("A API recusou o token local. Ela está no perfil local?");
   if (response.status !== 200) fail(`A API respondeu ${response.status}.`);
   console.log("Evento enviado. Em alguns segundos o Pedido aparece como pago na página dele.");
+  console.log("O e-mail de confirmação é gravado como arquivo em .tmp/demo/outbox (fora da demonstração, em .tmp/outbox).");
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
