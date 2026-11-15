@@ -73,7 +73,13 @@ class OrderPaidEmailTextTest {
                         Instant.now(),
                         Instant.now())));
         when(customers.findEmail(customerId)).thenReturn(Optional.empty());
-        OrderPaidEmail email = new OrderPaidEmail(orders, customers, sender, "http://localhost:5173");
+        OrderPaidEmail email = new OrderPaidEmail(
+                orders,
+                customers,
+                sender,
+                "http://localhost:5173",
+                mock(br.com.sergio.sapiensia.alert.AdminAlerts.class),
+                mock(org.springframework.transaction.PlatformTransactionManager.class));
 
         assertThatCode(() -> email.send(orderId)).doesNotThrowAnyException();
 

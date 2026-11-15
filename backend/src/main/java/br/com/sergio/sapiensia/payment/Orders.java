@@ -232,13 +232,14 @@ class Orders {
                 == 1;
     }
 
-    /** Records that the e-mail gave up; does nothing once it has been sent. */
-    void markPaymentEmailFailed(UUID id, Instant now) {
-        jdbc.sql("update orders set payment_email_failed_at = :now"
-                        + " where id = :id and payment_email_sent_at is null")
-                .param("now", java.sql.Timestamp.from(now))
-                .param("id", id)
-                .update();
+    /** Records that the e-mail gave up; does nothing once it has been sent. True when a row changed. */
+    boolean markPaymentEmailFailed(UUID id, Instant now) {
+        return jdbc.sql("update orders set payment_email_failed_at = :now"
+                                + " where id = :id and payment_email_sent_at is null")
+                        .param("now", java.sql.Timestamp.from(now))
+                        .param("id", id)
+                        .update()
+                == 1;
     }
 
     /** Transaction-scoped lock per Customer; must be called inside a transaction. */

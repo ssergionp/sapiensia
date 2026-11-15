@@ -25,7 +25,10 @@ class AsaasWebhookAccessTest {
     private final ClientIpResolver resolver = mock(ClientIpResolver.class);
 
     private AsaasWebhookAccess access(String... allowedIps) {
-        return new AsaasWebhookAccess(resolver, new AsaasWebhookProperties(TOKEN, List.of(allowedIps), 65536));
+        return new AsaasWebhookAccess(
+                resolver,
+                new AsaasWebhookProperties(TOKEN, List.of(allowedIps), 65536),
+                mock(br.com.sergio.sapiensia.alert.AdminAlerts.class));
     }
 
     private boolean granted(AsaasWebhookAccess access, String ip, String token) {

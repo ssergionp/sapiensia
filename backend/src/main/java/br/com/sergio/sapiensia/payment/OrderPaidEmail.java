@@ -1,5 +1,7 @@
 package br.com.sergio.sapiensia.payment;
 
+import br.com.sergio.sapiensia.alert.AdminAlertType;
+import br.com.sergio.sapiensia.alert.AdminAlerts;
 import br.com.sergio.sapiensia.customer.CustomerService;
 import br.com.sergio.sapiensia.email.EmailMessage;
 import br.com.sergio.sapiensia.email.EmailSender;
@@ -13,6 +15,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * The payment confirmation e-mail (FR-024). It runs on the scheduler thread after the payment committed and is
@@ -44,16 +48,22 @@ class OrderPaidEmail {
     private final CustomerService customers;
     private final EmailSender sender;
     private final String baseUrl;
+    private final AdminAlerts alerts;
+    private final TransactionTemplate transaction;
 
     OrderPaidEmail(
             Orders orders,
             @Lazy CustomerService customers,
             EmailSender sender,
-            @Value("${app.public-base-url}") String baseUrl) {
+            @Value("${app.public-base-url}") String baseUrl,
+            AdminAlerts alerts,
+            PlatformTransactionManager transactionManager) {
         this.orders = orders;
         this.customers = customers;
         this.sender = sender;
         this.baseUrl = baseUrl;
+        this.alerts = alerts;
+        this.transaction = new TransactionTemplate(transactionManager);
     }
 
     static String formatPrice(int priceCents) {
@@ -80,7 +90,15 @@ class OrderPaidEmail {
         }
         sender.send(new EmailMessage(
                 to.get(), SUBJECT, body(row.productTitle(), row.priceCents(), baseUrl), "order-paid-email/" + orderId));
-        if (orders.markPaymentEmailSent(orderId, Instant.now())) {
+        // a resend withdraws the give-up alert, so it only goes out if the e-mail really failed
+        boolean marked = Boolean.TRUE.equals(transaction.execute(status -> {
+            if (!orders.markPaymentEmailSent(orderId, Instant.now())) {
+                return false;
+            }
+            alerts.resolve(AdminAlertType.ORDER_PAID_EMAIL_GAVE_UP, orderId);
+            return true;
+        }));
+        if (marked) {
             log.info("Order paid e-mail sent: orderId={}", orderId);
         } else {
             skipped(orderId, "ALREADY_SENT");
@@ -88,7 +106,12 @@ class OrderPaidEmail {
     }
 
     void giveUp(UUID orderId) {
-        orders.markPaymentEmailFailed(orderId, Instant.now());
+        // the failure mark and its alert exist together or not at all
+        transaction.executeWithoutResult(status -> {
+            if (orders.markPaymentEmailFailed(orderId, Instant.now())) {
+                alerts.record(AdminAlertType.ORDER_PAID_EMAIL_GAVE_UP, null, orderId, null);
+            }
+        });
         log.error("Order paid e-mail gave up: orderId={}", orderId);
     }
 

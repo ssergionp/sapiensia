@@ -1,5 +1,7 @@
 package br.com.sergio.sapiensia.customer;
 
+import br.com.sergio.sapiensia.alert.AdminAlertType;
+import br.com.sergio.sapiensia.alert.AdminAlerts;
 import com.github.kagkarlsson.scheduler.task.FailureHandler;
 import com.github.kagkarlsson.scheduler.task.helper.OneTimeTask;
 import com.github.kagkarlsson.scheduler.task.helper.Tasks;
@@ -29,10 +31,13 @@ class CustomerEmailTasks {
 
     private final int maxAttempts;
     private final Duration retryDelay;
+    private final AdminAlerts alerts;
 
     CustomerEmailTasks(
             @Value("${app.email.max-attempts}") int maxAttempts,
-            @Value("${app.email.retry-delay}") Duration retryDelay) {
+            @Value("${app.email.retry-delay}") Duration retryDelay,
+            AdminAlerts alerts) {
+        this.alerts = alerts;
         this.maxAttempts = maxAttempts;
         this.retryDelay = retryDelay;
     }
@@ -74,8 +79,9 @@ class CustomerEmailTasks {
 
     private <T> FailureHandler<T> retryThenDrop(String taskName) {
         // the log names only the task: never the e-mail, the token or the customer data
-        return FailureHandler.<T>maxRetries(maxAttempts)
-                .retryEvery(retryDelay)
-                .thenRemove(execution -> log.error("Task {} failed {} times and was dropped", taskName, maxAttempts));
+        return FailureHandler.<T>maxRetries(maxAttempts).retryEvery(retryDelay).thenRemove(execution -> {
+            log.error("Task {} failed {} times and was dropped", taskName, maxAttempts);
+            alerts.recordSafely(AdminAlertType.TASK_GAVE_UP, taskName);
+        });
     }
 }
