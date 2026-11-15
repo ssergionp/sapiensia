@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** AGUARDANDO APROVAÇÃO do Sérgio (decisões D1 a D5 na seção 3).
+**Status:** APROVADO pelo Sérgio em 15/11/2026 com ajustes: D1 trocada (IntelliJ continua aberto; "antes" = CI da PR #123 + check local que não termina; "depois" = `just check-rapido` completo na branch); D2 a D5 aceitas; D3 apaga o banco só depois de fechar o pool; conta de conexões explícita (seção 1.h); se o check for interrompido por memória, parar e levar as medições, sem repetir. Execução por subagent-driven-development (subagentes em Sonnet). Push e PR liberados no fim.
 
 **Goal:** A suíte de testes do backend sobe um único contêiner Postgres e no máximo 8 contextos Spring vivos, sem afrouxar nem pular teste nenhum, para que o `just check-rapido` termine num computador de 16 GB.
 
@@ -24,8 +24,8 @@
 
 1. Teste que reinicia o sistema sobre o mesmo banco (`DbSchedulerRestartTest`, `OrderPaidEmailRestartTest`): o banco precisa sobreviver ao `close()` do primeiro contexto. Coberto: eles criam o banco pelo `newDatabase()` estático, fora de qualquer contexto, e só o apagam no `@AfterAll`.
 2. Contexto despejado do cache e recriado depois (3 vezes por execução com tamanho 8, seção 1.b): recebe banco novo e vazio. Teste que dependesse de linhas deixadas por outra classe quebraria. Coberto só pela suíte completa verde nas duas ordens (Windows e CI); ver "O que não será provado".
-3. Conexões: até 9 contextos vivos × 10 conexões do Hikari, mais o sistema reiniciado e o `AdminMfaLogTest` (segundo sistema) passam de 100, o padrão do Postgres. Coberto por `max_connections=200` e pelo teste `shouldStartTheSharedServerWithRoomForTheCachedContexts`.
-4. Banco apagado com conexões ainda abertas (scheduler parando): `drop database ... with (force)` encerra as conexões. Coberto por `shouldDropTheDatabaseEvenWithOpenConnections`.
+3. Conexões: o pior caso dá 109 (seção 1.h), acima das 100 do padrão do Postgres. Coberto por `max_connections=200` e pelo teste `shouldStartTheSharedServerWithRoomForTheCachedContexts`.
+4. Banco apagado antes de o pool fechar: o `TestDatabase` é dependência do `JdbcConnectionDetails`, que é dependência do `DataSource`, então o Spring destrói o `DataSource` (fecha o pool do Hikari, depois de parar o db-scheduler, que depende dele) antes de chamar `drop()`. O `with (force)` só encerra o que sobrar (conexão direta de teste). Coberto por `shouldDropTheDatabaseEvenWithOpenConnections` e por `shouldDropTheDatabaseOnlyAfterThePoolCloses`.
 5. Papéis (`create role`) valem para o servidor inteiro, não por banco: `FinancialRecordImmutabilityTest` e `FlywaySupabaseBaselineTest` já usam nomes aleatórios e o segundo apaga os seus. Nenhuma migration cria papel (conferido com grep). Sem teste novo.
 
 ---
@@ -74,9 +74,26 @@ Por que tantos contextos (detalhe no censo):
 
 - Mesmo código nos dois; nenhuma propriedade de ambiente. O Ryuk continua ligado (sem `withReuse`), e é ele que remove o contêiner no fim da JVM, inclusive se ela for morta. Prova no Windows: matar o Maven pelo PID no meio da execução e conferir `docker ps` vazio (Task 3).
 
-### e) Medição antes e depois
+### e) Medição antes e depois (D1 ajustada)
 
-Mesmo script (`medir.ps1`: roda `mvnw clean test`, amostra a cada 5 s memória livre, Postgres do Testcontainers, `vmmemWSL` e `java`, e encerra pelo PID se a memória livre ficar abaixo de 3 GB duas vezes seguidas) e o `just check-rapido` cronometrado. Na PR: tabela antes/depois com contêineres simultâneos, memória livre mínima, tempo do check-rapido local e tempo dos testes do backend no CI. Condições da medição: ver D1.
+- **Antes:** números do CI da PR #123 (87 Postgres criados, até 33 simultâneos, testes do backend em 9:44) mais o fato de o check local na main não terminar com o IntelliJ aberto (trava de 3 GB disparou aos 60 s, 2,81 GB livres, 3 Postgres de pé).
+- **Depois:** `just check-rapido` completo na branch (lint + todos os testes do backend, porque a branch muda o pacote raiz de teste), **com o IntelliJ aberto**, pelo `medir.ps1` (amostra a cada 5 s memória livre, Postgres do Testcontainers, `vmmemWSL` e `java`; encerra pelo PID se a memória livre ficar abaixo de 3 GB duas vezes seguidas). Registrar contêineres simultâneos, memória livre mínima e tempo. No CI da PR, comparar o tempo dos testes do backend com os 9:44.
+- **Interrompido por memória:** não repetir; parar e levar as medições ao Sérgio.
+
+### h) Conexões no único Postgres
+
+Pior caso de conexões abertas ao mesmo tempo:
+
+| Origem | Conexões |
+|---|---|
+| Contextos vivos: 8 no cache + 1 sendo criado antes de o mais antigo ser despejado = 9 × 10 (Hikari: máximo 10 e mínimo ocioso 10, padrão; o db-scheduler usa o mesmo pool, sem conexões próprias) | 90 |
+| Segundo sistema de teste: `DbSchedulerRestartTest`/`OrderPaidEmailRestartTest` (um sistema por vez, o primeiro fecha antes do segundo subir) ou `AdminMfaLogTest` (sistema com chave ruim); um teste por vez, então conta o maior: 10 do pool + 1 do `JdbcTemplate` direto | 11 |
+| Conexões diretas: criar/apagar banco (1), `FlywaySupabaseBaselineTest` (1), `TestcontainersConfigurationTest` (até 3) | 5 |
+| Reservadas ao superusuário pelo Postgres (`superuser_reserved_connections`) | 3 |
+| **Total** | **109** |
+
+- **Escolha: `max_connections=200`**, folga de 91 conexões (o pior caso usa 55%). Cada conexão ociosa custa poucos MB no Postgres; 109 ficam bem abaixo de um contêiner por contexto.
+- **Pool do Hikari fica em 10**: `DownloadDailyLimitTest` confere a variação de conexões ativas e há testes de concorrência (`AdminProductConcurrencyTest`, `AdminProductPublicationConcurrencyTest`, `PaymentConcurrencyTest`); reduzir o pool mudaria o comportamento sob carga que eles provam.
 
 ### f) Repositório modelo
 
@@ -84,7 +101,9 @@ Mesmo script (`medir.ps1`: roda `mvnw clean test`, amostra a cada 5 s memória l
 
 ### g) O que não será provado
 
-- Que a suíte cabe na memória com outros projetos ou sistemas ligados ao mesmo tempo: a medição é com o computador como estiver no dia (D1).
+- Que a suíte cabe na memória com outros projetos ou sistemas ligados ao mesmo tempo: a medição é com o computador como estiver no dia, IntelliJ aberto (D1).
+- Que a contagem "antes" no Windows bate com a do CI: o "antes" local não termina; os números completos vêm do CI.
+- Que o pior caso de 109 conexões acontece de fato: é uma conta, não uma medição.
 - Que nenhum teste depende de dados deixados por outra classe em outras ordens de execução além das duas que vamos rodar (Windows e CI).
 - O pico de heap da JVM de teste por contexto: medimos o processo `java` inteiro, não o heap.
 - Comportamento com testes em paralelo (o projeto não usa paralelismo do JUnit nem mais de um fork).
@@ -97,13 +116,13 @@ Mesmo script (`medir.ps1`: roda `mvnw clean test`, amostra a cada 5 s memória l
 - Modify: `scheduling/DbSchedulerRestartTest.java`, `payment/OrderPaidEmailRestartTest.java`, `admin/AdminMfaLogTest.java`, `FlywaySupabaseBaselineTest.java`: só a origem da URL/usuário/senha e o comentário sobre o contêiner próprio.
 - Modify: `CLAUDE.md`: uma linha em "Reaproveitar antes de criar".
 
-## 3. Decisões que dependem do Sérgio
+## 3. Decisões do Sérgio (15/11/2026)
 
-- **D1. Condições da medição.** Com o IntelliJ aberto o computador parte de ~4,5 GB livres, e a trava de 3 GB parou a medição da main com 3 Postgres. Recomendo: **fechar o IntelliJ durante as duas medições** (antes, de novo na main, e depois), para comparar em condições iguais e medir a main inteira. Alternativa: manter como está e comparar o "depois" com a medição interrompida da main e com o CI.
-- **D2. `maxSize=8`** (recomendado; +3 contextos recriados). Alternativa: 12 (0 ou 1 recriado, 50% mais contextos vivos).
-- **D3. Apagar o banco quando o contexto fecha** (recomendado: o que o contexto ocupava no Postgres sai junto com ele). Alternativa: deixar os ~85 bancos até o fim da JVM.
-- **D4. Reduzir combinações de contexto depois**, numa issue `needs-triage` citando o #122 (recomendado). Alternativa: neste ticket.
-- **D5. Sem ADR**: é infraestrutura de teste, sem regra de negócio nem arquitetura do sistema; a regra fica no `CLAUDE.md`.
+- **D1. Medição com o IntelliJ aberto** (a sessão roda dentro dele): "antes" = CI da PR #123 + check local que não termina; "depois" = `just check-rapido` completo na branch (seção 1.e).
+- **D2. `maxSize=8`**: aceita.
+- **D3. Apagar o banco quando o contexto fecha**, com `drop database ... with (force)` só depois de o pool fechar: aceita.
+- **D4. Reduzir combinações de contexto depois**, numa issue `needs-triage` separada citando o #122: aceita.
+- **D5. Sem ADR**, regra no `CLAUDE.md`: aceita.
 
 ---
 
@@ -127,9 +146,10 @@ Mesmo script (`medir.ps1`: roda `mvnw clean test`, amostra a cada 5 s memória l
   - `shouldIsolateTablesBetweenDatabases`: `create table probe(id int)` no primeiro; no segundo, `select to_regclass('probe') is null` é `true`.
   - `shouldDropTheDatabaseEvenWithOpenConnections`: abre uma conexão no banco, chama `drop()`, e `select count(*) from pg_database where datname = ?` (pela conexão de outro banco) é `0`.
   - `shouldStartTheSharedServerWithRoomForTheCachedContexts`: `show max_connections` é `"200"`.
+  - `shouldDropTheDatabaseOnlyAfterThePoolCloses`: um `AnnotationConfigApplicationContext` mínimo registra `TestcontainersConfiguration` e um `HikariDataSource` criado a partir do bean `JdbcConnectionDetails`; abre uma conexão pelo pool; `context.close()`; depois do close o `HikariDataSource` está `isClosed()` e o banco não existe mais em `pg_database`. (Prova a ordem de destruição pela dependência entre beans.)
 - [ ] **Step 2: Run** `cd backend; .\mvnw.cmd test -Dtest=TestcontainersConfigurationTest` → falha de compilação (`newDatabase` não existe).
 - [ ] **Step 3: Implement** o que está em Interfaces. Contêiner: `new PostgreSQLContainer(DockerImageName.parse("postgres:18")).withCommand("postgres", "-c", "fsync=off", "-c", "max_connections=200")`. URL do banco: a do contêiner com o nome do banco trocado (`getJdbcUrl()` termina em `/<databaseName>`, com parâmetros depois de `?`).
-- [ ] **Step 4: Run** o mesmo comando → 4 testes passam.
+- [ ] **Step 4: Run** o mesmo comando → 5 testes passam.
 - [ ] **Step 5: Migrar os quatro testes** que liam o contêiner: os dois de reinício usam `static TestDatabase db = TestcontainersConfiguration.newDatabase()` no `@BeforeAll` e `db.drop()` no `@AfterAll` (o comentário sobre o contêiner próprio passa a explicar que o banco vive fora dos contextos); `AdminMfaLogTest` e `FlywaySupabaseBaselineTest` injetam `TestDatabase` no lugar de `PostgreSQLContainer`. Diff só nessas linhas e nos imports.
 - [ ] **Step 6: Run** `cd backend; .\mvnw.cmd test "-Dtest=TestcontainersConfigurationTest,DbSchedulerRestartTest,OrderPaidEmailRestartTest,AdminMfaLogTest,FlywaySupabaseBaselineTest,SapiensiaApplicationTests,DemoSeedTest*,FinancialRecordImmutabilityTest"` mais as classes que citam os mesmos IDs (`git grep -l NFR-004 -- backend/src/test` etc., regra do CLAUDE.md) → tudo verde; `docker ps` durante a execução mostra 1 Postgres do Testcontainers.
 - [ ] **Step 7: Commit** `test: share one Postgres container with a database per Spring context (#122)`
@@ -154,8 +174,8 @@ Mesmo script (`medir.ps1`: roda `mvnw clean test`, amostra a cada 5 s memória l
 - Modify: `CLAUDE.md` (seção "Reaproveitar antes de criar": `TestcontainersConfiguration.newDatabase()` é o jeito de um teste ter um banco fora de um contexto Spring; nunca um `PostgreSQLContainer` próprio)
 - Modify: este plano (tabela "depois")
 
-- [ ] **Step 1:** Medição "depois" com `medir.ps1` (`mvnw clean test`, todos os testes) nas condições de D1 → termina sem a trava, 1306 testes ou mais, 0 falhas, 0 puladas a mais que na main; registrar máximo de Postgres simultâneos (esperado: 1), memória livre mínima e tempo.
-- [ ] **Step 2:** `docker ps --filter label=org.testcontainers=true` depois da execução → vazio (Ryuk). Repetir matando o Maven pelo PID no meio → vazio em até ~10 s.
-- [ ] **Step 3:** `just check-rapido` cronometrado → verde; registrar o tempo.
+- [ ] **Step 1:** Medição "depois": `just check-rapido` completo pelo `medir.ps1`, IntelliJ aberto (D1) → termina sem a trava, 1306 testes ou mais, 0 falhas, 0 puladas a mais que na main; registrar máximo de Postgres simultâneos (esperado: 1), memória livre mínima e tempo. Interrompido por memória: parar e levar as medições ao Sérgio, sem repetir.
+- [ ] **Step 2:** `docker ps --filter label=org.testcontainers=true` depois da execução → vazio (Ryuk).
+- [ ] **Step 3:** Prova do Ryuk: rodar `mvnw test` de novo, matar o Maven pelo PID (árvore inteira) com um Postgres do Testcontainers de pé → `docker ps` sem contêiner do Testcontainers em até ~30 s.
 - [ ] **Step 4:** Atualizar `CLAUDE.md` e a tabela "depois" do plano; commit `docs: one test database per Spring context (#122)`.
 - [ ] **Step 5:** skill `verificar-entrega`; depois, com o OK do Sérgio, push e PR (`Closes #122`, tabela antes/depois, IDs citados). Issue de acompanhamento (D4) com `needs-triage` citando o #122, incluindo a anotação do repositório modelo.
