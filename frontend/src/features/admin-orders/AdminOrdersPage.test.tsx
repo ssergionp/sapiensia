@@ -199,6 +199,24 @@ describe("AdminOrdersPage", () => {
     expect(await screen.findByText("Página 2 de 3")).toBeInTheDocument();
   });
 
+  test("FR-020 a page past the end shows the empty message and keeps the way back", async () => {
+    const spy = mockApi((url) =>
+      url === LIST
+        ? jsonResponse(200, page([order()], 0, 2))
+        : jsonResponse(200, page([], 1, 1)),
+    );
+    renderPage();
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Próxima" }),
+    );
+    expect(await screen.findByText("Nenhum Pedido ainda.")).toBeInTheDocument();
+    const previous = screen.getByRole("button", { name: "Anterior" });
+    expect(previous).toBeEnabled();
+    await userEvent.click(previous);
+    await waitFor(() => expect(orderCalls(spy).at(-1)).toBe(LIST));
+  });
+
   test("changing the filter on page 2 asks for status=PAID&page=0", async () => {
     const spy = mockApi(() => jsonResponse(200, page([order()], 0, 3)));
     renderPage();

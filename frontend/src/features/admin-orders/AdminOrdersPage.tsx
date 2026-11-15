@@ -23,6 +23,38 @@ function DateCell({ iso }: { iso: string | null }) {
   return <time dateTime={iso}>{formatDateTime(iso)}</time>;
 }
 
+function Pagination({
+  page,
+  totalPages,
+  onPage,
+}: {
+  page: number;
+  totalPages: number;
+  onPage: (page: number) => void;
+}) {
+  return (
+    <nav aria-label={T.pagination} className="mt-4 flex items-center gap-4">
+      <Button
+        variant="outline"
+        disabled={page === 0}
+        onClick={() => onPage(page - 1)}
+      >
+        {T.previous}
+      </Button>
+      <span aria-live="polite">
+        {T.pageOf(page + 1, Math.max(totalPages, 1))}
+      </span>
+      <Button
+        variant="outline"
+        disabled={page + 1 >= totalPages}
+        onClick={() => onPage(page + 1)}
+      >
+        {T.next}
+      </Button>
+    </nav>
+  );
+}
+
 function AdminOrders() {
   const [page, setPage] = useState(0);
   const [status, setStatus] = useState<OrderStatus | null>(null);
@@ -63,10 +95,20 @@ function AdminOrders() {
       </div>
     );
   } else if (orders.data.items.length === 0) {
+    // A page past the end (Orders left the filter meanwhile) keeps the way back.
     content = (
-      <p className="mt-4">
-        {status === null ? T.emptyNoFilter : T.emptyWithFilter}
-      </p>
+      <>
+        <p className="mt-4">
+          {status === null ? T.emptyNoFilter : T.emptyWithFilter}
+        </p>
+        {page > 0 && (
+          <Pagination
+            page={page}
+            totalPages={orders.data.totalPages}
+            onPage={setPage}
+          />
+        )}
+      </>
     );
   } else {
     const { items, totalPages } = orders.data;
@@ -114,25 +156,7 @@ function AdminOrders() {
             </tbody>
           </table>
         </section>
-        <nav aria-label={T.pagination} className="mt-4 flex items-center gap-4">
-          <Button
-            variant="outline"
-            disabled={page === 0}
-            onClick={() => setPage(page - 1)}
-          >
-            {T.previous}
-          </Button>
-          <span aria-live="polite">
-            {T.pageOf(page + 1, Math.max(totalPages, 1))}
-          </span>
-          <Button
-            variant="outline"
-            disabled={page + 1 >= totalPages}
-            onClick={() => setPage(page + 1)}
-          >
-            {T.next}
-          </Button>
-        </nav>
+        <Pagination page={page} totalPages={totalPages} onPage={setPage} />
       </>
     );
   }
