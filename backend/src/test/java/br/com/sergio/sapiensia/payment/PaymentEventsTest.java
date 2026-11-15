@@ -120,7 +120,10 @@ class PaymentEventsTest {
         for (String type : new String[] {"PAYMENT_RECEIVED", "PAYMENT_CONFIRMED", "PAYMENT_REFUNDED"}) {
             String eventId = "evt_" + UUID.randomUUID();
             UUID id = events.insertIfAbsent(
-                            eventId, type, "{\"balanceData\":{\"type\":\"PIX_INFRACTION\",\"paymentId\":\"pay_789\"}}", NOW)
+                            eventId,
+                            type,
+                            "{\"balanceData\":{\"type\":\"PIX_INFRACTION\",\"paymentId\":\"pay_789\"}}",
+                            NOW)
                     .orElseThrow();
 
             assertThat(events.findRef(id)).contains(new PaymentEvents.Ref(eventId, type, null, "PIX_INFRACTION"));

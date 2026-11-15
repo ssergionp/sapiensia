@@ -115,8 +115,7 @@ class RefundConfirmation {
             return outcome.finish(paymentEventId, ref, PaymentResult.REFERENCE_MISMATCH, order.id(), chargeId);
         }
         // a refund notice can beat the charge update at Asaas: retry like a payment (ends in GAVE_UP, reprocessable)
-        if (charge.isRefundInProgress()
-                || (charge.isPaid() && REFUND_EVENT.equals(ref.eventType()))) {
+        if (charge.isRefundInProgress() || (charge.isPaid() && REFUND_EVENT.equals(ref.eventType()))) {
             throw new PaymentConfirmation.PaymentNotReadyException();
         }
         if (!charge.isRefunded()) {
