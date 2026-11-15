@@ -36,6 +36,13 @@ final class AsaasWebhookTestSupport {
                              "billingType": "PIX", "status": "RECEIVED"}}""".formatted(id, type, chargeId);
     }
 
+    /** A balance event as in the provider's documentation; a null paymentId is sent as JSON null (as for a MED). */
+    static String balanceEvent(String id, String type, String balanceType, String paymentId) {
+        return """
+                {"id": "%s", "event": "%s", "dateCreated": "2026-11-11 10:00:00",
+                 "balanceData": {"object": "balance", "type": "%s", "paymentId": %s, "value": 29.9}}""".formatted(id, type, balanceType, paymentId == null ? "null" : "\"" + paymentId + "\"");
+    }
+
     /** A unique event id, so tests never collide in the shared database. */
     static String uniqueId() {
         return "evt_" + UUID.randomUUID();

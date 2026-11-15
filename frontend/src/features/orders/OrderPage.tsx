@@ -34,6 +34,7 @@ export default function OrderPage() {
   const pending = order?.status === "PENDING" && !query.isError;
   const expired = order?.status === "EXPIRED" && !query.isError;
   const paid = order?.status === "PAID" && !query.isError;
+  const refunded = order?.status === "REFUNDED" && !query.isError;
 
   // After EXPIRED the page keeps asking for 10 minutes, counted from when the expired view appeared here.
   const [expiredWindowOver, setExpiredWindowOver] = useState(false);
@@ -74,6 +75,7 @@ export default function OrderPage() {
   else if (query.isError && !notLoggedIn) documentTitle = T.documentTitle;
   else if (paid) documentTitle = T.paidDocumentTitle;
   else if (expired) documentTitle = T.expiredDocumentTitle;
+  else if (refunded) documentTitle = T.refundedDocumentTitle;
   else if (pending) documentTitle = T.documentTitle;
   useDocumentTitle(documentTitle);
 
@@ -130,7 +132,9 @@ export default function OrderPage() {
       ? "expired"
       : paid
         ? "paid"
-        : "other";
+        : refunded
+          ? "refunded"
+          : "other";
   // biome-ignore lint/correctness/useExhaustiveDependencies: focus the heading when the view changes
   useEffect(() => {
     if (view !== "other") headingRef.current?.focus();
@@ -218,6 +222,22 @@ export default function OrderPage() {
         </h1>
         <p className="mt-4">{T.expiredText}</p>
         <p className="mt-4">{T.expiredAlreadyPaid}</p>
+        <p className="mt-4">
+          <Link to={`/catalogo/${order.productId}`} className="underline">
+            {T.backToProduct}
+          </Link>
+        </p>
+      </main>
+    );
+  }
+
+  if (order.status === "REFUNDED") {
+    return (
+      <main className="mx-auto max-w-md p-8">
+        <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-bold">
+          {T.refundedHeading}
+        </h1>
+        <p className="mt-4">{T.refundedText}</p>
         <p className="mt-4">
           <Link to={`/catalogo/${order.productId}`} className="underline">
             {T.backToProduct}

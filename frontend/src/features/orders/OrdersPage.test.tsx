@@ -123,6 +123,18 @@ describe("OrdersPage", () => {
     expect(screen.queryByText(/Pix válido até/)).toBeNull();
   });
 
+  test('FR-020: Meus Pedidos mostra "Reembolsado" sem o link da Biblioteca', async () => {
+    mockItems([summary({ id: PAID_ID, status: "REFUNDED" })]);
+    renderOrders();
+
+    expect(await screen.findByText("Reembolsado")).toBeVisible();
+    expect(
+      screen.queryByRole("link", { name: "Ir para a Biblioteca" }),
+    ).toBeNull();
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.queryByText(/Pix válido até/)).toBeNull();
+  });
+
   test("não calcula expiração no navegador", async () => {
     mockItems([summary({ expiresAt: "2020-01-01T00:00:00Z" })]);
     renderOrders();

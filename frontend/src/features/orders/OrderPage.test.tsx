@@ -216,6 +216,37 @@ describe("OrderPage", () => {
     expect(link.getAttribute("href")).toBe(`/catalogo/${PRODUCT_ID}`);
   });
 
+  test("FR-020: a página de um Pedido reembolsado mostra o título e a frase, sem QR Code", async () => {
+    const spy = mockFetch(
+      jsonResponse(
+        200,
+        order({ status: "REFUNDED", secondsToExpire: 0, pixCopyPaste: null }),
+      ),
+    );
+    renderOrder();
+    const heading = await screen.findByRole("heading", {
+      name: "Pedido reembolsado",
+    });
+    expect(
+      screen.getByText(
+        "O valor deste Pedido foi devolvido e o Acesso ao Produto foi cancelado.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByRole("img", { name: "QR Code do Pix" })).toBeNull();
+    expect(screen.queryByLabelText("Pix copia e cola")).toBeNull();
+    expect(screen.queryByRole("timer")).toBeNull();
+    expect(
+      screen
+        .getByRole("link", { name: "Voltar ao Produto" })
+        .getAttribute("href"),
+    ).toBe(`/catalogo/${PRODUCT_ID}`);
+    expect(document.activeElement).toBe(heading);
+    expect(document.title).toBe("Pedido reembolsado | SapiensIA");
+    await tick(5000);
+    expect(statusCalls(spy)).toHaveLength(0);
+    expect(orderCalls(spy)).toHaveLength(1);
+  });
+
   test('Copiar código escreve na área de transferência e mostra "Código copiado."', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {

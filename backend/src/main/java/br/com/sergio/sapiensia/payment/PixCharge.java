@@ -14,6 +14,15 @@ public record PixCharge(
         return "PENDING".equals(status) || "OVERDUE".equals(status);
     }
 
+    public boolean isRefunded() {
+        return "REFUNDED".equals(status);
+    }
+
+    /** The refund was asked for but not finished: the provider will say REFUNDED later. */
+    public boolean isRefundInProgress() {
+        return "REFUND_REQUESTED".equals(status) || "REFUND_IN_PROGRESS".equals(status);
+    }
+
     @Override
     public String toString() {
         return "PixCharge[id=" + id + ", status=" + status + "]";

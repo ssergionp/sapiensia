@@ -305,6 +305,21 @@ class PaymentConfirmationTest {
     }
 
     @Test
+    @DisplayName("SEC-031, FR-025: shouldAnswerAlreadyRefundedWithoutReadingTheChargeForARefundedOrder")
+    void shouldAnswerAlreadyRefundedWithoutReadingTheChargeForARefundedOrder() {
+        Fixture f = fixture();
+        assertThat(orders.markRefunded(f.orderId(), clock.instant())).isTrue();
+        provider(f, paid(f));
+
+        assertThat(confirmation.process(f.eventId())).isEqualTo(PaymentResult.ALREADY_REFUNDED);
+
+        assertThat(gateway.count("READ_CHARGE")).isZero();
+        assertThat(statusOf(f.orderId())).isEqualTo("REFUNDED");
+        assertThat(accesses(f)).isZero();
+        assertThat(storedResult(f.eventId())).isEqualTo("ALREADY_REFUNDED");
+    }
+
+    @Test
     @DisplayName("SEC-031: shouldRecordAnOrphanChargeAndIgnoreIt")
     void shouldRecordAnOrphanChargeAndIgnoreIt() {
         UUID customer = OrderTestSupport.insertCustomer(jdbc);

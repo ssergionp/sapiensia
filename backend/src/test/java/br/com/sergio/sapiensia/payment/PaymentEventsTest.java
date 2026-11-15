@@ -85,8 +85,48 @@ class PaymentEventsTest {
         UUID b = events.insertIfAbsent(without, "PAYMENT_RECEIVED", "{\"payment\":{}}", NOW)
                 .orElseThrow();
 
-        assertThat(events.findRef(a)).contains(new PaymentEvents.Ref(withCharge, "PAYMENT_RECEIVED", "pay_123"));
-        assertThat(events.findRef(b)).contains(new PaymentEvents.Ref(without, "PAYMENT_RECEIVED", null));
+        assertThat(events.findRef(a)).contains(new PaymentEvents.Ref(withCharge, "PAYMENT_RECEIVED", "pay_123", null));
+        assertThat(events.findRef(b)).contains(new PaymentEvents.Ref(without, "PAYMENT_RECEIVED", null, null));
         assertThat(events.findRef(UUID.randomUUID())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("FR-025: shouldReadTheChargeIdAndTheTypeOfABalanceBlock")
+    void shouldReadTheChargeIdAndTheTypeOfABalanceBlock() {
+        String withCharge = "evt_" + UUID.randomUUID();
+        String without = "evt_" + UUID.randomUUID();
+        UUID a = events.insertIfAbsent(
+                        withCharge,
+                        "BALANCE_VALUE_BLOCKED",
+                        "{\"balanceData\":{\"type\":\"PIX_INFRACTION\",\"paymentId\":\"pay_456\"}}",
+                        NOW)
+                .orElseThrow();
+        UUID b = events.insertIfAbsent(
+                        without,
+                        "BALANCE_VALUE_BLOCKED",
+                        "{\"balanceData\":{\"type\":\"PIX_INFRACTION\",\"paymentId\":null}}",
+                        NOW)
+                .orElseThrow();
+
+        assertThat(events.findRef(a))
+                .contains(new PaymentEvents.Ref(withCharge, "BALANCE_VALUE_BLOCKED", "pay_456", "PIX_INFRACTION"));
+        assertThat(events.findRef(b))
+                .contains(new PaymentEvents.Ref(without, "BALANCE_VALUE_BLOCKED", null, "PIX_INFRACTION"));
+    }
+
+    @Test
+    @DisplayName("SEC-026: shouldNotTakeTheChargeIdFromBalanceDataOutsideABalanceBlock")
+    void shouldNotTakeTheChargeIdFromBalanceDataOutsideABalanceBlock() {
+        for (String type : new String[] {"PAYMENT_RECEIVED", "PAYMENT_CONFIRMED", "PAYMENT_REFUNDED"}) {
+            String eventId = "evt_" + UUID.randomUUID();
+            UUID id = events.insertIfAbsent(
+                            eventId,
+                            type,
+                            "{\"balanceData\":{\"type\":\"PIX_INFRACTION\",\"paymentId\":\"pay_789\"}}",
+                            NOW)
+                    .orElseThrow();
+
+            assertThat(events.findRef(id)).contains(new PaymentEvents.Ref(eventId, type, null, "PIX_INFRACTION"));
+        }
     }
 }

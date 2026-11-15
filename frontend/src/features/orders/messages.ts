@@ -49,6 +49,10 @@ export const ORDER_TEXTS = {
   goToLibrary: "Ir para a Biblioteca",
   paidHeading: "Pagamento confirmado",
   paidText: "Recebemos o seu Pix. Você já tem Acesso a este Produto.",
+  refundedDocumentTitle: "Pedido reembolsado | SapiensIA",
+  refundedHeading: "Pedido reembolsado",
+  refundedText:
+    "O valor deste Pedido foi devolvido e o Acesso ao Produto foi cancelado.",
   notFoundDocumentTitle: "Pedido não encontrado | SapiensIA",
   notFoundHeading: "Pedido não encontrado",
   notFoundText:
@@ -63,6 +67,7 @@ export const ORDER_TEXTS = {
   statusPending: "Aguardando pagamento",
   statusPaid: "Pago",
   statusExpired: "Expirado",
+  statusRefunded: "Reembolsado",
   pixValidUntil: (time: string) => `Pix válido até ${time}.`,
   viewPix: "Ver o Pix",
   viewPixLabel: (title: string) => `Ver o Pix de ${title}`,

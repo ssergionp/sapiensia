@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
 import java.net.http.HttpResponse;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -37,6 +38,12 @@ class OrderCreationTest {
 
     @Autowired
     SwitchablePixGateway gateway;
+
+    @Autowired
+    Orders orders;
+
+    @Autowired
+    Accesses accesses;
 
     private OrderHttp.Customer customer;
     private UUID productId;
@@ -88,6 +95,24 @@ class OrderCreationTest {
         assertThat(paymentId).startsWith("pay_fake_");
         assertThat(gateway.lastChargeOrderId()).hasToString(id);
         assertThat(gateway.lastCustomerName()).isEqualTo(customer.email);
+    }
+
+    @Test
+    @DisplayName("FR-025: depois do cancelamento a compra responde 201, não 409")
+    void shouldAcceptANewOrderAfterTheAccessWasCancelled() throws Exception {
+        String first = OrderHttp.json(customer.order(productId, CPF), "$.id");
+        UUID firstId = UUID.fromString(first);
+        Instant now = Instant.now();
+        orders.markPaid(firstId, now);
+        accesses.grant(customer.id, productId, firstId, now);
+        assertThat(customer.order(productId, CPF).statusCode()).isEqualTo(409);
+
+        assertThat(orders.markRefunded(firstId, now)).isTrue();
+        assertThat(accesses.cancelByOrder(firstId, now)).isTrue();
+
+        HttpResponse<String> again = customer.order(productId, CPF);
+        assertThat(again.statusCode()).isEqualTo(201);
+        assertThat(OrderHttp.json(again, "$.id")).isNotEqualTo(first);
     }
 
     @Test

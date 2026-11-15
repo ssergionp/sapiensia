@@ -133,6 +133,37 @@ class PaidOrdersSchemaTest {
     }
 
     @Test
+    @DisplayName("FR-025: o Pedido novo, pago, concede um Acesso novo e a linha cancelada continua")
+    void shouldGrantANewAccessAfterACancellationAndKeepTheCancelledRow() {
+        UUID customer = OrderTestSupport.insertCustomer(jdbc);
+        UUID product = OrderTestSupport.insertPublishedProduct(jdbc, "P", 1000);
+        UUID first = insertOrder(customer, product, chargeId());
+        orders.markPaid(first, NOW);
+        accesses.grant(customer, product, first, NOW);
+        orders.markRefunded(first, NOW);
+        accesses.cancelByOrder(first, NOW);
+        UUID second = insertOrder(customer, product, chargeId());
+        orders.markPaid(second, NOW.plusSeconds(60));
+
+        assertThat(accesses.grant(customer, product, second, NOW.plusSeconds(60)))
+                .isTrue();
+
+        assertThat(accesses.exists(customer, product)).isTrue();
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from accesses where customer_id = ? and product_id = ?",
+                        Integer.class,
+                        customer,
+                        product))
+                .isEqualTo(2);
+        assertThat(jdbc.queryForObject(
+                        "select cancelled_at is not null from accesses where order_id = ?", Boolean.class, first))
+                .isTrue();
+        assertThat(jdbc.queryForObject(
+                        "select cancelled_at is null from accesses where order_id = ?", Boolean.class, second))
+                .isTrue();
+    }
+
+    @Test
     @DisplayName("shouldRefuseAnAccessForAnOrderThatAlreadyGrantedOne")
     void shouldRefuseAnAccessForAnOrderThatAlreadyGrantedOne() {
         UUID customer = OrderTestSupport.insertCustomer(jdbc);

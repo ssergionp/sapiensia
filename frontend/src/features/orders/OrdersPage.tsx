@@ -28,6 +28,7 @@ const STATUS_TEXT = {
   PENDING: T.statusPending,
   PAID: T.statusPaid,
   EXPIRED: T.statusExpired,
+  REFUNDED: T.statusRefunded,
 } as const;
 
 function OrderItem({ order }: { order: OrderList["items"][number] }) {

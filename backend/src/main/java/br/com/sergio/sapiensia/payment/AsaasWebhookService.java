@@ -37,8 +37,13 @@ class AsaasWebhookService {
     private static final Logger log = LoggerFactory.getLogger(AsaasWebhookService.class);
     private static final Pattern EVENT_ID = Pattern.compile("^[\\x21-\\x7E]{1,255}$");
     private static final Pattern EVENT_TYPE = Pattern.compile("^[A-Z0-9_]{1,64}$");
-    /** Only these events can pay an Order; every other type is just stored. */
-    private static final Set<String> PAYMENT_TYPES = Set.of("PAYMENT_RECEIVED", "PAYMENT_CONFIRMED");
+    /** Only these events can pay or refund an Order; every other type is just stored. */
+    static final Set<String> PROCESSED_TYPES = Set.of(
+            "PAYMENT_RECEIVED",
+            "PAYMENT_CONFIRMED",
+            "PAYMENT_REFUNDED",
+            "PAYMENT_PARTIALLY_REFUNDED",
+            "BALANCE_VALUE_BLOCKED");
 
     private static final String REDACTED = "[redacted]";
     private static final char NUL = (char) 0;
@@ -80,7 +85,7 @@ class AsaasWebhookService {
         // the event and its task are written together: an event without a task would never be processed
         boolean stored = Boolean.TRUE.equals(transaction.execute(status -> {
             Optional<UUID> eventId = events.insertIfAbsent(id, type, payload, OffsetDateTime.now(clock));
-            if (eventId.isPresent() && PAYMENT_TYPES.contains(type)) {
+            if (eventId.isPresent() && PROCESSED_TYPES.contains(type)) {
                 scheduler.schedule(
                         new TaskInstance<Void>(
                                 PaymentEventTasks.PROCESS, eventId.get().toString()),

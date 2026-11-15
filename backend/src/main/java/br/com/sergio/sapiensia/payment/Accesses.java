@@ -19,7 +19,7 @@ class Accesses {
     boolean grant(UUID customerId, UUID productId, UUID orderId, Instant now) {
         return jdbc.sql("insert into accesses (customer_id, product_id, order_id, granted_at)"
                                 + " values (:customerId, :productId, :orderId, :now)"
-                                + " on conflict (customer_id, product_id) do nothing")
+                                + " on conflict (customer_id, product_id) where cancelled_at is null do nothing")
                         .param("customerId", customerId)
                         .param("productId", productId)
                         .param("orderId", orderId)
@@ -30,10 +30,19 @@ class Accesses {
 
     boolean exists(UUID customerId, UUID productId) {
         return jdbc.sql("select exists (select 1 from accesses where customer_id = :customerId"
-                        + " and product_id = :productId)")
+                        + " and product_id = :productId and cancelled_at is null)")
                 .param("customerId", customerId)
                 .param("productId", productId)
                 .query(Boolean.class)
                 .single();
+    }
+
+    /** True only when this call cancelled the active Access granted by this Order; the row is kept as history. */
+    boolean cancelByOrder(UUID orderId, Instant now) {
+        return jdbc.sql("update accesses set cancelled_at = :now where order_id = :orderId and cancelled_at is null")
+                        .param("now", java.sql.Timestamp.from(now))
+                        .param("orderId", orderId)
+                        .update()
+                == 1;
     }
 }

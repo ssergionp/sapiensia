@@ -114,7 +114,7 @@ O mesmo do `docs/runbooks/homologacao-fly.md`.
 
 ## Reprocessar um evento de pagamento
 
-Um evento `PAYMENT_RECEIVED` ou `PAYMENT_CONFIRMED` é processado em segundo plano: o app consulta a cobrança no Asaas e, se estiver paga, marca o Pedido como pago e libera o Acesso. Se o Asaas ficar fora do ar por tempo demais, o app desiste (resultado `GAVE_UP`, com um `ERROR` no log) e o evento continua guardado em `payment_events`. Quando o Asaas voltar, reagende o evento. **[RESPONSÁVEL]** roda no SQL Editor do Supabase, no navegador.
+Um evento `PAYMENT_RECEIVED` ou `PAYMENT_CONFIRMED` é processado em segundo plano: o app consulta a cobrança no Asaas e, se estiver paga, marca o Pedido como pago e libera o Acesso. Um evento de estorno (`PAYMENT_REFUNDED`, `PAYMENT_PARTIALLY_REFUNDED`) ou de bloqueio de saldo (`BALANCE_VALUE_BLOCKED`) segue o mesmo caminho: o app consulta a cobrança e só cancela o Acesso se ela estiver estornada. Se o Asaas ficar fora do ar por tempo demais, o app desiste (resultado `GAVE_UP`, com um `ERROR` no log) e o evento continua guardado em `payment_events`. Quando o Asaas voltar, reagende o evento. **[RESPONSÁVEL]** roda no SQL Editor do Supabase, no navegador.
 
 1. Liste os eventos que desistiram e ainda não têm resultado final:
 
@@ -136,16 +136,59 @@ Um evento `PAYMENT_RECEIVED` ou `PAYMENT_CONFIRMED` é processado em segundo pla
    select 'process-payment-event', e.id::text, null, now(), false, 1
    from payment_events e
    where e.provider_event_id = 'evt_COLE_AQUI_O_ID_DO_EVENTO'
-     and e.event_type in ('PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED')
+     and e.event_type in ('PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED', 'PAYMENT_REFUNDED',
+                        'PAYMENT_PARTIALLY_REFUNDED', 'BALANCE_VALUE_BLOCKED')
    on conflict (task_name, task_instance) do nothing;
    ```
    <!-- reprocess-sql:end -->
 
-   Agenda o processamento do evento para agora; o app o pega em segundos. Resultado `INSERT 0 1` é o esperado; `INSERT 0 0` quer dizer que o evento não existe, não é um pagamento, ou já tem uma tarefa na fila.
+   Agenda o processamento do evento para agora; o app o pega em segundos. Resultado `INSERT 0 1` é o esperado; `INSERT 0 0` quer dizer que o evento não existe, não é um evento de pagamento, de estorno ou de bloqueio de saldo, ou já tem uma tarefa na fila.
 
 3. Rode de novo a consulta do passo 1: o evento some da lista quando recebe o resultado final.
 
-Reprocessar é seguro: o Pedido só vira pago uma vez e o Acesso só é liberado uma vez, mesmo que o SQL rode de novo. O `on conflict` não mexe numa tarefa que ainda está repetindo, então não há risco de duplicar nem de atropelar a tentativa em andamento.
+Reprocessar é seguro: o Pedido só vira pago uma vez, só vira reembolsado uma vez, o Acesso só é liberado uma vez e só é cancelado uma vez, mesmo que o SQL rode de novo. Vale para os cinco tipos do SQL acima, os de pagamento e os de estorno e bloqueio de saldo. O `on conflict` não mexe numa tarefa que ainda está repetindo, então não há risco de duplicar nem de atropelar a tentativa em andamento.
+
+## Reembolso e MED
+
+O Administrador devolve o dinheiro no painel do Asaas. O app não tem botão de reembolso: quando o Asaas manda `PAYMENT_REFUNDED`, `PAYMENT_PARTIALLY_REFUNDED` ou `BALANCE_VALUE_BLOCKED`, a tarefa consulta a cobrança e só cancela o Acesso se ela estiver `REFUNDED` (ADR-0003, #36). Se o Asaas estiver fora do ar ou o estorno ainda em andamento (`REFUND_REQUESTED`, `REFUND_IN_PROGRESS`) ou, num aviso `PAYMENT_REFUNDED`, a cobrança ainda paga (`RECEIVED`, `CONFIRMED`: o aviso chegou antes da atualização), a tarefa repete a cada minuto (`app.orders.payment-processing.retry-delay`, `PT1M`) até 120 tentativas (`max-attempts`); esgotadas elas, o resultado é `GAVE_UP` (veja "Reprocessar um evento de pagamento"). `PAYMENT_REFUND_IN_PROGRESS` e `BALANCE_VALUE_UNBLOCKED` só são gravados.
+
+Resultados novos, na tabela `payment_event_results` (só `REFUNDED`, `ALREADY_REFUNDED` e `NO_ORDER` não pedem revisão; os demais aparecem como `WARN` `Payment event needs review`):
+
+| Resultado | O que significa | O que fazer |
+|---|---|---|
+| `REFUNDED` | Pedido reembolsado e Acesso do Pedido cancelado | Nada |
+| `ALREADY_REFUNDED` | O Pedido já estava reembolsado (segundo aviso, ou pagamento que chegou depois do estorno) | Nada: o Pedido não volta a pago e não concede Acesso |
+| `NOT_REFUNDED` | Aviso de estorno, mas o Asaas mostra a cobrança com um estado que o app não conhece ou vazio (com a cobrança ainda paga, o aviso repete e, esgotadas as tentativas, termina em `GAVE_UP`) | Conferir a cobrança no painel do Asaas; se o estorno foi mesmo feito, reagende o evento depois |
+| `PARTIAL_REFUND` | Estorno parcial; o Acesso **continua** | Se o Cliente deve perder o Acesso, estorne o restante no painel do Asaas (a cobrança fica `REFUNDED` e o aviso seguinte cancela); se não, nada |
+| `MED_BLOCKED` | Bloqueio de saldo por MED (`PIX_INFRACTION`) com a cobrança ainda não estornada; o Acesso **continua** | Ação manual abaixo |
+| `MED_WITHOUT_CHARGE` | MED sem o id da cobrança (`paymentId` vazio) | Ação manual abaixo, achando a cobrança pelo valor e pela data no painel do Asaas |
+| `BALANCE_BLOCKED` | Bloqueio de saldo de outro tipo (judicial, administrativo, efeito contratual) | Tratar no painel do Asaas; não mexe em Pedido |
+| `CHARGE_NOT_FOUND`, `CHARGE_ID_MISMATCH`, `REFERENCE_MISMATCH`, `NO_ORDER`, `INVALID_PAYLOAD` | A cobrança do aviso não bate com nenhum Pedido | Investigar no painel do Asaas; nada foi cancelado |
+
+**Ação manual para `MED_BLOCKED` e `MED_WITHOUT_CHARGE`.** O bloqueio de saldo não prova que o dinheiro foi devolvido, então o app não cancela nada. **[RESPONSÁVEL]** Acompanhe o MED no painel do Asaas (e com o suporte, se preciso). Se o MED for aceito e o dinheiro devolvido, o Asaas deve mudar a cobrança para estornada e mandar `PAYMENT_REFUNDED`, e o Acesso cai sozinho. Se a cobrança continuar `RECEIVED` depois do MED aceito (ainda não se sabe se isso acontece; veja o roteiro de sandbox), reagende o evento `BALANCE_VALUE_BLOCKED` (SQL de "Reprocessar um evento de pagamento", que também aceita os tipos de estorno) depois que o Asaas mostrar a cobrança estornada. Se o Asaas nunca a mostrar estornada, o app não cancela: decida com o Administrador e registre a decisão fora do banco (`payment_events` e `payment_event_results` não aceitam correção). Um aviso de estorno que nunca chega também não cancela nada até existir a conciliação (#39).
+
+**Compra duplicada.** Se o Cliente pagou dois Pedidos do mesmo Produto, o segundo termina em `DUPLICATE_PURCHASE` (sem Acesso novo). Estorne no painel do Asaas **o Pedido marcado `DUPLICATE_PURCHASE`**, não o que concedeu o Acesso: o app cancela o Acesso do Pedido estornado, e estornar o outro deixaria o Cliente com um Pedido pago e sem Acesso. Para achar o Pedido certo:
+
+```sql
+select r.order_id, e.provider_event_id, r.processed_at
+from payment_event_results r join payment_events e on e.id = r.payment_event_id
+where r.result = 'DUPLICATE_PURCHASE'
+order by r.processed_at desc;
+```
+
+Lista os Pedidos marcados como compra duplicada, com o evento que os marcou.
+
+**Limites.** O cancelamento não invalida um link de Download já emitido (vale 60 s) nem o arquivo já baixado. Depois do cancelamento o Cliente pode comprar de novo, e o novo Pedido pago cria um Acesso novo.
+
+### Roteiro de sandbox: o que o Asaas de verdade faz
+
+A documentação do Asaas não responde a estes pontos e os testes usam um Asaas simulado. **[RESPONSÁVEL]** Faça no sandbox (<https://sandbox.asaas.com>) e anote o resultado de cada item; ao terminar, avise o agente para ajustar esta seção, o ADR-0003 e o `RefundConfirmation`, se preciso. Para cada passo, consulte os eventos (`payment_events`), os resultados (`payment_event_results`) e o Pedido (`orders.status`) como em "Conferir um pagamento".
+
+1. **Estorno total do Pix.** Compre um Produto, confirme o pagamento no sandbox e estorne o valor total da cobrança. Anote: o estado da cobrança no Asaas depois do estorno, quais eventos chegaram e em que ordem, e se o resultado foi `REFUNDED` (Pedido reembolsado, Acesso cancelado, Produto fora da Biblioteca).
+2. **Estornos parciais que somam o total.** Em outra compra, estorne parte do valor, depois o resto. Anote: o estado da cobrança depois do primeiro e depois do segundo estorno, e se o resultado foi `PARTIAL_REFUND` e depois `REFUNDED`. Se a cobrança continuar sem virar `REFUNDED` mesmo com a soma total, o app não cancela: registre como problema.
+3. **`PAYMENT_REFUND_IN_PROGRESS`.** Anote se esse evento acontece num estorno de Pix e se o `PAYMENT_REFUNDED` vem depois (o app só grava o primeiro e espera o segundo).
+4. **MED.** Se o sandbox permitir simular um MED: anote o estado da cobrança durante o bloqueio (esperado: o app responde `MED_BLOCKED`, ou `MED_WITHOUT_CHARGE` se o `paymentId` vier vazio); depois, se um MED aceito gera `PAYMENT_REFUNDED` ou muda a cobrança para `REFUNDED`, ou se a cobrança continua `RECEIVED`. Se o sandbox não simular o MED, registre isso e deixe o ponto em aberto para a produção.
+5. **Aviso de estorno de uma cobrança que não foi estornada**, se o sandbox deixar reenviar um evento: a tarefa repete enquanto a cobrança estiver paga e termina em `GAVE_UP`, sem mudança no Pedido.
 
 ## Reenviar o e-mail de pagamento confirmado
 
@@ -190,14 +233,15 @@ Roteiro da homologação (o sandbox é a única prova do que o Asaas de verdade 
    order by r.processed_at desc;
    ```
 
-   Cada linha é um caso para revisão humana (por exemplo `DUPLICATE_PURCHASE` pede devolução do dinheiro no painel do Asaas). O log traz o mesmo aviso em `WARN`: `Payment event needs review`.
+   Cada linha é um caso para revisão humana (por exemplo `DUPLICATE_PURCHASE` pede devolução do dinheiro no painel do Asaas). O log traz o mesmo aviso em `WARN`: `Payment event needs review`. Adicione `'REFUNDED', 'ALREADY_REFUNDED'` à lista de exclusão para não ver os estornos que deram certo. A seção "Reembolso e MED" acima diz o que fazer com cada resultado de estorno.
 
 6. **[RESPONSÁVEL]** Eventos de pagamento que ainda não têm resultado (a tarefa está repetindo, por exemplo com o Asaas fora do ar):
 
    ```sql
    select e.provider_event_id, e.event_type, e.received_at
    from payment_events e
-   where e.event_type in ('PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED')
+   where e.event_type in ('PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED', 'PAYMENT_REFUNDED',
+                          'PAYMENT_PARTIALLY_REFUNDED', 'BALANCE_VALUE_BLOCKED')
      and not exists (select 1 from payment_event_results r where r.payment_event_id = e.id)
    order by e.received_at;
    ```

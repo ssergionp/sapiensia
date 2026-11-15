@@ -49,7 +49,7 @@ Qualquer pessoa que abre o site, com ou sem conta. Vê o Catálogo e a página d
 _Avoid_: Usuário anônimo, lead
 
 **Acesso**:
-O direito de um Cliente baixar o Arquivo do produto de um Produto que comprou. Nasce quando o Pedido é pago e vale para sempre; só é cancelado por Reembolso ou fraude confirmada. Despublicar o Produto não o cancela. Um Acesso cancelado deixa de aparecer na Biblioteca.
+O direito de um Cliente baixar o Arquivo do produto de um Produto que comprou. Nasce quando o Pedido é pago e vale para sempre; só é cancelado quando o Pedido é reembolsado. Despublicar o Produto não o cancela. Um Acesso cancelado deixa de aparecer na Biblioteca e de baixar, mas a linha fica como histórico. Depois do cancelamento o Cliente pode comprar de novo, e o novo Pedido pago cria um Acesso novo: só há um Acesso ativo por Cliente e Produto.
 _Avoid_: Licença, permissão, entitlement
 
 **Download**:
@@ -65,7 +65,7 @@ A lista dos Produtos que um Cliente comprou, de onde ele baixa o Arquivo do prod
 _Avoid_: Minha conta, área do cliente
 
 **Pedido**:
-O registro de que um Cliente quer comprar um Produto, com preço recalculado no servidor e um Pix de 30 minutos. Nasce pendente, vira pago só quando o Asaas confirma o pagamento, e vira expirado se o Pix não for pago a tempo. Se o Asaas confirmar o pagamento de um Pedido já expirado, ele vira pago e o Acesso é concedido normalmente.
+O registro de que um Cliente quer comprar um Produto, com preço recalculado no servidor e um Pix de 30 minutos. Nasce pendente, vira pago só quando o Asaas confirma o pagamento, e vira expirado se o Pix não for pago a tempo. Se o Asaas confirmar o pagamento de um Pedido já expirado, ele vira pago e o Acesso é concedido normalmente. Vira reembolsado (`REFUNDED`) quando o Asaas mostra a cobrança como estornada; um Pedido reembolsado não volta a ser pago.
 _Avoid_: Compra, transação, carrinho
 
 **Evento de pagamento**:
@@ -73,7 +73,7 @@ O aviso que o Asaas envia ao sistema (webhook) sobre uma cobrança ou o saldo, i
 _Avoid_: Notificação, callback
 
 **Reembolso**:
-Devolução do valor de um Pedido pago, aceita em até 7 dias após a compra (arrependimento) ou por defeito no Arquivo do produto. O Administrador devolve o dinheiro no painel do Asaas; o sistema não tem botão de reembolso, e o aviso de estorno do Asaas (ou de devolução por fraude, o MED do Pix) cancela sozinho o Acesso do Cliente.
+Devolução do valor de um Pedido pago, aceita em até 7 dias após a compra (arrependimento) ou por defeito no Arquivo do produto. O Administrador devolve o dinheiro no painel do Asaas; o sistema não tem botão de reembolso: o sistema cancela o Acesso quando o Asaas mostra a cobrança como estornada; a abertura de um MED, que é um bloqueio de saldo, só fica registrada para revisão. Um estorno parcial também só fica registrado: quem quer cancelar o Acesso devolve o valor total.
 _Avoid_: Estorno (é do cartão), chargeback
 
 **Venda avulsa**:

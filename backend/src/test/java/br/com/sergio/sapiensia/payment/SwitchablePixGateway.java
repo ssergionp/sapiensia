@@ -27,6 +27,7 @@ public class SwitchablePixGateway implements PixGateway {
     private final AtomicReference<Runnable> afterCancel = new AtomicReference<>();
     private final AtomicReference<CountDownLatch> heldRead = new AtomicReference<>();
     private final Map<String, PixCharge> answers = new ConcurrentHashMap<>();
+    private final ThreadLocal<Map<String, PixCharge>> threadAnswers = ThreadLocal.withInitial(ConcurrentHashMap::new);
     private volatile PixGatewayException.Kind failingCancel;
     private volatile String failingCancelCharge;
     private volatile String lastCustomerCpf;
@@ -129,6 +130,7 @@ public class SwitchablePixGateway implements PixGateway {
         afterCharge.set(null);
         heldRead.set(null);
         answers.clear();
+        threadAnswers.remove();
         failingCancel = null;
         failingCancelCharge = null;
         lastCustomerCpf = null;
@@ -198,6 +200,18 @@ public class SwitchablePixGateway implements PixGateway {
         answers.put(chargeId, charge);
     }
 
+    /**
+     * Like {@link #answerCharge} but only for the calling thread, so two tasks reading the same charge at the same
+     * moment can see different states. Clear it with {@link #forgetThreadAnswers()} before the thread is reused.
+     */
+    public void answerChargeOnThisThread(String chargeId, PixCharge charge) {
+        threadAnswers.get().put(chargeId, charge);
+    }
+
+    public void forgetThreadAnswers() {
+        threadAnswers.remove();
+    }
+
     /** The next {@code readCharge} records itself and then waits for the latch before it reads the charge. */
     public void holdNextRead(CountDownLatch latch) {
         heldRead.set(latch);
@@ -217,7 +231,10 @@ public class SwitchablePixGateway implements PixGateway {
                 throw new IllegalStateException("held read interrupted");
             }
         }
-        PixCharge fixed = answers.get(chargeId);
+        PixCharge fixed = threadAnswers.get().get(chargeId);
+        if (fixed == null) {
+            fixed = answers.get(chargeId);
+        }
         return fixed != null ? fixed : delegate.readCharge(chargeId);
     }
 

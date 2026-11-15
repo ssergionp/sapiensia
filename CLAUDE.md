@@ -47,6 +47,7 @@ Glossário e convenções das skills: veja docs/agents/ (o domain.md diz onde fi
 - backend/.../payment/PixGateway.java: a única porta para o Asaas (cliente, cobrança, código copia e cola, cancelamento); adaptador `AsaasPixGateway` em prod e `FakePixGateway` no local e nos testes, escolhidos por `app.pix.provider`.
 - backend/.../customer/CurrentCustomer.java: o jeito de obter o Cliente da sessão num controller.
 - backend/.../payment/PaymentConfirmation.java: o único lugar que marca um Pedido como pago e concede o Acesso.
+- backend/.../payment/RefundConfirmation.java: o único lugar que marca um Pedido como reembolsado e cancela o Acesso dele, só depois de o GET na cobrança no Asaas confirmar o id, a referência externa e o estado REFUNDED.
 - backend/.../product/ProductDownloadService.java: o único lugar que emite o link de Download (URL assinada de 60 s no Supabase, `/api/local-downloads/<token>` no local) e grava o Registro de download; nunca devolve nem guarda o endereço do objeto.
 - backend/.../payment/OrderPaidEmail.java: o único lugar que envia o e-mail de pagamento confirmado.
 - backend/src/test/.../TestcontainersConfiguration.java: um único Postgres para a suíte de testes; cada contexto Spring ganha um banco próprio, apagado quando o contexto fecha. Teste que precisa de um banco fora de um contexto (ex.: reiniciar o sistema sobre o mesmo banco) usa `TestcontainersConfiguration.newDatabase()` e `drop()`; nunca um `PostgreSQLContainer` próprio. O cache de contextos de teste guarda no máximo 8 (`backend/src/test/resources/spring.properties`).
