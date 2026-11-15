@@ -111,6 +111,28 @@ class AsaasWebhookPersistenceTest {
     }
 
     @Test
+    @DisplayName(
+            "FR-021: BALANCE_VALUE_UNBLOCKED, PAYMENT_REFUND_IN_PROGRESS e PAYMENT_CHARGEBACK_REQUESTED são gravados sem tarefa")
+    void shouldStoreUnblockInProgressAndChargebackEventsWithoutATask() throws Exception {
+        for (String type :
+                List.of("BALANCE_VALUE_UNBLOCKED", "PAYMENT_REFUND_IN_PROGRESS", "PAYMENT_CHARGEBACK_REQUESTED")) {
+            String id = uniqueId();
+
+            assertThat(post(event(id, type)).statusCode()).isEqualTo(200);
+
+            assertThat(count(id)).as(type).isEqualTo(1);
+            assertThat(jdbc.queryForObject(
+                            "select count(*) from scheduled_tasks where task_name = 'process-payment-event'"
+                                    + " and task_instance = (select id::text from payment_events"
+                                    + " where provider_event_id = ?)",
+                            Integer.class,
+                            id))
+                    .as(type)
+                    .isZero();
+        }
+    }
+
+    @Test
     @DisplayName("FR-021: shouldStoreAnUnknownEventType")
     void shouldStoreAnUnknownEventType() throws Exception {
         String id = uniqueId();

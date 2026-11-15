@@ -114,7 +114,7 @@ O mesmo do `docs/runbooks/homologacao-fly.md`.
 
 ## Reprocessar um evento de pagamento
 
-Um evento `PAYMENT_RECEIVED` ou `PAYMENT_CONFIRMED` é processado em segundo plano: o app consulta a cobrança no Asaas e, se estiver paga, marca o Pedido como pago e libera o Acesso. Se o Asaas ficar fora do ar por tempo demais, o app desiste (resultado `GAVE_UP`, com um `ERROR` no log) e o evento continua guardado em `payment_events`. Quando o Asaas voltar, reagende o evento. **[RESPONSÁVEL]** roda no SQL Editor do Supabase, no navegador.
+Um evento `PAYMENT_RECEIVED` ou `PAYMENT_CONFIRMED` é processado em segundo plano: o app consulta a cobrança no Asaas e, se estiver paga, marca o Pedido como pago e libera o Acesso. Um evento de estorno (`PAYMENT_REFUNDED`, `PAYMENT_PARTIALLY_REFUNDED`) ou de bloqueio de saldo (`BALANCE_VALUE_BLOCKED`) segue o mesmo caminho: o app consulta a cobrança e só cancela o Acesso se ela estiver estornada. Se o Asaas ficar fora do ar por tempo demais, o app desiste (resultado `GAVE_UP`, com um `ERROR` no log) e o evento continua guardado em `payment_events`. Quando o Asaas voltar, reagende o evento. **[RESPONSÁVEL]** roda no SQL Editor do Supabase, no navegador.
 
 1. Liste os eventos que desistiram e ainda não têm resultado final:
 
@@ -136,12 +136,13 @@ Um evento `PAYMENT_RECEIVED` ou `PAYMENT_CONFIRMED` é processado em segundo pla
    select 'process-payment-event', e.id::text, null, now(), false, 1
    from payment_events e
    where e.provider_event_id = 'evt_COLE_AQUI_O_ID_DO_EVENTO'
-     and e.event_type in ('PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED')
+     and e.event_type in ('PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED', 'PAYMENT_REFUNDED',
+                        'PAYMENT_PARTIALLY_REFUNDED', 'BALANCE_VALUE_BLOCKED')
    on conflict (task_name, task_instance) do nothing;
    ```
    <!-- reprocess-sql:end -->
 
-   Agenda o processamento do evento para agora; o app o pega em segundos. Resultado `INSERT 0 1` é o esperado; `INSERT 0 0` quer dizer que o evento não existe, não é um pagamento, ou já tem uma tarefa na fila.
+   Agenda o processamento do evento para agora; o app o pega em segundos. Resultado `INSERT 0 1` é o esperado; `INSERT 0 0` quer dizer que o evento não existe, não é um evento de pagamento, de estorno ou de bloqueio de saldo, ou já tem uma tarefa na fila.
 
 3. Rode de novo a consulta do passo 1: o evento some da lista quando recebe o resultado final.
 

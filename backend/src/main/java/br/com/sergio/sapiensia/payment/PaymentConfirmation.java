@@ -29,7 +29,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 class PaymentConfirmation {
 
     private static final Logger log = LoggerFactory.getLogger(PaymentConfirmation.class);
-    private static final Pattern CHARGE_ID = Pattern.compile("[A-Za-z0-9_]{1,64}");
+    static final Pattern CHARGE_ID = Pattern.compile("[A-Za-z0-9_]{1,64}");
 
     /** The provider cannot tell yet; nothing was recorded and the task must try again. */
     static final class PaymentNotReadyException extends RuntimeException {
@@ -40,6 +40,7 @@ class PaymentConfirmation {
 
     private final PaymentEvents events;
     private final PaymentEventResults results;
+    private final PaymentEventOutcome outcome;
     private final Orders orders;
     private final Accesses accesses;
     private final PixGateway gateway;
@@ -51,6 +52,7 @@ class PaymentConfirmation {
     PaymentConfirmation(
             PaymentEvents events,
             PaymentEventResults results,
+            PaymentEventOutcome outcome,
             Orders orders,
             Accesses accesses,
             PixGateway gateway,
@@ -60,6 +62,7 @@ class PaymentConfirmation {
             PlatformTransactionManager transactionManager) {
         this.events = events;
         this.results = results;
+        this.outcome = outcome;
         this.orders = orders;
         this.accesses = accesses;
         this.gateway = gateway;
@@ -88,6 +91,10 @@ class PaymentConfirmation {
         if (order.status() == OrderStatus.PAID) {
             return finish(paymentEventId, ref, PaymentResult.ALREADY_PAID, order.id(), chargeId);
         }
+        if (order.status() == OrderStatus.REFUNDED) {
+            // a refund that came first wins: the Order never goes back to PAID and no Access is granted
+            return finish(paymentEventId, ref, PaymentResult.ALREADY_REFUNDED, order.id(), chargeId);
+        }
         PixCharge charge;
         try {
             charge = gateway.readCharge(chargeId);
@@ -108,11 +115,11 @@ class PaymentConfirmation {
             return finish(paymentEventId, ref, refusal, order.id(), chargeId);
         }
         PaymentResult result = transaction.execute(status -> pay(paymentEventId, order));
-        if (result == PaymentResult.ALREADY_PAID) {
-            // another execution paid the Order between our read and our update
+        if (result == PaymentResult.ALREADY_PAID || result == PaymentResult.ALREADY_REFUNDED) {
+            // another execution paid or refunded the Order between our read and our update
             return finish(paymentEventId, ref, result, order.id(), chargeId);
         }
-        logResult(ref, result, order.id(), chargeId);
+        outcome.logResult(ref, result, order.id(), chargeId);
         return result;
     }
 
@@ -142,7 +149,10 @@ class PaymentConfirmation {
     private PaymentResult pay(UUID paymentEventId, Orders.Row order) {
         Instant now = clock.instant();
         if (!orders.markPaid(order.id(), now)) {
-            return PaymentResult.ALREADY_PAID;
+            boolean refunded = orders.findById(order.id())
+                    .map(current -> current.status() == OrderStatus.REFUNDED)
+                    .orElse(false);
+            return refunded ? PaymentResult.ALREADY_REFUNDED : PaymentResult.ALREADY_PAID;
         }
         boolean granted = accesses.grant(order.customerId(), order.productId(), order.id(), now);
         if (granted) {
@@ -157,32 +167,9 @@ class PaymentConfirmation {
         return result;
     }
 
-    /** Records a result decided without paying; if another execution recorded one first, that one is returned. */
     private PaymentResult finish(
             UUID paymentEventId, PaymentEvents.Ref ref, PaymentResult result, UUID orderId, String chargeId) {
-        if (!results.record(paymentEventId, result, orderId, clock.instant())) {
-            return results.findFinal(paymentEventId).orElse(result);
-        }
-        logResult(ref, result, orderId, chargeId);
-        return result;
-    }
-
-    private void logResult(PaymentEvents.Ref ref, PaymentResult result, UUID orderId, String chargeId) {
-        if (result.needsReview()) {
-            log.warn(
-                    "Payment event needs review: eventId={} result={} orderId={} chargeId={}",
-                    ref.providerEventId(),
-                    result,
-                    orderId,
-                    chargeId);
-        } else {
-            log.info(
-                    "Payment event processed: eventId={} result={} orderId={} chargeId={}",
-                    ref.providerEventId(),
-                    result,
-                    orderId,
-                    chargeId);
-        }
+        return outcome.finish(paymentEventId, ref, result, orderId, chargeId);
     }
 
     /** Records that the retries ran out (not final: a later reprocessing may still decide). */

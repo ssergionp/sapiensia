@@ -335,9 +335,9 @@ class PaymentEventProcessingTest {
                 "PAYMENT_CREATED",
                 "PAYMENT_OVERDUE",
                 "PAYMENT_DELETED",
-                "PAYMENT_REFUNDED",
                 "PAYMENT_CHARGEBACK_REQUESTED",
-                "BALANCE_VALUE_BLOCKED",
+                "PAYMENT_REFUND_IN_PROGRESS",
+                "BALANCE_VALUE_UNBLOCKED",
                 "SOMETHING_NEW"
             })
     @DisplayName("FR-021: shouldOnlyStoreEventsThatAreNotPayments")

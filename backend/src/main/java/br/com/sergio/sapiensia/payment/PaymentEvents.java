@@ -10,8 +10,11 @@ import org.springframework.stereotype.Repository;
 @Repository
 class PaymentEvents {
 
-    /** The event without its body; chargeId is payment.id of the payload and may be null. */
-    record Ref(String providerEventId, String eventType, String chargeId) {}
+    /**
+     * The event without its body. chargeId is payment.id of the payload or, for a balance block, balanceData.paymentId;
+     * balanceType is balanceData.type; each may be null.
+     */
+    record Ref(String providerEventId, String eventType, String chargeId, String balanceType) {}
 
     private final JdbcClient jdbc;
 
@@ -33,15 +36,22 @@ class PaymentEvents {
                 .optional();
     }
 
-    /** Reads only the charge id from the payload (null unless it is a JSON string); the whole body is never loaded. */
+    /** Reads only the charge id and the balance type (null unless JSON strings); the whole body is never loaded. */
     Optional<Ref> findRef(UUID id) {
-        return jdbc.sql(
-                        "select provider_event_id, event_type, case when jsonb_typeof(payload->'payment'->'id') = 'string'"
-                                + " then payload->'payment'->>'id' end as charge_id"
-                                + " from payment_events where id = :id")
+        return jdbc.sql("select provider_event_id, event_type,"
+                        + " coalesce(case when jsonb_typeof(payload->'payment'->'id') = 'string'"
+                        + " then payload->'payment'->>'id' end,"
+                        + " case when jsonb_typeof(payload->'balanceData'->'paymentId') = 'string'"
+                        + " then payload->'balanceData'->>'paymentId' end) as charge_id,"
+                        + " case when jsonb_typeof(payload->'balanceData'->'type') = 'string'"
+                        + " then payload->'balanceData'->>'type' end as balance_type"
+                        + " from payment_events where id = :id")
                 .param("id", id)
                 .query((rs, n) -> new Ref(
-                        rs.getString("provider_event_id"), rs.getString("event_type"), rs.getString("charge_id")))
+                        rs.getString("provider_event_id"),
+                        rs.getString("event_type"),
+                        rs.getString("charge_id"),
+                        rs.getString("balance_type")))
                 .optional();
     }
 }

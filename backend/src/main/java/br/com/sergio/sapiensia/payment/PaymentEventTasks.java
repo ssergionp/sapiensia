@@ -4,6 +4,7 @@ import com.github.kagkarlsson.scheduler.task.FailureHandler;
 import com.github.kagkarlsson.scheduler.task.helper.OneTimeTask;
 import com.github.kagkarlsson.scheduler.task.helper.Tasks;
 import java.time.Duration;
+import java.util.Set;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,6 +22,10 @@ class PaymentEventTasks {
 
     static final String PROCESS = "process-payment-event";
 
+    /** The events that RefundConfirmation handles; every other processed type is a payment. */
+    private static final Set<String> REFUND_TYPES =
+            Set.of("PAYMENT_REFUNDED", "PAYMENT_PARTIALLY_REFUNDED", "BALANCE_VALUE_BLOCKED");
+
     private static final Logger log = LoggerFactory.getLogger(PaymentEventTasks.class);
 
     private final int maxAttempts;
@@ -34,7 +39,8 @@ class PaymentEventTasks {
     }
 
     @Bean
-    OneTimeTask<Void> processPaymentEventTask(PaymentConfirmation confirmation) {
+    OneTimeTask<Void> processPaymentEventTask(
+            PaymentConfirmation confirmation, RefundConfirmation refund, PaymentEvents events) {
         return Tasks.oneTime(PROCESS, Void.class)
                 // maxRetries counts the retries after the first run, so total attempts = retries + 1
                 .onFailure(FailureHandler.<Void>maxRetries(maxAttempts - 1)
@@ -50,7 +56,14 @@ class PaymentEventTasks {
                         log.error("Payment event task has an instance id that is not a UUID; it will not be retried");
                         return;
                     }
-                    confirmation.process(eventId);
+                    String type = events.findRef(eventId)
+                            .map(PaymentEvents.Ref::eventType)
+                            .orElseThrow(PaymentConfirmation.PaymentNotReadyException::new);
+                    if (REFUND_TYPES.contains(type)) {
+                        refund.process(eventId);
+                    } else {
+                        confirmation.process(eventId);
+                    }
                 });
     }
 
