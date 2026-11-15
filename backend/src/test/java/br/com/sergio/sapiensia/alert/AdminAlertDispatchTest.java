@@ -17,6 +17,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
@@ -292,20 +294,28 @@ class AdminAlertDispatchTest {
     void shouldNotMakeAnIdenticalRecordWaitForTheEmailSend() throws Exception {
         alerts.recordSafely(AdminAlertType.WEBHOOK_REJECTED, "TOKEN_INVALID");
         RecordingEmailSender.Blocker blocker = sender.blockNextSendTo(admin);
-        CompletableFuture<AdminAlertDispatch.Result> dispatching = CompletableFuture.supplyAsync(dispatch::run);
+        // own threads: the common pool has a single thread on a 2-CPU CI runner, so the record would
+        // queue behind the blocked dispatch and the test would measure the pool, not the lock
+        ExecutorService threads = Executors.newFixedThreadPool(2);
         try {
-            assertThat(blocker.awaitEntered(Duration.ofSeconds(10))).isTrue();
-
-            CompletableFuture<Void> recording = CompletableFuture.runAsync(
-                    () -> alerts.recordSafely(AdminAlertType.WEBHOOK_REJECTED, "TOKEN_INVALID"));
+            CompletableFuture<AdminAlertDispatch.Result> dispatching =
+                    CompletableFuture.supplyAsync(dispatch::run, threads);
             try {
-                recording.get(1, TimeUnit.SECONDS);
-            } catch (TimeoutException e) {
-                fail("recording an identical alert waited for the e-mail send");
+                assertThat(blocker.awaitEntered(Duration.ofSeconds(10))).isTrue();
+
+                CompletableFuture<Void> recording = CompletableFuture.runAsync(
+                        () -> alerts.recordSafely(AdminAlertType.WEBHOOK_REJECTED, "TOKEN_INVALID"), threads);
+                try {
+                    recording.get(1, TimeUnit.SECONDS);
+                } catch (TimeoutException e) {
+                    fail("recording an identical alert waited for the e-mail send");
+                }
+            } finally {
+                blocker.release();
+                dispatching.get(10, TimeUnit.SECONDS);
             }
         } finally {
-            blocker.release();
-            dispatching.get(10, TimeUnit.SECONDS);
+            threads.shutdownNow();
         }
         assertThat(alertMails()).hasSize(1);
     }
