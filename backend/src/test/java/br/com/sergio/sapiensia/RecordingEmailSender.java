@@ -22,10 +22,13 @@ public class RecordingEmailSender implements EmailSender {
     private final List<EmailMessage> messages = new ArrayList<>();
     private final Map<String, Integer> returnedPerAddress = new HashMap<>();
     private final Set<String> failNextSendTo = ConcurrentHashMap.newKeySet();
+    private final Set<String> failAllSendsTo = ConcurrentHashMap.newKeySet();
+    private final Map<String, Integer> attemptsPerAddress = new ConcurrentHashMap<>();
 
     @Override
     public void send(EmailMessage message) {
-        if (failNextSendTo.remove(message.to())) {
+        attemptsPerAddress.merge(message.to(), 1, Integer::sum);
+        if (failAllSendsTo.contains(message.to()) || failNextSendTo.remove(message.to())) {
             throw new EmailDeliveryException("Simulated delivery failure");
         }
         synchronized (this) {
@@ -36,6 +39,21 @@ public class RecordingEmailSender implements EmailSender {
     /** Makes the next send to this address throw {@link EmailDeliveryException}, once. */
     public void failNextSendTo(String to) {
         failNextSendTo.add(to);
+    }
+
+    /** Makes every send to this address throw {@link EmailDeliveryException}. */
+    public void failAllSendsTo(String to) {
+        failAllSendsTo.add(to);
+    }
+
+    /** How many sends to this address were attempted, failed ones included. */
+    public int attemptsTo(String to) {
+        return attemptsPerAddress.getOrDefault(to, 0);
+    }
+
+    /** Every message recorded for this address, in arrival order (failed sends are not recorded). */
+    public synchronized List<EmailMessage> messagesTo(String to) {
+        return messages.stream().filter(m -> m.to().equals(to)).toList();
     }
 
     /** True while a failure set by {@link #failNextSendTo} has not been thrown yet. */
