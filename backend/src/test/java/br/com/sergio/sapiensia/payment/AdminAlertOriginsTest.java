@@ -242,6 +242,19 @@ class AdminAlertOriginsTest {
         }
     }
 
+    /** Makes every write to {@code admin_alerts} fail with a trigger: no table rename in the shared database. */
+    private void failAlertWrites() {
+        jdbc.execute("create or replace function admin_alerts_test_fail() returns trigger language plpgsql as"
+                + " $$ begin raise exception 'admin_alerts is down (test)'; end $$");
+        jdbc.execute("create trigger admin_alerts_test_fail before insert or update on admin_alerts"
+                + " for each row execute function admin_alerts_test_fail()");
+    }
+
+    private void allowAlertWrites() {
+        jdbc.execute("drop trigger if exists admin_alerts_test_fail on admin_alerts");
+        jdbc.execute("drop function if exists admin_alerts_test_fail()");
+    }
+
     @Test
     @DisplayName("NFR-009: compra duplicada grava o alerta na transação do pagamento")
     void shouldRecordTheDuplicatePurchaseAlertInThePaymentTransaction() {
@@ -254,11 +267,11 @@ class AdminAlertOriginsTest {
         UUID eventId = storeEvent("PAYMENT_RECEIVED", second.chargeId());
 
         // the alert cannot be written: the whole payment is rolled back with it
-        jdbc.execute("alter table admin_alerts rename to admin_alerts_down");
+        failAlertWrites();
         try {
             assertThatThrownBy(() -> confirmation.process(eventId)).isInstanceOf(RuntimeException.class);
         } finally {
-            jdbc.execute("alter table admin_alerts_down rename to admin_alerts");
+            allowAlertWrites();
         }
         assertThat(jdbc.queryForObject("select status from orders where id = ?", String.class, second.orderId()))
                 .isEqualTo("PENDING");
@@ -385,7 +398,7 @@ class AdminAlertOriginsTest {
     @Test
     @DisplayName("NFR-009: banco fora ao gravar o alerta não muda a resposta do webhook")
     void shouldKeepTheWebhookAnswerWhenTheAlertCannotBeWritten(CapturedOutput output) throws Exception {
-        jdbc.execute("alter table admin_alerts rename to admin_alerts_down");
+        failAlertWrites();
         try {
             assertThat(webhook(LOOPBACK, WRONG_TOKEN, "{}").statusCode()).isEqualTo(401);
             assertThat(webhook("127.0.0.21", AUTH, "{}").statusCode()).isEqualTo(401);
@@ -393,7 +406,7 @@ class AdminAlertOriginsTest {
             String oversized = "{\"id\":\"" + "a".repeat(70_000) + "\"}";
             assertThat(webhook(LOOPBACK, AUTH, oversized).statusCode()).isEqualTo(413);
         } finally {
-            jdbc.execute("alter table admin_alerts_down rename to admin_alerts");
+            allowAlertWrites();
         }
 
         assertThat(output.getAll()).contains("Admin alert not recorded: type=WEBHOOK_REJECTED reason=");

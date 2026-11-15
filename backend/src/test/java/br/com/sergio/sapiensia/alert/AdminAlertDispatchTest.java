@@ -2,6 +2,7 @@ package br.com.sergio.sapiensia.alert;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.fail;
 
 import br.com.sergio.sapiensia.RecordingEmailSender;
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
@@ -14,6 +15,9 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -247,6 +251,29 @@ class AdminAlertDispatchTest {
         // later runs leave it alone
         dispatch.run();
         assertThat(sender.attemptsTo(admin)).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("NFR-009: gravar um alerta igual não espera o envio do e-mail")
+    void shouldNotMakeAnIdenticalRecordWaitForTheEmailSend() throws Exception {
+        alerts.recordSafely(AdminAlertType.WEBHOOK_REJECTED, "TOKEN_INVALID");
+        RecordingEmailSender.Blocker blocker = sender.blockNextSendTo(admin);
+        CompletableFuture<AdminAlertDispatch.Result> dispatching = CompletableFuture.supplyAsync(dispatch::run);
+        try {
+            assertThat(blocker.awaitEntered(Duration.ofSeconds(10))).isTrue();
+
+            CompletableFuture<Void> recording = CompletableFuture.runAsync(
+                    () -> alerts.recordSafely(AdminAlertType.WEBHOOK_REJECTED, "TOKEN_INVALID"));
+            try {
+                recording.get(1, TimeUnit.SECONDS);
+            } catch (TimeoutException e) {
+                fail("recording an identical alert waited for the e-mail send");
+            }
+        } finally {
+            blocker.release();
+            dispatching.get(10, TimeUnit.SECONDS);
+        }
+        assertThat(alertMails()).hasSize(1);
     }
 
     @Test

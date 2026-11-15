@@ -16,7 +16,7 @@ class AdminAlertStore {
     /** A row that has not been e-mailed, given up or resolved. */
     private static final String PENDING = "email_sent_at is null and email_failed_at is null and resolved_at is null";
 
-    record Pending(Instant occurredAt, String detail, UUID paymentEventId, UUID orderId, int occurrences) {}
+    record Pending(long id, Instant occurredAt, String detail, UUID paymentEventId, UUID orderId, int occurrences) {}
 
     private final JdbcClient jdbc;
 
@@ -85,32 +85,34 @@ class AdminAlertStore {
                 .single();
     }
 
-    /** Marks the pending rows of the type as sent and returns exactly them, newest first. Locks them meanwhile. */
-    List<Pending> claim(AdminAlertType type, Instant now) {
+    /** Reads the pending rows of the type, newest first, without locking them: the e-mail is sent outside any lock. */
+    List<Pending> findPending(AdminAlertType type) {
         return jdbc
-                .sql("update admin_alerts set email_sent_at = :now where type = :type and " + PENDING
-                        + " returning occurred_at, detail, payment_event_id, order_id, occurrences, id")
-                .param("now", Timestamp.from(now))
+                .sql("select id, occurred_at, detail, payment_event_id, order_id, occurrences from admin_alerts"
+                        + " where type = :type and " + PENDING)
                 .param("type", type.name())
-                .query((rs, i) -> new Claimed(
-                        new Pending(
-                                rs.getObject("occurred_at", OffsetDateTime.class)
-                                        .toInstant(),
-                                rs.getString("detail"),
-                                rs.getObject("payment_event_id", UUID.class),
-                                rs.getObject("order_id", UUID.class),
-                                rs.getInt("occurrences")),
-                        rs.getLong("id")))
+                .query((rs, i) -> new Pending(
+                        rs.getLong("id"),
+                        rs.getObject("occurred_at", OffsetDateTime.class).toInstant(),
+                        rs.getString("detail"),
+                        rs.getObject("payment_event_id", UUID.class),
+                        rs.getObject("order_id", UUID.class),
+                        rs.getInt("occurrences")))
                 .list()
                 .stream()
-                .sorted(Comparator.comparing((Claimed c) -> c.pending().occurredAt())
-                        .thenComparingLong(Claimed::id)
+                .sorted(Comparator.comparing(Pending::occurredAt)
+                        .thenComparingLong(Pending::id)
                         .reversed())
-                .map(Claimed::pending)
                 .toList();
     }
 
-    private record Claimed(Pending pending, long id) {}
+    /** Marks those rows as sent, if they are still pending. Run in a short transaction after the e-mail went out. */
+    void markSent(List<Long> ids, Instant now) {
+        jdbc.sql("update admin_alerts set email_sent_at = :now where id = any(:ids) and " + PENDING)
+                .param("now", Timestamp.from(now))
+                .param("ids", ids.toArray(new Long[0]))
+                .update();
+    }
 
     /** Remembers a failed attempt on the pending rows of the type, for the retry delay. */
     void markAttempted(AdminAlertType type, Instant now) {

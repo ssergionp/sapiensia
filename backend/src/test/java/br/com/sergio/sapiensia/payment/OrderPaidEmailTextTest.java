@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import br.com.sergio.sapiensia.alert.AdminAlerts;
 import br.com.sergio.sapiensia.customer.CustomerService;
 import br.com.sergio.sapiensia.email.EmailSender;
 import java.time.Instant;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.transaction.PlatformTransactionManager;
 
 /** FR-024: the text of the payment confirmation e-mail, without Spring. */
 @ExtendWith(OutputCaptureExtension.class)
@@ -78,8 +80,8 @@ class OrderPaidEmailTextTest {
                 customers,
                 sender,
                 "http://localhost:5173",
-                mock(br.com.sergio.sapiensia.alert.AdminAlerts.class),
-                mock(org.springframework.transaction.PlatformTransactionManager.class));
+                mock(AdminAlerts.class),
+                mock(PlatformTransactionManager.class));
 
         assertThatCode(() -> email.send(orderId)).doesNotThrowAnyException();
 

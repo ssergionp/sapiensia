@@ -27,7 +27,7 @@ class AdminAlertDispatch {
     private static final Logger log = LoggerFactory.getLogger(AdminAlertDispatch.class);
     private static final int MAX_LISTED = 20;
 
-    /** The recipient is missing; the claim is rolled back and the rows stay pending. */
+    /** The recipient is missing; nothing is sent and the rows stay pending. */
     private static final class NoAdministratorException extends RuntimeException {
         NoAdministratorException() {
             super("No Administrator", null, false, false);
@@ -99,35 +99,42 @@ class AdminAlertDispatch {
     /** True sent, false failed, null when the type had nothing pending. */
     private Boolean dispatch(AdminAlertType type, Instant now) {
         try {
-            return transaction.execute(status -> {
-                List<AdminAlertStore.Pending> claimed = store.claim(type, now);
-                if (claimed.isEmpty()) {
-                    return null;
-                }
-                String to = contact.findEmail().orElseThrow(NoAdministratorException::new);
-                int total = claimed.stream()
-                        .mapToInt(AdminAlertStore.Pending::occurrences)
-                        .sum();
-                List<AdminAlertEmail.Line> listed = claimed.stream()
-                        .limit(MAX_LISTED)
-                        .map(p -> new AdminAlertEmail.Line(
-                                p.occurredAt(), p.detail(), p.paymentEventId(), p.orderId(), p.occurrences()))
-                        .toList();
-                // a failure here rolls the claim back: the rows stay pending for the retry
-                sender.send(new EmailMessage(
-                        to,
-                        AdminAlertEmail.subject(type, total),
-                        AdminAlertEmail.body(type, total, listed, claimed.size() - listed.size(), groupWindow),
-                        "admin-alert/" + type + "/" + now.toEpochMilli()));
-                log.info("Admin alert e-mail sent: type={} occurrences={}", type, total);
-                return Boolean.TRUE;
-            });
+            // No transaction and no row lock while the e-mail goes out: an identical alert recorded meanwhile (maybe
+            // inside a payment transaction) must never wait for the e-mail provider.
+            List<AdminAlertStore.Pending> pending = store.findPending(type);
+            if (pending.isEmpty()) {
+                return null;
+            }
+            String to = contact.findEmail().orElseThrow(NoAdministratorException::new);
+            int total = pending.stream()
+                    .mapToInt(AdminAlertStore.Pending::occurrences)
+                    .sum();
+            List<AdminAlertEmail.Line> listed = pending.stream()
+                    .limit(MAX_LISTED)
+                    .map(p -> new AdminAlertEmail.Line(
+                            p.occurredAt(), p.detail(), p.paymentEventId(), p.orderId(), p.occurrences()))
+                    .toList();
+            sender.send(new EmailMessage(
+                    to,
+                    AdminAlertEmail.subject(type, total),
+                    AdminAlertEmail.body(type, total, listed, pending.size() - listed.size(), groupWindow)));
+            // Accepted trade-off: a row whose counter was raised after the select is marked sent with a count slightly
+            // above what was mailed; a row created after the select is not in the ids and stays pending. A crash
+            // between the send and this mark may send the same alert again.
+            List<Long> ids = pending.stream().map(AdminAlertStore.Pending::id).toList();
+            transaction.executeWithoutResult(status -> store.markSent(ids, now));
+            log.info("Admin alert e-mail sent: type={} occurrences={}", type, total);
+            return Boolean.TRUE;
         } catch (RuntimeException e) {
             String reason = e instanceof NoAdministratorException
                     ? "NO_ADMINISTRATOR"
                     : e.getClass().getSimpleName();
             log.warn("Admin alert e-mail failed: type={} reason={}", type, reason);
-            store.markAttempted(type, now);
+            try {
+                store.markAttempted(type, now);
+            } catch (RuntimeException ignored) {
+                // the database is in trouble: the loop goes on with the other types; the next run tries again
+            }
             return Boolean.FALSE;
         }
     }
