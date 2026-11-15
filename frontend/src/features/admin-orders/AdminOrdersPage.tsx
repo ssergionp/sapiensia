@@ -100,7 +100,7 @@ function AdminOrders() {
                     {formatCents(item.priceCents)}
                   </td>
                   <td className="py-2 pr-4">{STATUS_TEXT[item.status]}</td>
-                  <td className="py-2 pr-4 [overflow-wrap:anywhere]">
+                  <td className="min-w-48 py-2 pr-4 [overflow-wrap:anywhere]">
                     {item.customerEmail}
                   </td>
                   <td className="py-2 pr-4 whitespace-nowrap">
