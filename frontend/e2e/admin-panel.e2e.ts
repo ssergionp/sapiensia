@@ -1722,3 +1722,127 @@ test("FR-034 SEC-010 SEC-011 SEC-015: o Cliente baixa o Arquivo do Produto compr
     await mobile.close();
   }
 });
+
+test("FR-016 FR-019 FR-021 FR-024 FR-029 FR-034: jornada completa — o Cliente se cadastra, compra com Pix, tem o pagamento confirmado e baixa o Arquivo", async ({
+  page,
+  browser,
+  baseURL,
+  request,
+}) => {
+  test.setTimeout(180_000);
+  const host = new URL(baseURL ?? "").hostname;
+  if (host !== "localhost" && host !== "127.0.0.1") {
+    throw new Error(
+      "Refusing to run the administrator e2e outside localhost/127.0.0.1",
+    );
+  }
+  const token = process.env.E2E_ASAAS_WEBHOOK_TOKEN ?? LOCAL_WEBHOOK_TOKEN;
+  const stamp = Date.now();
+  const title = `E2E Jornada ${stamp}`;
+  const marker = `jornada-${stamp}`;
+
+  // Setup (not the journey): the Administrator publishes a Product with a file.
+  await loginWithStoredCredentials(page);
+  await page.goto("/painel/produtos");
+  await page.getByRole("link", { name: "Novo Produto" }).click();
+  await page.getByLabel("Título").fill(title);
+  await page.getByLabel("Descrição").fill("Produto de teste da jornada.");
+  await page.getByLabel("Categoria").selectOption({ label: "Tecnologia" });
+  await page.getByLabel("Valor (R$)").fill("29,90");
+  await page.getByRole("button", { name: "Criar Produto" }).click();
+  await expect(page.getByText("Produto criado.")).toBeVisible();
+  await page.getByRole("link", { name: `Editar ${title}` }).click();
+  await expect(
+    page.getByRole("heading", { name: "Editar Produto", exact: true }),
+  ).toBeVisible();
+  expect(PRODUCT_EDIT_PATH.exec(page.url())?.[1]).toBeDefined();
+  await page.getByLabel("Arquivo PDF").setInputFiles({
+    name: "produto.pdf",
+    mimeType: "application/pdf",
+    buffer: buildPdf(marker),
+  });
+  await page.getByRole("button", { name: "Enviar arquivo" }).click();
+  await expect(page.getByText("Arquivo enviado.")).toBeVisible();
+  await page.getByRole("button", { name: "Publicar", exact: true }).click();
+  await page.getByRole("button", { name: "Confirmar publicação" }).click();
+  await expect(page.getByText("Produto publicado.")).toBeVisible();
+
+  const context = await browser.newContext({ baseURL: baseURL ?? undefined });
+  try {
+    const buyer = await context.newPage();
+
+    // 1. Sign-up, with the confirmation link read from the e-mail outbox.
+    const email = uniqueEmail("jornada");
+    const password = strongPassword();
+    await registerAndConfirm(buyer, email, password);
+
+    // 2. Login from the home page.
+    await buyer.goto("/");
+    await buyer.getByRole("link", { name: "Entrar", exact: true }).click();
+    await buyer.getByLabel("E-mail").fill(email);
+    await buyer.getByLabel("Senha").fill(password);
+    await buyer.getByRole("button", { name: "Entrar" }).click();
+    await expect(buyer.getByText(`Você entrou como ${email}.`)).toBeVisible();
+
+    // 3. Catálogo: from the home page to the Product page.
+    await buyer.getByRole("link", { name: "Ver o Catálogo" }).click();
+    await buyer.getByRole("link", { name: title }).click();
+    await expect(
+      buyer.getByRole("heading", { level: 1, name: title }),
+    ).toBeVisible();
+    await expect(buyer.getByText(/R\$\s29,90/)).toBeVisible();
+
+    // 4. Order: the CPF block, then the Pix.
+    await buyer.getByRole("button", { name: "Comprar com Pix" }).click();
+    await buyer.getByLabel("CPF").fill(fictitiousCpf());
+    await buyer.getByRole("button", { name: "Gerar Pix" }).click();
+    await expect(buyer).toHaveURL(ORDER_PATH);
+    await expect(
+      buyer.getByRole("heading", { name: "Pague com Pix" }),
+    ).toBeVisible();
+    const shown = await buyer.getByLabel("Pix copia e cola").inputValue();
+    const chargeId = /(pay_[A-Za-z0-9_]+)$/.exec(shown)?.[1];
+    if (chargeId === undefined) {
+      throw new Error("Could not read the charge id from the shown Pix code.");
+    }
+
+    // 5. Payment: the provider event arrives and the same page turns to paid, without a reload.
+    await postPaymentReceived(
+      request,
+      token,
+      chargeId,
+      `evt_e2e_${randomBytes(8).toString("hex")}`,
+    );
+    await expect(
+      buyer.getByRole("heading", { name: PAID_HEADING }),
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(buyer.getByText(PAID_TEXT)).toBeVisible();
+
+    // 6. My Orders: the Order is paid; the link goes to the Library.
+    await buyer.goto("/");
+    await buyer.getByRole("link", { name: "Meus Pedidos" }).click();
+    const item = buyer.getByRole("listitem").filter({ hasText: title });
+    await expect(item).toHaveCount(1);
+    await expect(item.getByText("Pago", { exact: true })).toBeVisible();
+    await item.getByRole("link", { name: "Ir para a Biblioteca" }).click();
+    await expect(buyer).toHaveURL(/\/biblioteca$/);
+
+    // 7. Library and Download: the delivered bytes are the ones the Administrator sent.
+    await expect(buyer.getByText(title)).toBeVisible();
+    const [download] = await Promise.all([
+      buyer.waitForEvent("download", { timeout: 30_000 }),
+      buyer.getByRole("button", { name: `Baixar ${title}` }).click(),
+    ]);
+    expect(download.suggestedFilename()).toBe(`e2e-jornada-${stamp}.pdf`);
+    const delivered = await readFile(await download.path());
+    expect(delivered.equals(buildPdf(marker))).toBe(true);
+
+    // 8. E-mail: one confirmation naming the Product and linking to the Library.
+    const paidEmail = await waitForMessage(email, PAID_EMAIL_SUBJECT);
+    expect(paidEmail.body).toContain(title);
+    expect(paidEmail.body).toContain("/biblioteca");
+    expect(await messagesFor(email, PAID_EMAIL_SUBJECT)).toHaveLength(1);
+  } finally {
+    await context.close();
+  }
+});
