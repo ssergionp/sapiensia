@@ -1790,7 +1790,7 @@ test("FR-016 FR-019 FR-021 FR-024 FR-029 FR-034: jornada completa — o Cliente 
     await expect(
       buyer.getByRole("heading", { level: 1, name: title }),
     ).toBeVisible();
-    await expect(buyer.getByText(/R\$\s29,90/)).toBeVisible();
+    await expect(buyer.getByRole("main").getByText(/R\$\s29,90/)).toBeVisible();
 
     // 4. Order: the CPF block, then the Pix.
     await buyer.getByRole("button", { name: "Comprar com Pix" }).click();
@@ -1828,7 +1828,12 @@ test("FR-016 FR-019 FR-021 FR-024 FR-029 FR-034: jornada completa — o Cliente 
     await expect(buyer).toHaveURL(/\/biblioteca$/);
 
     // 7. Library and Download: the delivered bytes are the ones the Administrator sent.
-    await expect(buyer.getByText(title)).toBeVisible();
+    await expect(
+      buyer
+        .getByRole("listitem")
+        .filter({ hasText: title })
+        .getByText(title, { exact: true }),
+    ).toBeVisible();
     const [download] = await Promise.all([
       buyer.waitForEvent("download", { timeout: 30_000 }),
       buyer.getByRole("button", { name: `Baixar ${title}` }).click(),
