@@ -73,7 +73,7 @@ O aviso que o Asaas envia ao sistema (webhook) sobre uma cobrança ou o saldo, i
 _Avoid_: Notificação, callback
 
 **Alerta**:
-O aviso por e-mail ao Administrador de que algo no pagamento precisa dele: webhook recusado, Evento de pagamento que desistiu ou que terminou com resultado para revisar, e-mail de pagamento que desistiu ou tarefa em segundo plano descartada. Alertas iguais viram um só com contagem, e o e-mail sai agrupado por tipo, no máximo um a cada 15 minutos. Traz só tipo, ids, hora e contagem, nunca dado pessoal.
+O aviso por e-mail ao Administrador de que algo no pagamento precisa dele: webhook recusado, Evento de pagamento que desistiu ou que terminou com resultado para revisar, e-mail de pagamento que desistiu, tarefa em segundo plano descartada, Divergência da Conciliação ou Conciliação que não terminou. Alertas iguais viram um só com contagem, e o e-mail sai agrupado por tipo, no máximo um a cada 15 minutos. Traz só tipo, ids, hora e contagem, nunca dado pessoal.
 _Avoid_: Notificação, aviso (quando for ao Cliente)
 
 **Reembolso**:
@@ -83,3 +83,11 @@ _Avoid_: Estorno (é do cartão), chargeback
 **Venda avulsa**:
 Compra de um único Produto, paga uma só vez, sem cupom, pacote, presente nem renovação. É o único modelo de venda da Fase 1.
 _Avoid_: Assinatura, pacote
+
+**Conciliação**:
+A comparação que o sistema faz toda noite entre os Pedidos e as cobranças Pix do Asaas dos últimos 90 dias. Quando o Asaas mostra um pagamento ou estorno que um Pedido existente ainda não tem, pede o mesmo processamento do Evento de pagamento, pelos mesmos caminhos que o webhook; nunca paga, reembolsa nem cria Pedido por conta própria. O que não corrige vira uma Divergência.
+_Avoid_: Sincronização, reconciliação
+
+**Divergência**:
+Diferença entre um Pedido e a cobrança dele no Asaas que a Conciliação encontra e o sistema não corrige sozinho: cobrança paga sem Pedido, Pedido pago cuja cobrança não está paga ou não existe, ou Pedido reembolsado cuja cobrança está paga. Fica registrada uma vez só e o Administrador é avisado por Alerta; quem decide o que fazer é ele, pelo runbook.
+_Avoid_: Erro, inconsistência
