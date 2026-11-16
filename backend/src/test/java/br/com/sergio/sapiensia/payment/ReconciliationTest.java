@@ -677,7 +677,8 @@ class ReconciliationTest {
                                 "ORDER_PAID_CHARGE_NOT_FOUND",
                                 "ORDER_REFUNDED_CHARGE_PAID",
                                 "ASAAS_UNAVAILABLE",
-                                "TOO_MANY_CHARGES")
+                                "TOO_MANY_CHARGES",
+                                "UNEXPECTED_ERROR")
                         .contains(d));
     }
 }

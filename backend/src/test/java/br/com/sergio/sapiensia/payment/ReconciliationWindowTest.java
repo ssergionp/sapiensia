@@ -8,12 +8,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import br.com.sergio.sapiensia.alert.AdminAlertType;
 import br.com.sergio.sapiensia.alert.AdminAlerts;
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -73,5 +76,41 @@ class ReconciliationWindowTest {
         assertThatThrownBy(reconciliation::run).isInstanceOf(Reconciliation.IncompleteException.class);
 
         assertThat(output.getAll()).contains("Reconciliation incomplete: reason=TOO_MANY_CHARGES page=2");
+    }
+
+    @Test
+    @DisplayName("SEC-030: falha inesperada no meio da conciliação alerta o Administrador")
+    void shouldAlertWhenTheRunStopsOnAnUnexpectedError(CapturedOutput output) {
+        PixCharge paid = new PixCharge(
+                "pay_abc123",
+                "RECEIVED",
+                new BigDecimal("29.90"),
+                "PIX",
+                UUID.randomUUID().toString(),
+                false);
+        when(gateway.listCharges(any(), anyInt(), anyInt())).thenReturn(new PixChargePage(List.of(paid), false));
+        IllegalStateException failure = new IllegalStateException("db down");
+        when(orders.findByProviderPaymentId("pay_abc123")).thenThrow(failure);
+        AdminAlerts alerts = mock(AdminAlerts.class);
+        Reconciliation reconciliation = new Reconciliation(
+                gateway,
+                orders,
+                mock(PaymentEvents.class),
+                mock(PaymentEventResults.class),
+                mock(ReconciliationDivergences.class),
+                alerts,
+                CLOCK,
+                null,
+                mock(PlatformTransactionManager.class),
+                90,
+                300);
+
+        assertThatThrownBy(reconciliation::run).isInstanceOfSatisfying(Reconciliation.IncompleteException.class, e -> {
+            assertThat(e.reason()).isEqualTo("UNEXPECTED_ERROR");
+            assertThat(e.getCause()).isSameAs(failure);
+        });
+
+        verify(alerts).recordSafely(AdminAlertType.RECONCILIATION_FAILED, "UNEXPECTED_ERROR");
+        assertThat(output.getAll()).contains("reason=UNEXPECTED_ERROR").doesNotContain("db down");
     }
 }

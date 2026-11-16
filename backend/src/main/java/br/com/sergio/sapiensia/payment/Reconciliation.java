@@ -34,13 +34,20 @@ class Reconciliation {
 
     record Result(int charges, int paymentFixes, int refundFixes, int divergences, int ignored) {}
 
-    /** The run stopped before the end; the reason is a closed code (ASAAS_UNAVAILABLE or TOO_MANY_CHARGES). */
+    /**
+     * The run stopped before the end; the reason is a closed code (ASAAS_UNAVAILABLE, TOO_MANY_CHARGES or
+     * UNEXPECTED_ERROR).
+     */
     static class IncompleteException extends RuntimeException {
 
         private final String reason;
 
         IncompleteException(String reason) {
-            super("Reconciliation incomplete: " + reason);
+            this(reason, null);
+        }
+
+        IncompleteException(String reason, Throwable cause) {
+            super("Reconciliation incomplete: " + reason, cause);
             this.reason = reason;
         }
 
@@ -51,6 +58,7 @@ class Reconciliation {
 
     static final String UNAVAILABLE = "ASAAS_UNAVAILABLE";
     static final String TOO_MANY = "TOO_MANY_CHARGES";
+    static final String UNEXPECTED = "UNEXPECTED_ERROR";
 
     private static final Logger log = LoggerFactory.getLogger(Reconciliation.class);
     private static final ZoneId SAO_PAULO = ZoneId.of("America/Sao_Paulo");
@@ -112,6 +120,17 @@ class Reconciliation {
         private int page;
 
         Result execute() {
+            try {
+                return compare();
+            } catch (IncompleteException e) {
+                throw e;
+            } catch (RuntimeException e) {
+                // never log the message: it may carry data; db-scheduler logs the stack from the cause
+                throw fail(UNEXPECTED, e);
+            }
+        }
+
+        private Result compare() {
             LocalDate from = LocalDate.now(clock.withZone(SAO_PAULO)).minusDays(windowDays);
             for (page = 0; ; page++) {
                 if (page >= maxPages) {
@@ -228,9 +247,13 @@ class Reconciliation {
 
         /** Alerts and logs the stop; the caller throws the result. */
         private IncompleteException fail(String reason) {
+            return fail(reason, null);
+        }
+
+        private IncompleteException fail(String reason, Throwable cause) {
             alerts.recordSafely(AdminAlertType.RECONCILIATION_FAILED, reason);
             log.error("Reconciliation incomplete: reason={} page={}", reason, page);
-            return new IncompleteException(reason);
+            return new IncompleteException(reason, cause);
         }
 
         /** Stores the marked event and schedules its processing, exactly as the webhook does. */

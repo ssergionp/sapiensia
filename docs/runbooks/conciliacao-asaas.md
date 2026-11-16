@@ -113,6 +113,7 @@ Alerta `RECONCILIATION_FAILED` ("conciliação com o Asaas não terminou"): a ex
 
 - `ASAAS_UNAVAILABLE`: o Asaas não respondeu direito (fora do ar, tempo esgotado, `429`, erro 5xx ou resposta de formato inesperado). Não precisa fazer nada: **a próxima noite tenta de novo sozinha** e refaz a janela inteira (a janela de 90 dias cobre a noite perdida). Se o aviso se repetir em noites seguidas, procure no log `Reconciliation incomplete: reason=ASAAS_UNAVAILABLE page=<n>` e confira a chave da API (`docs/runbooks/asaas-chave-api.md`).
 - `TOO_MANY_CHARGES`: a janela tem mais cobranças que o teto (300 páginas de 100). Nada se perde em silêncio: a conciliação para e avisa. Suba o teto: em produção, defina a variável `APP_RECONCILIATION_MAX_PAGES` (o Spring a lê como `app.reconciliation.max-pages`) com um valor maior que o atual e reinicie o sistema. Cada página a mais é uma requisição a mais por noite (a cota do Asaas é de 25.000 por 12 horas).
+- `UNEXPECTED_ERROR`: a conciliação parou por um erro do próprio sistema (por exemplo, o banco). O erro está no log da aplicação (`Reconciliation incomplete: reason=UNEXPECTED_ERROR`) e no stack trace do db-scheduler; corrija a causa e a próxima noite tenta de novo.
 
 **Rodar agora**, sem esperar a noite (por exemplo, depois de o Asaas voltar ou de subir o teto): **[RESPONSÁVEL]** no SQL Editor:
 
