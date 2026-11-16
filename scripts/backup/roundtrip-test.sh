@@ -201,20 +201,53 @@ else
 fi
 
 # ---- ADR-0002: object keys (pure function of the script) ----
-title="ADR-0002 object key carries date and time and the monthly copy is made only by the morning run of day 1"
+title="ADR-0002 object key carries date and time and the monthly copy is made by the first upload of each month"
 keys() { (source "$here/backup.sh"; object_keys "$1" 2>&1 | tr '\n' ' ') || true; }
 morning="$(keys 2026-12-01T07:17:00Z)"
-evening="$(keys 2026-12-01T19:17:00Z)"
-other="$(keys 2026-12-02T07:17:00Z)"
+other="$(keys 2026-12-02T19:17:00Z)"
 if [[ "$morning" != "daily/2026-12-01T0717Z.dump.age monthly/2026-12-01T0717Z.dump.age " ]]; then
-  fail "$title" "morning of day 1 gave '$morning'"
-elif [[ "$evening" != "daily/2026-12-01T1917Z.dump.age " ]]; then
-  fail "$title" "evening of day 1 gave '$evening'"
-elif [[ "$other" != "daily/2026-12-02T0717Z.dump.age " ]]; then
+  fail "$title" "day 1 gave '$morning'"
+elif [[ "$other" != "daily/2026-12-02T1917Z.dump.age monthly/2026-12-02T1917Z.dump.age " ]]; then
   fail "$title" "day 2 gave '$other'"
 else
   pass "$title"
 fi
+
+# ---- ADR-0002: the upload path, with a stand-in `aws` on the PATH ----
+# The stand-in logs one line per call, answers head-object with the size of the file and answers the
+# monthly list with STUB_MONTHLY_KEY ("None" = no monthly object yet, like R2 with --query Contents[0].Key).
+cat > "$work/bin/aws" <<'STUB'
+#!/usr/bin/env bash
+case "$*" in
+  "s3 cp "*) echo "cp ${*: -1}" >> "$STUB_LOG" ;;
+  "s3api list-objects-v2 "*" --prefix monthly/2026-12 "*) echo "list" >> "$STUB_LOG"; echo "${STUB_MONTHLY_KEY:-None}" ;;
+  "s3api head-object "*) echo "head" >> "$STUB_LOG"; wc -c < "$STUB_FILE" ;;
+esac
+STUB
+chmod +x "$work/bin/aws"
+upload_run() { # $1 = monthly key already in the bucket ("None" = none); prints the cp lines of the run
+  local log="$work/aws-calls.log" out="$work/upload-out"
+  rm -rf "$out"; mkdir -p "$out"; : > "$log"
+  run_backup "$out" BACKUP_SKIP_UPLOAD=0 BACKUP_NOW=2026-12-02T07:17:00Z STUB_LOG="$log" STUB_MONTHLY_KEY="$1" \
+    R2_ACCOUNT_ID=acct R2_BUCKET=bucket AWS_ACCESS_KEY_ID=ak AWS_SECRET_ACCESS_KEY=sk \
+    STUB_FILE="$out/2026-12-02T0717Z.dump.age" PATH="$work/bin:$PATH" >"$work/upload.log" 2>&1 || return 1
+  grep '^cp ' "$log" | tr '\n' ' '
+}
+title="ADR-0002 the first upload of a month also writes the monthly copy, even when it is not day 1"
+calls="$(upload_run None)" || calls="backup.sh failed: $(tail -n 3 "$work/upload.log" | tr '\n' ' ')"
+if [[ "$calls" != "cp s3://bucket/daily/2026-12-02T0717Z.dump.age cp s3://bucket/monthly/2026-12-02T0717Z.dump.age " ]]; then
+  fail "$title" "got '$calls'"
+else
+  pass "$title"
+fi
+title="ADR-0002 a later upload of the same month only writes the daily copy"
+calls="$(upload_run monthly/2026-12-01T0717Z.dump.age)" || calls="backup.sh failed: $(tail -n 3 "$work/upload.log" | tr '\n' ' ')"
+if [[ "$calls" != "cp s3://bucket/daily/2026-12-02T0717Z.dump.age " ]]; then
+  fail "$title" "got '$calls'"
+else
+  pass "$title"
+fi
+rm -f "$work/bin/aws"
 
 # ---- NFR-008: nothing in plain text is left behind ----
 title="NFR-008 no plaintext dump is left on disk after backup and restore"

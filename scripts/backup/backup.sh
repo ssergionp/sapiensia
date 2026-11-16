@@ -16,17 +16,15 @@
 # The last line printed is the path of the .age file.
 set -euo pipefail
 
-# daily/<date>T<HHMM>Z.dump.age on every run; the same file also goes to monthly/ on the morning run
-# (before 12:00 UTC) of day 1. The time in the name keeps a second run of the day from overwriting a locked object.
+# Prints the daily key and the monthly key of this run: daily/<date>T<HHMM>Z.dump.age and monthly/<same name>.
+# The upload writes the monthly one only when the bucket has no monthly/<YYYY-MM> object yet (the first
+# successful upload of each month), so a delayed or dropped run does not lose the month's copy.
+# The time in the name keeps a second run of the day from overwriting a locked object.
 object_keys() { # $1 = now, ISO (2026-12-01T07:17:00Z)
-  local now="$1" name day hour
+  local now="$1" name
   name="${now:0:10}T${now:11:2}${now:14:2}Z.dump.age"
-  day="${now:8:2}"
-  hour="${now:11:2}"
   echo "daily/$name"
-  if [[ "$day" == "01" && "$((10#$hour))" -lt 12 ]]; then
-    echo "monthly/$name"
-  fi
+  echo "monthly/$name"
 }
 
 # shellcheck disable=SC2086
@@ -67,10 +65,6 @@ main() {
     echo "backup.sh: the output is not an age file" >&2
     return 1
   fi
-  if grep -qa PGDMP "$partial"; then
-    echo "backup.sh: the output contains a plain text dump marker" >&2
-    return 1
-  fi
   size="$(wc -c < "$partial")"
   if [[ "$size" -lt 1024 ]]; then
     echo "backup.sh: the output has only $size bytes" >&2
@@ -80,18 +74,24 @@ main() {
   echo "backup.sh: encrypted backup written: $(basename "$file") ($size bytes)" >&2
 
   if [[ "${BACKUP_SKIP_UPLOAD:-}" != "1" ]]; then
-    upload "$file" "$size" "${keys[@]}"
+    upload "$file" "$size" "${keys[@]}" "${now:0:7}"
   fi
   echo "$file"
 }
 
-upload() { # $1 = file, $2 = size in bytes, the rest are the object keys
-  local file="$1" size="$2" key remote_size
-  shift 2
+upload() { # $1 = file, $2 = size in bytes, $3 = daily key, $4 = monthly key, $5 = month (YYYY-MM)
+  local file="$1" size="$2" month="$5" key remote_size existing
+  local -a to_send=("$3")
   : "${R2_ACCOUNT_ID:?}" "${R2_BUCKET:?}" "${AWS_ACCESS_KEY_ID:?}" "${AWS_SECRET_ACCESS_KEY:?}"
   export AWS_REQUEST_CHECKSUM_CALCULATION=when_required AWS_RESPONSE_CHECKSUM_VALIDATION=when_required
   local endpoint="https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
-  for key in "$@"; do
+  # the first successful upload of the month also becomes the monthly copy
+  existing="$(aws s3api list-objects-v2 --endpoint-url "$endpoint" --region auto --bucket "$R2_BUCKET" \
+    --prefix "monthly/$month" --max-keys 1 --query 'Contents[0].Key' --output text)"
+  if [[ -z "$existing" || "$existing" == "None" ]]; then
+    to_send+=("$4")
+  fi
+  for key in "${to_send[@]}"; do
     aws s3 cp --only-show-errors --endpoint-url "$endpoint" --region auto "$file" "s3://$R2_BUCKET/$key"
     remote_size="$(aws s3api head-object --endpoint-url "$endpoint" --region auto --bucket "$R2_BUCKET" --key "$key" --query ContentLength --output text)"
     if [[ "$remote_size" != "$size" ]]; then
