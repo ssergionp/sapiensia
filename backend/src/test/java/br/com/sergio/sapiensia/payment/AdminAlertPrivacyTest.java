@@ -7,6 +7,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import br.com.sergio.sapiensia.RecordingEmailSender;
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
 import br.com.sergio.sapiensia.alert.AdminAlertTestAccess;
+import br.com.sergio.sapiensia.alert.AdminAlertType;
+import br.com.sergio.sapiensia.alert.AdminAlerts;
 import br.com.sergio.sapiensia.email.EmailMessage;
 import com.github.kagkarlsson.scheduler.SchedulerClient;
 import com.github.kagkarlsson.scheduler.task.TaskInstance;
@@ -58,6 +60,9 @@ class AdminAlertPrivacyTest {
 
     @Autowired
     JdbcTemplate jdbc;
+
+    @Autowired
+    AdminAlerts alerts;
 
     @Autowired
     SwitchablePixGateway gateway;
@@ -209,6 +214,10 @@ class AdminAlertPrivacyTest {
                                         Integer.class)
                                 == 0);
 
+        // RECONCILIATION_DIVERGENCE and RECONCILIATION_FAILED: closed codes and an Order id only
+        alerts.record(AdminAlertType.RECONCILIATION_DIVERGENCE, "ORDER_PAID_CHARGE_NOT_PAID", paid.orderId(), null);
+        alerts.record(AdminAlertType.RECONCILIATION_FAILED, "ASAAS_UNAVAILABLE", null, null);
+
         assertThat(jdbc.queryForList("select distinct type from admin_alerts"))
                 .extracting(row -> row.get("type"))
                 .containsExactlyInAnyOrder(
@@ -216,14 +225,16 @@ class AdminAlertPrivacyTest {
                         "PAYMENT_EVENT_NEEDS_REVIEW",
                         "ORDER_PAID_EMAIL_GAVE_UP",
                         "WEBHOOK_REJECTED",
-                        "TASK_GAVE_UP");
-        assertThat(AdminAlertTestAccess.dispatch(context)).isEqualTo(5);
+                        "TASK_GAVE_UP",
+                        "RECONCILIATION_DIVERGENCE",
+                        "RECONCILIATION_FAILED");
+        assertThat(AdminAlertTestAccess.dispatch(context)).isEqualTo(7);
 
         List<String> forbidden = List.of(customerEmail, CPF, marker, TOKEN, wrongToken, LOOPBACK, OTHER_IP);
         List<EmailMessage> mails = sender.messagesTo(admin).stream()
                 .filter(m -> m.subject().startsWith(SUBJECT_PREFIX))
                 .toList();
-        assertThat(mails).hasSize(5);
+        assertThat(mails).hasSize(7);
         for (EmailMessage mail : mails) {
             assertThat(mail.subject() + "\n" + mail.text()).doesNotContain(forbidden);
         }

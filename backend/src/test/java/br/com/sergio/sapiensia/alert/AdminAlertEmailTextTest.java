@@ -42,6 +42,20 @@ class AdminAlertEmailTextTest {
                         "confira o Pedido no painel e a cobrança no Asaas. O significado de cada resultado está no"
                                 + " runbook webhook-asaas.md, seções \"Conferir um pagamento\" e \"Reembolso e MED\"."),
                 Arguments.of(
+                        AdminAlertType.RECONCILIATION_DIVERGENCE,
+                        "divergência na conciliação com o Asaas",
+                        "A conciliação noturna comparou os Pedidos com as cobranças do Asaas e encontrou diferenças"
+                                + " que o sistema não corrige sozinho.",
+                        "veja o que cada código quer dizer e como achar a cobrança no runbook conciliacao-asaas.md,"
+                                + " seção \"Divergências\". Cada divergência é avisada uma vez só."),
+                Arguments.of(
+                        AdminAlertType.RECONCILIATION_FAILED,
+                        "conciliação com o Asaas não terminou",
+                        "A conciliação noturna com o Asaas parou antes do fim. O que já tinha sido conferido continua"
+                                + " valendo; o resto não foi comparado nesta noite.",
+                        "a próxima noite tenta de novo sozinha. Para rodar agora, ou se este aviso se repetir, siga o"
+                                + " runbook conciliacao-asaas.md, seção \"A conciliação não terminou\"."),
+                Arguments.of(
                         AdminAlertType.ORDER_PAID_EMAIL_GAVE_UP,
                         "e-mail de pagamento não enviado",
                         "O e-mail de pagamento confirmado não foi enviado ao Cliente depois de todas as tentativas."
@@ -76,6 +90,45 @@ class AdminAlertEmailTextTest {
                         + "\n\nOcorrências desde o último aviso deste tipo: 3\n\n"
                         + "- 15/11/2026 14:32 · evento " + EVENT + " · Pedido " + ORDER
                         + "\n\nO que fazer: " + action
+                        + "\n\n" + FOOTER);
+    }
+
+    @Test
+    @DisplayName("SEC-030: o e-mail de divergência da conciliação traz o texto aprovado")
+    void shouldUseTheApprovedReconciliationDivergenceText() {
+        List<Line> lines = List.of(
+                new Line(WHEN, "ORDER_PAID_CHARGE_NOT_PAID", null, ORDER, 1),
+                new Line(WHEN, "CHARGE_WITHOUT_ORDER", null, null, 1));
+
+        assertThat(AdminAlertEmail.subject(AdminAlertType.RECONCILIATION_DIVERGENCE, 2))
+                .isEqualTo("Alerta SapiensIA: divergência na conciliação com o Asaas (2)");
+        assertThat(AdminAlertEmail.body(AdminAlertType.RECONCILIATION_DIVERGENCE, 2, lines, 0, WINDOW))
+                .isEqualTo("Olá!\n\n"
+                        + "A conciliação noturna comparou os Pedidos com as cobranças do Asaas e encontrou diferenças"
+                        + " que o sistema não corrige sozinho."
+                        + "\n\nOcorrências desde o último aviso deste tipo: 2\n\n"
+                        + "- 15/11/2026 14:32 · ORDER_PAID_CHARGE_NOT_PAID · Pedido " + ORDER + "\n"
+                        + "- 15/11/2026 14:32 · CHARGE_WITHOUT_ORDER · Pedido não identificado"
+                        + "\n\nO que fazer: veja o que cada código quer dizer e como achar a cobrança no runbook"
+                        + " conciliacao-asaas.md, seção \"Divergências\". Cada divergência é avisada uma vez só."
+                        + "\n\n" + FOOTER);
+    }
+
+    @Test
+    @DisplayName("SEC-030: o e-mail de conciliação que não terminou traz o texto aprovado")
+    void shouldUseTheApprovedReconciliationFailedText() {
+        List<Line> lines = List.of(new Line(WHEN, "ASAAS_UNAVAILABLE", null, null, 1));
+
+        assertThat(AdminAlertEmail.subject(AdminAlertType.RECONCILIATION_FAILED, 1))
+                .isEqualTo("Alerta SapiensIA: conciliação com o Asaas não terminou (1)");
+        assertThat(AdminAlertEmail.body(AdminAlertType.RECONCILIATION_FAILED, 1, lines, 0, WINDOW))
+                .isEqualTo("Olá!\n\n"
+                        + "A conciliação noturna com o Asaas parou antes do fim. O que já tinha sido conferido continua"
+                        + " valendo; o resto não foi comparado nesta noite."
+                        + "\n\nOcorrências desde o último aviso deste tipo: 1\n\n"
+                        + "- 15/11/2026 14:32 · ASAAS_UNAVAILABLE"
+                        + "\n\nO que fazer: a próxima noite tenta de novo sozinha. Para rodar agora, ou se este aviso"
+                        + " se repetir, siga o runbook conciliacao-asaas.md, seção \"A conciliação não terminou\"."
                         + "\n\n" + FOOTER);
     }
 

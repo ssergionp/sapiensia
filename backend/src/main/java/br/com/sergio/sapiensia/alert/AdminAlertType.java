@@ -4,7 +4,9 @@ package br.com.sergio.sapiensia.alert;
 public enum AdminAlertType {
     PAYMENT_EVENT_GAVE_UP,
     PAYMENT_EVENT_NEEDS_REVIEW,
+    RECONCILIATION_DIVERGENCE,
     ORDER_PAID_EMAIL_GAVE_UP,
     WEBHOOK_REJECTED,
+    RECONCILIATION_FAILED,
     TASK_GAVE_UP
 }

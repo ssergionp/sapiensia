@@ -40,6 +40,20 @@ class AdminAlertEmail {
                         "confira o Pedido no painel e a cobrança no Asaas. O significado de cada resultado está no"
                                 + " runbook webhook-asaas.md, seções \"Conferir um pagamento\" e \"Reembolso e"
                                 + " MED\".");
+            case RECONCILIATION_DIVERGENCE ->
+                new Text(
+                        "divergência na conciliação com o Asaas",
+                        "A conciliação noturna comparou os Pedidos com as cobranças do Asaas e encontrou diferenças"
+                                + " que o sistema não corrige sozinho.",
+                        "veja o que cada código quer dizer e como achar a cobrança no runbook conciliacao-asaas.md,"
+                                + " seção \"Divergências\". Cada divergência é avisada uma vez só.");
+            case RECONCILIATION_FAILED ->
+                new Text(
+                        "conciliação com o Asaas não terminou",
+                        "A conciliação noturna com o Asaas parou antes do fim. O que já tinha sido conferido continua"
+                                + " valendo; o resto não foi comparado nesta noite.",
+                        "a próxima noite tenta de novo sozinha. Para rodar agora, ou se este aviso se repetir, siga o"
+                                + " runbook conciliacao-asaas.md, seção \"A conciliação não terminou\".");
             case ORDER_PAID_EMAIL_GAVE_UP ->
                 new Text(
                         "e-mail de pagamento não enviado",
@@ -69,8 +83,9 @@ class AdminAlertEmail {
 
     static String body(AdminAlertType type, int total, List<Line> newestFirst, int notListed, Duration groupWindow) {
         Text text = text(type);
-        boolean eventType =
-                type == AdminAlertType.PAYMENT_EVENT_GAVE_UP || type == AdminAlertType.PAYMENT_EVENT_NEEDS_REVIEW;
+        boolean eventType = type == AdminAlertType.PAYMENT_EVENT_GAVE_UP
+                || type == AdminAlertType.PAYMENT_EVENT_NEEDS_REVIEW
+                || type == AdminAlertType.RECONCILIATION_DIVERGENCE;
         StringBuilder body = new StringBuilder();
         body.append("Olá!\n\n")
                 .append(text.intro())
