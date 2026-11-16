@@ -1,0 +1,3 @@
+# Public age recipient(s) used to encrypt the database backups (one age1... key per line).
+# A public key is not a secret. The private key (AGE-SECRET-KEY-...) never goes to the repository.
+# TODO(#40): paste the public key here; until then backup.sh stops with an error.

@@ -136,6 +136,19 @@ jobs:
           E2E_BASE_URL: http://localhost:8080
           E2E_ADMIN_EMAIL: admin-e2e@example.com
         run: ../.github/ci-report.sh "End-to-end tests" pnpm exec playwright test
+      # The app is stopped so the row counts cannot change during the test. The test uses a throwaway age key pair
+      # and writes only to a temporary directory (nothing under frontend/, nothing uploaded).
+      - name: "NFR-008 ADR-0002: backup round trip (dump, encrypt, decrypt, restore, compare)"
+        env:
+          PGHOST: localhost
+          PGPORT: "5432"
+          PG_MAJOR: "18"
+          PGDATABASE: app
+          ADMIN_PGUSER: app
+          ADMIN_PGPASSWORD: app
+        run: |
+          docker stop app
+          .github/ci-report.sh "Backup round trip" bash scripts/backup/roundtrip-test.sh
       - name: Logs of the system
         if: failure()
         run: docker logs app

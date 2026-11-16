@@ -138,3 +138,7 @@ demo-pagar pedido:
 # mostra o código de verificação atual do Administrador da demonstração
 demo-codigo:
     node scripts/demo-codigo.mjs
+
+# restaura um backup criptografado num banco de destino (PGHOST, PGPORT, PGUSER, PGPASSWORD, PGDATABASE e PG_MAJOR no ambiente; veja o runbook)
+backup-restaurar arquivo chave:
+    bash scripts/backup/restore.sh {{arquivo}} {{chave}}
