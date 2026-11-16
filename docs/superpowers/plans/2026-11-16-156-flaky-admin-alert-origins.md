@@ -13,7 +13,7 @@ Entre os dois passos há uma janela em que a tarefa já sumiu e o alerta ainda n
 
 ## O que muda
 
-Só `backend/src/test/java/.../payment/AdminAlertOriginsTest.java`:
+Só `backend/src/test/java/br/com/sergio/sapiensia/payment/AdminAlertOriginsTest.java`:
 
 1. Reproduzir (RED): no teste, um trigger `before insert` em `admin_alerts` com `pg_sleep(0.5)` alarga a janela; com a espera atual o teste falha sempre com `Expected size: 1 but was: 0`. O trigger fica no teste (removido no `finally`), para a espera nunca mais depender de tempo.
 2. Corrigir (GREEN): esperar o resultado que o teste confere (a linha `TASK_GAVE_UP` existe), e depois conferir as mesmas coisas de antes: tarefa removida (`droppedTasks() == 0`), pelo menos 5 tentativas, exatamente 1 linha com o nome da tarefa e sem Pedido nem evento.
