@@ -4,5 +4,6 @@ package br.com.sergio.sapiensia.audit;
 public enum AuditObject {
     ADMINISTRATOR,
     PRODUCT,
-    ORDER
+    ORDER,
+    CUSTOMER
 }

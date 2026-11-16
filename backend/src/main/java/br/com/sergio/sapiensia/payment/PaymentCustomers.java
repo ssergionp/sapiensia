@@ -22,6 +22,13 @@ class PaymentCustomers {
                 .optional();
     }
 
+    /** Forgets the link with the person at the provider (anonymization, FR-036); the charges stay with the Orders. */
+    void deleteByCustomerId(UUID customerId) {
+        jdbc.sql("delete from payment_customers where customer_id = :customerId")
+                .param("customerId", customerId)
+                .update();
+    }
+
     /** Keeps the first code saved for the Customer. */
     void save(UUID customerId, String providerCustomerId) {
         jdbc.sql("insert into payment_customers (customer_id, provider_customer_id)"

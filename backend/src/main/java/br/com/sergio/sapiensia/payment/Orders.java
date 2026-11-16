@@ -250,11 +250,29 @@ class Orders {
                 == 1;
     }
 
+    private static final String CUSTOMER_LOCK_PREFIX = "order:";
+
     /** Transaction-scoped lock per Customer; must be called inside a transaction. */
     boolean tryLockCustomer(UUID customerId) {
         return Boolean.TRUE.equals(jdbc.sql("select pg_try_advisory_xact_lock(hashtextextended(:key, 0))")
-                .param("key", "order:" + customerId)
+                .param("key", CUSTOMER_LOCK_PREFIX + customerId)
                 .query(Boolean.class)
                 .single());
+    }
+
+    /** Same lock as {@link #tryLockCustomer}, but waits for it; must be called inside a transaction. */
+    void lockCustomer(UUID customerId) {
+        jdbc.sql("select pg_advisory_xact_lock(hashtextextended(:key, 0))")
+                .param("key", CUSTOMER_LOCK_PREFIX + customerId)
+                .query()
+                .singleRow();
+    }
+
+    /** True when the Customer has an Order still PENDING, whatever its expiry time. */
+    boolean hasPending(UUID customerId) {
+        return jdbc.sql("select exists (select 1 from orders where customer_id = :customerId and status = 'PENDING')")
+                .param("customerId", customerId)
+                .query(Boolean.class)
+                .single();
     }
 }

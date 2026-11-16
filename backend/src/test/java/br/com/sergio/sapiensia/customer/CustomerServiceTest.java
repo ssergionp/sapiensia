@@ -93,7 +93,9 @@ class CustomerServiceTest {
                         "email_confirmed_at",
                         "created_at",
                         "session_version",
-                        "first_login_at");
+                        "first_login_at",
+                        // #41: when the account was anonymized (no personal data)
+                        "anonymized_at");
     }
 
     @Test

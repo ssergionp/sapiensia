@@ -2,12 +2,14 @@ package br.com.sergio.sapiensia.web;
 
 import br.com.sergio.sapiensia.admin.InvalidMfaCodeException;
 import br.com.sergio.sapiensia.admin.InvalidReauthenticationException;
+import br.com.sergio.sapiensia.customer.CustomerNotFoundException;
 import br.com.sergio.sapiensia.customer.IncorrectConfirmationPasswordException;
 import br.com.sergio.sapiensia.customer.InvalidConfirmationTokenException;
 import br.com.sergio.sapiensia.customer.PasswordCompromisedException;
 import br.com.sergio.sapiensia.customer.WrongPasswordLimitReachedException;
 import br.com.sergio.sapiensia.payment.CpfInvalidException;
 import br.com.sergio.sapiensia.payment.CpfRequiredException;
+import br.com.sergio.sapiensia.payment.CustomerHasPendingOrderException;
 import br.com.sergio.sapiensia.payment.InvalidWebhookBodyException;
 import br.com.sergio.sapiensia.payment.OrderInProgressException;
 import br.com.sergio.sapiensia.payment.OrderNotFoundException;
@@ -109,6 +111,24 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(OrderNotFoundException.class)
     ResponseEntity<Void> handleOrderNotFound() {
         return ResponseEntity.notFound().build();
+    }
+
+    /** Anonymization (#41): unknown or already anonymized e-mail; the title and code never carry the e-mail. */
+    @ExceptionHandler(CustomerNotFoundException.class)
+    ResponseEntity<ProblemDetail> handleCustomerNotFound() {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.NOT_FOUND);
+        problem.setTitle("Customer not found");
+        problem.setProperty("code", "CUSTOMER_NOT_FOUND");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+    }
+
+    /** Anonymization (#41): a live charge exists; nothing is changed. */
+    @ExceptionHandler(CustomerHasPendingOrderException.class)
+    ResponseEntity<ProblemDetail> handleCustomerHasPendingOrder() {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.CONFLICT);
+        problem.setTitle("Customer has a pending order");
+        problem.setProperty("code", "CUSTOMER_HAS_PENDING_ORDER");
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
     }
 
     @ExceptionHandler(CpfRequiredException.class)

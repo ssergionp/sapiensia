@@ -383,6 +383,20 @@ class AuditPrivacyTest {
                 .containsExactly("ADMIN_RECOVERY_CODES_REGENERATED SUCCESS " + adminId);
         recoveryCodes.addAll(codesOf(regen));
 
+        // FR-036 / SEC-038: anonymizing a Customer account (a hit, then the same e-mail again: 404 and a FAILURE row)
+        jdbc.update(
+                "insert into customers (email, password_hash, email_confirmed_at) values (?, ?, now())",
+                CUSTOMER_EMAIL,
+                "x");
+        assertThat(post(third, "/api/admin/customer-anonymizations", "{\"email\":\"" + CUSTOMER_EMAIL + "\"}")
+                        .statusCode())
+                .isEqualTo(204);
+        HttpResponse<String> anonymizedAgain =
+                post(third, "/api/admin/customer-anonymizations", "{\"email\":\"" + CUSTOMER_EMAIL + "\"}");
+        assertThat(anonymizedAgain.statusCode()).isEqualTo(404);
+        assertThat(actionsOf(correlationId(anonymizedAgain)))
+                .containsExactly("ADMIN_CUSTOMER_ANONYMIZED FAILURE " + adminId);
+
         // the lock: wrong recovery codes until the answer is 429
         AdminBrowser locking = new AdminBrowser(port);
         int status = 0;
@@ -457,6 +471,7 @@ class AuditPrivacyTest {
         assertThat(rows)
                 .contains("ADMIN_PASSWORD_SET", "ADMIN_PASSWORD_LOGIN", "ADMIN_MFA_ENABLED", "ADMIN_MFA_LOGIN")
                 .contains("ADMIN_RECOVERY_CODE_LOGIN", "ADMIN_RECOVERY_CODES_REGENERATED", "BLOCKED", "FAILURE")
+                .contains("ADMIN_CUSTOMER_ANONYMIZED")
                 .contains(adminId.toString());
         assertThat(jdbc.queryForObject(
                         "select count(*) from audit_events where action = 'ADMIN_PASSWORD_LOGIN'"
