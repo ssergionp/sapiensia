@@ -30,6 +30,9 @@ public class SwitchablePixGateway implements PixGateway {
     private final ThreadLocal<Map<String, PixCharge>> threadAnswers = ThreadLocal.withInitial(ConcurrentHashMap::new);
     private volatile PixGatewayException.Kind failingCancel;
     private volatile String failingCancelCharge;
+    private volatile List<PixCharge> listed;
+    private volatile Integer failingListFromOffset;
+    private volatile PixCharge endlessCharge;
     private volatile String lastCustomerCpf;
     private volatile String lastCustomerName;
     private volatile Integer lastChargeAmountCents;
@@ -40,7 +43,7 @@ public class SwitchablePixGateway implements PixGateway {
         this.delegate = delegate;
     }
 
-    /** Every call, in order, by step (FIND_CUSTOMER, CREATE_CUSTOMER, CREATE_CHARGE, READ_QR_CODE, READ_CHARGE, CANCEL_CHARGE). */
+    /** Every call, in order, by step (FIND_CUSTOMER, CREATE_CUSTOMER, CREATE_CHARGE, READ_QR_CODE, READ_CHARGE, LIST_CHARGES, CANCEL_CHARGE). */
     public List<String> calls() {
         return List.copyOf(calls);
     }
@@ -105,6 +108,21 @@ public class SwitchablePixGateway implements PixGateway {
         this.failingCancelCharge = chargeId;
     }
 
+    /** Makes {@code listCharges} answer with exactly these charges, paged by offset and limit; {@link #reset()} clears it. */
+    public void answerList(List<PixCharge> charges) {
+        this.listed = List.copyOf(charges);
+    }
+
+    /** Makes {@code listCharges} fail as unavailable for every call with an offset at or above this one. */
+    public void failListFromOffset(int offset) {
+        this.failingListFromOffset = offset;
+    }
+
+    /** Makes every {@code listCharges} answer a page with only this charge and {@code hasMore} true, forever. */
+    public void endlessList(PixCharge charge) {
+        this.endlessCharge = charge;
+    }
+
     /** The next {@code createCharge} records itself and then waits for the latch before it creates the charge. */
     public void holdNextCharge(CountDownLatch latch) {
         held.set(latch);
@@ -133,6 +151,9 @@ public class SwitchablePixGateway implements PixGateway {
         threadAnswers.remove();
         failingCancel = null;
         failingCancelCharge = null;
+        listed = null;
+        failingListFromOffset = null;
+        endlessCharge = null;
         lastCustomerCpf = null;
         lastCustomerName = null;
         lastChargeAmountCents = null;
@@ -236,6 +257,26 @@ public class SwitchablePixGateway implements PixGateway {
             fixed = answers.get(chargeId);
         }
         return fixed != null ? fixed : delegate.readCharge(chargeId);
+    }
+
+    @Override
+    public PixChargePage listCharges(LocalDate createdFrom, int offset, int limit) {
+        enter("LIST_CHARGES");
+        Integer failFrom = failingListFromOffset;
+        if (failFrom != null && offset >= failFrom) {
+            throw new PixGatewayException(PixGatewayException.Kind.UNAVAILABLE, "LIST_CHARGES", "HTTP 503");
+        }
+        PixCharge endless = endlessCharge;
+        if (endless != null) {
+            return new PixChargePage(List.of(endless), true);
+        }
+        List<PixCharge> listing = listed;
+        if (listing == null) {
+            return delegate.listCharges(createdFrom, offset, limit);
+        }
+        int from = Math.min(Math.max(offset, 0), listing.size());
+        int to = Math.min(from + Math.max(limit, 0), listing.size());
+        return new PixChargePage(listing.subList(from, to), to < listing.size());
     }
 
     @Override

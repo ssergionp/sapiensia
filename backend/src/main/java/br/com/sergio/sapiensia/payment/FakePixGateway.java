@@ -2,6 +2,9 @@ package br.com.sergio.sapiensia.payment;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -17,7 +20,7 @@ import org.springframework.stereotype.Component;
 class FakePixGateway implements PixGateway {
 
     private final Map<UUID, String> customerCodes = new ConcurrentHashMap<>();
-    private final Map<String, PixCharge> charges = new ConcurrentHashMap<>();
+    private final Map<String, PixCharge> charges = Collections.synchronizedMap(new LinkedHashMap<>());
 
     FakePixGateway(Environment environment) {
         // a fake charge can never be paid: production must use the real provider
@@ -55,6 +58,18 @@ class FakePixGateway implements PixGateway {
         // a fake charge counts as paid as soon as it is read (decision D11)
         return new PixCharge(
                 charge.id(), "RECEIVED", charge.value(), "PIX", charge.externalReference(), charge.deleted());
+    }
+
+    @Override
+    public PixChargePage listCharges(LocalDate createdFrom, int offset, int limit) {
+        // the stored state (PENDING), in creation order; createdFrom is ignored because the fake keeps no dates
+        List<PixCharge> all;
+        synchronized (charges) {
+            all = List.copyOf(charges.values());
+        }
+        int from = Math.min(Math.max(offset, 0), all.size());
+        int to = Math.min(from + Math.max(limit, 0), all.size());
+        return new PixChargePage(all.subList(from, to), to < all.size());
     }
 
     @Override

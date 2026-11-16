@@ -43,6 +43,8 @@ class AsaasPixGateway implements PixGateway {
     private static final Duration MAX_READ_TIMEOUT = Duration.ofSeconds(10);
     // an Asaas answer is small; anything bigger is read only up to this size
     private static final int MAX_BODY = 64 * 1024;
+    // a page of 100 charges does not fit in MAX_BODY; an answer above this is refused, never read in part
+    private static final int MAX_LIST_BODY = 2 * 1024 * 1024;
 
     private static final String FIND_CUSTOMER = "FIND_CUSTOMER";
     private static final String CREATE_CUSTOMER = "CREATE_CUSTOMER";
@@ -50,6 +52,7 @@ class AsaasPixGateway implements PixGateway {
     private static final String READ_QR_CODE = "READ_QR_CODE";
     private static final String CANCEL_CHARGE = "CANCEL_CHARGE";
     private static final String READ_CHARGE = "READ_CHARGE";
+    private static final String LIST_CHARGES = "LIST_CHARGES";
 
     private final RestClient restClient;
 
@@ -177,21 +180,51 @@ class AsaasPixGateway implements PixGateway {
     @Override
     public PixCharge readCharge(String chargeId) {
         JsonNode root = call(READ_CHARGE, chargeId, restClient.get().uri("/v3/payments/{id}", chargeId), false);
-        JsonNode value = root.get("value");
+        return toCharge(READ_CHARGE, root, chargeId);
+    }
+
+    @Override
+    public PixChargePage listCharges(LocalDate createdFrom, int offset, int limit) {
+        JsonNode root = call(
+                LIST_CHARGES,
+                null,
+                restClient
+                        .get()
+                        .uri(
+                                "/v3/payments?billingType=PIX&dateCreated[ge]={from}&offset={offset}&limit={limit}",
+                                createdFrom.toString(),
+                                offset,
+                                limit),
+                false,
+                MAX_LIST_BODY);
+        JsonNode data = root.get("data");
+        JsonNode hasMore = root.get("hasMore");
+        if (data == null || !data.isArray() || hasMore == null || !hasMore.isBoolean()) {
+            throw unavailable(LIST_CHARGES, "unexpected answer", null);
+        }
+        List<PixCharge> charges = new ArrayList<>();
+        for (JsonNode item : data) {
+            charges.add(toCharge(LIST_CHARGES, item, null));
+        }
+        return new PixChargePage(charges, hasMore.asBoolean());
+    }
+
+    /** Reads the six fields the application needs from a charge; the rest of the answer is dropped. */
+    private static PixCharge toCharge(String step, JsonNode node, String chargeId) {
+        JsonNode value = node.get("value");
         if (value == null || !value.isNumber()) {
-            throw unavailable(READ_CHARGE, "unexpected answer", chargeId);
+            throw unavailable(step, "unexpected answer", chargeId);
         }
-        JsonNode reference = root.get("externalReference");
-        JsonNode deleted = root.get("deleted");
+        JsonNode reference = node.get("externalReference");
+        JsonNode deleted = node.get("deleted");
         if (deleted != null && !deleted.isNull() && !deleted.isBoolean()) {
-            throw unavailable(READ_CHARGE, "unexpected answer", chargeId);
+            throw unavailable(step, "unexpected answer", chargeId);
         }
-        // only the fields the application needs are copied; the rest of the answer is dropped
         return new PixCharge(
-                requiredText(READ_CHARGE, root, "id", chargeId),
-                requiredText(READ_CHARGE, root, "status", chargeId),
+                requiredText(step, node, "id", chargeId),
+                requiredText(step, node, "status", chargeId),
                 value.decimalValue(),
-                requiredText(READ_CHARGE, root, "billingType", chargeId),
+                requiredText(step, node, "billingType", chargeId),
                 reference != null && reference.isString() ? reference.asString() : null,
                 deleted != null && deleted.asBoolean());
     }
@@ -204,6 +237,11 @@ class AsaasPixGateway implements PixGateway {
 
     /** Sends the request and returns the parsed JSON answer, or null when {@code lenient} and the answer is 2xx or 404. */
     private JsonNode call(String step, String chargeId, RestClient.RequestHeadersSpec<?> request, boolean lenient) {
+        return call(step, chargeId, request, lenient, MAX_BODY);
+    }
+
+    private JsonNode call(
+            String step, String chargeId, RestClient.RequestHeadersSpec<?> request, boolean lenient, int maxBody) {
         try {
             return request.exchange((req, response) -> {
                 int status = response.getStatusCode().value();
@@ -211,7 +249,13 @@ class AsaasPixGateway implements PixGateway {
                 // then fails with an IOException
                 byte[] body;
                 try {
-                    body = response.getBody().readNBytes(MAX_BODY);
+                    body = response.getBody().readNBytes(maxBody + 1);
+                    if (body.length > maxBody) {
+                        if (maxBody == MAX_LIST_BODY) {
+                            throw unavailable(step, "HTTP " + status + " answer too large", chargeId);
+                        }
+                        body = java.util.Arrays.copyOf(body, maxBody);
+                    }
                 } catch (IOException e) {
                     throw unavailable(step, e.getClass().getSimpleName(), chargeId);
                 }
