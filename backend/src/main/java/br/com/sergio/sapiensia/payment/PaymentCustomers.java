@@ -7,7 +7,7 @@ import org.springframework.stereotype.Repository;
 
 /** The payment provider's customer code of each Customer. The CPF is never stored (ADR-0003). */
 @Repository
-class PaymentCustomers {
+public class PaymentCustomers {
 
     private final JdbcClient jdbc;
 
@@ -20,6 +20,13 @@ class PaymentCustomers {
                 .param("customerId", customerId)
                 .query(String.class)
                 .optional();
+    }
+
+    /** Forgets the link with the person at the provider (anonymization, FR-036); the charges stay with the Orders. */
+    public void deleteByCustomerId(UUID customerId) {
+        jdbc.sql("delete from payment_customers where customer_id = :customerId")
+                .param("customerId", customerId)
+                .update();
     }
 
     /** Keeps the first code saved for the Customer. */
