@@ -1,3 +1,4 @@
+import { TOO_MANY_REQUESTS } from "@/lib/tooManyRequests";
 import type {
   ProductCategory,
   ProductCoverRejectionCode,
@@ -76,8 +77,6 @@ export const FILE_UPLOAD_ERRORS = {
   unexpected:
     "Não foi possível enviar o arquivo. Verifique a conexão e tente novamente.",
 } as const;
-
-import { TOO_MANY_REQUESTS } from "@/lib/tooManyRequests";
 
 export const REAUTHENTICATION_TEXTS = {
   publishedNotice:

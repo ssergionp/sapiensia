@@ -131,6 +131,41 @@ class PublicErrorsTest {
     }
 
     @Test
+    @DisplayName("SEC-018: erro inesperado não grava a mensagem da exceção no log")
+    void shouldNotWriteTheExceptionMessageToTheLog(CapturedOutput output) throws Exception {
+        mvc.perform(get("/test-errors/personal"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.title").value("Internal error"))
+                .andExpect(jsonPath("$.detail").doesNotExist());
+
+        assertThat(output.getAll())
+                .contains("java.lang.IllegalStateException")
+                .contains("PublicErrorsTest$ThrowingController")
+                .doesNotContain("cliente@exemplo.com");
+    }
+
+    @Test
+    @DisplayName("SEC-018: ResponseStatusException com motivo interno não mostra o motivo")
+    void shouldNotShowTheInternalReasonOfAResponseStatusException() throws Exception {
+        MvcResult result = mvc.perform(get("/test-errors/reason"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.title").value("Conflict"))
+                .andExpect(jsonPath("$.detail").doesNotExist())
+                .andReturn();
+        assertThat(result.getResponse().getContentAsString()).doesNotContain("internal reason");
+    }
+
+    @Test
+    @DisplayName("SEC-018: cliente que desconecta não gera erro no log nem corpo")
+    void shouldStayQuietWhenTheClientDisconnects(CapturedOutput output) throws Exception {
+        MvcResult result = mvc.perform(get("/test-errors/abort")).andReturn();
+
+        assertThat(result.getResponse().getContentAsString()).isEmpty();
+        assertThat(output.getAll()).doesNotContain("Unhandled exception");
+    }
+
+    @Test
     @DisplayName("SEC-018: shouldKeepA403ForAnAccessDeniedExceptionThrownByAController")
     void shouldKeepA403ForAnAccessDeniedExceptionThrownByAController() throws Exception {
         mvc.perform(get("/test-errors/denied").with(user("someone").roles("CUSTOMER")))
@@ -175,6 +210,21 @@ class PublicErrorsTest {
         @GetMapping("/test-errors/boom")
         String boom() {
             throw new IllegalStateException(SECRET_TEXT);
+        }
+
+        @GetMapping("/test-errors/personal")
+        String personal() {
+            throw new IllegalStateException("cliente@exemplo.com");
+        }
+
+        @GetMapping("/test-errors/reason")
+        String reason() {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "internal reason");
+        }
+
+        @GetMapping("/test-errors/abort")
+        String abort() throws Exception {
+            throw new org.apache.catalina.connector.ClientAbortException(new java.io.IOException("Broken pipe"));
         }
 
         @GetMapping("/test-errors/denied")

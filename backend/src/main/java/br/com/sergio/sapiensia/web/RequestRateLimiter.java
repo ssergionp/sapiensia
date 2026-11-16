@@ -107,33 +107,39 @@ public class RequestRateLimiter {
         boolean hasAccount = limit.accountCapacity() != null && accountKey.isPresent();
         String accountBucketKey = hasAccount ? operation + "|account|" + accountKey.get() : null;
 
-        int needed = (isNew(ipBucketKey) ? 1 : 0) + (hasAccount && isNew(accountBucketKey) ? 1 : 0);
-        if (needed > 0 && buckets.size() + needed > maxTrackedKeys) {
+        // IP first: a request the IP refuses must never create an account key (else one IP could fill the table)
+        if (isNew(ipBucketKey) && buckets.size() + 1 > maxTrackedKeys) {
             return Optional.of(roundUp(PURGE_INTERVAL));
         }
-
         int ipCapacity = Math.max(limit.ipCapacity(), properties.ipCapacityFloor());
         Bucket ipBucket = bucket(ipBucketKey, ipCapacity, limit.ipWindow());
-        Bucket accountBucket =
-                hasAccount ? bucket(accountBucketKey, limit.accountCapacity(), limit.accountWindow()) : null;
-
         ConsumptionProbe ip = ipBucket.tryConsumeAndReturnRemaining(1);
-        ConsumptionProbe account = hasAccount ? accountBucket.tryConsumeAndReturnRemaining(1) : null;
-        boolean ipRefused = !ip.isConsumed();
-        boolean accountRefused = hasAccount && !account.isConsumed();
-        if (!ipRefused && !accountRefused) {
+        if (!ip.isConsumed()) {
+            long nanos = ip.getNanosToWaitForRefill();
+            Tracked existing = hasAccount ? buckets.get(accountBucketKey) : null;
+            if (existing != null) {
+                // an account that is already tracked may need longer: tell the longer wait (nothing is created or
+                // spent)
+                nanos = Math.max(
+                        nanos, existing.bucket().estimateAbilityToConsume(1).getNanosToWaitForRefill());
+            }
+            return Optional.of(roundUp(Duration.ofNanos(nanos)));
+        }
+        if (!hasAccount) {
             return Optional.empty();
         }
-        // a refusal in one bucket must not spend the other
-        if (!ipRefused) {
+        if (isNew(accountBucketKey) && buckets.size() + 1 > maxTrackedKeys) {
             ipBucket.addTokens(1);
+            return Optional.of(roundUp(PURGE_INTERVAL));
         }
-        if (hasAccount && !accountRefused) {
-            accountBucket.addTokens(1);
+        Bucket accountBucket = bucket(accountBucketKey, limit.accountCapacity(), limit.accountWindow());
+        ConsumptionProbe account = accountBucket.tryConsumeAndReturnRemaining(1);
+        if (account.isConsumed()) {
+            return Optional.empty();
         }
-        long nanos = Math.max(
-                ipRefused ? ip.getNanosToWaitForRefill() : 0, accountRefused ? account.getNanosToWaitForRefill() : 0);
-        return Optional.of(roundUp(Duration.ofNanos(nanos)));
+        // a refusal in the account bucket must not spend the IP's token
+        ipBucket.addTokens(1);
+        return Optional.of(roundUp(Duration.ofNanos(account.getNanosToWaitForRefill())));
     }
 
     int trackedKeys() {

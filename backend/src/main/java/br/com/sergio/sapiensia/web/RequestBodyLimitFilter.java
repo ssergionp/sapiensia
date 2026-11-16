@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.regex.Pattern;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
@@ -34,6 +35,7 @@ class RequestBodyLimitFilter extends OncePerRequestFilter {
     static final long MAX_BODY_BYTES = 64 * 1024;
     private static final String EXCEEDED_ATTRIBUTE = RequestBodyLimitFilter.class.getName() + ".EXCEEDED";
     private static final String WEBHOOK_PATH = "/api/webhooks/asaas";
+    private static final Pattern UPLOAD_PATH = Pattern.compile("/api/admin/products/[^/]+/(file|cover)");
     private static final String PROBLEM =
             "{\"title\":\"Payload too large\",\"status\":413,\"code\":\"PAYLOAD_TOO_LARGE\"}";
 
@@ -44,7 +46,14 @@ class RequestBodyLimitFilter extends OncePerRequestFilter {
             return true;
         }
         String contentType = request.getContentType();
-        return contentType != null && contentType.toLowerCase().startsWith("multipart/");
+        return contentType != null
+                && contentType.toLowerCase().startsWith("multipart/")
+                && isUploadRoute(request.getMethod(), path);
+    }
+
+    /** The admin upload endpoints (product file and cover) have their own multipart limits. */
+    private static boolean isUploadRoute(String method, String path) {
+        return "POST".equals(method) && UPLOAD_PATH.matcher(path).matches();
     }
 
     @Override
@@ -68,6 +77,8 @@ class RequestBodyLimitFilter extends OncePerRequestFilter {
         response.setStatus(HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE);
         response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
         response.setHeader("Cache-Control", "no-store");
+        // the body was not consumed: the connection must not be reused
+        response.setHeader("Connection", "close");
         response.getOutputStream().write(PROBLEM.getBytes(StandardCharsets.UTF_8));
     }
 
@@ -137,6 +148,16 @@ class RequestBodyLimitFilter extends OncePerRequestFilter {
             int n = delegate.read(buffer, offset, length);
             count(n);
             return n;
+        }
+
+        @Override
+        public int available() throws IOException {
+            return delegate.available();
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
         }
 
         @Override

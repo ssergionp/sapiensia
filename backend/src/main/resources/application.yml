@@ -10,6 +10,9 @@ server:
     include-exception: false
   # a request line and headers above this are refused by Tomcat (SEC-015)
   max-http-request-header-size: 16KB
+  tomcat:
+    # form bodies parsed by Tomcat itself (e.g. the CSRF fallback getParameter) must not bypass the 64 KiB body limit
+    max-http-form-post-size: 64KB
   servlet:
     session:
       # idle timeout (SEC-005); the session lives in server memory, so a restart logs everyone out

@@ -39,10 +39,11 @@ final class RateLimitInterceptor implements HandlerInterceptor {
         if (!method.equals(request.getMethod())) {
             return true;
         }
+        // another principal (or none) is limited by IP alone instead of failing the request
         Optional<String> account = perCustomer
-                ? Optional.of(
-                        CurrentCustomer.id(SecurityContextHolder.getContext().getAuthentication())
-                                .toString())
+                ? CurrentCustomer.idIfCustomer(
+                                SecurityContextHolder.getContext().getAuthentication())
+                        .map(Object::toString)
                 : Optional.empty();
         limiter.require(operation, clientIp.resolve(request), account);
         return true;

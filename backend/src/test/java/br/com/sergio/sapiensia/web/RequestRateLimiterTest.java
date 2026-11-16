@@ -65,6 +65,23 @@ class RequestRateLimiterTest {
     }
 
     @Test
+    @DisplayName("SEC-014: pedido recusado pelo IP não cria chave de conta")
+    void shouldNotCreateAnAccountKeyForARequestRefusedByTheIp() {
+        RequestRateLimiter limiter = limiter(0);
+        for (int i = 0; i < 5; i++) {
+            limiter.tryConsume(WITH_ACCOUNT, "192.0.2.1", account("u" + i + "@example.com"));
+        }
+        int tracked = limiter.trackedKeys();
+
+        for (int i = 0; i < 50; i++) {
+            assertThat(limiter.tryConsume(WITH_ACCOUNT, "192.0.2.1", account("new" + i + "@example.com")))
+                    .isPresent();
+        }
+
+        assertThat(limiter.trackedKeys()).isEqualTo(tracked);
+    }
+
+    @Test
     @DisplayName("SEC-014: recusado num balde não gasta o outro")
     void shouldNotSpendTheOtherBucketWhenOneRefuses() {
         RequestRateLimiter limiter = limiter(0);

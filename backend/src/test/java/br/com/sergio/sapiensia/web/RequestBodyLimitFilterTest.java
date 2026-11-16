@@ -73,6 +73,8 @@ class RequestBodyLimitFilterTest {
 
     private static void assertPayloadTooLarge(HttpResponse<String> response) {
         assertThat(response.statusCode()).isEqualTo(413);
+        // the body was not read: the connection must not be reused
+        assertThat(response.headers().firstValue("Connection").orElse("")).isEqualToIgnoringCase("close");
         assertThat(response.headers().firstValue("Content-Type").orElse("")).contains("json");
         assertThat((String) JsonPath.read(response.body(), "$.title")).isEqualTo("Payload too large");
         assertThat((Integer) JsonPath.read(response.body(), "$.status")).isEqualTo(413);
@@ -104,21 +106,68 @@ class RequestBodyLimitFilterTest {
         assertThat((String) JsonPath.read(response.body(), "$.title")).isEqualTo("Invalid request");
     }
 
+    private static String multipartBody(String boundary) {
+        return "--" + boundary + "\r\nContent-Disposition: form-data; name=\"file\"; filename=\"a.pdf\"\r\n"
+                + "Content-Type: application/pdf\r\n\r\n" + "x".repeat(OVER_THE_LIMIT) + "\r\n--" + boundary + "--\r\n";
+    }
+
+    private HttpResponse<String> postMultipart(String path, HttpRequest.BodyPublisher body, String boundary)
+            throws Exception {
+        return http.send(
+                request(path)
+                        .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                        .header("X-XSRF-TOKEN", xsrf())
+                        .POST(body)
+                        .build(),
+                HttpResponse.BodyHandlers.ofString());
+    }
+
     @Test
     @DisplayName("SEC-015: shouldNotApplyTheJsonLimitToAMultipartUpload")
     void shouldNotApplyTheJsonLimitToAMultipartUpload() throws Exception {
         String boundary = "----limit" + UUID.randomUUID();
-        String body = "--" + boundary + "\r\nContent-Disposition: form-data; name=\"file\"; filename=\"a.pdf\"\r\n"
-                + "Content-Type: application/pdf\r\n\r\n" + "x".repeat(OVER_THE_LIMIT) + "\r\n--" + boundary + "--\r\n";
+        for (String route : new String[] {"/file", "/cover"}) {
+            HttpResponse<String> response = postMultipart(
+                    "/api/admin/products/" + UUID.randomUUID() + route,
+                    HttpRequest.BodyPublishers.ofString(multipartBody(boundary)),
+                    boundary);
+            // anonymous: the security chain answers (401), which proves the size filter did not stop it first
+            assertThat(response.statusCode()).isNotEqualTo(413).isEqualTo(401);
+        }
+    }
+
+    @Test
+    @DisplayName("SEC-015: corpo multipart grande numa rota que não é de upload recebe 413")
+    void shouldRefuseABigMultipartBodyOnARouteThatIsNotAnUpload() throws Exception {
+        String boundary = "----limit" + UUID.randomUUID();
+        byte[] bytes = multipartBody(boundary).getBytes(StandardCharsets.UTF_8);
+
+        assertPayloadTooLarge(postMultipart("/api/customers", HttpRequest.BodyPublishers.ofByteArray(bytes), boundary));
+
+        HttpRequest.BodyPublisher chunked = HttpRequest.BodyPublishers.fromPublisher(
+                HttpRequest.BodyPublishers.ofInputStream(() -> new ByteArrayInputStream(bytes)));
+        HttpResponse<String> response = postMultipart("/api/customers", chunked, boundary);
+        // chunked: the JSON route never reads a multipart body (415 before any read), or the counting stream stops it
+        // (413); what matters is that the 100 KiB body is never processed as a sign-up
+        assertThat(response.statusCode()).isIn(400, 413, 415);
+    }
+
+    @Test
+    @DisplayName("SEC-015: corpo de formulário grande e em pedaços não passa pelo Tomcat")
+    void shouldRefuseAChunkedFormBodyAbove64KiBBeforeTheCsrfFallbackParsesIt() throws Exception {
+        byte[] bytes = ("_csrf=" + "a".repeat(OVER_THE_LIMIT)).getBytes(StandardCharsets.UTF_8);
+        HttpRequest.BodyPublisher chunked = HttpRequest.BodyPublishers.fromPublisher(
+                HttpRequest.BodyPublishers.ofInputStream(() -> new ByteArrayInputStream(bytes)));
         HttpResponse<String> response = http.send(
-                request("/api/admin/products/" + UUID.randomUUID() + "/file")
-                        .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-                        .header("X-XSRF-TOKEN", xsrf())
-                        .POST(HttpRequest.BodyPublishers.ofString(body))
+                request("/api/customers")
+                        .header("Content-Type", "application/x-www-form-urlencoded")
+                        .POST(chunked)
                         .build(),
                 HttpResponse.BodyHandlers.ofString());
-        // anonymous: the security chain answers (401), which proves the size filter did not stop it first
-        assertThat(response.statusCode()).isNotEqualTo(413).isEqualTo(401);
+        // no XSRF header: the CSRF filter falls back to getParameter, which makes Tomcat read the form. With
+        // max-http-form-post-size at 64 KB Tomcat refuses it (413 or 400) instead of parsing 100 KiB (which would
+        // end in 403 for the missing token)
+        assertThat(response.statusCode()).isIn(400, 413);
     }
 
     @Test
