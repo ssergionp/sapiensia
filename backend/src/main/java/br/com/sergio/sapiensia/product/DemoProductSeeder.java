@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import javax.imageio.ImageIO;
@@ -53,6 +54,9 @@ class DemoProductSeeder implements ApplicationRunner {
     private final ProductFileService files;
     private final ProductPublicationService publication;
     private final JdbcClient jdbc;
+    private final ProductFiles productFiles;
+    private final ProductCovers productCovers;
+    private final ProductFileStorage storage;
 
     DemoProductSeeder(
             Products products,
@@ -60,8 +64,14 @@ class DemoProductSeeder implements ApplicationRunner {
             ProductFileService files,
             ProductPublicationService publication,
             JdbcClient jdbc,
+            ProductFiles productFiles,
+            ProductCovers productCovers,
+            ProductFileStorage storage,
             Environment environment) {
         DemoAccounts.refuseInProd(environment);
+        this.productFiles = productFiles;
+        this.productCovers = productCovers;
+        this.storage = storage;
         this.products = products;
         this.covers = covers;
         this.files = files;
@@ -81,13 +91,51 @@ class DemoProductSeeder implements ApplicationRunner {
         }
         for (UUID id : DEMO_IDS) {
             ProductResponse product = products.find(id).orElse(null);
-            if (product == null || product.status() != ProductStatus.DRAFT || product.file() != null) {
+            if (product == null) {
                 log.info("demo data: product skipped");
-                continue;
+            } else if (product.status() == ProductStatus.DRAFT && product.file() == null) {
+                publishWithFiles(product, administratorId);
+                log.info("demo data: product published");
+            } else if (product.status() == ProductStatus.PUBLISHED && product.file() != null) {
+                restoreMissingFiles(product, administratorId);
+            } else {
+                log.info("demo data: product skipped");
             }
-            publishWithFiles(product, administratorId);
-            log.info("demo data: product published");
         }
+    }
+
+    /**
+     * The demo database is shared by every checkout but the files are not: a removed worktree takes them along. Uploads
+     * again whatever the storage no longer has.
+     */
+    private void restoreMissingFiles(ProductResponse product, UUID administratorId) throws IOException {
+        boolean pdfMissing = productFiles
+                .currentKey(product.id())
+                .map(key -> storage.signedDownloadUrl(key, Duration.ofSeconds(1), "demo.pdf")
+                        .isEmpty())
+                .orElse(true);
+        boolean coverMissing = productCovers
+                .currentKey(product.id())
+                .map(key -> storage.get(key).isEmpty())
+                .orElse(true);
+        if (!pdfMissing && !coverMissing) {
+            log.info("demo data: product skipped");
+            return;
+        }
+        Path temp = Files.createTempFile("demo-restore-", ".tmp");
+        try {
+            if (coverMissing) {
+                Files.write(temp, coverPng(product.category()));
+                covers.upload(product.id(), temp, administratorId, ORIGIN);
+            }
+            if (pdfMissing) {
+                Files.write(temp, pdf(product.title()));
+                files.upload(product.id(), temp, "demo.pdf", "application/pdf", administratorId, ORIGIN, true);
+            }
+        } finally {
+            Files.deleteIfExists(temp);
+        }
+        log.info("demo data: product files restored");
     }
 
     private void publishWithFiles(ProductResponse product, UUID administratorId) throws IOException {
