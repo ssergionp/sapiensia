@@ -39,7 +39,7 @@ function fail(message) {
 }
 
 // The charge id of the Order, from the local database container published on port 5433 (demo database first).
-function findChargeId(orderId) {
+export function findChargeId(orderId) {
   const container = execFileSync("docker", ["ps", "--filter", "publish=5433", "--format", "{{.ID}}"], {
     encoding: "utf8",
   })
