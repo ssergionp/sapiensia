@@ -63,15 +63,22 @@ interface CustomerRepository extends JpaRepository<Customer, UUID> {
     @Query("update Customer c set c.sessionVersion = c.sessionVersion + 1 where c.id = :id")
     int incrementSessionVersion(UUID id);
 
-    @Query("select c.email from Customer c where c.id = :id")
+    /** The e-mail of the account, never of an anonymized one: a queued e-mail for it ends without sending (FR-036). */
+    @Query(value = "select email from customers where id = :id and anonymized_at is null", nativeQuery = true)
     Optional<String> findEmailById(UUID id);
 
     @Query("select c.id from Customer c where c.email = :email and c.emailConfirmedAt is not null")
     Optional<UUID> findConfirmedIdByEmail(String email);
 
-    @Query("select c.email from Customer c where c.id = :id and c.emailConfirmedAt is not null")
+    @Query(
+            value =
+                    "select email from customers where id = :id and email_confirmed_at is not null and anonymized_at is null",
+            nativeQuery = true)
     Optional<String> findConfirmedEmailById(UUID id);
 
-    @Query("select c.email from Customer c where c.id = :id and c.emailConfirmedAt is null")
+    @Query(
+            value =
+                    "select email from customers where id = :id and email_confirmed_at is null and anonymized_at is null",
+            nativeQuery = true)
     Optional<String> findUnconfirmedEmailById(UUID id);
 }
