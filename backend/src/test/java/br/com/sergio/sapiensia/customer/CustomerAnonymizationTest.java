@@ -36,7 +36,9 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.context.WebApplicationContext;
 
-@SpringBootTest
+// Own database: it leaves Orders and append-only rows (download_records, payment_events) that no test can delete, and
+// the default context's classes start with "delete from customers".
+@SpringBootTest(properties = "test.isolated-context=customer-anonymization-service")
 @Import(TestcontainersConfiguration.class)
 class CustomerAnonymizationTest {
 
