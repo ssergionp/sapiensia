@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { formatCents } from "@/features/products/schemas";
+import { TOO_MANY_REQUESTS, TooManyRequestsError } from "@/lib/tooManyRequests";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { NotLoggedInError, OrderNotFoundError } from "./api";
 import { useOrder, useOrderStatus } from "./hooks";
@@ -170,7 +171,9 @@ export default function OrderPage() {
       <main className="p-8">
         <p>{catalogLink}</p>
         <p role="alert" className="mt-4 text-destructive">
-          {T.loadError}
+          {query.error instanceof TooManyRequestsError
+            ? TOO_MANY_REQUESTS
+            : T.loadError}
         </p>
         <Button
           variant="outline"

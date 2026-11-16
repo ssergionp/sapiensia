@@ -77,6 +77,8 @@ export const FILE_UPLOAD_ERRORS = {
     "Não foi possível enviar o arquivo. Verifique a conexão e tente novamente.",
 } as const;
 
+import { TOO_MANY_REQUESTS } from "@/lib/tooManyRequests";
+
 export const REAUTHENTICATION_TEXTS = {
   publishedNotice:
     "Este Produto já foi publicado. Para trocar o arquivo, confirme sua senha e o código do aplicativo autenticador. Quem já comprou passa a baixar a nova versão.",
@@ -87,7 +89,7 @@ export const REAUTHENTICATION_TEXTS = {
   confirming: "Confirmando…",
   cancel: "Cancelar",
   rejected: "Senha ou código incorretos. Confira e tente de novo.",
-  locked: "Muitas tentativas. Aguarde alguns minutos e tente de novo.",
+  locked: TOO_MANY_REQUESTS,
   expired:
     "A confirmação venceu. Digite sua senha e o código de novo para enviar o arquivo.",
 } as const;

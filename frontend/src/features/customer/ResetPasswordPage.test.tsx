@@ -197,6 +197,20 @@ describe("ResetPasswordPage", () => {
     ).toHaveAttribute("role", "alert");
   });
 
+  test("#42: 429 mostra o aviso de muitas tentativas e não o erro genérico", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(429));
+    renderPage();
+
+    await submit(LONG_ENOUGH);
+
+    expect(
+      await screen.findByText(
+        "Muitas tentativas. Aguarde alguns minutos e tente de novo.",
+      ),
+    ).toHaveAttribute("role", "alert");
+    expect(screen.queryByText(/Não foi possível salvar agora/)).toBeNull();
+  });
+
   test('desabilita o botão e mostra "Salvando…" enquanto envia', async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation((url) =>
       url === CONFIRM_URL

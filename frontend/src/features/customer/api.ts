@@ -1,4 +1,5 @@
 import { apiFetch } from "@/lib/api";
+import { TooManyRequestsError } from "@/lib/tooManyRequests";
 import type { RegisterCustomerInput } from "./schemas";
 
 export class RegisterCustomerError extends Error {
@@ -20,6 +21,7 @@ export async function registerCustomer(
     body: JSON.stringify(input),
   });
   if (response.status === 202) return;
+  if (response.status === 429) throw new TooManyRequestsError();
   if (response.status === 400) {
     const body: unknown = await response.json().catch(() => null);
     const errors =
@@ -42,6 +44,7 @@ export async function requestPasswordReset(input: {
     body: JSON.stringify(input),
   });
   if (response.status === 202) return;
+  if (response.status === 429) throw new TooManyRequestsError();
   throw new Error(`Unexpected status ${response.status}`);
 }
 
@@ -75,6 +78,7 @@ export async function postPasswordSetup(
     body: JSON.stringify(input),
   });
   if (response.status === 204) return;
+  if (response.status === 429) throw new TooManyRequestsError();
   if (response.status === 400) {
     const body: unknown = await response.json().catch(() => null);
     const errors =
@@ -108,6 +112,7 @@ export async function confirmEmail(input: {
     body: JSON.stringify(input),
   });
   if (response.status === 204) return;
+  if (response.status === 429) throw new TooManyRequestsError();
   if (response.status === 400) {
     const body: unknown = await response.json().catch(() => null);
     const errors =

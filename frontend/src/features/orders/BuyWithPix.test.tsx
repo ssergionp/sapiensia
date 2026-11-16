@@ -202,6 +202,18 @@ describe("BuyWithPix", () => {
     },
   );
 
+  test("#42: 429 mostra o aviso de muitas tentativas e não o erro genérico", async () => {
+    setCsrfCookie("t");
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(429));
+    renderBuy();
+
+    await click("Comprar com Pix");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Muitas tentativas. Aguarde alguns minutos e tente de novo.",
+    );
+  });
+
   test('o botão fica desabilitado e diz "Gerando o Pix…" enquanto envia', async () => {
     setCsrfCookie("t");
     vi.spyOn(globalThis, "fetch").mockReturnValue(new Promise(() => {}));

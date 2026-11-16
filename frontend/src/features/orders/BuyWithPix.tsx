@@ -5,6 +5,7 @@ import { useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { TOO_MANY_REQUESTS, TooManyRequestsError } from "@/lib/tooManyRequests";
 import {
   AlreadyOwnedError,
   CpfInvalidError,
@@ -21,6 +22,7 @@ import { rememberReturnTo } from "./returnTo";
 import { type CpfForm, cpfFormSchema } from "./schemas";
 
 function failureMessage(error: Error): string {
+  if (error instanceof TooManyRequestsError) return TOO_MANY_REQUESTS;
   if (error instanceof PaymentUnavailableError) return T.paymentUnavailable;
   if (error instanceof OrderInProgressError) return T.inProgress;
   if (error instanceof ProductUnavailableError) return T.productUnavailable;

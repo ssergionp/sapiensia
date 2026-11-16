@@ -1,4 +1,5 @@
 import { apiFetch } from "@/lib/api";
+import { TooManyRequestsError } from "@/lib/tooManyRequests";
 import {
   type Order,
   type OrderList,
@@ -49,6 +50,7 @@ export async function createOrder(input: {
     throw new Error("Unexpected order payload");
   }
   if (response.status === 401) throw new NotLoggedInError();
+  if (response.status === 429) throw new TooManyRequestsError();
   if (response.status === 404) throw new ProductUnavailableError();
   if (response.status === 502) throw new PaymentUnavailableError();
   if (response.status === 409) {
@@ -80,6 +82,7 @@ export async function fetchOrder(id: string): Promise<Order> {
     throw new OrderNotFoundError();
   }
   if (response.status === 401) throw new NotLoggedInError();
+  if (response.status === 429) throw new TooManyRequestsError();
   if (response.status === 502) throw new PaymentUnavailableError();
   throw new Error(`Unexpected status ${response.status}`);
 }

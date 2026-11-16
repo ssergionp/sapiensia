@@ -140,6 +140,21 @@ describe("ConfirmEmailPage", () => {
     expect(screen.queryByLabelText("Senha")).not.toBeInTheDocument();
   });
 
+  test("#42: 429 mostra o aviso de muitas tentativas e não o erro genérico", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(429));
+    renderPage();
+
+    await submit("qualquer");
+
+    expect(
+      await screen.findByText(
+        "Muitas tentativas. Aguarde alguns minutos e tente de novo.",
+      ),
+    ).toHaveAttribute("role", "alert");
+    expect(screen.queryByText(/Não foi possível confirmar agora/)).toBeNull();
+    expect(screen.getByLabelText("Senha")).toBeInTheDocument();
+  });
+
   test("#49: depois de 5 senhas erradas explica o cancelamento e leva ao cadastro", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       jsonResponse(400, { errors: { token: "TOKEN_LOCKED" } }),
