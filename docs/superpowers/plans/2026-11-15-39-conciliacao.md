@@ -90,7 +90,7 @@ Para cada cobrança Pix da listagem, com o Pedido achado por `provider_payment_i
 1. As conferências do `PaymentConfirmation` comparam a cobrança **com o Pedido** (id, valor). Criar o Pedido a partir da cobrança faz a cobrança conferir a si mesma: o caminho único deixa de proteger.
 2. A cobrança não diz qual é o Produto (só a descrição em texto) e, depois de restaurar um backup, o Cliente também pode ter sumido: seria criar conta e Pedido com dados vindos de fora.
 3. Só acontece depois de uma restauração do banco, que já é manual e rara; um erro aqui libera conteúdo pago.
-4. FR-022 e SEC-030 pedem comparar e sinalizar. O runbook ensina a recriar o Pedido como `PENDING`; a conciliação seguinte o paga e concede o Acesso pelo caminho único.
+4. FR-022 e SEC-030 pedem comparar e sinalizar. O runbook ensina a recriar o Pedido como `EXPIRED` (nunca `PENDING`: a tarefa de expiração cancelaria a cobrança já paga no Asaas); a conciliação seguinte o paga e concede o Acesso pelo caminho único.
 
 Consequência (feita na aprovação): o critério "Pedido pago que faltava no banco é recriado com o Acesso" da issue #39 virou dois critérios, provados em dois testes (Pedido existente não pago → pago com Acesso; cobrança paga sem Pedido → só alerta), e a frase da linha 11 do ADR-0002 foi corrigida.
 
