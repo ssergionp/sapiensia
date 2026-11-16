@@ -20,7 +20,7 @@ tmp_for_docker="$(cygpath -m "$tmp" 2>/dev/null || echo "$tmp")"
 # shellcheck disable=SC2086
 pgc() { # the postgres client from the image that matches the server, with the temporary directory at /work
   MSYS_NO_PATHCONV=1 docker run --rm ${PG_DOCKER_ARGS-} -v "$tmp_for_docker:/work" \
-    -e PGHOST -e PGPORT -e PGUSER -e PGPASSWORD -e PGDATABASE "postgres:$PG_MAJOR" "$@"
+    -e PGHOST -e PGPORT -e PGUSER -e PGPASSWORD -e PGDATABASE -e PGSSLMODE "postgres:$PG_MAJOR" "$@"
 }
 
 age -d -i "$key" -o "$tmp/backup.dump" "$backup"

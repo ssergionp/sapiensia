@@ -36,6 +36,7 @@ jobs:
           PGUSER: ${{ secrets.HOMOLOG_BACKUP_DB_USER }}
           PGPASSWORD: ${{ secrets.HOMOLOG_BACKUP_DB_PASSWORD }}
           PGDATABASE: postgres
+          PGSSLMODE: require
           PG_MAJOR: ${{ vars.HOMOLOG_PG_MAJOR }}
           PG_DOCKER_ARGS: --network host
           BACKUP_RECIPIENTS_FILE: scripts/backup/age-recipients.txt

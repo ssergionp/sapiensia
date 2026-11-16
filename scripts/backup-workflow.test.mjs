@@ -69,3 +69,7 @@ test(`${TITLE}: secrets are only referenced in env, never inside run`, () => {
     }
   }
 });
+
+test(`${TITLE}: the backup step requires TLS for the database connection`, () => {
+  assert.match(yml, /^\s*PGSSLMODE:\s*require\s*$/m);
+});

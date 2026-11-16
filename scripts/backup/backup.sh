@@ -32,7 +32,7 @@ object_keys() { # $1 = now, ISO (2026-12-01T07:17:00Z)
 # shellcheck disable=SC2086
 pgc() { # a command of the postgres client, run from the image that matches the server
   MSYS_NO_PATHCONV=1 docker run --rm ${PG_DOCKER_ARGS-} \
-    -e PGHOST -e PGPORT -e PGUSER -e PGPASSWORD -e PGDATABASE "postgres:$PG_MAJOR" "$@"
+    -e PGHOST -e PGPORT -e PGUSER -e PGPASSWORD -e PGDATABASE -e PGSSLMODE "postgres:$PG_MAJOR" "$@"
 }
 
 main() {
