@@ -24,6 +24,13 @@ class DemoScriptTest {
     }
 
     @Test
+    void demoScriptKeepsTheStorageInTheMainFolderForEveryWorktree() throws Exception {
+        String script = Files.readString(SCRIPTS.resolve("demo.ps1"));
+
+        assertThat(script).contains("git rev-parse --git-common-dir").doesNotContain("'../.tmp/demo/storage'");
+    }
+
+    @Test
     void codeScriptUsesTheSeededTotpSecret() throws Exception {
         String script = Files.readString(SCRIPTS.resolve("demo-codigo.mjs"));
 

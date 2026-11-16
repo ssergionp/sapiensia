@@ -54,7 +54,11 @@ if (-not ("$exists".Trim() -eq '1')) {
 # 6. API in the background (env vars are inherited by the child process)
 $env:DB_URL = 'jdbc:postgresql://localhost:5433/app_demo'
 $env:APP_DEMO_ENABLED = 'true'
-$env:APP_STORAGE_FILE_DIR = '../.tmp/demo/storage'
+# Same files for the main folder and every worktree (they already share one database); falls back to this folder if git fails
+$gitCommon = git rev-parse --git-common-dir 2>$null
+$commonRoot = $root
+if ($LASTEXITCODE -eq 0 -and $gitCommon) { $commonRoot = Split-Path -Parent (Resolve-Path $gitCommon).Path }
+$env:APP_STORAGE_FILE_DIR = Join-Path $commonRoot '.tmp/demo/storage'
 $env:APP_EMAIL_OUTBOX_DIR = '../.tmp/demo/outbox'
 $pidFile = Join-Path $demoDir 'pids.txt'
 Remove-Item $pidFile -Force -ErrorAction SilentlyContinue   # ports are free, so any old file is stale
