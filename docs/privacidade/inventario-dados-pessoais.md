@@ -27,6 +27,7 @@ Titulares: o **Cliente** (quem compra e baixa) e o **Administrador** (uma pessoa
 | Dados do Administrador (e-mail, hash da senha, segredo do MFA cifrado, códigos de recuperação) | Banco | Operar o painel com MFA (ADR-0004) | Legítimo interesse (segurança) | Administrador | Supabase | Enquanto a conta existir | Atendido à mão, por e-mail (ADR-0007) |
 | E-mail do Cliente no limite de tentativas de login | Só na memória da aplicação, por pouco tempo | Frear tentativas de login | Legítimo interesse (segurança) | Cliente | Fly.io (processo) | Some sozinho; nada a fazer na anonimização | Não se aplica |
 | Logs da aplicação | Fly.io | Operar e investigar falhas | Legítimo interesse (segurança) | Cliente e Administrador | Fly.io | Sem dado pessoal por regra (SEC-036). Prazo do Fly.io: **a conferir** no painel do Fly | Não se aplica (não deve haver dado pessoal) |
+| Cópia criptografada do banco inteiro (`public`: todas as linhas acima) | Cloudflare R2, bucket privado `sapiensia-backup-homolog` (backup duas vezes por dia, ADR-0002); o GitHub Actions só passa o arquivo, sem guardá-lo | Recuperar o banco depois de um desastre (NFR-007, NFR-008) | Legítimo interesse (continuidade do serviço); obrigação legal (registro financeiro) | Cliente e Administrador | Cloudflare (R2); GitHub (o workflow lê o banco com um papel só de leitura) | Até 30 dias nos backups diários e até 93 dias nos mensais (trava e regra do R2 apagam sozinhas); arquivo criptografado com age, e só o Administrador tem a chave privada | A anonimização **não** altera backups já feitos: o Cliente continua neles por até 93 dias, e depois de restaurar as anonimizações pedidas depois do backup são refeitas (runbook `backup-e-restauracao.md`) |
 | E-mail e CPF da cobrança no Asaas (o Asaas guarda o e-mail como nome do cliente) | Asaas | Cobrar o Pix e manter o registro financeiro | Execução de contrato; obrigação legal | Cliente | Asaas | Regra do Asaas: **a conferir** | A anonimização **não** chama o Asaas. O Administrador decide com o contador se pede a remoção lá (runbook) |
 | E-mails enviados (confirmação, nova senha, aparelho novo, pagamento confirmado) | Resend | Entregar os e-mails | Execução de contrato | Cliente e Administrador | Resend | Regra do Resend: **a conferir** | A anonimização não apaga o histórico do Resend; e-mail pendente para conta anonimizada é descartado |
 
@@ -40,6 +41,7 @@ A explicação completa está no runbook `docs/runbooks/anonimizar-conta-cliente
 
 ## Limites deste inventário
 
+- Os backups (linha acima) guardam o que o banco tinha na hora, inclusive de Clientes depois anonimizados, por até 93 dias. O acesso é só do Administrador (chave privada do age e conta da Cloudflare).
 - Base legal e prazo de 5 anos esperam advogado e contador (o gate de lançamento do ADR-0007 já os exige).
 - O que o Asaas, o Resend e o Fly.io guardam não foi verificado aqui.
 - Exportação e correção de dados (FR-036, SEC-038) continuam à mão, por e-mail (ADR-0007).

@@ -20,6 +20,7 @@ Depois disso o painel de Pedidos mostra o e-mail como `a***@anonimizado.invalid`
 - Pedidos, Acessos, eventos de pagamento (com o `payload` como chegou), resultados e Registros de download ficam por **5 anos depois do Pedido**. O prazo é **provisório, a confirmar com o contador**. São registro financeiro e prova de entrega; sem eles não há como responder a um reembolso ou a uma cobrança.
 - Eles não têm e-mail nem nome do Cliente; ficam ligados ao `id` da linha anonimizada.
 - Ainda não há limpeza automática desses registros.
+- **Backups:** a anonimização não altera os backups já feitos no Cloudflare R2 (ADR-0002, #40). O Cliente continua neles, com o e-mail original, por até 93 dias. Se o banco for restaurado de um backup, **refaça as anonimizações pedidas depois da data dele** (`docs/runbooks/backup-e-restauracao.md`).
 
 ## Passos
 

@@ -23,6 +23,7 @@ Plataforma web para criar e revisar e-books, cartilhas, tutoriais e checklists c
 - `just doctor`: confere o computador (Java, Docker, portas do banco e da API...)
 - `just e2e`: testes de ponta a ponta no navegador, contra o sistema de verdade (antes: `just db`, `just dev-back` e `just dev-front`)
 - `just imagem`: gera a imagem Docker do sistema inteiro, a mesma que vai para homologação e produção
+- `just backup-restaurar <arquivo.age> <chave.txt>`: restaura um backup criptografado num banco de destino (variáveis PG* e PG_MAJOR no ambiente; veja docs/runbooks/backup-e-restauracao.md)
 - `just limpar-ticket`: depois do merge da PR, encerra os processos do ticket, remove a worktree, atualiza a main e apaga a branch local.
 - Antes de declarar um ticket pronto: skill `verificar-entrega` (check rápido recente, arquivos fora do plano, teste afrouxado, tela e sistema de verdade); depois da PR, o ticket só está pronto com o CI verde.
 - Se `just lint` acusar formatação, rode `just fmt`.
@@ -34,7 +35,7 @@ Plataforma web para criar e revisar e-books, cartilhas, tutoriais e checklists c
 - frontend/: React. Código por funcionalidade em src/features/<funcionalidade>/; componentes shadcn em src/components/ui; testes de ponta a ponta em e2e/ (arquivos `*.e2e.ts`).
 - backend/.../security/SecurityConfig.java: rotas de /api negadas por padrão, CSRF para a SPA e cabeçalhos de segurança. backend/.../web/SpaConfig.java: a API serve o build do React.
 - Dockerfile: imagem única (React dentro do jar), perfil `prod` (application-prod.yml). Health check em /api/system/health.
-- docs/: decisões em docs/adr/; passo a passo operacional em docs/runbooks/ (recuperar o acesso do Administrador; homologação no Fly.io); convenções das skills do Pocock em docs/agents/.
+- docs/: decisões em docs/adr/; passo a passo operacional em docs/runbooks/ (recuperar o acesso do Administrador; homologação no Fly.io; backup e restauração); convenções das skills do Pocock em docs/agents/.
 - scripts/: novo-projeto.ps1 (usado uma vez, na criação), escolher-portas.ps1 (portas do banco e da API), verificar-ambiente.ps1 (just doctor), check-resumo.ps1 (just check-resumo) e limpar-ticket.ps1 (just limpar-ticket).
 - .claude/: hooks (Biome depois de cada edição; check antes de encerrar a resposta numa branch de ticket) e a skill verificar-entrega.
 
@@ -58,6 +59,7 @@ Glossário e convenções das skills: veja docs/agents/ (o domain.md diz onde fi
 - backend/.../alert/AdminAlerts.java: o único jeito de gerar um alerta ao Administrador; `record` dentro de uma transação (grava a linha junto com o resultado), `recordSafely` fora dela (nunca lança). O e-mail sai depois, pela tarefa `admin-alert-dispatch`, nunca na transação do pagamento.
 - backend/.../web/RequestRateLimiter.java (com `RateLimitInterceptor` e `RateLimitConfig`): o único jeito de limitar uma rota por IP e por conta (em memória, por instância). Rota limitada nova = um `RateLimitedOperation` + as propriedades `app.rate-limit.<operação>` + uma entrada no `RateLimitConfig` + uma linha em docs/api/endpoints.md.
 - `frontend/e2e/a11y.ts` (`expectNoA11yViolations`): o axe do e2e; tela nova numa jornada crítica ganha um scan no teste da jornada; exceção só por regra + tela em `KNOWN_ISSUES`, com issue. Auditoria: docs/acessibilidade/auditoria-jornadas.md.
+- scripts/backup/: o único jeito de copiar e restaurar o banco (`backup.sh`, `restore.sh`); os mesmos scripts rodam no workflow `backup.yml`, no teste de ida e volta do CI e no runbook docs/runbooks/backup-e-restauracao.md. Duas vezes por dia, criptografado com age, para o R2.
 - (liste aqui outros helpers e componentes que o Claude deve usar em vez de criar novos)
 
 ## Segurança e produção

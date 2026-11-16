@@ -569,7 +569,7 @@ do serviço.
 | NFR-004 Resiliência         | Tarefas sobrevivem a reinício; retry e dead-letter operacionais        | Testes de falha e replay                                                    |
 | NFR-005 Acessibilidade      | WCAG 2.2 AA geral; AAA selecionado para critérios prioritários         | Ferramentas automáticas e auditoria manual                                  |
 | NFR-006 Compatibilidade     | Matriz explícita de navegadores/dispositivos                           | Testes de PWA, instalação, atualização e offline                            |
-| NFR-007 Recuperação         | RPO até 15 min e RTO até 4 h como proposta inicial                     | Exercício de recuperação documentado                                        |
+| NFR-007 Recuperação         | RPO até 24 h e RTO até 1 dia (ADR-0002)                                | Exercício de recuperação documentado                                        |
 | NFR-008 Backup              | Backups criptografados, segregados e restaurados periodicamente        | Evidência de restauração e integridade                                      |
 | NFR-009 Observabilidade     | Logs, métricas, traces, dashboards e alertas                           | Simulação de incidentes e revisão de alertas                                |
 | NFR-010 Escala              | Carga nominal e de pico definidas antes do lançamento                  | Teste de carga e teste de estresse                                          |
