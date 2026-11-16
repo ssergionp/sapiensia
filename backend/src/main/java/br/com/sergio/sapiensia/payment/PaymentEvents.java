@@ -36,6 +36,14 @@ class PaymentEvents {
                 .optional();
     }
 
+    /** The internal id of the event with this provider event id. */
+    Optional<UUID> findIdByProviderEventId(String providerEventId) {
+        return jdbc.sql("select id from payment_events where provider_event_id = :id")
+                .param("id", providerEventId)
+                .query(UUID.class)
+                .optional();
+    }
+
     /** Reads only the charge id and the balance type (null unless JSON strings); the whole body is never loaded. */
     Optional<Ref> findRef(UUID id) {
         return jdbc.sql("select provider_event_id, event_type,"

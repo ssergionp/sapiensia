@@ -432,6 +432,145 @@ class AsaasPixGatewayWireTest {
     }
 
     @Test
+    @DisplayName("FR-022: lista as cobranças Pix criadas desde a data, com offset e limit")
+    void shouldListPixChargesCreatedSinceTheDateWithOffsetAndLimit() {
+        replyWith(
+                200,
+                "{\"object\":\"list\",\"hasMore\":true,\"totalCount\":500,\"limit\":100,\"offset\":100,\"data\":["
+                        + "{\"id\":\"pay_1\",\"status\":\"RECEIVED\",\"value\":29.9,\"billingType\":\"PIX\","
+                        + "\"externalReference\":\"order-1\",\"deleted\":false,\"description\":\"" + MARKER + "\"},"
+                        + "{\"id\":\"pay_2\",\"status\":\"PENDING\",\"value\":10,\"billingType\":\"PIX\","
+                        + "\"externalReference\":null,\"deleted\":true}]}");
+
+        PixChargePage page = gateway().listCharges(LocalDate.of(2026, 10, 16), 100, 100);
+
+        assertThat(requests).hasSize(1);
+        Seen seen = requests.get(0);
+        assertThat(seen.method()).isEqualTo("GET");
+        assertThat(seen.path()).isEqualTo("/v3/payments");
+        assertThat(seen.query()).contains("billingType=PIX");
+        assertThat(seen.query()).contains("offset=100").contains("limit=100");
+        assertThat(java.net.URLDecoder.decode(seen.query(), StandardCharsets.UTF_8))
+                .contains("dateCreated[ge]=2026-10-16");
+        assertThat(seen.headers().get("access_token")).containsExactly(KEY);
+        assertThat(page.hasMore()).isTrue();
+        assertThat(page.charges()).hasSize(2);
+        PixCharge first = page.charges().get(0);
+        assertThat(first.id()).isEqualTo("pay_1");
+        assertThat(first.status()).isEqualTo("RECEIVED");
+        assertThat(first.value()).isEqualByComparingTo("29.90");
+        assertThat(first.billingType()).isEqualTo("PIX");
+        assertThat(first.externalReference()).isEqualTo("order-1");
+        assertThat(first.deleted()).isFalse();
+        PixCharge second = page.charges().get(1);
+        assertThat(second.id()).isEqualTo("pay_2");
+        assertThat(second.externalReference()).isNull();
+        assertThat(second.deleted()).isTrue();
+    }
+
+    static Stream<Arguments> badListAnswers() {
+        String ok = "\"status\":\"PENDING\",\"value\":10,\"billingType\":\"PIX\"";
+        return Stream.of(
+                Arguments.of(
+                        "{\"hasMore\":false,\"data\":[{\"status\":\"PENDING\",\"value\":10,\"billingType\":\"PIX\"}]}"),
+                Arguments.of("{\"hasMore\":false,\"data\":[{\"id\":\"pay_1\",\"value\":10,\"billingType\":\"PIX\"}]}"),
+                Arguments.of(
+                        "{\"hasMore\":false,\"data\":[{\"id\":\"pay_1\",\"status\":\"PENDING\",\"billingType\":\"PIX\"}]}"),
+                Arguments.of("{\"hasMore\":false,\"data\":[{\"id\":\"pay_1\"," + ok.replace("10", "\"10\"") + "}]}"),
+                Arguments.of("{\"hasMore\":false}"),
+                Arguments.of("{\"hasMore\":false,\"data\":{}}"),
+                Arguments.of("{\"data\":[]}"),
+                Arguments.of("{\"hasMore\":\"false\",\"data\":[]}"),
+                Arguments.of("{not json"));
+    }
+
+    @ParameterizedTest
+    @MethodSource("badListAnswers")
+    @DisplayName("FR-022: item da listagem sem id, status ou value é indisponibilidade")
+    void shouldReportAnUnexpectedListAnswerAsUnavailable(String body) {
+        replyWith(200, body);
+
+        assertThatThrownBy(() -> gateway().listCharges(LocalDate.of(2026, 10, 16), 0, 100))
+                .isInstanceOfSatisfying(PixGatewayException.class, e -> {
+                    assertThat(e.kind()).isEqualTo(PixGatewayException.Kind.UNAVAILABLE);
+                    assertThat(e.step()).isEqualTo("LIST_CHARGES");
+                });
+    }
+
+    @Test
+    @DisplayName("FR-022: 429 na listagem é indisponibilidade")
+    void shouldReportA429ListAsUnavailable() {
+        replyWith(429, "{\"errors\":[]}");
+
+        assertThatThrownBy(() -> gateway().listCharges(LocalDate.of(2026, 10, 16), 0, 100))
+                .isInstanceOfSatisfying(PixGatewayException.class, e -> {
+                    assertThat(e.kind()).isEqualTo(PixGatewayException.Kind.UNAVAILABLE);
+                    assertThat(e.step()).isEqualTo("LIST_CHARGES");
+                });
+    }
+
+    @Test
+    @DisplayName("FR-022: listagem acima de 2 MiB é indisponibilidade")
+    void shouldReportAListAbove2MiBAsUnavailable() {
+        // a valid page followed by blanks: cut at 2 MiB it would still parse, so only a size check refuses it
+        String page = "{\"hasMore\":false,\"data\":[]}";
+        replyWith(200, page + " ".repeat(2 * 1024 * 1024 + 1));
+
+        assertThatThrownBy(() -> gateway().listCharges(LocalDate.of(2026, 10, 16), 0, 100))
+                .isInstanceOfSatisfying(PixGatewayException.class, e -> {
+                    assertThat(e.kind()).isEqualTo(PixGatewayException.Kind.UNAVAILABLE);
+                    assertThat(e.step()).isEqualTo("LIST_CHARGES");
+                });
+    }
+
+    @Test
+    @DisplayName("FR-022: página de 100 cobranças, mais de 64 KiB, cabe na listagem")
+    void shouldReadAPageLargerThan64KiB() {
+        StringBuilder data = new StringBuilder();
+        for (int i = 0; i < 100; i++) {
+            data.append(i == 0 ? "" : ",")
+                    .append("{\"id\":\"pay_")
+                    .append(i)
+                    .append("\",\"status\":\"PENDING\",\"value\":10,\"billingType\":\"PIX\",\"description\":\"")
+                    .append("d".repeat(1000))
+                    .append("\"}");
+        }
+        replyWith(200, "{\"hasMore\":false,\"data\":[" + data + "]}");
+
+        PixChargePage page = gateway().listCharges(LocalDate.of(2026, 10, 16), 0, 100);
+
+        assertThat(page.charges()).hasSize(100);
+        assertThat(page.hasMore()).isFalse();
+    }
+
+    @Test
+    @DisplayName("SEC-030: a falha da listagem não leva o corpo da resposta ao log")
+    void shouldNeverPutTheListFailureBodyInTheLog(CapturedOutput output) {
+        String planted = "ana.silva@example.com " + CPF + " " + MARKER;
+        for (Reply answer : List.of(
+                new Reply(500, "{\"errors\":[{\"code\":\"c\",\"description\":\"" + planted + "\"}]}"),
+                new Reply(429, "{\"description\":\"" + planted + "\"}"),
+                new Reply(200, "{\"hasMore\":false,\"data\":[{\"id\":\"pay_1\",\"description\":\"" + planted + "\"}]}"),
+                new Reply(200, "{\"hasMore\":false,\"data\":[],\"x\":\"" + planted + "\""))) {
+            replyWith(answer.status(), answer.body());
+            assertThatThrownBy(() -> gateway().listCharges(LocalDate.of(2026, 10, 16), 0, 100))
+                    .isInstanceOfSatisfying(PixGatewayException.class, e -> {
+                        assertThat(e.kind()).isEqualTo(PixGatewayException.Kind.UNAVAILABLE);
+                        assertThat(e.getMessage())
+                                .doesNotContain("example.com")
+                                .doesNotContain(CPF)
+                                .doesNotContain(MARKER);
+                    });
+        }
+
+        assertThat(output.getAll())
+                .contains("LIST_CHARGES")
+                .doesNotContain("example.com")
+                .doesNotContain(CPF)
+                .doesNotContain(MARKER);
+    }
+
+    @Test
     @DisplayName("SEC-026: shouldReadTheChargeWithTheApiKey")
     void shouldReadTheChargeWithTheApiKey() {
         replyWith(

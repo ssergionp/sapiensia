@@ -119,6 +119,14 @@ app:
   pix:
     # who creates the Pix charges: "fake" (in memory, never in prod) or "asaas" (the prod profile sets it)
     provider: fake
+  reconciliation:
+    # when the nightly reconciliation runs (Spring cron with seconds, São Paulo time); "-" disables it (local, demo
+    # and tests); the prod profile sets the time
+    cron: "-"
+    # the nightly reconciliation compares the charges created in this many days (São Paulo calendar) with the Orders
+    window-days: 90
+    # at most this many pages of 100 charges per run; more raises the TOO_MANY_CHARGES alert
+    max-pages: 300
   orders:
     # how long a pending order waits for its Pix payment
     pix-ttl: PT30M

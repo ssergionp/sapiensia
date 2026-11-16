@@ -24,6 +24,12 @@ public interface PixGateway {
      */
     PixCharge readCharge(String chargeId);
 
+    /**
+     * Lists the Pix charges created on or after {@code createdFrom}, one page at a time ({@code limit} at most 100).
+     * Any failure, including an answer of an unexpected shape, is UNAVAILABLE.
+     */
+    PixChargePage listCharges(LocalDate createdFrom, int offset, int limit);
+
     /** Cancels the charge; a charge that no longer exists counts as cancelled. */
     void cancelCharge(String chargeId);
 }

@@ -187,23 +187,23 @@ class AdminAlertDispatchTest {
         for (AdminAlertType type : AdminAlertType.values()) {
             recordDistinct(type);
         }
-        assertThat(dispatch.run().sent()).isEqualTo(5);
-        assertThat(alertMails()).hasSize(5);
+        assertThat(dispatch.run().sent()).isEqualTo(7);
+        assertThat(alertMails()).hasSize(7);
 
         clock.advance(GROUP_WINDOW);
         for (AdminAlertType type : AdminAlertType.values()) {
             recordDistinct(type);
         }
-        assertThat(dispatch.run().sent()).isEqualTo(3);
+        assertThat(dispatch.run().sent()).isEqualTo(1);
 
         assertThat(alertMails()).hasSize(8);
-        assertThat(alertMails().get(5).subject()).contains("evento de pagamento não processado");
+        assertThat(alertMails().get(7).subject()).contains("evento de pagamento não processado");
         assertThat(jdbc.queryForObject("select count(*) from admin_alerts where email_sent_at is null", Integer.class))
-                .isEqualTo(2);
+                .isEqualTo(6);
 
         clock.advance(Duration.ofMinutes(45));
-        assertThat(dispatch.run().sent()).isEqualTo(2);
-        assertThat(alertMails()).hasSize(10);
+        assertThat(dispatch.run().sent()).isEqualTo(6);
+        assertThat(alertMails()).hasSize(14);
     }
 
     @Test

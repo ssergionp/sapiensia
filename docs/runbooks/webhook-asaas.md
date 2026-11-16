@@ -268,8 +268,10 @@ Quando algo no pagamento precisa de você, o sistema manda um e-mail ao Administ
 |---|---|---|
 | `PAYMENT_EVENT_GAVE_UP` (evento de pagamento não processado) | O sistema esgotou as tentativas de processar um evento de pagamento. Pode haver Cliente que pagou e não recebeu o Acesso. | Reprocesse pela seção "Reprocessar um evento de pagamento". |
 | `PAYMENT_EVENT_NEEDS_REVIEW` (evento de pagamento para revisar) | Um evento terminou com um resultado que precisa de conferência; o código do resultado vem em cada linha do e-mail. | Veja as seções "Conferir um pagamento" e "Reembolso e MED". |
+| `RECONCILIATION_DIVERGENCE` (divergência na conciliação com o Asaas) | A conciliação noturna achou uma diferença entre um Pedido e a cobrança do Asaas que o sistema não corrige sozinho; o código vem em cada linha. | Veja a seção "Divergências" do `docs/runbooks/conciliacao-asaas.md`. |
 | `ORDER_PAID_EMAIL_GAVE_UP` (e-mail de pagamento não enviado) | O Pedido está pago e o Acesso foi concedido; só o e-mail ao Cliente falhou. | Reenvie pela seção "Reenviar o e-mail de pagamento confirmado". |
 | `WEBHOOK_REJECTED` (webhook do Asaas recusado) | O sistema recusou chamadas ao webhook; enquanto o Asaas for recusado, os pagamentos não são confirmados. O motivo vem na linha (veja abaixo). | Confira o token e a lista de IPs. |
+| `RECONCILIATION_FAILED` (conciliação com o Asaas não terminou) | A conciliação noturna parou antes do fim (`ASAAS_UNAVAILABLE`, `TOO_MANY_CHARGES` ou `UNEXPECTED_ERROR`). | Veja a seção "A conciliação não terminou" do `docs/runbooks/conciliacao-asaas.md`. |
 | `TASK_GAVE_UP` (tarefa em segundo plano descartada) | Uma tarefa de e-mail falhou em todas as tentativas e foi descartada; a linha traz o nome da tarefa. | Procure o nome da tarefa no log para ver o motivo; o Cliente pode pedir o e-mail de novo pelo site. |
 
 ### Motivos do `WEBHOOK_REJECTED`

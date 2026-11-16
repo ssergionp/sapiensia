@@ -185,6 +185,14 @@ class Orders {
                 .optional();
     }
 
+    /** The PAID Orders created at or after {@code since}. */
+    List<Row> findPaidCreatedSince(Instant since) {
+        return jdbc.sql(SELECT + " where o.status = 'PAID' and o.created_at >= :since order by o.created_at, o.id")
+                .param("since", Timestamp.from(since))
+                .query(Orders::map)
+                .list();
+    }
+
     Optional<Row> findById(UUID id) {
         return jdbc.sql(SELECT + " where o.id = :id")
                 .param("id", id)

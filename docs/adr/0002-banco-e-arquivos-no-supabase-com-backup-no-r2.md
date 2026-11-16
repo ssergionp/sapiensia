@@ -8,7 +8,7 @@ O PostgreSQL fica no Supabase Free (São Paulo) e os Arquivos do produto no Supa
 
 ## Consequences
 
-- Pedidos e cadastros feitos depois do último backup podem se perder. A conciliação noturna com o Asaas recria Pedidos pagos e Acessos que faltarem.
+- Pedidos e cadastros feitos depois do último backup podem se perder. A conciliação noturna com o Asaas (#39) corrige o pagamento e o estorno de Pedidos que existem no banco, sempre pelos caminhos únicos (`PaymentConfirmation` e `RefundConfirmation`), e **não recria Pedido**: uma cobrança paga sem Pedido no banco gera um alerta ao Administrador. O Pedido perdido é recriado à mão como expirado pelo runbook `docs/runbooks/conciliacao-asaas.md`, e a conciliação seguinte o leva a pago e concede o Acesso. Criar o Pedido a partir da cobrança faria a cobrança conferir a si mesma, e ela não diz qual é o Produto.
 - Os arquivos ficam fora do banco, então perder o banco não apaga os PDFs.
 - O gate de lançamento exige um teste de restauração feito de verdade, na homologação.
 - Se as vendas crescerem, migrar para backup contínuo (plano pago do Supabase) é uma decisão de custo a reabrir.
