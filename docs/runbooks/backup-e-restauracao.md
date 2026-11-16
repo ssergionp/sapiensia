@@ -43,7 +43,7 @@ Hoje só existe a homologação. A produção (#43) repete estes passos com buck
    - *Object lifecycle*: prefixo `daily/`, apagar depois de 30 dias; prefixo `monthly/`, apagar depois de 93 dias.
    - *Bucket lock*: prefixo `daily/`, 30 dias; prefixo `monthly/`, 93 dias.
 
-   Por que 93 dias: três meses seguidos somam no máximo 92 dias, então ficam sempre os 3 últimos mensais. A trava vence antes da regra de apagar; o R2 remove em até cerca de 24 h depois do prazo.
+   Por que 93 dias: três meses seguidos somam no máximo 92 dias, então ficam os 3 últimos mensais (por algumas horas no dia 1, 4). A trava vence antes da regra de apagar; o R2 remove em até cerca de 24 h depois do prazo.
 4. **[RESPONSÁVEL]** Em R2 > Manage API tokens, crie um token **Object Read & Write**, restrito ao bucket `sapiensia-backup-homolog`. O R2 não tem permissão só de escrita; esta é a menor que grava. O que compensa: o que está no bucket é criptografado e a trava impede apagar. Guarde no Bitwarden o *Access Key ID*, o *Secret Access Key* e o *Account ID*.
 
 ### 2. Chave do age
@@ -110,7 +110,7 @@ O backup não usa a senha do `postgres` da aplicação: usa um papel só de leit
    Get-Content scripts/backup/create-backup-role.sql | docker run --rm -i -e PGPASSWORD -e BACKUP_ROLE_PASSWORD postgres:<PG_MAJOR> psql "host=<host do pooler> port=5432 dbname=postgres user=postgres.<ref do projeto> sslmode=require" -f -
    ```
 
-   Manda o script para o `psql` dentro de um contêiner, que cria o papel `backup_reader` (só leitura, com `bypassrls`) e dá `select` nas tabelas do `public`. Pode ser repetido: só refaz a senha e as permissões.
+   Manda o script para o `psql` dentro de um contêiner, que cria o papel `backup_reader` (só leitura, com `bypassrls`) e dá `select` nas tabelas do `public`. Pode ser repetido: só refaz a senha e as permissões. A senha do `backup_reader` viaja dentro do comando `ALTER ROLE` e pode aparecer nos logs de comandos do Supabase; o papel só lê, e a senha pode ser trocada rodando o script de novo.
 
 4. **[RESPONSÁVEL]** Apague as senhas da janela.
 
@@ -221,13 +221,19 @@ Use para o desastre de verdade e para o exercício periódico. Um banco restaura
 
    Versão da imagem `postgres:<major>` que o script usa (igual à do servidor).
 
+   ```powershell
+   $env:PGSSLMODE = "require"
+   ```
+
+   Obriga a conexão com o banco novo a ser criptografada (TLS); sem isso o `psql` aceitaria uma conexão aberta.
+
 4. **[RESPONSÁVEL]** Restaure.
 
    ```powershell
    just backup-restaurar <caminho do arquivo.age> <caminho da chave privada.txt>
    ```
 
-   Descriptografa numa pasta temporária, roda o `pg_restore` pela imagem `postgres:<major>` numa só transação (se algo falhar, o banco novo fica como estava) e apaga o texto aberto no fim, mesmo se der erro. Com a chave errada, para antes de tocar o banco.
+   Descriptografa numa pasta temporária, roda o `pg_restore` pela imagem `postgres:<major>` numa só transação (se algo falhar, o banco novo fica como estava) e apaga o texto aberto no fim, mesmo se der erro (não se o processo for encerrado à força; nesse caso apague a pasta temporária que o script criou, uma `tmp.XXXXXX` dentro da pasta temporária do sistema, em `$env:TEMP`). Com a chave errada, para antes de tocar o banco.
 
 5. **[RESPONSÁVEL]** Confira. O script imprime a lista de tabelas com a contagem exata de cada uma: compare com o que você espera. Depois confira a última versão do Flyway.
 
@@ -249,7 +255,7 @@ Use para o desastre de verdade e para o exercício periódico. Um banco restaura
    Remove-Item Env:PGPASSWORD
    ```
 
-   Remove a senha do ambiente. Faça o mesmo para `PGHOST`, `PGPORT`, `PGUSER`, `PGDATABASE` e `PG_MAJOR`.
+   Remove a senha do ambiente. Faça o mesmo para `PGHOST`, `PGPORT`, `PGUSER`, `PGDATABASE`, `PG_MAJOR` e `PGSSLMODE`.
 
 7. **[RESPONSÁVEL]** Aponte a aplicação para o banco novo, trocando `DB_URL`, `DB_USER` e `DB_PASSWORD` (formato em `docs/runbooks/homologacao-fly.md`, seção 3).
 
