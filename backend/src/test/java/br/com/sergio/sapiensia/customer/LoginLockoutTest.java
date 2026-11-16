@@ -1,7 +1,6 @@
 package br.com.sergio.sapiensia.customer;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doThrow;
@@ -182,7 +181,8 @@ class LoginLockoutTest {
                 .when(passwordEncoder)
                 .matches(any(), any());
 
-        assertThatThrownBy(() -> login(email, WRONG, "10.10.0.1")).hasRootCauseInstanceOf(IllegalStateException.class);
+        // the unexpected exception no longer escapes the controller: the public answer is a generic 500 (SEC-018)
+        assertThat(login(email, WRONG, "10.10.0.1").getResponse().getStatus()).isEqualTo(500);
 
         // five more wrong passwords are still five attempts, not six: no slot was left behind
         for (int i = 0; i < 5; i++) {

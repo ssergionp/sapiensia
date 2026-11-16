@@ -13,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.ProviderManager;
@@ -76,7 +77,7 @@ class SessionController {
     }
 
     /** 204 and the session cookie, or an empty 401 that is identical for every kind of failure. */
-    @PostMapping
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     ResponseEntity<Void> login(
             @RequestBody LoginRequest login, HttpServletRequest request, HttpServletResponse response) {
         return passwordLogin.login(loginVariant, login.email(), login.password(), request, response);

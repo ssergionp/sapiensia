@@ -269,7 +269,7 @@ class AdminProductTest {
         assertThat((List<?>) JsonPath.read(first.body(), "$.items[*].priceCents"))
                 .hasSize(20);
 
-        for (String page : new String[] {"2", "2147483647"}) {
+        for (String page : new String[] {"2", "10000"}) {
             HttpResponse<String> beyond = admin.get(PRODUCTS + "?page=" + page);
             assertThat(beyond.statusCode()).as(page).isEqualTo(200);
             assertThat((List<?>) JsonPath.read(beyond.body(), "$.items"))
@@ -284,7 +284,7 @@ class AdminProductTest {
     @Test
     @DisplayName("SEC-015: página negativa ou não numérica dá 400 sem detalhe interno")
     void shouldRefuseABadPage() throws Exception {
-        for (String page : new String[] {"-1", "abc", "1.5", "2147483648"}) {
+        for (String page : new String[] {"-1", "abc", "1.5", "2147483648", "10001", "2147483647"}) {
             assertBadRequestWithoutInternals(admin.get(PRODUCTS + "?page=" + page));
         }
     }

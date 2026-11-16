@@ -188,12 +188,12 @@ class CatalogTest {
         assertThat(titles(first)).hasSize(20);
         assertThat((Integer) JsonPath.read(first.body(), "$.totalPages")).isEqualTo(2);
         assertThat(titles(second)).hasSize(1).doesNotContainAnyElementsOf(titles(first));
-        for (String page : List.of("5", "2147483647")) {
+        for (String page : List.of("5", "10000")) {
             HttpResponse<String> past = get("/api/products?page=" + page);
             assertThat(past.statusCode()).isEqualTo(200);
             assertThat(titles(past)).isEmpty();
         }
-        for (String page : List.of("-1", "abc", "2147483648")) {
+        for (String page : List.of("-1", "abc", "2147483648", "10001", "2147483647")) {
             HttpResponse<String> invalid = get("/api/products?page=" + page);
             assertThat(invalid.statusCode()).as("page=" + page).isEqualTo(400);
             assertThat(invalid.body())

@@ -1,5 +1,6 @@
 package br.com.sergio.sapiensia.payment;
 
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -19,7 +20,8 @@ class AdminOrderController {
 
     @GetMapping
     AdminOrderPage list(
-            @RequestParam(defaultValue = "0") @Min(0) int page, @RequestParam(required = false) OrderStatus status) {
+            @RequestParam(defaultValue = "0") @Min(0) @Max(10000) int page,
+            @RequestParam(required = false) OrderStatus status) {
         return orders.listForAdministrator(page, status);
     }
 }

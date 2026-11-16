@@ -21,7 +21,18 @@ class UnreadableBodyHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     ResponseEntity<ProblemDetail> handleUnreadableBody() {
+        // the body stream gave up because it went over 64 KiB (RequestBodyLimitFilter): a 413, not a 400
+        if (RequestBodyLimitFilter.exceeded()) {
+            return payloadTooLarge();
+        }
         return ResponseEntity.badRequest()
                 .body(ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Failed to read request"));
+    }
+
+    static ResponseEntity<ProblemDetail> payloadTooLarge() {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.PAYLOAD_TOO_LARGE);
+        problem.setTitle("Payload too large");
+        problem.setProperty("code", "PAYLOAD_TOO_LARGE");
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(problem);
     }
 }

@@ -21,20 +21,32 @@ import br.com.sergio.sapiensia.product.ProductNotFoundException;
 import br.com.sergio.sapiensia.product.ProductVersionConflictException;
 import java.util.Map;
 import java.util.TreeMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.TypeMismatchException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.web.ErrorResponse;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 /** Turns validation and business errors into {@code ProblemDetail} with an {@code errors} map of field to code. */
 @RestControllerAdvice
 class ApiExceptionHandler extends ResponseEntityExceptionHandler {
+
+    private static final Logger LOG = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(
@@ -173,6 +185,76 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
                         HttpHeaders.RETRY_AFTER,
                         String.valueOf(Math.max(1, e.retryAfter().toSeconds())))
                 .body(problem);
+    }
+
+    // Answers of the framework itself (SEC-018, SEC-020): the title only, never the text Spring would put in "detail".
+
+    @Override
+    protected ResponseEntity<Object> handleHttpMediaTypeNotSupported(
+            HttpMediaTypeNotSupportedException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+        return titleOnly(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Unsupported media type", headers);
+    }
+
+    @Override
+    protected ResponseEntity<Object> handleHttpRequestMethodNotSupported(
+            HttpRequestMethodNotSupportedException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+        return titleOnly(HttpStatus.METHOD_NOT_ALLOWED, "Method not allowed", headers);
+    }
+
+    @Override
+    protected ResponseEntity<Object> handleMissingServletRequestParameter(
+            MissingServletRequestParameterException ex,
+            HttpHeaders headers,
+            HttpStatusCode status,
+            WebRequest request) {
+        return invalidRequest();
+    }
+
+    @Override
+    protected ResponseEntity<Object> handleTypeMismatch(
+            TypeMismatchException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+        return invalidRequest();
+    }
+
+    /** A constraint on a request parameter, such as {@code page} above 10000 (SEC-015). */
+    @Override
+    protected ResponseEntity<Object> handleHandlerMethodValidationException(
+            HandlerMethodValidationException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+        return invalidRequest();
+    }
+
+    /**
+     * The last net: an exception nobody handled is a generic 500 and goes to the server log with its class and stack,
+     * never with the request body. Security exceptions go on to the filter chain (401 or 403), and an exception that
+     * already carries its own status keeps it.
+     */
+    @ExceptionHandler(Exception.class)
+    ResponseEntity<?> handleUnexpected(Exception e) throws Exception {
+        if (e instanceof AccessDeniedException || e instanceof AuthenticationException) {
+            throw e;
+        }
+        if (e instanceof ErrorResponse response) {
+            return ResponseEntity.status(response.getStatusCode())
+                    .headers(response.getHeaders())
+                    .body(response.getBody());
+        }
+        if (RequestBodyLimitFilter.exceeded()) {
+            return UnreadableBodyHandler.payloadTooLarge();
+        }
+        LOG.error("Unhandled exception {}", e.getClass().getName(), e);
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.INTERNAL_SERVER_ERROR);
+        problem.setTitle("Internal error");
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(problem);
+    }
+
+    private static ResponseEntity<Object> invalidRequest() {
+        return titleOnly(HttpStatus.BAD_REQUEST, "Invalid request", HttpHeaders.EMPTY);
+    }
+
+    private static ResponseEntity<Object> titleOnly(HttpStatus status, String title, HttpHeaders headers) {
+        ProblemDetail problem = ProblemDetail.forStatus(status);
+        problem.setTitle(title);
+        return ResponseEntity.status(status).headers(headers).body(problem);
     }
 
     private static ResponseEntity<ProblemDetail> refusal(HttpStatus status, Map<String, String> errors) {

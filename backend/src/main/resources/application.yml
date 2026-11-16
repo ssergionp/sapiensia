@@ -1,6 +1,15 @@
 # API port: scripts/escolher-portas.ps1 gives each project its own (8081 and up).
 server:
   port: 8081
+  # public answers never carry the text, class or binding details of an error (SEC-018); explicit so a Boot default
+  # change cannot reopen them
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-binding-errors: never
+    include-exception: false
+  # a request line and headers above this are refused by Tomcat (SEC-015)
+  max-http-request-header-size: 16KB
   servlet:
     session:
       # idle timeout (SEC-005); the session lives in server memory, so a restart logs everyone out

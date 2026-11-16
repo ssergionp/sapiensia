@@ -13,6 +13,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -38,7 +39,7 @@ class CustomerAnonymizationController {
         this.clientIp = clientIp;
     }
 
-    @PostMapping
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Anonymize the account that has this e-mail")
     @ApiResponse(responseCode = "204", description = "Anonymized")
     @ApiResponse(responseCode = "400", description = "Invalid e-mail")
