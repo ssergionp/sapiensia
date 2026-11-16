@@ -35,7 +35,7 @@ Na dúvida entre dois níveis, use o mais grave.
      fly logs -a sapiensia-homolog --no-tail
      ```
 
-     Mostra as últimas linhas do log do app sem ficar acompanhando. Em produção, troque pelo nome do app de produção. Precisa da autorização do responsável.
+     Mostra as últimas linhas do log do app sem ficar acompanhando. O app de produção ainda não existe: quando existir, use o nome dele no lugar de `sapiensia-homolog` (`<app de produção>`, **a conferir**). Precisa da autorização do responsável.
    - Trilha de auditoria: no SQL Editor do Supabase, `select action, origin, occurred_at from audit_events order by occurred_at desc limit 50;` (colunas conforme [homologacao-fly.md](homologacao-fly.md), seção "Fly-Client-IP ausente").
    - Alertas do `AdminAlerts` (e-mails ao Administrador): [webhook-asaas.md](webhook-asaas.md), seção "Alertas por e-mail". Divergências da conciliação: [conciliacao-asaas.md](conciliacao-asaas.md), seção "Divergências".
    - Anote a hora em que você soube do problema (vai para o registro e, se for o caso, para a ANPD).
@@ -58,7 +58,7 @@ Só canais públicos, tirados das páginas oficiais em 2026-11-16. O que não de
 
 | Serviço | Para que usamos | Canal de suporte | Página de status |
 |---|---|---|---|
-| Fly.io | Hospedagem do app (ADR-0001) | [Fórum da comunidade](https://community.fly.io); suporte por e-mail e portal só em plano pago ([suporte do Fly](https://docs.fly.io/about/support/)); cobrança: `billing@fly.io`. Plano atual: **a conferir** | <https://status.flyio.net/> |
+| Fly.io | Hospedagem do app (ADR-0001) | [Fórum da comunidade](https://community.fly.io); suporte por e-mail e portal só em plano pago ([suporte do Fly](https://docs.fly.io/about/support/)); cobrança: `billing@fly.io`, listado na mesma página (**a conferir** antes de usar). Plano atual: **a conferir** | <https://status.flyio.net/> |
 | Supabase | Banco PostgreSQL e Storage (ADR-0002) | [Ticket de suporte](https://supabase.com/dashboard/support/new) (resposta varia por plano); [Discord](https://discord.supabase.com/); veja a [página de suporte](https://supabase.com/support) | <https://status.supabase.com> |
 | Asaas | Cobrança Pix e webhook (ADR-0003) | Chat na conta, WhatsApp e telefone conforme a [Central de Ajuda](https://central.ajuda.asaas.com/hc/pt-br/articles/31406578052379-Quais-s%C3%A3o-os-canais-de-atendimento-do-Asaas); [Ouvidoria](https://www.asaas.com/ouvidoria) só em última instância. Horário e quem pode ligar: **a conferir** na central | <https://status.asaas.com/> |
 | Resend | Envio de e-mail | Formulário na [página de suporte](https://resend.com/support) | Link "status" na página de suporte do Resend (endereço exato: **a conferir**) |

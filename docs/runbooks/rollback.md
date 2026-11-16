@@ -6,7 +6,7 @@ Como voltar o app no Fly.io para a imagem anterior e o que fazer com o banco. Co
 
 ## Voltar a imagem ou corrigir para a frente?
 
-- **Volte a imagem** quando o problema começou logo depois de um deploy e a versão anterior funcionava. É rápido e não mexe no banco.
+- **Volte a imagem** quando o problema começou logo depois de um deploy e a versão anterior funcionava. É rápido e não mexe no banco (nem nos segredos do Fly, que a imagem não carrega).
 - **Corrija para a frente** (novo commit, PR, deploy) quando a causa não é só o código novo, quando o banco já mudou de um jeito que a imagem anterior não entende (seção "Migrations") ou quando o conserto é pequeno e óbvio.
 - Na dúvida, volte a imagem para estancar e corrija depois com calma.
 
@@ -28,7 +28,7 @@ Cada passo precisa da autorização do responsável.
    fly deploy --image <referência da imagem anterior> -c fly.homolog.toml --ha=false
    ```
 
-   Coloca no ar a imagem que você anotou, sem construir nada de novo. O `--ha=false` é obrigatório: uma só máquina por ambiente, porque sessão e contadores de login ficam em memória (ADR-0004). Se o Fly recusar alguma flag, **a conferir** com `fly deploy --help`.
+   Coloca no ar a imagem que você anotou, sem construir nada de novo. **Atenção:** o deploy reinicia a máquina e desloga todo mundo (sessões e contadores de login ficam em memória, ADR-0004); avise quem estiver no painel. O `--ha=false` é obrigatório: uma só máquina por ambiente, porque sessão e contadores de login ficam em memória (ADR-0004). Se o Fly recusar alguma flag, **a conferir** com `fly deploy --help`.
 
 3. Confira como em [homologacao-fly.md](homologacao-fly.md), seção "Conferências" (health em `/api/system/health`, log sem erro).
 

@@ -6,10 +6,10 @@ Tudo marcado **conferir** é decisão conservadora ainda não confirmada por voc
 
 ## Canal e prazos
 
-- Canal: e-mail `suporte@sapiensia.app.br`. **conferir** A caixa ainda não existe; crie-a antes da primeira venda. O #23 usa o mesmo endereço.
+- Canal: e-mail `suporte@sapiensia.app.br`. **conferir** A caixa ainda não existe; crie-a antes da primeira venda. A Política de privacidade e a de reembolso (#23) devem usar este mesmo endereço.
 - Primeira resposta em até 2 dias úteis. **conferir**
 - Reembolso decidido em até 2 dias úteis depois do pedido. **conferir**
-- Pedido de direito LGPD: confirmação e acesso completos em até 15 dias do requerimento ([LGPD, art. 19, II](https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm)). **conferir**; **conferir com o advogado**.
+- Pedido de acesso aos dados: resposta completa em até 15 dias do requerimento ([LGPD, art. 19, II](https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm)). **conferir**. Os outros direitos (correção, exclusão) não têm prazo fixo nessa regra; adote um prazo próprio (sugestão: os mesmos 15 dias): **conferir com o advogado**.
 - Confira que os textos públicos (Termos, Política de reembolso) prometem o mesmo que esta seção.
 
 ## Reembolso
