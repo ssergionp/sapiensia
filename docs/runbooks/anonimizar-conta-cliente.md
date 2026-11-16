@@ -38,7 +38,7 @@ Depois disso o painel de Pedidos mostra o e-mail como `a***@anonimizado.invalid`
    }).then((r) => r.status);
    ```
 
-   Responde `204` quando deu certo. A reautenticação troca o cookie `XSRF-TOKEN`, por isso o `token()` lê o cookie de novo a cada chamada. `400` é senha ou código errado; `429` é bloqueio por tentativas. Depois, feche a aba ou limpe o console, para a senha não ficar no histórico.
+   Responde `204` quando deu certo. A reautenticação troca o cookie `XSRF-TOKEN`, por isso o `token()` lê o cookie de novo a cada chamada. `400` é senha ou código errado; `429` é bloqueio por tentativas; `401` é sessão encerrada (entre de novo no painel). Depois, feche a aba ou limpe o console, para a senha não ficar no histórico.
 5. **Anonimize**, trocando o e-mail pelo da conta:
 
    ```js
@@ -55,7 +55,7 @@ Depois disso o painel de Pedidos mostra o e-mail como `a***@anonimizado.invalid`
    | `204` | Feito. |
    | `404` (`CUSTOMER_NOT_FOUND`) | Não achou a conta, ou ela já foi anonimizada. Confira o e-mail digitado; nada mudou. A tentativa fica na auditoria como falha. |
    | `403` (`REAUTHENTICATION_REQUIRED`) | Passaram mais de 5 minutos: refaça o passo 4 e repita. |
-   | `403` (outro) | O perfil não tem a capacidade de anonimizar. |
+   | `403` (outro) | O perfil não tem a capacidade de anonimizar, ou o token CSRF está ausente ou velho (o cookie `XSRF-TOKEN` muda depois da reautenticação): rode de novo a linha do `token()` e repita a chamada. |
    | `401` | A sessão do painel acabou: entre de novo. |
    | `400` | O e-mail está vazio ou malformado. |
 
