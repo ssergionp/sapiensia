@@ -115,7 +115,8 @@ class Reconciliation {
             LocalDate from = LocalDate.now(clock.withZone(SAO_PAULO)).minusDays(windowDays);
             for (page = 0; ; page++) {
                 if (page >= maxPages) {
-                    // the previous page said there is more
+                    // the previous page said there is more; the log names that last requested page
+                    page = maxPages - 1;
                     throw fail(TOO_MANY);
                 }
                 PixChargePage listed = call(() -> gateway.listCharges(from, page * PAGE_SIZE, PAGE_SIZE));
