@@ -47,6 +47,9 @@ app:
   pix:
     # the in-memory fake refuses to start in prod
     provider: asaas
+  reconciliation:
+    # every night at 03:30 São Paulo time
+    cron: "0 30 3 * * *"
   asaas:
     api:
       # Asaas address from the platform (APP_ASAAS_API_BASE_URL); no default, so a missing value stops the application
