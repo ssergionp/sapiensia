@@ -1,15 +1,21 @@
 package br.com.sergio.sapiensia.customer;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
+import br.com.sergio.sapiensia.payment.CustomerHasPendingOrderException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -25,6 +31,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.context.WebApplicationContext;
 
 @SpringBootTest
@@ -51,6 +59,9 @@ class CustomerAnonymizationTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @Autowired
     private WebApplicationContext context;
@@ -186,6 +197,83 @@ class CustomerAnonymizationTest {
         assertThat(jdbc.queryForObject(
                         "select anonymized_at is null from customers where id = ?", Boolean.class, customerId))
                 .isTrue();
+    }
+
+    private void insertPendingOrder(String expiresAtSql) {
+        UUID productId = jdbc.queryForObject(
+                "insert into products (title, description, category, price_cents, status, first_published_at)"
+                        + " values ('Guia', 'd', 'LAW', 4990, 'PUBLISHED', now()) returning id",
+                UUID.class);
+        jdbc.update(
+                "insert into orders (id, customer_id, product_id, price_cents, status, provider_payment_id,"
+                        + " created_at, expires_at)"
+                        + " values (?, ?, ?, 4990, 'PENDING', ?, now() - interval '2 hours', " + expiresAtSql + ")",
+                UUID.randomUUID(),
+                customerId,
+                productId,
+                "pay_" + UUID.randomUUID());
+    }
+
+    @Test
+    @DisplayName("FR-036, SEC-038: conta com Pedido pendente não é anonimizada e nada muda")
+    void shouldRefuseAnAccountWithAPendingOrderAndChangeNothing() {
+        insertTokensDevicesAndAsaasLink();
+        insertPendingOrder("now() + interval '20 minutes'");
+        Map<String, Object> before = jdbc.queryForMap("select * from customers where id = ?", customerId);
+        Long audit = jdbc.queryForObject("select count(*) from audit_events", Long.class);
+
+        assertThatThrownBy(() -> anonymization.anonymize(email, administratorId, ORIGIN))
+                .isInstanceOf(CustomerHasPendingOrderException.class);
+
+        assertThat(jdbc.queryForMap("select * from customers where id = ?", customerId))
+                .isEqualTo(before);
+        for (String table : DELETED_TABLES) {
+            assertThat(countOfCustomer(table)).as(table).isEqualTo(1);
+        }
+        assertThat(jdbc.queryForObject("select count(*) from audit_events", Long.class))
+                .isEqualTo(audit);
+    }
+
+    @Test
+    @DisplayName("FR-036, SEC-038: Pedido pendente já vencido também impede a anonimização")
+    void shouldRefuseAPendingOrderPastItsExpiry() {
+        insertPendingOrder("now() - interval '1 hour'");
+
+        assertThatThrownBy(() -> anonymization.anonymize(email, administratorId, ORIGIN))
+                .isInstanceOf(CustomerHasPendingOrderException.class);
+
+        assertThat(jdbc.queryForObject("select email from customers where id = ?", String.class, customerId))
+                .isEqualTo(email);
+    }
+
+    @Test
+    @DisplayName("SEC-038: anonimização espera a compra em andamento do mesmo Cliente")
+    void shouldWaitForAPurchaseInFlightOfTheSameCustomer() throws Exception {
+        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        CountDownLatch holding = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        CompletableFuture<Void> purchase = CompletableFuture.runAsync(() -> tx.executeWithoutResult(status -> {
+            jdbc.queryForObject(
+                    "select pg_advisory_xact_lock(hashtextextended(?, 0))::text", String.class, "order:" + customerId);
+            holding.countDown();
+            try {
+                release.await(30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }));
+        CompletableFuture<Optional<UUID>> anonymizing;
+        try {
+            assertThat(holding.await(10, TimeUnit.SECONDS)).isTrue();
+            anonymizing = CompletableFuture.supplyAsync(() -> anonymization.anonymize(email, administratorId, ORIGIN));
+
+            assertThatThrownBy(() -> anonymizing.get(2, TimeUnit.SECONDS)).isInstanceOf(TimeoutException.class);
+        } finally {
+            release.countDown();
+        }
+
+        purchase.get(10, TimeUnit.SECONDS);
+        assertThat(anonymizing.get(30, TimeUnit.SECONDS)).contains(customerId);
     }
 
     /** Rows of the Customer in the table (for "customers", the Customer's own row). */

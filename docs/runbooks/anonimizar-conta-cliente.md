@@ -4,7 +4,7 @@ Atende FR-036 e SEC-038 (direito de exclusão da LGPD). Não há tela: é uma ro
 
 ## O que a anonimização faz
 
-A linha do Cliente **não é apagada**: Pedidos, Acessos e Registros de download dependem dela e são registros que só admitem inserção (ADR-0003, ADR-0007). Numa transação só:
+A linha do Cliente **não é apagada**: Pedidos, Acessos e Registros de download dependem dela e são registros que só admitem inserção (ADR-0003, ADR-0007). A anonimização é recusada enquanto a conta tiver um Pedido pendente (uma cobrança Pix ainda aberta). Numa transação só:
 
 - o e-mail vira `anonimizado-<código aleatório>@anonimizado.invalid` (o domínio `.invalid` nunca entrega);
 - a senha vira um valor aleatório que ninguém conhece, e toda sessão aberta do Cliente cai;
@@ -54,6 +54,7 @@ Depois disso o painel de Pedidos mostra o e-mail como `a***@anonimizado.invalid`
    |---|---|
    | `204` | Feito. |
    | `404` (`CUSTOMER_NOT_FOUND`) | Não achou a conta, ou ela já foi anonimizada. Confira o e-mail digitado; nada mudou. A tentativa fica na auditoria como falha. |
+   | `409` (`CUSTOMER_HAS_PENDING_ORDER`) | A conta tem um Pedido pendente. Espere o Pedido expirar (a cobrança Pix é cancelada sozinha) e repita; nada mudou. A tentativa fica na auditoria como falha. |
    | `403` (`REAUTHENTICATION_REQUIRED`) | Passaram mais de 5 minutos: refaça o passo 4 e repita. |
    | `403` (outro) | O perfil não tem a capacidade de anonimizar, ou o token CSRF está ausente ou velho (o cookie `XSRF-TOKEN` muda depois da reautenticação): rode de novo a linha do `token()` e repita a chamada. |
    | `401` | A sessão do painel acabou: entre de novo. |

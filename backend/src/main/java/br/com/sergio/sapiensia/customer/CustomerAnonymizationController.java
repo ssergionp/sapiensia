@@ -6,12 +6,13 @@ import br.com.sergio.sapiensia.audit.AuditEntry;
 import br.com.sergio.sapiensia.audit.AuditLog;
 import br.com.sergio.sapiensia.audit.AuditObject;
 import br.com.sergio.sapiensia.audit.AuditResult;
+import br.com.sergio.sapiensia.payment.CustomerHasPendingOrderException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.Optional;
+import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -26,8 +27,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/admin/customer-anonymizations")
 class CustomerAnonymizationController {
-
-    private static final Logger log = LoggerFactory.getLogger(CustomerAnonymizationController.class);
 
     private final CustomerAnonymization anonymization;
     private final AuditLog audit;
@@ -45,6 +44,7 @@ class CustomerAnonymizationController {
     @ApiResponse(responseCode = "400", description = "Invalid e-mail")
     @ApiResponse(responseCode = "401", description = "Not logged in with both factors")
     @ApiResponse(responseCode = "403", description = "No capability, or REAUTHENTICATION_REQUIRED")
+    @ApiResponse(responseCode = "409", description = "CUSTOMER_HAS_PENDING_ORDER: wait for the Order to expire")
     @ApiResponse(responseCode = "404", description = "CUSTOMER_NOT_FOUND: unknown or already anonymized")
     ResponseEntity<Void> anonymize(
             @Valid @RequestBody CustomerAnonymizationRequest body,
@@ -52,7 +52,19 @@ class CustomerAnonymizationController {
             HttpServletRequest request) {
         var administrator = (AdministratorPrincipal) authentication.getPrincipal();
         String origin = clientIp.resolve(request);
-        var customerId = anonymization.anonymize(body.email(), administrator.id(), origin);
+        Optional<UUID> customerId;
+        try {
+            customerId = anonymization.anonymize(body.email(), administrator.id(), origin);
+        } catch (CustomerHasPendingOrderException refused) {
+            audit.recordIndependent(new AuditEntry(
+                    AuditAction.ADMIN_CUSTOMER_ANONYMIZED,
+                    AuditResult.FAILURE,
+                    administrator.id(),
+                    AuditObject.CUSTOMER,
+                    refused.customerId(),
+                    origin));
+            throw refused;
+        }
         if (customerId.isEmpty()) {
             audit.recordIndependent(new AuditEntry(
                     AuditAction.ADMIN_CUSTOMER_ANONYMIZED,
@@ -63,7 +75,6 @@ class CustomerAnonymizationController {
                     origin));
             throw new CustomerNotFoundException();
         }
-        log.info("Customer {} anonymized by Administrator {}", customerId.get(), administrator.id());
         return ResponseEntity.noContent().build();
     }
 }

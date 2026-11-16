@@ -220,6 +220,40 @@ class CustomerAnonymizationControllerTest {
     }
 
     @Test
+    @DisplayName(
+            "FR-036: conta com Pedido pendente recebe 409 CUSTOMER_HAS_PENDING_ORDER e a tentativa fica na auditoria")
+    void shouldAnswer409ForAPendingOrderAndAuditTheAttempt() throws Exception {
+        UUID productId = AdminOrderFixtures.insertProduct(jdbc, "Guia");
+        AdminOrderFixtures.insertOrder(
+                jdbc,
+                customerId,
+                productId,
+                4990,
+                "PENDING",
+                Instant.now().minusSeconds(60),
+                Instant.now().plusSeconds(1200));
+        AdminBrowser admin = fullSession();
+
+        HttpResponse<String> answer = admin.post(ROUTE, body(customerEmail));
+
+        assertThat(answer.statusCode()).isEqualTo(409);
+        assertThat(answer.body())
+                .contains("\"title\":\"Customer has a pending order\"")
+                .contains("CUSTOMER_HAS_PENDING_ORDER")
+                .doesNotContain(customerEmail);
+        assertThat(storedEmail()).isEqualTo(customerEmail);
+        assertThat(auditRows("SUCCESS")).isZero();
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from audit_events where action = 'ADMIN_CUSTOMER_ANONYMIZED'"
+                                + " and result = 'FAILURE' and actor_id = ? and object_type = 'CUSTOMER'"
+                                + " and object_id = ?",
+                        Long.class,
+                        account.id(),
+                        customerId))
+                .isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("FR-036: segunda chamada com o mesmo e-mail recebe 404 e nenhuma auditoria de sucesso nova")
     void shouldAnswer404OnTheSecondCall() throws Exception {
         AdminBrowser admin = fullSession();
