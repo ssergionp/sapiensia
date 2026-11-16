@@ -92,3 +92,21 @@ test("a rota /painel/verificacao mostra a tela de verificação em duas etapas",
     await screen.findByRole("heading", { name: "Verificação em duas etapas" }),
   ).toBeInTheDocument();
 });
+
+test.each([
+  ["/termos-de-uso", "Termos de uso"],
+  ["/privacidade", "Política de privacidade"],
+  ["/reembolso", "Política de reembolso"],
+])("a rota %s mostra o texto legal", (path, title) => {
+  renderAt(path);
+  expect(
+    screen.getByRole("heading", { level: 1, name: title }),
+  ).toBeInTheDocument();
+});
+
+test("o rodapé de informações legais aparece nas telas", () => {
+  renderAt("/entrar");
+  expect(
+    screen.getByRole("contentinfo", { name: "Informações legais" }),
+  ).toBeInTheDocument();
+});

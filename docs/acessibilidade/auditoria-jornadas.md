@@ -6,11 +6,12 @@ Legenda: **[RESPONSÁVEL]** você faz, com teclado, NVDA e celular.
 
 ## O que é verificado automaticamente
 
-- O **axe** roda dentro do teste e2e, na tela já carregada, em 12 telas das duas jornadas (compra e Download), no projeto `desktop`.
+- O **axe** roda dentro do teste e2e, na tela já carregada, em 12 telas das duas jornadas (compra e Download) e nas 3 páginas dos textos legais (#23), no projeto `desktop`.
 - As regras são só as de WCAG A e AA: tags `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa` e `wcag22aa`. Regras `best-practice` ficam de fora.
-- O helper é `frontend/e2e/a11y.ts` (`expectNoA11yViolations(page, "<tela>")`). As chamadas estão em `frontend/e2e/admin-panel.e2e.ts`.
+- O helper é `frontend/e2e/a11y.ts` (`expectNoA11yViolations(page, "<tela>")`). As chamadas estão em `frontend/e2e/admin-panel.e2e.ts` (jornadas) e `frontend/e2e/legal-pages.e2e.ts` (textos legais).
 - Se achar violação, o teste falha e mostra a regra, o impacto, o link da regra e até 5 seletores. Nunca mostra o HTML do nó, porque ele pode ter dado de cliente.
-- As 12 telas: `cadastro`, `entrar`, `inicio`, `catalogo`, `produto`, `comprar-pix`, `pedido-pendente`, `pedido-pago`, `meus-pedidos`, `biblioteca`, `download-iniciado`, `download-limite`.
+- As 12 telas das jornadas: `cadastro`, `entrar`, `inicio`, `catalogo`, `produto`, `comprar-pix`, `pedido-pendente`, `pedido-pago`, `meus-pedidos`, `biblioteca`, `download-iniciado`, `download-limite`.
+- Telas acrescentadas pelo #23: `termos`, `privacidade`, `reembolso` (rascunhos dos textos legais, abertos pelo rodapé).
 
 ### Como acrescentar uma exceção
 
@@ -47,6 +48,8 @@ Execução local no desktop, com o filtro antigo `-g "FR-016|FR-034"` (que tamb�
 | biblioteca | 0 |
 | download-iniciado | 0 |
 | download-limite | 0 |
+
+Nota: as telas `termos`, `privacidade` e `reembolso` foram acrescentadas pelo #23 depois desta execução; elas não estão na tabela acima e são escaneadas no CI.
 
 ### O que esse resultado não exercitou
 
