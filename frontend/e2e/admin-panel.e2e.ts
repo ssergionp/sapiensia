@@ -9,6 +9,7 @@ import {
   type Page,
   test,
 } from "@playwright/test";
+import { expectNoA11yViolations } from "./a11y";
 import { buildPng, buildWebpWithExif } from "./image";
 import {
   messagesFor,
@@ -1508,7 +1509,7 @@ test("FR-025 FR-029 SEC-011: a Biblioteca mostra o Produto comprado, mesmo despu
   }
 });
 
-test("FR-034 SEC-010 SEC-011 SEC-015: o Cliente baixa o Arquivo do Produto comprado, sempre na versão mais recente", async ({
+test("NFR-005 FR-034 SEC-010 SEC-011 SEC-015: o Cliente baixa o Arquivo do Produto comprado, sempre na versão mais recente", async ({
   page,
   browser,
   baseURL,
@@ -1710,6 +1711,7 @@ test("FR-034 SEC-010 SEC-011 SEC-015: o Cliente baixa o Arquivo do Produto compr
           "Você já baixou este Produto 10 vezes hoje. Tente novamente amanhã.",
       }),
     ).toBeVisible();
+    await expectNoA11yViolations(buyer, "download-limite");
     const limited = await buyer.request.post(
       `/api/library/${productId}/download`,
       { headers: buyerHeaders },
@@ -1723,7 +1725,7 @@ test("FR-034 SEC-010 SEC-011 SEC-015: o Cliente baixa o Arquivo do Produto compr
   }
 });
 
-test("FR-016 FR-019 FR-021 FR-024 FR-029 FR-034: jornada completa — o Cliente se cadastra, compra com Pix, tem o pagamento confirmado e baixa o Arquivo", async ({
+test("NFR-005 FR-016 FR-019 FR-021 FR-024 FR-029 FR-033 FR-034: jornada completa — o Cliente se cadastra, compra com Pix, tem o pagamento confirmado e baixa o Arquivo", async ({
   page,
   browser,
   baseURL,
@@ -1774,26 +1776,37 @@ test("FR-016 FR-019 FR-021 FR-024 FR-029 FR-034: jornada completa — o Cliente 
     // 1. Sign-up, with the confirmation link read from the e-mail outbox.
     const email = uniqueEmail("jornada");
     const password = strongPassword();
+    await buyer.goto("/cadastro");
+    await expect(buyer.getByLabel("E-mail")).toBeVisible();
+    await expectNoA11yViolations(buyer, "cadastro");
     await registerAndConfirm(buyer, email, password);
 
     // 2. Login from the home page.
     await buyer.goto("/");
     await buyer.getByRole("link", { name: "Entrar", exact: true }).click();
+    await expect(buyer.getByLabel("E-mail")).toBeVisible();
+    await expectNoA11yViolations(buyer, "entrar");
     await buyer.getByLabel("E-mail").fill(email);
     await buyer.getByLabel("Senha").fill(password);
     await buyer.getByRole("button", { name: "Entrar" }).click();
     await expect(buyer.getByText(`Você entrou como ${email}.`)).toBeVisible();
+    await expectNoA11yViolations(buyer, "inicio");
 
     // 3. Catálogo: from the home page to the Product page.
     await buyer.getByRole("link", { name: "Ver o Catálogo" }).click();
+    await expect(buyer.getByRole("link", { name: title })).toBeVisible();
+    await expectNoA11yViolations(buyer, "catalogo");
     await buyer.getByRole("link", { name: title }).click();
     await expect(
       buyer.getByRole("heading", { level: 1, name: title }),
     ).toBeVisible();
     await expect(buyer.getByRole("main").getByText(/R\$\s29,90/)).toBeVisible();
+    await expectNoA11yViolations(buyer, "produto");
 
     // 4. Order: the CPF block, then the Pix.
     await buyer.getByRole("button", { name: "Comprar com Pix" }).click();
+    await expect(buyer.getByLabel("CPF")).toBeVisible();
+    await expectNoA11yViolations(buyer, "comprar-pix");
     await buyer.getByLabel("CPF").fill(fictitiousCpf());
     await buyer.getByRole("button", { name: "Gerar Pix" }).click();
     await expect(buyer).toHaveURL(ORDER_PATH);
@@ -1805,6 +1818,7 @@ test("FR-016 FR-019 FR-021 FR-024 FR-029 FR-034: jornada completa — o Cliente 
     if (chargeId === undefined) {
       throw new Error("Could not read the charge id from the shown Pix code.");
     }
+    await expectNoA11yViolations(buyer, "pedido-pendente");
 
     // 5. Payment: the provider event arrives and the same page turns to paid, without a reload.
     await postPaymentReceived(
@@ -1817,6 +1831,7 @@ test("FR-016 FR-019 FR-021 FR-024 FR-029 FR-034: jornada completa — o Cliente 
       buyer.getByRole("heading", { name: PAID_HEADING }),
     ).toBeVisible({ timeout: 30_000 });
     await expect(buyer.getByText(PAID_TEXT)).toBeVisible();
+    await expectNoA11yViolations(buyer, "pedido-pago");
 
     // 6. My Orders: the Order is paid; the link goes to the Library.
     await buyer.goto("/");
@@ -1824,6 +1839,7 @@ test("FR-016 FR-019 FR-021 FR-024 FR-029 FR-034: jornada completa — o Cliente 
     const item = buyer.getByRole("listitem").filter({ hasText: title });
     await expect(item).toHaveCount(1);
     await expect(item.getByText("Pago", { exact: true })).toBeVisible();
+    await expectNoA11yViolations(buyer, "meus-pedidos");
     await item.getByRole("link", { name: "Ir para a Biblioteca" }).click();
     await expect(buyer).toHaveURL(/\/biblioteca$/);
 
@@ -1834,6 +1850,7 @@ test("FR-016 FR-019 FR-021 FR-024 FR-029 FR-034: jornada completa — o Cliente 
         .filter({ hasText: title })
         .getByText(title, { exact: true }),
     ).toBeVisible();
+    await expectNoA11yViolations(buyer, "biblioteca");
     const [download] = await Promise.all([
       buyer.waitForEvent("download", { timeout: 30_000 }),
       buyer.getByRole("button", { name: `Baixar ${title}` }).click(),
@@ -1841,6 +1858,12 @@ test("FR-016 FR-019 FR-021 FR-024 FR-029 FR-034: jornada completa — o Cliente 
     expect(download.suggestedFilename()).toBe(`e2e-jornada-${stamp}.pdf`);
     const delivered = await readFile(await download.path());
     expect(delivered.equals(buildPdf(marker))).toBe(true);
+    await expect(
+      buyer.getByText(
+        "Download iniciado. Se não começar, clique em Baixar de novo.",
+      ),
+    ).toBeVisible();
+    await expectNoA11yViolations(buyer, "download-iniciado");
 
     // 8. E-mail: one confirmation naming the Product and linking to the Library.
     const paidEmail = await waitForMessage(email, PAID_EMAIL_SUBJECT);
