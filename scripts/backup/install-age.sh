@@ -28,7 +28,7 @@ mkdir -p "$dest"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
-curl -fsSL --retry 3 -o "$tmp/$asset" "https://github.com/FiloSottile/age/releases/download/$version/$asset"
+curl -fsSL --retry 3 --retry-all-errors -o "$tmp/$asset" "https://github.com/FiloSottile/age/releases/download/$version/$asset"
 actual="$(sha256sum "$tmp/$asset" | cut -d ' ' -f 1)"
 if [[ "$actual" != "$sha256" ]]; then
   echo "install-age.sh: SHA-256 mismatch for $asset (expected $sha256, got $actual)" >&2
