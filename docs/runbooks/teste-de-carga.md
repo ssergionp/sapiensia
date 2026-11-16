@@ -54,7 +54,7 @@ Precisa do Docker aberto (banco e k6) e da API local ligada com a demonstração
 
    Cria 50 contas confirmadas (cadastro, link de confirmação lido da caixa de saída local, login), compra e "paga" um Produto para cada uma (Pix falso e webhook local, reaproveitando o `demo-pagar.mjs`) e grava `.tmp/carga/contas.json` (fora do git). O argumento é a quantidade de contas (o perfil completo usa 50; o padrão é 30). A caixa de saída lida é `.tmp/outbox` (outra pasta: `$env:CARGA_OUTBOX_DIR`). Se a API não estiver na porta 8081, use `$env:CARGA_API_URL = "http://127.0.0.1:<porta>"`.
 
-2. Rode o teste:
+2. Rode o teste (só depois do preparo: sem `.tmp/carga/contas.json` o k6 para e manda rodar o preparo; o k6 também exige pelo menos 20 contas):
 
    ```powershell
    just carga
@@ -78,6 +78,8 @@ Cuidados:
 - O teste grava linhas reais no banco local (Pedidos, Registros de download). É o banco de desenvolvimento ou da demonstração; nada de produção.
 - A carga local disputa CPU com o próprio k6 e o Docker: os números locais só servem de referência.
 - Os contadores de login ficam em memória na API (ADR-0004), e o limite por IP de login é de 1000 por 15 min no perfil local. Um teste que abre sessão sem parar (ou um k6 que ficou rodando em segundo plano) pode esgotá-lo e devolver `429` em todo login até a janela passar; reiniciar a API local zera os contadores.
+- O `just carga` monta caminhos com `justfile_directory()` num shell PowerShell: foi testado só no Windows (o CI não o roda).
+- A recusa de endereço não local fica em `scripts/carga/local-url.mjs` (testada em `local-url.test.mjs`, e carregada pelo k6).
 - A versão do k6 é fixa em `grafana/k6:2.3.0` (release v2.3.0 de 2026-09-21, publicada há mais de 7 dias): <https://github.com/grafana/k6/releases/tag/v2.3.0>. Para trocar, escolha uma versão publicada há mais de 7 dias e atualize o `justfile` e este runbook.
 
 ## Resultado
@@ -86,7 +88,7 @@ Cuidados:
 
 Rodada na máquina de desenvolvimento, com o k6, a API, o banco e o Docker disputando a mesma CPU. **Serve para provar que o script funciona, não para dizer que o sistema cumpre a NFR-002.**
 
-Rodada em 2026-11-16, API local (`just dev-back` com a demonstração ligada), banco local em Docker, k6 `grafana/k6:2.3.0`. Cada rodada com 50 contas preparadas na hora.
+Rodada em 2026-11-16, API local (`just dev-back` com a demonstração ligada), banco local em Docker, k6 `grafana/k6:2.3.0`. O perfil completo usou 50 contas preparadas na hora; a rodada curta reaproveitou contas de rodadas anteriores do mesmo dia.
 
 | Perfil | Grupo | Requisições | p95 | p99 |
 |---|---|---|---|---|

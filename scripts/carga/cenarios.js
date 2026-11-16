@@ -13,15 +13,10 @@ import exec from "k6/execution";
 import http from "k6/http";
 import { check, sleep } from "k6";
 import { Counter } from "k6/metrics";
+import { checkBaseUrl } from "./local-url.mjs";
 
-const BASE_URL = (__ENV.BASE_URL || "http://host.docker.internal:8081").replace(/\/+$/, "");
-const LOCAL_HOST = /^https?:\/\/(127\.0\.0\.1|localhost|host\.docker\.internal)(:\d{1,5})?$/;
-if (!LOCAL_HOST.test(BASE_URL) && __ENV.CARGA_PERMITIR_REMOTO !== "sim") {
-  throw new Error(
-    `BASE_URL ${BASE_URL} não é local. Este teste só roda contra o sistema local; ` +
-      "para outro ambiente é preciso a autorização do responsável e CARGA_PERMITIR_REMOTO=sim.",
-  );
-}
+// Throws (before any request) when BASE_URL is not local and CARGA_PERMITIR_REMOTO is not "sim".
+const BASE_URL = checkBaseUrl(__ENV.BASE_URL, __ENV.CARGA_PERMITIR_REMOTO);
 
 const RAMP_UP = __ENV.RAMP_UP || "1m";
 const HOLD = __ENV.HOLD || "8m";
@@ -41,6 +36,10 @@ try {
   throw new Error("Não achei /carga/contas.json. Rode antes: node scripts/carga/preparar.mjs");
 }
 const accounts = contas.accounts;
+// Each library VU needs an account of its own (the Download cap is per account); the Order scenario uses the next ones.
+if (accounts.length < VUS_LIBRARY + 5) {
+  throw new Error(`Poucas contas (${accounts.length}): rode node scripts/carga/preparar.mjs ${VUS_LIBRARY + 5} ou mais.`);
+}
 const products = contas.products;
 
 // 429 is the rate limit working, not a server error: counted apart and left out of http_req_failed.
@@ -125,7 +124,7 @@ function csrfToken() {
   return read() || "";
 }
 
-function call(method, path, body, tipo, grupo) {
+function call(method, path, body, tipo, grupo, responseType = "text") {
   const headers = { Accept: "application/json" };
   if (method !== "GET") {
     headers["Content-Type"] = "application/json";
@@ -134,7 +133,7 @@ function call(method, path, body, tipo, grupo) {
   const res = http.request(method, `${BASE_URL}${path}`, body === null ? null : JSON.stringify(body), {
     headers,
     tags: { tipo, grupo },
-    responseType: "text",
+    responseType,
   });
   if (res.status === 429) throttled.add(1, { grupo });
   return res;
@@ -164,7 +163,7 @@ export function catalogo() {
   const detail = call("GET", `/api/products/${id}`, null, "comum", "catalogo");
   check(detail, { "detalhe 200": (r) => r.status === 200 || r.status === 429 });
   if (Math.random() < 0.5) {
-    const cover = call("GET", `/api/products/${id}/cover`, null, "comum", "catalogo");
+    const cover = call("GET", `/api/products/${id}/cover`, null, "comum", "catalogo", "none");
     check(cover, { "capa 200": (r) => r.status === 200 || r.status === 429 });
   }
   think();
@@ -180,6 +179,11 @@ export function biblioteca() {
   const account = accounts[(exec.vu.idInTest - 1) % accounts.length];
   if (!loggedIn || libraryIteration % 40 === 0) loggedIn = login(account);
   libraryIteration += 1;
+  // A throttled login (429) leaves no session: skip the calls instead of counting 401s as server errors.
+  if (!loggedIn) {
+    think();
+    return;
+  }
   const current = call("GET", "/api/sessions/current", null, "comum", "sessao");
   if (current.status === 401) loggedIn = false;
   check(current, { "sessao 200": (r) => r.status === 200 || r.status === 401 || r.status === 429 });
