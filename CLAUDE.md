@@ -56,6 +56,7 @@ Glossário e convenções das skills: veja docs/agents/ (o domain.md diz onde fi
 - backend/.../payment/MaskedEmail.java: o único jeito de mostrar o e-mail de um Cliente no painel (primeira letra + `***` + `@domínio`, mascarado no servidor); o e-mail inteiro nunca sai na resposta nem no log.
 - `frontend/src/lib/saoPauloDate.ts` (`saoPauloDateAndTime`): o formatador único de data ("dd/MM/aaaa") e hora ("HH:mm") no fuso de São Paulo; use-o em vez de criar outro.
 - backend/.../alert/AdminAlerts.java: o único jeito de gerar um alerta ao Administrador; `record` dentro de uma transação (grava a linha junto com o resultado), `recordSafely` fora dela (nunca lança). O e-mail sai depois, pela tarefa `admin-alert-dispatch`, nunca na transação do pagamento.
+- backend/.../web/RequestRateLimiter.java (com `RateLimitInterceptor` e `RateLimitConfig`): o único jeito de limitar uma rota por IP e por conta (em memória, por instância). Rota limitada nova = um `RateLimitedOperation` + as propriedades `app.rate-limit.<operação>` + uma entrada no `RateLimitConfig` + uma linha em docs/api/endpoints.md.
 - (liste aqui outros helpers e componentes que o Claude deve usar em vez de criar novos)
 
 ## Segurança e produção
@@ -76,5 +77,7 @@ Glossário e convenções das skills: veja docs/agents/ (o domain.md diz onde fi
 - Teste que depende de arquivo fora do git (dados reais) deve ser pulado quando o arquivo não existe, como acontece no CI.
 - Line endings: LF em tudo (`.gitattributes`); só `mvnw.cmd` e os `.ps1` em CRLF. O Spotless e o Biome falham com CRLF.
 - Todos os endpoints da API começam com /api: o proxy do vite.config.ts e o /verificar-tela dependem disso.
+- Limite novo por IP: o e2e roda de um IP só e estoura o limite; o `ip-capacity-floor` (10000 no application-local.yml, no application.properties de teste e no ci.yml, via `APP_RATE_LIMIT_IP_CAPACITY_FLOOR`) já cobre isso, então não crie outro jeito. Limites por conta são elevados no application.properties de teste.
+- Endpoint novo precisa entrar em backend/src/test/resources/openapi/endpoints.txt e em docs/api/endpoints.md, senão o `OpenApiEndpointsTest` falha.
 - Valor falso que imita segredo (`sb_secret_...`, token `eyJ...`) é acusado pelo gitleaks do CI: nos testes, monte-o em tempo de execução (`"sb_" + "secret_" + ...`), nunca como literal.
 - Teste focado (`-Dtest=...`) de código que escreve em log ou cumpre um requisito com ID: inclua também as classes que já conferem esse log ou citam esse ID (`git grep -l SEC-047 -- backend/src/test`). Uma checagem de log em outra classe já escapou de um filtro só com o nome da classe mudada.

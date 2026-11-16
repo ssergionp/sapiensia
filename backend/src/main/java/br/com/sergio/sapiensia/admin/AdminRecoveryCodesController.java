@@ -4,6 +4,7 @@ import br.com.sergio.sapiensia.customer.ClientIpResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -32,7 +33,7 @@ class AdminRecoveryCodesController {
      * wrong, malformed or already used TOTP code (the code of the login included); 429 with Retry-After while locked;
      * 409 when MFA is not active; 503 when the check or its audit cannot be made (then the old codes stay).
      */
-    @PostMapping
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     ResponseEntity<?> regenerate(
             @RequestBody MfaCodeRequest body, Authentication authentication, HttpServletRequest request) {
         var administrator = (AdministratorPrincipal) authentication.getPrincipal();

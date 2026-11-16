@@ -5,6 +5,7 @@ import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { TOO_MANY_REQUESTS, TooManyRequestsError } from "@/lib/tooManyRequests";
 import { ConfirmEmailError } from "./api";
 import { useConfirmEmail } from "./hooks";
 import {
@@ -121,7 +122,9 @@ export default function ConfirmEmailPage() {
           </div>
           {showUnexpected && (
             <p role="alert" className="text-sm text-destructive">
-              {UNEXPECTED_ERROR}
+              {mutation.error instanceof TooManyRequestsError
+                ? TOO_MANY_REQUESTS
+                : UNEXPECTED_ERROR}
             </p>
           )}
           <Button type="submit" disabled={mutation.isPending}>

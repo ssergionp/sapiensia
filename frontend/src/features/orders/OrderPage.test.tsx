@@ -314,6 +314,17 @@ describe("OrderPage", () => {
     expect(orderCalls(spy)).toHaveLength(2);
   });
 
+  test("#42: 429 no GET mostra o aviso de muitas tentativas e o botão Tentar novamente", async () => {
+    mockFetch(jsonResponse(429));
+    renderOrder();
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Muitas tentativas. Aguarde alguns minutos e tente de novo.",
+    );
+    expect(
+      screen.getByRole("button", { name: "Tentar novamente" }),
+    ).toBeTruthy();
+  });
+
   test("401 guarda o caminho do Pedido e leva a /entrar", async () => {
     mockFetch(jsonResponse(401));
     renderOrder();

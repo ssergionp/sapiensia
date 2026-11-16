@@ -181,6 +181,7 @@ class AdminOrderListTest {
         assertThat(ids).hasSize(45);
         assertThat(beyond.statusCode()).isEqualTo(200);
         assertThat(json(beyond, "$.items.length()")).isEqualTo("0");
+        assertThat(list("?page=10001").statusCode()).isEqualTo(400);
         assertThat(list("?page=-1").statusCode()).isEqualTo(400);
         assertThat(list("?page=abc").statusCode()).isEqualTo(400);
     }

@@ -9,6 +9,7 @@ import java.time.Clock;
 import java.util.EnumSet;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -48,7 +49,7 @@ class AdminMfaController {
      * 204 with a new session holding the full Administrator; 400 CODE_INVALID for a wrong, malformed or used code; 429
      * with Retry-After while locked; 409 when the account has no active MFA; 503 when the check cannot be made.
      */
-    @PostMapping
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     ResponseEntity<?> verify(
             @RequestBody MfaCodeRequest body,
             Authentication authentication,
@@ -62,7 +63,7 @@ class AdminMfaController {
      * A one-time recovery code instead of the TOTP: the same answers as {@link #verify}, and the new session ends
      * every other session of the account (SEC-006). Hyphens, spaces and lower case are accepted.
      */
-    @PostMapping("/recovery-code")
+    @PostMapping(path = "/recovery-code", consumes = MediaType.APPLICATION_JSON_VALUE)
     ResponseEntity<?> recover(
             @RequestBody MfaCodeRequest body,
             Authentication authentication,
@@ -102,7 +103,7 @@ class AdminMfaController {
      * when MFA is already active, or no enrollment was started in this session, or another session has replaced it
      * since; 503 when the activation cannot be made or audited (then nothing is activated).
      */
-    @PostMapping("/enrollment/confirmation")
+    @PostMapping(path = "/enrollment/confirmation", consumes = MediaType.APPLICATION_JSON_VALUE)
     ResponseEntity<?> confirm(
             @RequestBody MfaCodeRequest body,
             Authentication authentication,

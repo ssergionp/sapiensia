@@ -1,5 +1,6 @@
 package br.com.sergio.sapiensia.product;
 
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,7 +25,7 @@ class CatalogController {
 
     /** 200 with a page of 20; 400 for a negative or non-numeric page; a page past the end is empty. */
     @GetMapping
-    CatalogPage list(@RequestParam(defaultValue = "0") @Min(0) int page) {
+    CatalogPage list(@RequestParam(defaultValue = "0") @Min(0) @Max(10000) int page) {
         return service.list(page);
     }
 

@@ -4,6 +4,7 @@ import br.com.sergio.sapiensia.admin.AdministratorPrincipal;
 import br.com.sergio.sapiensia.customer.ClientIpResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import java.net.URI;
 import java.util.UUID;
@@ -11,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.transaction.TransactionException;
@@ -44,7 +46,7 @@ class ProductAdminController {
     }
 
     /** 201 with the Location and the Product in DRAFT; 400 with the error code of each field; 503 without a body. */
-    @PostMapping
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     ResponseEntity<ProductResponse> create(
             @Valid @RequestBody ProductRequest body, Authentication authentication, HttpServletRequest request) {
         var administrator = (AdministratorPrincipal) authentication.getPrincipal();
@@ -55,7 +57,7 @@ class ProductAdminController {
 
     /** 200 with a page of 20; 400 for a negative or non-numeric page; a page past the end is empty. */
     @GetMapping
-    ProductPage list(@RequestParam(defaultValue = "0") @Min(0) int page) {
+    ProductPage list(@RequestParam(defaultValue = "0") @Min(0) @Max(10000) int page) {
         return service.list(page);
     }
 
@@ -66,7 +68,7 @@ class ProductAdminController {
     }
 
     /** 200 with the Product; 400 per field; 404; 409 when the version is stale. The price is not part of this body. */
-    @PutMapping("/{id}")
+    @PutMapping(path = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
     ProductResponse update(
             @PathVariable UUID id,
             @Valid @RequestBody ProductUpdateRequest body,
@@ -77,7 +79,7 @@ class ProductAdminController {
     }
 
     /** Same answers as the text edit, for the price only (SEC-029). */
-    @PutMapping("/{id}/price")
+    @PutMapping(path = "/{id}/price", consumes = MediaType.APPLICATION_JSON_VALUE)
     ProductResponse changePrice(
             @PathVariable UUID id,
             @Valid @RequestBody ProductPriceRequest body,

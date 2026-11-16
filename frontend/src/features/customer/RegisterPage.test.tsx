@@ -61,6 +61,20 @@ describe("RegisterPage", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  test("#42: 429 mostra o aviso de muitas tentativas e não o erro genérico", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(429));
+    renderPage();
+
+    await fillAndSubmit("ana@example.com", "uma senha bem longa");
+
+    expect(
+      await screen.findByText(
+        "Muitas tentativas. Aguarde alguns minutos e tente de novo.",
+      ),
+    ).toHaveAttribute("role", "alert");
+    expect(screen.queryByText(/Não foi possível criar a conta/)).toBeNull();
+  });
+
   test("envia e mostra a mensagem de sucesso", async () => {
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")

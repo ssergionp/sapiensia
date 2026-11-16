@@ -4,6 +4,7 @@ import br.com.sergio.sapiensia.customer.CurrentCustomer;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.UUID;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,7 +26,7 @@ class OrderController {
     }
 
     /** 201 and Location for a new Order, 200 and the same body when the pending Order was reused. */
-    @PostMapping
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     ResponseEntity<OrderCreated> create(@Valid @RequestBody CreateOrderRequest request, Authentication authentication) {
         OrderService.Created created =
                 orders.create(CurrentCustomer.id(authentication), CurrentCustomer.email(authentication), request);

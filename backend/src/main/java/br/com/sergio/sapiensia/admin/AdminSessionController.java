@@ -21,6 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -113,7 +114,7 @@ class AdminSessionController {
      * 204 and a session in the "MFA pending" state (no panel access yet), or an empty 401 that is identical for every
      * kind of failure. Called again from a full session, it starts over: the session goes back to pending.
      */
-    @PostMapping
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     ResponseEntity<Void> login(
             @RequestBody AdminLoginRequest login, HttpServletRequest request, HttpServletResponse response) {
         return passwordLogin.login(loginVariant, login.email(), login.password(), request, response);

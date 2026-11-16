@@ -1,6 +1,18 @@
 # API port: scripts/escolher-portas.ps1 gives each project its own (8081 and up).
 server:
   port: 8081
+  # public answers never carry the text, class or binding details of an error (SEC-018); explicit so a Boot default
+  # change cannot reopen them
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-binding-errors: never
+    include-exception: false
+  # a request line and headers above this are refused by Tomcat (SEC-015)
+  max-http-request-header-size: 16KB
+  tomcat:
+    # form bodies parsed by Tomcat itself (e.g. the CSRF fallback getParameter) must not bypass the 64 KiB body limit
+    max-http-form-post-size: 64KB
   servlet:
     session:
       # idle timeout (SEC-005); the session lives in server memory, so a restart logs everyone out
@@ -116,6 +128,48 @@ app:
     ip-window: PT15M
     # request header carrying the client IP; blank uses the socket address (set only a header the platform overwrites)
     client-ip-header:
+  rate-limit:
+    # Fixed windows per operation (the login has its own limits above). account-* is per account (Customer or e-mail
+    # hash); omit it for an operation with no account limit. ip-capacity-floor raises every ip-capacity to at least
+    # that value (0 = off; the local profile, the tests and the CI set it so parallel e2e runs from one IP never hit it).
+    ip-capacity-floor: 0
+    order-create:
+      account-capacity: 10
+      account-window: PT10M
+      ip-capacity: 30
+      ip-window: PT10M
+    order-read:
+      account-capacity: 60
+      account-window: PT10M
+      ip-capacity: 120
+      ip-window: PT10M
+    download:
+      account-capacity: 30
+      account-window: PT10M
+      ip-capacity: 60
+      ip-window: PT10M
+    cover:
+      ip-capacity: 600
+      ip-window: PT10M
+    sign-up:
+      account-capacity: 5
+      account-window: PT1H
+      ip-capacity: 20
+      ip-window: PT1H
+    password-reset-request:
+      account-capacity: 5
+      account-window: PT1H
+      ip-capacity: 20
+      ip-window: PT1H
+    password-reset-confirm:
+      ip-capacity: 20
+      ip-window: PT15M
+    email-confirmation:
+      ip-capacity: 30
+      ip-window: PT15M
+    admin-password-setup:
+      ip-capacity: 20
+      ip-window: PT15M
   pix:
     # who creates the Pix charges: "fake" (in memory, never in prod) or "asaas" (the prod profile sets it)
     provider: fake

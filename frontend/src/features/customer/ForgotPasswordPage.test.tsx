@@ -101,6 +101,20 @@ describe("ForgotPasswordPage", () => {
     expect(message).toHaveAttribute("role", "alert");
   });
 
+  test("#42: 429 mostra o aviso de muitas tentativas e não o erro genérico", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(429));
+    renderPage();
+
+    await submit("ana@example.com");
+
+    expect(
+      await screen.findByText(
+        "Muitas tentativas. Aguarde alguns minutos e tente de novo.",
+      ),
+    ).toHaveAttribute("role", "alert");
+    expect(screen.queryByText(/Não foi possível enviar agora/)).toBeNull();
+  });
+
   test('desabilita o botão e mostra "Enviando…" enquanto envia', async () => {
     vi.spyOn(globalThis, "fetch").mockReturnValue(new Promise(() => {}));
     renderPage();

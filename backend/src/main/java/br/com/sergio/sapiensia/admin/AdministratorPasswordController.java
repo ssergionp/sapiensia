@@ -16,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.password.CompromisedPasswordChecker;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -64,7 +65,7 @@ class AdministratorPasswordController {
      * valid. Then one short transaction uses the link, sets the password and audits ADMIN_PASSWORD_SET: if the event
      * cannot be written, nothing changes and the answer is 503. An invalid link is not audited.
      */
-    @PostMapping("/password-setup")
+    @PostMapping(path = "/password-setup", consumes = MediaType.APPLICATION_JSON_VALUE)
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void setPassword(@Valid @RequestBody AdminPasswordSetupRequest request, HttpServletRequest http) {
         if (compromisedPasswordChecker.check(request.newPassword()).isCompromised()) {

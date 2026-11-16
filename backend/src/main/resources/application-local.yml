@@ -28,6 +28,9 @@ app:
   # The e2e tests run against this profile and make every login from one IP
   login-limit:
     ip-max-attempts: 1000
+  # Same reason: every per-IP request limit becomes at least 10 000 (per-account limits stay as in production)
+  rate-limit:
+    ip-capacity-floor: 10000
   # Local demo accounts and published products (scripts/demo.ps1 turns this on); prod never has the property
   demo:
     enabled: ${APP_DEMO_ENABLED:false}

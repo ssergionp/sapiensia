@@ -219,14 +219,16 @@ class PasswordResetRequestTest {
     void shouldTakeTheSameTimeForKnownAndUnknownEmails() throws Exception {
         String unknown = "timing-" + UUID.randomUUID() + "@example.com";
         for (int i = 0; i < 5; i++) {
-            request(i % 2 == 0 ? email : unknown);
+            assertThat(request(i % 2 == 0 ? email : unknown).getResponse().getStatus())
+                    .isEqualTo(202);
         }
         List<Long> known = new ArrayList<>();
         List<Long> missing = new ArrayList<>();
         for (int i = 0; i < 20; i++) {
             boolean useKnown = i % 2 == 0;
             long start = System.nanoTime();
-            request(useKnown ? email : unknown);
+            assertThat(request(useKnown ? email : unknown).getResponse().getStatus())
+                    .isEqualTo(202);
             (useKnown ? known : missing).add((System.nanoTime() - start) / 1_000_000);
         }
 
