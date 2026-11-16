@@ -1,7 +1,4 @@
-import type { formatViolations as FormatViolations } from "./a11y";
-import { formatViolations, unresolved } from "./a11y";
-
-type AxeResult = Parameters<typeof FormatViolations>[0][number];
+import { type AxeResult, formatViolations, unresolved } from "./a11y";
 
 function violation(id: string, targets: string[] = ["#a"]): AxeResult {
   return {

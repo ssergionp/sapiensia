@@ -24,14 +24,14 @@ Antes: `just db`, `just dev-back` e `just dev-front` (banco, API e frontend no a
 
 ```powershell
 cd frontend
-pnpm exec playwright test e2e/admin-panel.e2e.ts --project=desktop -g "FR-016|FR-034"
+pnpm exec playwright test --project=desktop -g "NFR-005"
 ```
 
-Esse comando roda os dois testes de jornada (compra e Download), que têm os scans. O helper em si tem um teste próprio, `frontend/e2e/a11y-helper.e2e.ts`, que prova que ele reprova uma violação conhecida (`image-alt`).
+Esse comando roda só os testes que levam `NFR-005` no nome: os dois de jornada (compra e Download), que têm os scans, e o teste do próprio helper (`frontend/e2e/a11y-helper.e2e.ts`), que prova que ele reprova uma violação conhecida (`image-alt`).
 
 ## Resultado de 16/11/2026
 
-Execução local no desktop: 7 testes passaram. Foram 12 scans, todos com **0 violações**. `KNOWN_ISSUES` está vazia e nenhuma correção foi necessária.
+Execução local no desktop, com o filtro antigo `-g "FR-016|FR-034"` (que também pegou outros 5 testes do painel): 7 testes passaram, entre eles os dois de jornada. Foram 12 scans, todos com **0 violações**. `KNOWN_ISSUES` está vazia e nenhuma correção foi necessária.
 
 | Tela | Violações |
 |---|---|

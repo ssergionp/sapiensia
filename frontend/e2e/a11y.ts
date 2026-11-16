@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page } from "@playwright/test";
 
-type AxeResult = Awaited<
+export type AxeResult = Awaited<
   ReturnType<AxeBuilder["analyze"]>
 >["violations"][number];
 
