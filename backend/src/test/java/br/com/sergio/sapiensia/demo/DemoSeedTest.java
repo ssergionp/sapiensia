@@ -14,10 +14,13 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.bouncycastle.util.encoders.Base32;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -189,6 +192,38 @@ class DemoSeedTest {
             assertThat(seeders).hasSize(3);
             assertThat(counts()).isEqualTo(before);
             assertThat(before).containsExactly(1L, 1L, 3L, 3L, 3L);
+        }
+
+        @Test
+        @DisplayName("shouldRepublishTheDemoFilesWhenTheStorageLostThem")
+        void shouldRepublishTheDemoFilesWhenTheStorageLostThem() throws Exception {
+            Path storageDir = Path.of("target/test-storage-demo").toAbsolutePath();
+            try (Stream<Path> tree = Files.walk(storageDir)) {
+                for (Path file : tree.filter(Files::isRegularFile).toList()) {
+                    Files.delete(file);
+                }
+            }
+            List<Long> before = counts();
+            assertThat(currentObjectKeys()).hasSize(6).noneMatch(key -> Files.isRegularFile(storageDir.resolve(key)));
+
+            ApplicationArguments args = new DefaultApplicationArguments();
+            for (ApplicationRunner seeder :
+                    context.getBeansOfType(ApplicationRunner.class).values()) {
+                if (seeder.getClass().getSimpleName().startsWith("Demo")) {
+                    seeder.run(args);
+                }
+            }
+
+            assertThat(jdbc.queryForObject("select count(*) from products where status = 'PUBLISHED'", Long.class))
+                    .isEqualTo(3L);
+            assertThat(currentObjectKeys()).hasSize(6).allMatch(key -> Files.isRegularFile(storageDir.resolve(key)));
+            assertThat(counts()).isEqualTo(before);
+        }
+
+        private List<String> currentObjectKeys() {
+            return jdbc.queryForList(
+                    "select object_key from product_files union all select object_key from product_covers",
+                    String.class);
         }
 
         private List<Long> counts() {
