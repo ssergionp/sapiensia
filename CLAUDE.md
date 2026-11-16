@@ -57,6 +57,7 @@ Glossário e convenções das skills: veja docs/agents/ (o domain.md diz onde fi
 - `frontend/src/lib/saoPauloDate.ts` (`saoPauloDateAndTime`): o formatador único de data ("dd/MM/aaaa") e hora ("HH:mm") no fuso de São Paulo; use-o em vez de criar outro.
 - backend/.../alert/AdminAlerts.java: o único jeito de gerar um alerta ao Administrador; `record` dentro de uma transação (grava a linha junto com o resultado), `recordSafely` fora dela (nunca lança). O e-mail sai depois, pela tarefa `admin-alert-dispatch`, nunca na transação do pagamento.
 - backend/.../web/RequestRateLimiter.java (com `RateLimitInterceptor` e `RateLimitConfig`): o único jeito de limitar uma rota por IP e por conta (em memória, por instância). Rota limitada nova = um `RateLimitedOperation` + as propriedades `app.rate-limit.<operação>` + uma entrada no `RateLimitConfig` + uma linha em docs/api/endpoints.md.
+- `frontend/e2e/a11y.ts` (`expectNoA11yViolations`): o axe do e2e; tela nova numa jornada crítica ganha um scan no teste da jornada; exceção só por regra + tela em `KNOWN_ISSUES`, com issue. Auditoria: docs/acessibilidade/auditoria-jornadas.md.
 - (liste aqui outros helpers e componentes que o Claude deve usar em vez de criar novos)
 
 ## Segurança e produção
