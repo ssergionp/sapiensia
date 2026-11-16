@@ -73,3 +73,15 @@ test(`${TITLE}: secrets are only referenced in env, never inside run`, () => {
 test(`${TITLE}: the backup step requires TLS for the database connection`, () => {
   assert.match(yml, /^\s*PGSSLMODE:\s*require\s*$/m);
 });
+
+test(`${TITLE}: the alert step sets GH_REPO, so it works even when checkout failed`, () => {
+  const start = lines.findIndex((l) => /^\s*-\s+name:\s*Report the failure/.test(l));
+  assert.ok(start >= 0, 'alert step not found');
+  const indent = lines[start].length - lines[start].trimStart().length;
+  const step = [];
+  for (const l of lines.slice(start + 1)) {
+    if (l.trim() !== '' && l.length - l.trimStart().length <= indent) break;
+    step.push(l);
+  }
+  assert.ok(step.some((l) => /^\s*GH_REPO:\s*\$\{\{\s*github\.repository\s*\}\}\s*$/.test(l)));
+});
