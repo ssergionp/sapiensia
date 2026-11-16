@@ -2,11 +2,19 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** RASCUNHO, aguardando a aprovação do Sérgio (decisões D1 a D8 na seção 8 e textos da seção 5).
+**Status:** APROVADO pelo Sérgio em 15/11/2026 com um ajuste: D2 = 03:30 de São Paulo com janela de **90 dias** (devolução de Pix e MED podem chegar a ~80-90 dias). D1, D3 (textos da seção 5 sem mudança), D4, D5, D6, D7 e D8 aceitas como recomendado. O ADR-0002 (linha 11) e o critério da issue #39 foram atualizados conforme a D1 junto com esta aprovação. A máquina sempre ligada em produção já está no #43: fora deste ticket. Execução por subagent-driven-development (subagentes em Sonnet).
+
+**Regras da execução (do Sérgio, na aprovação):**
+- A conciliação nunca marca pago nem reembolsado por conta própria: só grava o evento marcado e agenda a tarefa; `PaymentConfirmation` e `RefundConfirmation` não mudam de comportamento.
+- `payment_events` continua append-only; o evento da conciliação é distinguível do webhook (id e payload) e tem teste.
+- Cada teste novo falha por asserção antes do código.
+- Localmente só lint e testes focados (incluindo as classes que citam FR-022, SEC-030, ADR-0002 e NFR-004), um comando pesado por vez, nunca dois subagentes rodando testes ao mesmo tempo. `just check-rapido` uma vez no fim; se for interrompido por memória, não se repete: vale o CI.
+- Antes de declarar pronto: skill `verificar-entrega` (CI no lugar do check completo) e `/code-review`.
+- Push (`git push -u origin feat/39-conciliacao`) e PR (`Closes #39`) sem parar para pedir OK; com o CI verde, resumo ao Sérgio. Merge continua precisando do OK dele.
 
 **Goal:** Toda madrugada o sistema compara os Pedidos com as cobranças Pix do Asaas, corrige sozinho o que tem caminho único (pagamento e estorno que o webhook perdeu) e avisa o Administrador por e-mail do que não tem.
 
-**Architecture:** Uma tarefa recorrente do db-scheduler (`asaas-reconciliation`) lista as cobranças Pix dos últimos 30 dias pelo `PixGateway`. A listagem só **indica candidatos**: para corrigir, a conciliação grava um evento de pagamento com origem `RECONCILIATION` em `payment_events` e agenda a mesma tarefa `process-payment-event` do webhook; quem decide e grava continua sendo `PaymentConfirmation` e `RefundConfirmation`, que consultam a cobrança de novo por id. O que não tem correção vira uma linha em `reconciliation_divergences` (uma vez por cobrança e tipo) e um alerta pelo `AdminAlerts`.
+**Architecture:** Uma tarefa recorrente do db-scheduler (`asaas-reconciliation`) lista as cobranças Pix dos últimos 90 dias pelo `PixGateway`. A listagem só **indica candidatos**: para corrigir, a conciliação grava um evento de pagamento com origem `RECONCILIATION` em `payment_events` e agenda a mesma tarefa `process-payment-event` do webhook; quem decide e grava continua sendo `PaymentConfirmation` e `RefundConfirmation`, que consultam a cobrança de novo por id. O que não tem correção vira uma linha em `reconciliation_divergences` (uma vez por cobrança e tipo) e um alerta pelo `AdminAlerts`.
 
 **Tech Stack:** Spring Boot 4.1 (`JdbcClient`, `TransactionTemplate`, `RestClient`), Flyway, PostgreSQL, db-scheduler 16.12.0, JUnit 5, Testcontainers. **Nenhuma dependência nova, nenhuma rota nova, nenhuma tela nova.**
 
@@ -44,18 +52,19 @@
 ## 1. Tarefa recorrente (item a)
 
 - `asaas-reconciliation`, `Schedules.cron(cron, ZoneId.of("America/Sao_Paulo"))`. `app.reconciliation.cron`: `"-"` no `application.yml` (desligada no local, na demonstração e nos testes) e `"0 30 3 * * *"` no `application-prod.yml`: **03:30 de São Paulo** (D2). Conferido no jar 16.12.0: `Schedules.cron(String, ZoneId)` existe e uma agenda `"-"` (`isDisabled`) cancela a execução que estiver na tabela.
-- **Janela:** cobranças criadas nos últimos **30 dias** (`app.reconciliation.window-days: 30`, D2), pelo calendário de São Paulo, e Pedidos `PAID` criados no mesmo período. Trinta dias cobrem o arrependimento de 7 dias com folga e custam poucas páginas por noite.
+- **Janela:** cobranças criadas nos últimos **90 dias** (`app.reconciliation.window-days: 90`, D2), pelo calendário de São Paulo, e Pedidos `PAID` criados no mesmo período. Noventa dias cobrem a devolução de Pix e o MED, que podem chegar a ~80-90 dias depois do pagamento.
 - **Reinício (NFR-004):** a execução fica em `scheduled_tasks`. Se o sistema estava parado às 03:30, a linha está vencida e roda quando ele volta. Se morrer no meio, o db-scheduler a revive (`onDeadExecutionRevive`, o padrão) e ela recomeça do zero; recomeçar é seguro (seção 6). Trocar o cron reagenda na subida.
-- **Falha:** `onFailureReschedule()`: a próxima tentativa é a noite seguinte. Sem nova tentativa na mesma noite (a documentação pede para não repetir logo depois de um `429`; a janela de 30 dias cobre a noite perdida).
-- **Homologação:** a máquina do Fly dorme (`auto_stop_machines`); lá a conciliação roda quando alguém a acorda depois das 03:30. Produção precisa de máquina sempre ligada para rodar na hora (fora deste ticket; vai para o runbook).
+- **Falha:** `onFailureReschedule()`: a próxima tentativa é a noite seguinte. Sem nova tentativa na mesma noite (a documentação pede para não repetir logo depois de um `429`; a janela de 90 dias cobre a noite perdida).
+- **Homologação:** a máquina do Fly dorme (`auto_stop_machines`); lá a conciliação roda quando alguém a acorda depois das 03:30. A máquina sempre ligada em produção está no #43 e fica fora deste ticket.
 
 ## 2. Como lê o Asaas (item b)
 
 - Método novo na porta: `PixChargePage listCharges(LocalDate createdFrom, int offset, int limit)`.
 - `AsaasPixGateway`: `GET /v3/payments?billingType=PIX&dateCreated[ge]=<yyyy-MM-dd>&offset=<n>&limit=100` ([Listar cobranças](https://docs.asaas.com/reference/listar-cobrancas): `limit` máximo 100; resposta `{hasMore, data[]}` com `id`, `status`, `value`, `billingType`, `externalReference`, `deleted`). Sem filtro de `status`: uma listagem só, filtrada aqui.
-- **Paginação** ([Listagem e paginação](https://docs.asaas.com/reference/listagem-e-paginacao)): `offset` 0, soma 100 enquanto `hasMore`; teto de `app.reconciliation.max-pages: 100` (10.000 cobranças).
+- **Paginação** ([Listagem e paginação](https://docs.asaas.com/reference/listagem-e-paginacao)): `offset` 0, soma 100 enquanto `hasMore`; teto de `app.reconciliation.max-pages: 300` (30.000 cobranças).
+- **Folga do teto com 90 dias (conferida na aprovação):** cada Pedido cria uma cobrança, inclusive os que expiram sem pagamento. Com o teto original de 100 páginas, 10.000 cobranças em 90 dias davam ~111 cobranças por dia: sobra hoje, mas é pouca folga para crescer. Com 300 páginas são ~333 por dia; o custo é no máximo 300 requisições por noite (~1,2% da cota de 25.000 a cada 12 h) e alguns minutos de execução. Passar do teto não perde dado em silêncio: gera o alerta `RECONCILIATION_FAILED`/`TOO_MANY_CHARGES`, sinal para subir o valor.
 - **Timeouts:** os mesmos do adaptador (3 s para conectar, 10 s para responder). O limite de corpo deste passo sobe para 2 MiB (uma página de 100 cobranças não cabe nos 64 KiB dos outros passos); acima disso é `UNAVAILABLE`.
-- **Limite do Asaas** ([Limites da API](https://docs.asaas.com/reference/rate-e-quota-limit)): 25.000 requisições a cada 12 h por conta e 50 `GET` simultâneos; estouro responde `429`. A conciliação faz uma requisição por vez e no máximo 100 páginas mais uma consulta por correção ou conferência: longe do limite. `429`, 5xx, timeout e resposta de formato inesperado (item sem `id`, `status` ou `value`) já viram `UNAVAILABLE` no adaptador.
+- **Limite do Asaas** ([Limites da API](https://docs.asaas.com/reference/rate-e-quota-limit)): 25.000 requisições a cada 12 h por conta e 50 `GET` simultâneos; estouro responde `429`. A conciliação faz uma requisição por vez e no máximo 300 páginas mais uma consulta por correção ou conferência: longe do limite. `429`, 5xx, timeout e resposta de formato inesperado (item sem `id`, `status` ou `value`) já viram `UNAVAILABLE` no adaptador.
 - **Se o Asaas cair no meio:** a execução para na hora. O que já foi agendado continua valendo (cada correção é conferida de novo por id). Grava o alerta `RECONCILIATION_FAILED` com `ASAAS_UNAVAILABLE` e termina com erro; a noite seguinte refaz a janela inteira.
 
 ## 3. Correções automáticas (item c)
@@ -83,7 +92,7 @@ Para cada cobrança Pix da listagem, com o Pedido achado por `provider_payment_i
 3. Só acontece depois de uma restauração do banco, que já é manual e rara; um erro aqui libera conteúdo pago.
 4. FR-022 e SEC-030 pedem comparar e sinalizar. O runbook ensina a recriar o Pedido como `PENDING`; a conciliação seguinte o paga e concede o Acesso pelo caminho único.
 
-Consequência: o critério "Pedido pago que faltava no banco é recriado com o Acesso" passa a ser provado em dois testes (Pedido existente não pago → pago com Acesso; cobrança sem Pedido → só alerta) e a frase da linha 11 do ADR-0002 é corrigida.
+Consequência (feita na aprovação): o critério "Pedido pago que faltava no banco é recriado com o Acesso" da issue #39 virou dois critérios, provados em dois testes (Pedido existente não pago → pago com Acesso; cobrança paga sem Pedido → só alerta), e a frase da linha 11 do ADR-0002 foi corrigida.
 
 Divergências (`reconciliation_divergences.kind`, alerta `RECONCILIATION_DIVERGENCE` com o `kind` no `detail`):
 
@@ -122,15 +131,15 @@ Assunto: `Alerta SapiensIA: <título> (<total>)`, como no #38.
 ## 7. O que não será provado e riscos (item g)
 
 - **Fica para o roteiro de sandbox do runbook:** o formato e o efeito real de `dateCreated[ge]`; se a listagem traz cobranças excluídas (se não trouxer, um Pedido expirado pago depois de cancelado, risco R1 do ADR-0003, só é coberto pelo webhook); a ordem das páginas; o `429` de verdade; o estado da cobrança depois de estorno parcial.
-- **Não compara:** cobranças com mais de 30 dias; chargeback; nada no painel (a lista de divergências na tela é outro ticket).
+- **Não compara:** cobranças com mais de 90 dias; chargeback; nada no painel (a lista de divergências na tela é outro ticket).
 - **Riscos:** `payment_events` passa a ter linhas que não vieram do webhook (marcadas no id e no `payload`; o ADR-0003 registra). Uma recusa final (ex.: `AMOUNT_MISMATCH`) não é tentada de novo nas noites seguintes: depende do Administrador. Migration nova (V26).
 
-## 8. Decisões que dependem do Sérgio
+## 8. Decisões do Sérgio (15/11/2026)
 
-| # | Decisão | Recomendação |
+| # | Decisão | Decidido |
 |---|---|---|
-| D1 | Cobrança paga sem Pedido: criar o Pedido ou só alertar | Só alertar; recriação manual pelo runbook; corrigir a frase do ADR-0002 e o critério do ticket |
-| D2 | Horário e janela | 03:30 de São Paulo; 30 dias |
+| D1 | Cobrança paga sem Pedido: criar o Pedido ou só alertar | Só alertar; recriação manual pelo runbook; frase do ADR-0002 e critério do ticket corrigidos na aprovação |
+| D2 | Horário e janela | 03:30 de São Paulo; **90 dias** (ajuste do Sérgio); teto de 300 páginas (seção 2) |
 | D3 | Textos da seção 5 | Como escritos |
 | D4 | Cobrança paga que não foi criada por este sistema (sem UUID na referência) | Não alertar; só contar no log |
 | D5 | Divergência não resolvida: avisar uma vez ou toda noite | Uma vez |
@@ -177,8 +186,9 @@ Assunto: `Alerta SapiensIA: <título> (<total>)`, como no #38.
 **Interfaces — Consumes:** Tasks 1 e 2; `PaymentEventTasks.PROCESS`; `AdminAlerts.record`/`recordSafely`.
 **Produces:**
 - `record Reconciliation.Result(int charges, int paymentFixes, int refundFixes, int divergences, int ignored)`; `Result run()`; `Reconciliation.IncompleteException` (não verificada, com `reason()`).
-- `Optional<UUID> PaymentEvents.findIdByProviderEventId(String)`; `List<Orders.Row> Orders.findPaidCreatedSince(Instant since)`.
-- Propriedades `app.reconciliation.window-days` e `max-pages` (também em `src/test/resources/application.properties`).
+- `Optional<UUID> PaymentEvents.findIdByProviderEventId(String)`; `List<Orders.Row> Orders.findPaidCreatedSince(Instant since)` (só `PAID`: o Pedido pago cuja cobrança não apareceu na listagem é lido por id).
+- Propriedades `app.reconciliation.window-days: 90` e `max-pages: 300` (também em `src/test/resources/application.properties`; nos testes, `max-pages` pequeno quando o teste exige).
+- Teste extra (regra da aprovação): `SEC-028, FR-022: o evento da conciliação se distingue do webhook pelo id e pelo payload e não pode ser alterado` (id `reconciliation:...`, `payload->>'source' = 'RECONCILIATION'`, `update`/`delete` na linha recusados pelo gatilho).
 
 Ordem do `run()`: lista página a página aplicando a tabela da seção 3 e a seção 4; depois confere os Pedidos `PAID` da janela; grava o log final. Qualquer `PixGatewayException` `UNAVAILABLE` (ou `max-pages`) → `recordSafely(RECONCILIATION_FAILED, reason)` e `IncompleteException`.
 
@@ -210,9 +220,9 @@ Ordem do `run()`: lista página a página aplicando a tabela da seção 3 e a se
 
 ### Task 5: documentação
 
-**Files:** Create `docs/runbooks/conciliacao-asaas.md`; Modify `docs/adr/0002-...md` (linha 11), `0003-...md`, `0005-...md`, o glossário (caminho em `docs/agents/domain.md`), `CLAUDE.md` (uma linha em "Reaproveitar antes de criar").
+**Files:** Create `docs/runbooks/conciliacao-asaas.md`; Modify `docs/adr/0003-...md`, `0005-...md`, o glossário (caminho em `docs/agents/domain.md`), `CLAUDE.md` (uma linha em "Reaproveitar antes de criar"). O ADR-0002 já foi corrigido na aprovação; só conferir que a referência ao runbook bate.
 
-- [ ] Runbook: o que a conciliação faz e quando; SQL para ver a última execução, as correções (evento → resultado → auditoria) e as divergências com o id da cobrança; seção "Divergências" (os 4 códigos e o que fazer; recriar um Pedido perdido como `PENDING`); seção "A conciliação não terminou" (rodar agora: `update scheduled_tasks set execution_time = now() where task_name = 'asaas-reconciliation'`); roteiro de sandbox da seção 7; máquina sempre ligada em produção.
+- [ ] Runbook: o que a conciliação faz e quando; SQL para ver a última execução, as correções (evento → resultado → auditoria) e as divergências com o id da cobrança; seção "Divergências" (os 4 códigos e o que fazer; recriar um Pedido perdido como `PENDING`); seção "A conciliação não terminou" (rodar agora: `update scheduled_tasks set execution_time = now() where task_name = 'asaas-reconciliation'`); roteiro de sandbox da seção 7. Máquina sempre ligada: só uma linha apontando para o #43.
 - [ ] ADRs conforme D1, D6 e a seção 1. Commit `docs: reconciliation runbook and ADRs (#39)`.
 
 ## Verificação final
