@@ -161,6 +161,19 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return refusal(HttpStatus.TOO_MANY_REQUESTS, Map.of("download", "DOWNLOAD_LIMIT"));
     }
 
+    /** Request limits (SEC-014): no detail, only the code and the seconds to wait. */
+    @ExceptionHandler(RateLimitedException.class)
+    ResponseEntity<ProblemDetail> handleRateLimited(RateLimitedException e) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.TOO_MANY_REQUESTS);
+        problem.setTitle("Too many requests");
+        problem.setProperty("code", "RATE_LIMITED");
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(
+                        HttpHeaders.RETRY_AFTER,
+                        String.valueOf(Math.max(1, e.retryAfter().toSeconds())))
+                .body(problem);
+    }
+
     private static ResponseEntity<ProblemDetail> refusal(HttpStatus status, Map<String, String> errors) {
         ProblemDetail problem = problem(errors);
         problem.setStatus(status);

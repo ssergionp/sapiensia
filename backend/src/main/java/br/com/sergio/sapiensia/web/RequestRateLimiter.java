@@ -14,6 +14,8 @@ import java.util.HexFormat;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -35,6 +37,19 @@ public class RequestRateLimiter {
 
     private static final Duration PURGE_INTERVAL = Duration.ofMinutes(1);
     private static final int DEFAULT_MAX_TRACKED_KEYS = 100_000;
+
+    private static final Logger log = LoggerFactory.getLogger(RequestRateLimiter.class);
+
+    /**
+     * Charges one request or throws {@link RateLimitedException} (429). The log says only the operation: never the
+     * IP, the account or the e-mail.
+     */
+    public void require(RateLimitedOperation operation, String ipKey, Optional<String> accountKey) {
+        tryConsume(operation, ipKey, accountKey).ifPresent(wait -> {
+            log.warn("Request limit reached for {}", operation);
+            throw new RateLimitedException(wait);
+        });
+    }
 
     /** The key of an account identified by e-mail: the SHA-256 (hex) of the normalized e-mail, never the e-mail. */
     public static String emailKey(String email) {

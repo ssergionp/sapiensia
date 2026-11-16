@@ -1,6 +1,10 @@
 package br.com.sergio.sapiensia.customer;
 
+import br.com.sergio.sapiensia.web.RateLimitedOperation;
+import br.com.sergio.sapiensia.web.RequestRateLimiter;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import java.util.Optional;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -14,21 +18,35 @@ class CustomerController {
 
     private final CustomerService customerService;
 
-    CustomerController(CustomerService customerService) {
+    private final RequestRateLimiter limiter;
+    private final ClientIpResolver clientIp;
+
+    CustomerController(CustomerService customerService, RequestRateLimiter limiter, ClientIpResolver clientIp) {
         this.customerService = customerService;
+        this.limiter = limiter;
+        this.clientIp = clientIp;
     }
 
     /** Public registration. Same 202 and empty body whether the e-mail is new or already registered. */
     @PostMapping
     @ResponseStatus(HttpStatus.ACCEPTED)
-    void register(@Valid @RequestBody RegisterCustomerRequest request) {
+    void register(@Valid @RequestBody RegisterCustomerRequest request, HttpServletRequest http) {
+        // the limit counts the e-mail, so it runs once the body is read; the answer never says whether it exists
+        limiter.require(
+                RateLimitedOperation.SIGN_UP,
+                clientIp.resolve(http),
+                Optional.of(RequestRateLimiter.emailKey(request.email())));
         customerService.register(request.email(), request.password());
     }
 
     /** Public password reset request. Same 202 and empty body whether or not the account exists. */
     @PostMapping("/password-resets")
     @ResponseStatus(HttpStatus.ACCEPTED)
-    void requestPasswordReset(@Valid @RequestBody RequestPasswordResetRequest request) {
+    void requestPasswordReset(@Valid @RequestBody RequestPasswordResetRequest request, HttpServletRequest http) {
+        limiter.require(
+                RateLimitedOperation.PASSWORD_RESET_REQUEST,
+                clientIp.resolve(http),
+                Optional.of(RequestRateLimiter.emailKey(request.email())));
         customerService.requestPasswordReset(request.email());
     }
 
