@@ -19,7 +19,7 @@ Regras que valem para tudo aqui:
 | `scripts/backup/restore.sh` | Descriptografa e restaura num banco de destino vazio, numa única transação. |
 | `scripts/backup/age-recipients.txt` | A chave **pública** do age (`age1...`). Não é segredo: só serve para criptografar. |
 | `scripts/backup/create-backup-role.sql` | Cria o papel `backup_reader` (só leitura) no banco. |
-| Bucket `sapiensia-backup-homolog` | Privado, sem domínio público. Pastas: `daily/` (todo backup) e `monthly/` (o da madrugada do dia 1 de cada mês). |
+| Bucket `sapiensia-backup-homolog` | Privado, sem domínio público. Pastas: `daily/` (todo backup) e `monthly/` (o primeiro envio bem-sucedido de cada mês). |
 | Teste de ida e volta no CI | A cada PR, `scripts/backup/roundtrip-test.sh` faz backup, restaura num banco novo e compara tabelas, contagens e sequências. Prova o mecanismo, não o bucket nem a sua chave. |
 
 Retenção (ADR-0002): 30 dias de backups diários e os 3 últimos mensais. Quem apaga é o próprio R2, por regra de ciclo de vida; a trava do bucket impede apagar ou sobrescrever antes do prazo, mesmo com a credencial.
@@ -43,7 +43,7 @@ Hoje só existe a homologação. A produção (#43) repete estes passos com buck
    - *Object lifecycle*: prefixo `daily/`, apagar depois de 30 dias; prefixo `monthly/`, apagar depois de 93 dias.
    - *Bucket lock*: prefixo `daily/`, 30 dias; prefixo `monthly/`, 93 dias.
 
-   Por que 93 dias: três meses seguidos somam no máximo 92 dias, então ficam os 3 últimos mensais (por algumas horas no dia 1, 4). A trava vence antes da regra de apagar; o R2 remove em até cerca de 24 h depois do prazo.
+   Por que 93 dias: três meses seguidos somam no máximo 92 dias, então ficam os 3 últimos mensais (por algumas horas após o primeiro envio do mês, 4). A trava vence antes da regra de apagar; o R2 remove em até cerca de 24 h depois do prazo.
 4. **[RESPONSÁVEL]** Em R2 > Manage API tokens, crie um token **Object Read & Write**, restrito ao bucket `sapiensia-backup-homolog`. O R2 não tem permissão só de escrita; esta é a menor que grava. O que compensa: o que está no bucket é criptografado e a trava impede apagar. Guarde no Bitwarden o *Access Key ID*, o *Secret Access Key* e o *Account ID*.
 
 ### 2. Chave do age
@@ -157,7 +157,7 @@ Depois do merge (o `schedule` e o botão só funcionam com o workflow já na `ma
 
 Quando uma execução falha, o workflow abre (ou comenta, se já houver uma aberta) uma issue com o rótulo `backup-failure`, e o GitHub avisa por e-mail. O texto só traz data, ambiente e o link da execução.
 
-1. Abra o link da execução e leia o passo que ficou vermelho. A mensagem do script começa com `FAIL` e não traz dado do banco.
+1. Abra o link da execução e leia o passo que ficou vermelho. A mensagem do script começa com `backup.sh:` e não traz dado do banco.
 2. Causas comuns:
    - **Chave do age ainda não configurada** (`age-recipients.txt` vazio): mande a linha `age1...` ao Claude.
    - **Senha do banco trocada ou projeto Supabase pausado**: religue o projeto (veja `docs/runbooks/homologacao-fly.md`, "Religar o Supabase pausado") e confira `HOMOLOG_BACKUP_DB_PASSWORD`.
