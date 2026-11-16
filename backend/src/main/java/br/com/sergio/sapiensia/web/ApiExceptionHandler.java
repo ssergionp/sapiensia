@@ -168,6 +168,7 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setTitle("Too many requests");
         problem.setProperty("code", "RATE_LIMITED");
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
                 .header(
                         HttpHeaders.RETRY_AFTER,
                         String.valueOf(Math.max(1, e.retryAfter().toSeconds())))

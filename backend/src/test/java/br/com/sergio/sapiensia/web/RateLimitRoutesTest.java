@@ -144,6 +144,15 @@ class RateLimitRoutesTest {
                     HttpResponse.BodyHandlers.ofString());
         }
 
+        HttpResponse<String> head(String path) throws Exception {
+            return http.send(
+                    HttpRequest.newBuilder(uri(path))
+                            .timeout(Duration.ofSeconds(60))
+                            .method("HEAD", HttpRequest.BodyPublishers.noBody())
+                            .build(),
+                    HttpResponse.BodyHandlers.ofString());
+        }
+
         HttpResponse<String> order(UUID productId) throws Exception {
             return post("/api/orders", "{\"productId\":\"" + productId + "\",\"cpf\":\"" + CPF + "\"}");
         }
@@ -161,6 +170,7 @@ class RateLimitRoutesTest {
         assertThat(response.headers().firstValue("Retry-After")).isPresent();
         assertThat(Long.parseLong(response.headers().firstValue("Retry-After").orElseThrow()))
                 .isGreaterThanOrEqualTo(1);
+        assertThat(response.headers().firstValue("Cache-Control")).contains("no-store");
         assertThat((String) JsonPath.read(response.body(), "$.code")).isEqualTo("RATE_LIMITED");
         assertThat((String) JsonPath.read(response.body(), "$.title")).isEqualTo("Too many requests");
     }
@@ -246,6 +256,9 @@ class RateLimitRoutesTest {
                 .isEqualTo(404);
         assertThat(customer.get("/api/library/" + UUID.randomUUID() + "/cover").statusCode())
                 .isEqualTo(404);
+        // Security allows GET only on the cover routes, so a HEAD never reaches the limit (nor the controller)
+        assertThat(visitor.head("/api/products/" + UUID.randomUUID() + "/cover").statusCode())
+                .isEqualTo(401);
 
         assertRateLimited(visitor.get("/api/products/" + UUID.randomUUID() + "/cover"));
         assertRateLimited(customer.get("/api/library/" + UUID.randomUUID() + "/cover"));

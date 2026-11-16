@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
 import jakarta.servlet.http.Cookie;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,7 +48,7 @@ class CustomerControllerTest {
         mvc = MockMvcBuilders.webAppContextSetup(context)
                 .apply(springSecurity())
                 .build();
-        ana = "ana-" + java.util.UUID.randomUUID() + "@example.com";
+        ana = "ana-" + UUID.randomUUID() + "@example.com";
         jdbc.update("delete from customers");
         csrfCookie = mvc.perform(get("/cadastro")).andReturn().getResponse().getCookie("XSRF-TOKEN");
     }
