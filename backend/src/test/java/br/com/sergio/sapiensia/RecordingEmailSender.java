@@ -12,6 +12,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Test double that keeps every e-mail in memory instead of sending it. Shared by all tests of the same Spring context,
@@ -25,9 +27,43 @@ public class RecordingEmailSender implements EmailSender {
     private final Set<String> failAllSendsTo = ConcurrentHashMap.newKeySet();
     private final Map<String, Integer> attemptsPerAddress = new ConcurrentHashMap<>();
 
+    /** A send held inside {@code send} until the test releases it, to prove what happens while a send is in progress. */
+    public static final class Blocker {
+        private final CountDownLatch entered = new CountDownLatch(1);
+        private final CountDownLatch released = new CountDownLatch(1);
+
+        /** True when a send reached the sender within the timeout. */
+        public boolean awaitEntered(Duration timeout) throws InterruptedException {
+            return entered.await(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        }
+
+        /** Lets the held send go on. Safe to call more than once. */
+        public void release() {
+            released.countDown();
+        }
+    }
+
+    private final Map<String, Blocker> blockers = new ConcurrentHashMap<>();
+
+    /** Holds the next send to this address (once) until {@link Blocker#release()}; the wait is bounded at 30 s. */
+    public Blocker blockNextSendTo(String to) {
+        Blocker blocker = new Blocker();
+        blockers.put(to, blocker);
+        return blocker;
+    }
+
     @Override
     public void send(EmailMessage message) {
         attemptsPerAddress.merge(message.to(), 1, Integer::sum);
+        Blocker blocker = blockers.remove(message.to());
+        if (blocker != null) {
+            blocker.entered.countDown();
+            try {
+                blocker.released.await(30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
         if (failAllSendsTo.contains(message.to()) || failNextSendTo.remove(message.to())) {
             throw new EmailDeliveryException("Simulated delivery failure");
         }

@@ -1,5 +1,7 @@
 package br.com.sergio.sapiensia.payment;
 
+import br.com.sergio.sapiensia.alert.AdminAlertType;
+import br.com.sergio.sapiensia.alert.AdminAlerts;
 import br.com.sergio.sapiensia.customer.ClientIpResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import java.nio.charset.StandardCharsets;
@@ -32,9 +34,11 @@ public class AsaasWebhookAccess implements AuthorizationManager<RequestAuthoriza
     private final ClientIpResolver clientIpResolver;
     private final Set<String> allowedIps;
     private final byte[] expectedSha256;
+    private final AdminAlerts alerts;
 
-    AsaasWebhookAccess(ClientIpResolver clientIpResolver, AsaasWebhookProperties properties) {
+    AsaasWebhookAccess(ClientIpResolver clientIpResolver, AsaasWebhookProperties properties, AdminAlerts alerts) {
         this.clientIpResolver = clientIpResolver;
+        this.alerts = alerts;
         this.allowedIps = properties.canonicalAllowedIps();
         this.expectedSha256 = sha256(properties.token());
     }
@@ -53,6 +57,10 @@ public class AsaasWebhookAccess implements AuthorizationManager<RequestAuthoriza
                     ? "IP_NOT_ALLOWED_AND_TOKEN_INVALID"
                     : !ipAllowed ? "IP_NOT_ALLOWED" : "TOKEN_INVALID";
             log.warn("Asaas webhook refused: ip={} reason={}", ip, reason);
+            if (ipAllowed != tokenValid) {
+                // exactly one credential matches: a swapped token or a new Asaas address. Both wrong is just noise.
+                alerts.recordSafely(AdminAlertType.WEBHOOK_REJECTED, ipAllowed ? "TOKEN_INVALID" : "IP_NOT_ALLOWED");
+            }
         }
         return new AuthorizationDecision(ipAllowed && tokenValid);
     }

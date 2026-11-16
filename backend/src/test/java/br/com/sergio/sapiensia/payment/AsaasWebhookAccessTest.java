@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import br.com.sergio.sapiensia.alert.AdminAlerts;
 import br.com.sergio.sapiensia.customer.ClientIpResolver;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -25,7 +26,8 @@ class AsaasWebhookAccessTest {
     private final ClientIpResolver resolver = mock(ClientIpResolver.class);
 
     private AsaasWebhookAccess access(String... allowedIps) {
-        return new AsaasWebhookAccess(resolver, new AsaasWebhookProperties(TOKEN, List.of(allowedIps), 65536));
+        return new AsaasWebhookAccess(
+                resolver, new AsaasWebhookProperties(TOKEN, List.of(allowedIps), 65536), mock(AdminAlerts.class));
     }
 
     private boolean granted(AsaasWebhookAccess access, String ip, String token) {

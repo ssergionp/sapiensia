@@ -1,5 +1,7 @@
 package br.com.sergio.sapiensia.payment;
 
+import br.com.sergio.sapiensia.alert.AdminAlertType;
+import br.com.sergio.sapiensia.alert.AdminAlerts;
 import br.com.sergio.sapiensia.audit.AuditAction;
 import br.com.sergio.sapiensia.audit.AuditEntry;
 import br.com.sergio.sapiensia.audit.AuditLog;
@@ -47,6 +49,7 @@ class PaymentConfirmation {
     private final AuditLog audit;
     private final Clock clock;
     private final SchedulerClient scheduler;
+    private final AdminAlerts alerts;
     private final TransactionTemplate transaction;
 
     PaymentConfirmation(
@@ -59,6 +62,7 @@ class PaymentConfirmation {
             AuditLog audit,
             Clock clock,
             @Lazy SchedulerClient scheduler,
+            AdminAlerts alerts,
             PlatformTransactionManager transactionManager) {
         this.events = events;
         this.results = results;
@@ -69,6 +73,7 @@ class PaymentConfirmation {
         this.audit = audit;
         this.clock = clock;
         this.scheduler = scheduler;
+        this.alerts = alerts;
         this.transaction = new TransactionTemplate(transactionManager);
     }
 
@@ -164,6 +169,7 @@ class PaymentConfirmation {
         }
         PaymentResult result = granted ? PaymentResult.PAID : PaymentResult.DUPLICATE_PURCHASE;
         results.record(paymentEventId, result, order.id(), now);
+        outcome.recordReviewAlert(paymentEventId, result, order.id());
         return result;
     }
 
@@ -183,7 +189,15 @@ class PaymentConfirmation {
         UUID orderId = valid
                 ? orders.findByProviderPaymentId(chargeId).map(Orders.Row::id).orElse(null)
                 : null;
-        if (results.record(paymentEventId, PaymentResult.GAVE_UP, orderId, clock.instant())) {
+        // the result and its alert exist together or not at all
+        boolean recorded = Boolean.TRUE.equals(transaction.execute(status -> {
+            if (!results.record(paymentEventId, PaymentResult.GAVE_UP, orderId, clock.instant())) {
+                return false;
+            }
+            alerts.record(AdminAlertType.PAYMENT_EVENT_GAVE_UP, null, orderId, paymentEventId);
+            return true;
+        }));
+        if (recorded) {
             log.error(
                     "Payment event processing gave up: eventId={} orderId={} chargeId={}",
                     ref.get().providerEventId(),

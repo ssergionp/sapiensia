@@ -53,6 +53,7 @@ Glossário e convenções das skills: veja docs/agents/ (o domain.md diz onde fi
 - backend/src/test/.../TestcontainersConfiguration.java: um único Postgres para a suíte de testes; cada contexto Spring ganha um banco próprio, apagado quando o contexto fecha. Teste que precisa de um banco fora de um contexto (ex.: reiniciar o sistema sobre o mesmo banco) usa `TestcontainersConfiguration.newDatabase()` e `drop()`; nunca um `PostgreSQLContainer` próprio. O cache de contextos de teste guarda no máximo 8 (`backend/src/test/resources/spring.properties`).
 - backend/.../payment/MaskedEmail.java: o único jeito de mostrar o e-mail de um Cliente no painel (primeira letra + `***` + `@domínio`, mascarado no servidor); o e-mail inteiro nunca sai na resposta nem no log.
 - `frontend/src/lib/saoPauloDate.ts` (`saoPauloDateAndTime`): o formatador único de data ("dd/MM/aaaa") e hora ("HH:mm") no fuso de São Paulo; use-o em vez de criar outro.
+- backend/.../alert/AdminAlerts.java: o único jeito de gerar um alerta ao Administrador; `record` dentro de uma transação (grava a linha junto com o resultado), `recordSafely` fora dela (nunca lança). O e-mail sai depois, pela tarefa `admin-alert-dispatch`, nunca na transação do pagamento.
 - (liste aqui outros helpers e componentes que o Claude deve usar em vez de criar novos)
 
 ## Segurança e produção
