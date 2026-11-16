@@ -45,7 +45,7 @@ Máquina sempre ligada em produção (para a conciliação não depender de algu
    order by e.received_at desc;
    ```
 
-   `result` vazio quer dizer que a tarefa ainda está repetindo (veja "Conferir um pagamento", item 6). Resultado `PAID` com `ACCESS_GRANTED`: o Pedido foi pago e o Acesso concedido. `REFUNDED` com `ACCESS_CANCELLED`: o Pedido foi reembolsado e o Acesso cancelado. Qualquer outro resultado (`AMOUNT_MISMATCH`, `GAVE_UP`...) é um caso para revisão, como em qualquer evento de pagamento. Um Pedido com Acesso concedido e depois cancelado aparece com as duas ações.
+   `result` vazio quer dizer que a tarefa ainda está repetindo (veja "Conferir um pagamento", item 6). Resultado `PAID` com `ACCESS_GRANTED`: o Pedido foi pago e o Acesso concedido. `REFUNDED` com `ACCESS_CANCELLED`: o Pedido foi reembolsado e o Acesso cancelado. Qualquer outro resultado (`AMOUNT_MISMATCH`, `GAVE_UP`...) é um caso para revisão, como em qualquer evento de pagamento. Um Pedido com Acesso concedido e depois cancelado aparece com as duas ações, e um Pedido com mais de um evento aparece em mais de uma linha.
 
 3. As divergências, com o id da cobrança (é o que você procura no painel do Asaas):
 
@@ -67,26 +67,27 @@ Regra antes de agir: **confira sempre a cobrança no painel do Asaas**; o que va
 
 - **Quer dizer:** o Asaas tem uma cobrança Pix **paga**, criada por este sistema (a referência externa dela é um UUID), mas não há Pedido com esse id de cobrança no banco. Quase sempre é um Pedido perdido numa restauração de backup (ADR-0002: o que foi feito depois do último backup se perde).
 - **No painel do Asaas:** abra a cobrança e anote o valor, a data do pagamento e a **referência externa** (o UUID: é o id que o Pedido tinha).
-- **O que fazer:** o Cliente pagou e não tem o Acesso. A conciliação **não recria o Pedido** (criá-lo a partir da cobrança faria a cobrança conferir a si mesma, e ela não diz qual é o Produto). Recrie o Pedido à mão, como `PENDING`, pelo modelo abaixo; a conciliação seguinte o paga e concede o Acesso pelo caminho único (`PaymentConfirmation`). Se a cobrança não for de um Cliente real (um teste, por exemplo), não faça nada.
+- **O que fazer:** o Cliente pagou e não tem o Acesso. A conciliação **não recria o Pedido** (criá-lo a partir da cobrança faria a cobrança conferir a si mesma, e ela não diz qual é o Produto). Recrie o Pedido à mão, como `EXPIRED`, pelo modelo abaixo (a conciliação paga Pedido `PENDING` ou `EXPIRED`; o expirado a tarefa de expiração nunca toca, então nenhum pedido de cancelamento vai ao Asaas para uma cobrança paga); a conciliação seguinte o paga e concede o Acesso pelo caminho único (`PaymentConfirmation`). Se a cobrança não for de um Cliente real (um teste, por exemplo), não faça nada.
 
 **Recriar um Pedido perdido (correção manual e excepcional de dados).** É uma escrita direta no banco de produção: só para esta situação, uma cobrança por vez, e confira os valores duas vezes antes de rodar. Pré-requisitos: o Cliente e o Produto existem no banco. Se o Cliente também foi perdido, ele precisa se cadastrar de novo no site antes; se o Produto foi perdido, recupere-o antes. De onde vem cada valor: `COLE_O_ID_DO_PEDIDO` é a referência externa da cobrança no Asaas (tem de ser exatamente ela, senão a conferência do pagamento termina em `REFERENCE_MISMATCH`); o Cliente você acha em `customers` e o Produto em `products`; o valor em centavos é o da cobrança (a conferência o compara com o preço do Pedido; se for diferente, termina em `AMOUNT_MISMATCH`).
 
 ```sql
 -- Modelo: troque os marcadores COLE_...; nunca rode com os marcadores.
-insert into orders (id, customer_id, product_id, price_cents, status, provider_payment_id, created_at, expires_at)
+insert into orders (id, customer_id, product_id, price_cents, status, provider_payment_id, created_at, expires_at, expired_at)
 values (
   'COLE_O_ID_DO_PEDIDO',      -- referência externa (UUID) da cobrança no Asaas
   'COLE_O_ID_DO_CLIENTE',     -- customers.id
   'COLE_O_ID_DO_PRODUTO',     -- products.id
   COLE_O_VALOR_EM_CENTAVOS,   -- igual ao valor da cobrança (R$ 29,90 = 2990)
-  'PENDING',
+  'EXPIRED',
   'COLE_O_ID_DA_COBRANCA',    -- reconciliation_divergences.charge_id
-  now(),
-  now() + interval '1 day'    -- um Pedido pendente vencido seria expirado pela tarefa de expiração (a cada minuto), que tenta cancelar a cobrança
+  now(),                      -- created_at
+  now(),                      -- expires_at
+  now()                       -- expired_at
 );
 ```
 
-Depois, rode a conciliação na hora (veja "Rodar agora" na seção "A conciliação não terminou") e confira com a consulta 2: resultado `PAID` e `ACCESS_GRANTED`. Se o `insert` falhar por já existir um Pedido pendente do mesmo Cliente e Produto (o banco aceita só um), resolva esse primeiro. A divergência continua na tabela como histórico; não a apague.
+Depois, rode a conciliação na hora (veja "Rodar agora" na seção "A conciliação não terminou") e confira com a consulta 2: resultado `PAID` e `ACCESS_GRANTED`. Se o `insert` falhar por estar fora do padrão (por exemplo, id repetido), não insista: o Pedido já existe ou o id da cobrança está errado. A divergência continua na tabela como histórico; não a apague.
 
 ### `ORDER_PAID_CHARGE_NOT_PAID`
 
