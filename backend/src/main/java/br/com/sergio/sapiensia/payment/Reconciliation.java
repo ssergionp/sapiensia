@@ -13,6 +13,7 @@ import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -115,7 +116,7 @@ class Reconciliation {
             for (page = 0; ; page++) {
                 if (page >= maxPages) {
                     // the previous page said there is more
-                    fail(TOO_MANY);
+                    throw fail(TOO_MANY);
                 }
                 PixChargePage listed = call(() -> gateway.listCharges(from, page * PAGE_SIZE, PAGE_SIZE));
                 for (PixCharge charge : listed.charges()) {
@@ -212,24 +213,23 @@ class Reconciliation {
                 if (e.kind() == PixGatewayException.Kind.REFUSED) {
                     return Optional.empty();
                 }
-                fail(UNAVAILABLE);
-                return Optional.empty();
+                throw fail(UNAVAILABLE);
             }
         }
 
-        private <T> T call(java.util.function.Supplier<T> listing) {
+        private <T> T call(Supplier<T> listing) {
             try {
                 return listing.get();
             } catch (PixGatewayException e) {
-                fail(UNAVAILABLE);
-                return null;
+                throw fail(UNAVAILABLE);
             }
         }
 
-        private void fail(String reason) {
+        /** Alerts and logs the stop; the caller throws the result. */
+        private IncompleteException fail(String reason) {
             alerts.recordSafely(AdminAlertType.RECONCILIATION_FAILED, reason);
             log.error("Reconciliation incomplete: reason={} page={}", reason, page);
-            throw new IncompleteException(reason);
+            return new IncompleteException(reason);
         }
 
         /** Stores the marked event and schedules its processing, exactly as the webhook does. */

@@ -23,8 +23,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 /**
  * FR-022, SEC-030, SEC-028, ADR-0002, NFR-004: the nightly reconciliation compares the Asaas charges with the Orders;
@@ -46,6 +48,12 @@ class ReconciliationTest {
 
     private static final int PRICE = 2990;
     private static final BigDecimal VALUE = new BigDecimal("29.90");
+
+    @LocalServerPort
+    int port;
+
+    @Autowired
+    PasswordEncoder encoder;
 
     @Autowired
     JdbcTemplate jdbc;
@@ -503,21 +511,138 @@ class ReconciliationTest {
         assertThat(events(event)).isEqualTo(1);
     }
 
+    private void failReads() {
+        gateway.failAt("READ_CHARGE", PixGatewayException.Kind.UNAVAILABLE);
+    }
+
+    private void assertStoppedAsUnavailable(String chargeId) {
+        int failedBefore = alertTotal("RECONCILIATION_FAILED", "ASAAS_UNAVAILABLE");
+
+        assertThatThrownBy(() -> reconciliation.run())
+                .isInstanceOfSatisfying(
+                        Reconciliation.IncompleteException.class,
+                        e -> assertThat(e.reason()).isEqualTo("ASAAS_UNAVAILABLE"));
+
+        assertThat(alertTotal("RECONCILIATION_FAILED", "ASAAS_UNAVAILABLE")).isEqualTo(failedBefore + 1);
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from reconciliation_divergences where charge_id = ?", Integer.class, chargeId))
+                .isZero();
+    }
+
+    @Test
+    @DisplayName(
+            "SEC-030: Asaas fora na leitura de um Pedido pago que não veio na listagem para a execução, sem divergência")
+    void shouldStopWhenTheFallbackReadOfAPaidOrderIsUnavailable() {
+        Placed placed = placePaidOrder();
+        listing();
+        failReads();
+
+        assertStoppedAsUnavailable(placed.chargeId());
+    }
+
+    @Test
+    @DisplayName("SEC-030: Asaas fora na confirmação de um Pedido reembolsado para a execução, sem divergência")
+    void shouldStopWhenTheConfirmationReadOfARefundedOrderIsUnavailable() {
+        Placed placed = placePaidOrder();
+        assertThat(orders.markRefunded(placed.orderId(), Instant.now())).isTrue();
+        listing(charge(placed, "RECEIVED"));
+        failReads();
+
+        assertStoppedAsUnavailable(placed.chargeId());
+    }
+
+    @Test
+    @DisplayName("FR-022, SEC-030: Pedido pago fora da listagem cuja cobrança lida está estornada vira reembolsado")
+    void shouldRefundAPaidOrderMissingFromTheListingWhenTheReadSaysRefunded() throws Exception {
+        Placed placed = placePaidOrder();
+        gateway.answerCharge(placed.chargeId(), charge(placed, "REFUNDED"));
+        listing();
+
+        Reconciliation.Result result = reconciliation.run();
+
+        assertThat(result.refundFixes()).isEqualTo(1);
+        awaitResult(eventId("PAYMENT_REFUNDED", placed.chargeId()), "REFUNDED");
+        assertThat(status(placed.orderId())).isEqualTo("REFUNDED");
+        assertThat(jdbc.queryForObject(
+                        "select cancelled_at is not null from accesses where order_id = ?",
+                        Boolean.class,
+                        placed.orderId()))
+                .isTrue();
+    }
+
+    @Test
+    @DisplayName("FR-022: Pedido pago fora da listagem cuja cobrança lida está paga não gera evento nem divergência")
+    void shouldDoNothingForAPaidOrderMissingFromTheListingWhenTheReadSaysPaid() {
+        Placed placed = placePaidOrder();
+        gateway.answerCharge(placed.chargeId(), charge(placed, "RECEIVED"));
+        listing();
+
+        reconciliation.run();
+
+        assertThat(events(eventId("PAYMENT_RECEIVED", placed.chargeId()))).isZero();
+        assertThat(events(eventId("PAYMENT_REFUNDED", placed.chargeId()))).isZero();
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from reconciliation_divergences where charge_id = ?",
+                        Integer.class,
+                        placed.chargeId()))
+                .isZero();
+        assertThat(status(placed.orderId())).isEqualTo("PAID");
+    }
+
+    @Test
+    @DisplayName(
+            "FR-022: listagem atrasada (paga) com Pedido reembolsado e cobrança lida não paga não gera divergência")
+    void shouldNotRecordADivergenceWhenTheListingIsLate() {
+        Placed placed = placePaidOrder();
+        assertThat(orders.markRefunded(placed.orderId(), Instant.now())).isTrue();
+        listing(charge(placed, "RECEIVED"));
+        gateway.answerCharge(placed.chargeId(), charge(placed, "REFUNDED"));
+
+        reconciliation.run();
+
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from reconciliation_divergences where charge_id = ?",
+                        Integer.class,
+                        placed.chargeId()))
+                .isZero();
+        assertThat(divergenceAlerts(placed.orderId())).isZero();
+    }
+
     @Test
     @DisplayName("SEC-030: o log da conciliação só traz códigos, ids e contagens")
     void shouldLogOnlyCodesIdsAndCounts(CapturedOutput output) throws Exception {
-        String email = "planted-" + UUID.randomUUID() + "@example.com";
+        String cpf = "52998224725";
+        // a real purchase, so the e-mail and the CPF go through the system to the fake provider
+        OrderHttp.Customer customer = OrderHttp.newCustomer(port, jdbc, encoder);
         String title = "marker-title-" + UUID.randomUUID();
-        Placed toPay = placeOrder(email, title);
+        UUID productId = OrderTestSupport.insertPublishedProduct(jdbc, title, PRICE);
+        var created = customer.order(productId, cpf);
+        assertThat(created.statusCode()).isEqualTo(201);
+        UUID orderId = UUID.fromString(OrderHttp.json(created, "$.id"));
+        String chargeId =
+                jdbc.queryForObject("select provider_payment_id from orders where id = ?", String.class, orderId);
+        gateway.reset();
+        String email = customer.email;
+        Placed toPay = new Placed(orderId, customer.id, productId, chargeId, email);
         gateway.answerCharge(toPay.chargeId(), charge(toPay, "RECEIVED"));
         Placed diverging = placePaidOrder();
         gateway.answerCharge(diverging.chargeId(), charge(diverging, "PENDING"));
         String orphan = "pay_" + UUID.randomUUID().toString().replace("-", "");
+        // free text the provider could send in the reference of a charge this system did not create
+        String referenceMarker = "ref-marker-" + UUID.randomUUID();
         listing(
                 charge(toPay, "RECEIVED"),
                 charge(diverging, "PENDING"),
                 new PixCharge(
-                        orphan, "RECEIVED", VALUE, "PIX", UUID.randomUUID().toString(), false));
+                        orphan, "RECEIVED", VALUE, "PIX", UUID.randomUUID().toString(), false),
+                new PixCharge(
+                        "pay_" + UUID.randomUUID().toString().replace("-", ""),
+                        "RECEIVED",
+                        VALUE,
+                        "PIX",
+                        referenceMarker,
+                        false));
+        Instant start = Instant.now();
 
         reconciliation.run();
         awaitResult(eventId("PAYMENT_RECEIVED", toPay.chargeId()), "PAID");
@@ -533,15 +658,18 @@ class ReconciliationTest {
                 .allSatisfy(l -> assertThat(l)
                         .doesNotContain(email)
                         .doesNotContain(title)
-                        .doesNotContain("52998224725"));
+                        .doesNotContain(cpf)
+                        .doesNotContain(referenceMarker));
         assertThat(lines)
                 .filteredOn(l -> l.contains("Reconciliation finished"))
                 .allMatch(l -> l.matches(".*Reconciliation finished: charges=\\d+ paymentFixes=\\d+ refundFixes=\\d+"
                         + " divergences=\\d+ ignored=\\d+\\s*"));
         assertThat(jdbc.queryForList(
                         "select distinct detail from admin_alerts"
-                                + " where type in ('RECONCILIATION_DIVERGENCE', 'RECONCILIATION_FAILED')",
-                        String.class))
+                                + " where type in ('RECONCILIATION_DIVERGENCE', 'RECONCILIATION_FAILED')"
+                                + " and occurred_at >= ?",
+                        String.class,
+                        java.sql.Timestamp.from(start)))
                 .isNotEmpty()
                 .allMatch(d -> List.of(
                                 "CHARGE_WITHOUT_ORDER",
