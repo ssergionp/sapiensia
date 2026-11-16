@@ -116,6 +116,48 @@ app:
     ip-window: PT15M
     # request header carrying the client IP; blank uses the socket address (set only a header the platform overwrites)
     client-ip-header:
+  rate-limit:
+    # Fixed windows per operation (the login has its own limits above). account-* is per account (Customer or e-mail
+    # hash); omit it for an operation with no account limit. ip-capacity-floor raises every ip-capacity to at least
+    # that value (0 = off; the local profile, the tests and the CI set it so parallel e2e runs from one IP never hit it).
+    ip-capacity-floor: 0
+    order-create:
+      account-capacity: 10
+      account-window: PT10M
+      ip-capacity: 30
+      ip-window: PT10M
+    order-read:
+      account-capacity: 60
+      account-window: PT10M
+      ip-capacity: 120
+      ip-window: PT10M
+    download:
+      account-capacity: 30
+      account-window: PT10M
+      ip-capacity: 60
+      ip-window: PT10M
+    cover:
+      ip-capacity: 600
+      ip-window: PT10M
+    sign-up:
+      account-capacity: 5
+      account-window: PT1H
+      ip-capacity: 20
+      ip-window: PT1H
+    password-reset-request:
+      account-capacity: 5
+      account-window: PT1H
+      ip-capacity: 20
+      ip-window: PT1H
+    password-reset-confirm:
+      ip-capacity: 20
+      ip-window: PT15M
+    email-confirmation:
+      ip-capacity: 30
+      ip-window: PT15M
+    admin-password-setup:
+      ip-capacity: 20
+      ip-window: PT15M
   pix:
     # who creates the Pix charges: "fake" (in memory, never in prod) or "asaas" (the prod profile sets it)
     provider: fake
