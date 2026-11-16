@@ -2,13 +2,20 @@
 status: accepted
 ---
 
-# Banco e arquivos no Supabase, com backup noturno no Cloudflare R2
+# Banco e arquivos no Supabase, com backup duas vezes por dia no Cloudflare R2
 
-O PostgreSQL fica no Supabase Free (São Paulo) e os Arquivos do produto no Supabase Storage, em bucket privado. Toda noite um `pg_dump` é enviado ao Cloudflare R2. Escolhemos o menor custo possível até a primeira venda e aceitamos o RPO de até 24 horas e o RTO de até 1 dia.
+O PostgreSQL fica no Supabase Free (São Paulo) e os Arquivos do produto no Supabase Storage, em bucket privado. Duas vezes por dia (04:17 e 16:17 de São Paulo) um `pg_dump` é enviado, já criptografado, ao Cloudflare R2. Escolhemos o menor custo possível até a primeira venda e aceitamos o RPO de até 24 horas e o RTO de até 1 dia.
 
 ## Consequences
 
 - Pedidos e cadastros feitos depois do último backup podem se perder. A conciliação noturna com o Asaas (#39) corrige o pagamento e o estorno de Pedidos que existem no banco, sempre pelos caminhos únicos (`PaymentConfirmation` e `RefundConfirmation`), e **não recria Pedido**: uma cobrança paga sem Pedido no banco gera um alerta ao Administrador. O Pedido perdido é recriado à mão como expirado pelo runbook `docs/runbooks/conciliacao-asaas.md`, e a conciliação seguinte o leva a pago e concede o Acesso. Criar o Pedido a partir da cobrança faria a cobrança conferir a si mesma, e ela não diz qual é o Produto.
+- **Onde o backup roda (#40):** num workflow agendado do GitHub Actions (`.github/workflows/backup.yml`), não dentro da aplicação. Assim ele não depende do Fly acordado nem da aplicação saudável, e não mexe na imagem. O preço: o GitHub passa a guardar uma credencial que lê dados pessoais, por isso o papel `backup_reader` é só de leitura e as actions são fixadas por SHA. O `schedule` do GitHub pode atrasar ou descartar uma execução sem alerta; por isso são duas por dia (se uma sumir, o intervalo fica em 24 h, dentro do RPO). Uma falha abre uma issue com o rótulo `backup-failure`.
+- **Criptografia:** o `pg_dump` (só o schema `public`) sai por um pipe direto para o `age`, com a chave pública guardada no repositório; só o arquivo `.age` toca o disco e sobe ao R2. A chave privada fica só com o Administrador, fora do GitHub; perdê-la inutiliza todos os backups.
+- **Retenção e trava:** 30 dias de backups diários e os 3 últimos mensais (93 dias), por regra de ciclo de vida do R2 e com bucket lock, que impede apagar ou sobrescrever antes do prazo. O R2 não tem credencial só de escrita; a do backup é Object Read & Write restrita ao bucket, e o que ela alcança é criptografado.
+- **Dados pessoais:** um Cliente anonimizado continua existindo nos backups por até 93 dias; depois de restaurar, as anonimizações feitas depois do backup são refeitas (`docs/runbooks/anonimizar-conta-cliente.md`).
+- **Limite conhecido:** com segredos de repositório (sem GitHub Environment), quem tem permissão de escrita no repositório pode rodar um workflow modificado a partir de uma branch e ler os segredos do backup; aceitável num repositório de uma só pessoa, a rever no backup de produção (#43).
+- **O que o backup não cobre:** os PDFs e as capas do Supabase Storage. Banco e Storage moram no mesmo projeto, então perder o projeto perde os dois.
+- **Exercício de restauração:** o CI prova a ida e volta a cada PR; a restauração real na homologação, com RTO e RPO medidos, é repetida a cada 3 meses e a cada troca de versão do PostgreSQL. Os tempos medidos entram aqui e no runbook `docs/runbooks/backup-e-restauracao.md` quando o exercício for feito.
 - Os arquivos ficam fora do banco, então perder o banco não apaga os PDFs.
 - O gate de lançamento exige um teste de restauração feito de verdade, na homologação.
 - Se as vendas crescerem, migrar para backup contínuo (plano pago do Supabase) é uma decisão de custo a reabrir.

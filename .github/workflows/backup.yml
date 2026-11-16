@@ -1,0 +1,71 @@
+name: Backup
+
+on:
+  schedule:
+    # 04:17 and 16:17 in Sao Paulo; off the full hour, when GitHub delays scheduled runs the most.
+    - cron: '17 7,19 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: backup-homolog
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: NFR-008 encrypted backup of homolog to R2
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ENVIRONMENT: homolog
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install age
+        run: |
+          scripts/backup/install-age.sh "$RUNNER_TEMP/age"
+          echo "$RUNNER_TEMP/age" >> "$GITHUB_PATH"
+
+      - name: Back up the database to R2
+        env:
+          PGHOST: ${{ secrets.HOMOLOG_BACKUP_DB_HOST }}
+          PGPORT: '5432'
+          PGUSER: ${{ secrets.HOMOLOG_BACKUP_DB_USER }}
+          PGPASSWORD: ${{ secrets.HOMOLOG_BACKUP_DB_PASSWORD }}
+          PGDATABASE: postgres
+          PGSSLMODE: require
+          PG_MAJOR: ${{ vars.HOMOLOG_PG_MAJOR }}
+          PG_DOCKER_ARGS: --network host
+          BACKUP_RECIPIENTS_FILE: scripts/backup/age-recipients.txt
+          BACKUP_OUT_DIR: ${{ runner.temp }}
+          R2_ACCOUNT_ID: ${{ secrets.HOMOLOG_R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.HOMOLOG_R2_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.HOMOLOG_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.HOMOLOG_R2_SECRET_ACCESS_KEY }}
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+        run: scripts/backup/backup.sh
+
+      - name: Report the failure in an issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          now="$(TZ=America/Sao_Paulo date '+%Y-%m-%d %H:%M')"
+          link="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          gh label create backup-failure --description "Backup failed" --color B60205 || true
+          number="$(gh issue list --label backup-failure --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "Falhou de novo em $now. Execução: $link"
+          else
+            body="$(printf '%s\n\n%s\n\n%s\n\n%s\n' \
+              "O backup do banco de $ENVIRONMENT falhou em $now (horário de São Paulo)." \
+              "Execução: $link" \
+              'O que fazer: docs/runbooks/backup-e-restauracao.md, seção "O backup falhou".' \
+              'Enquanto esta issue estiver aberta, novas falhas viram comentários aqui.')"
+            gh issue create --label backup-failure --title "Backup noturno falhou ($ENVIRONMENT)" --body "$body"
+          fi
