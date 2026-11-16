@@ -21,9 +21,18 @@ public class CustomerPaymentRelease {
         this.paymentCustomers = paymentCustomers;
     }
 
+    /**
+     * Waits for a purchase in flight. It must come before the Customer row lock: OrderService takes this lock first
+     * and then needs the row, so the opposite order would deadlock.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void lock(UUID customerId) {
+        orders.lockCustomer(customerId);
+    }
+
+    /** Needs {@link #lock} first in the same transaction. */
     @Transactional(propagation = Propagation.MANDATORY)
     public void release(UUID customerId) {
-        orders.lockCustomer(customerId);
         if (orders.hasPending(customerId)) {
             throw new CustomerHasPendingOrderException(customerId);
         }

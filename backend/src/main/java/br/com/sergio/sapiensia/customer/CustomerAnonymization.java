@@ -65,16 +65,25 @@ public class CustomerAnonymization {
 
     private Optional<UUID> anonymizeInTransaction(
             String email, String unusableHash, UUID administratorId, String origin) {
-        Optional<UUID> found = jdbc.sql(
-                        "select id from customers where email = :email and anonymized_at is null for update")
-                .param("email", Emails.normalize(email))
+        String normalized = Emails.normalize(email);
+        Optional<UUID> found = jdbc.sql("select id from customers where email = :email and anonymized_at is null")
+                .param("email", normalized)
+                .query(UUID.class)
+                .optional();
+        if (found.isEmpty()) {
+            return Optional.empty();
+        }
+        // lock order: the purchase lock first, then the row (OrderService does the same, or the two would deadlock)
+        paymentRelease.lock(found.get());
+        found = jdbc.sql("select id from customers where email = :email and anonymized_at is null for update")
+                .param("email", normalized)
                 .query(UUID.class)
                 .optional();
         if (found.isEmpty()) {
             return Optional.empty();
         }
         UUID customerId = found.get();
-        // waits for a purchase in flight and refuses a pending Order; nothing has changed yet when it throws
+        // refuses a pending Order; nothing has changed yet when it throws
         paymentRelease.release(customerId);
         jdbc.sql("update customers set email = :email, password_hash = :hash, first_login_at = null,"
                         + " session_version = session_version + 1, anonymized_at = now() where id = :id")

@@ -1,6 +1,7 @@
 package br.com.sergio.sapiensia.customer;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -251,12 +252,19 @@ class CustomerAnonymizationTest {
     void shouldWaitForAPurchaseInFlightOfTheSameCustomer() throws Exception {
         TransactionTemplate tx = new TransactionTemplate(transactionManager);
         CountDownLatch holding = new CountDownLatch(1);
+        CountDownLatch anonymizationStarted = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
+        // behaves like OrderService: advisory lock first, then rows with a foreign key to the Customer
         CompletableFuture<Void> purchase = CompletableFuture.runAsync(() -> tx.executeWithoutResult(status -> {
             jdbc.queryForObject(
                     "select pg_advisory_xact_lock(hashtextextended(?, 0))::text", String.class, "order:" + customerId);
             holding.countDown();
             try {
+                anonymizationStarted.await(10, TimeUnit.SECONDS);
+                jdbc.update(
+                        "insert into payment_customers (customer_id, provider_customer_id) values (?, ?)",
+                        customerId,
+                        "cus_" + hash().substring(0, 20));
                 release.await(30, TimeUnit.SECONDS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -266,14 +274,20 @@ class CustomerAnonymizationTest {
         try {
             assertThat(holding.await(10, TimeUnit.SECONDS)).isTrue();
             anonymizing = CompletableFuture.supplyAsync(() -> anonymization.anonymize(email, administratorId, ORIGIN));
+            // gives the anonymization time to reach its first lock before the purchase touches the Customer's rows
+            Thread.sleep(1000);
+            anonymizationStarted.countDown();
 
             assertThatThrownBy(() -> anonymizing.get(2, TimeUnit.SECONDS)).isInstanceOf(TimeoutException.class);
         } finally {
+            anonymizationStarted.countDown();
             release.countDown();
         }
 
-        purchase.get(10, TimeUnit.SECONDS);
+        assertThatCode(() -> purchase.get(10, TimeUnit.SECONDS)).doesNotThrowAnyException();
         assertThat(anonymizing.get(30, TimeUnit.SECONDS)).contains(customerId);
+        // the purchase committed only the Asaas link, no Order: the anonymization went on and forgot it
+        assertThat(countOfCustomer("payment_customers")).isZero();
     }
 
     /** Rows of the Customer in the table (for "customers", the Customer's own row). */
