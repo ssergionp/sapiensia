@@ -23,7 +23,12 @@ public enum Capability {
      */
     PRODUCTS_PUBLISH,
     /** Read the list of Orders (#37): apart from the Product ones, so a future profile can run the catalog without seeing who bought. */
-    ORDERS_VIEW;
+    ORDERS_VIEW,
+    /**
+     * Anonymize a Customer's account (#41, FR-036, SEC-038): irreversible, so it has its own lock and the route also
+     * asks for a recent authentication.
+     */
+    CUSTOMERS_ANONYMIZE;
 
     public String authority() {
         return "CAPABILITY_" + name();

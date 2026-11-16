@@ -4,6 +4,7 @@ import br.com.sergio.sapiensia.admin.AdminMfaAccess;
 import br.com.sergio.sapiensia.admin.AdministratorPrincipal;
 import br.com.sergio.sapiensia.admin.Capability;
 import br.com.sergio.sapiensia.admin.PendingAdministrator;
+import br.com.sergio.sapiensia.customer.CustomerAnonymizationAccess;
 import br.com.sergio.sapiensia.customer.SessionVersionFilter;
 import br.com.sergio.sapiensia.payment.AsaasWebhookAccess;
 import br.com.sergio.sapiensia.product.ProductFileReplacementAccess;
@@ -146,7 +147,9 @@ public class SecurityConfig {
         AccessDeniedHandler forbidden = new AccessDeniedHandlerImpl();
         return (request, response, exception) -> {
             if (exception instanceof AuthorizationDeniedException denied) {
-                if (denied.getAuthorizationResult() instanceof ProductFileReplacementAccess.ReauthenticationRequired) {
+                if (denied.getAuthorizationResult() instanceof ProductFileReplacementAccess.ReauthenticationRequired
+                        || denied.getAuthorizationResult()
+                                instanceof CustomerAnonymizationAccess.ReauthenticationRequired) {
                     response.setStatus(HttpStatus.FORBIDDEN.value());
                     PROBLEM_WRITER.write(
                             ProductFileReplacementAccess.problem(request),
@@ -179,6 +182,7 @@ public class SecurityConfig {
             SessionVersionFilter sessionVersionFilter,
             AdminMfaAccess adminMfaAccess,
             ProductFileReplacementAccess productFileReplacementAccess,
+            CustomerAnonymizationAccess customerAnonymizationAccess,
             AsaasWebhookAccess asaasWebhookAccess)
             throws Exception {
         // right after the context is loaded from the session: ends sessions opened before a password change (SEC-006)
@@ -262,6 +266,10 @@ public class SecurityConfig {
                         // stay denied
                         .requestMatchers(HttpMethod.GET, "/api/admin/orders")
                         .access(panel(Capability.ORDERS_VIEW))
+                        // anonymizing a Customer account (#41): CUSTOMERS_ANONYMIZE, both factors and always a recent
+                        // authentication; POST only
+                        .requestMatchers(HttpMethod.POST, "/api/admin/customer-anonymizations")
+                        .access(customerAnonymizationAccess)
                         .requestMatchers(PUBLIC_CATALOG)
                         .permitAll()
                         // Orders (#24): the logged-in Customer only; the Order is filtered by its owner in the SQL

@@ -2,6 +2,7 @@ package br.com.sergio.sapiensia.web;
 
 import br.com.sergio.sapiensia.admin.InvalidMfaCodeException;
 import br.com.sergio.sapiensia.admin.InvalidReauthenticationException;
+import br.com.sergio.sapiensia.customer.CustomerNotFoundException;
 import br.com.sergio.sapiensia.customer.IncorrectConfirmationPasswordException;
 import br.com.sergio.sapiensia.customer.InvalidConfirmationTokenException;
 import br.com.sergio.sapiensia.customer.PasswordCompromisedException;
@@ -109,6 +110,15 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(OrderNotFoundException.class)
     ResponseEntity<Void> handleOrderNotFound() {
         return ResponseEntity.notFound().build();
+    }
+
+    /** Anonymization (#41): unknown or already anonymized e-mail; the title and code never carry the e-mail. */
+    @ExceptionHandler(CustomerNotFoundException.class)
+    ResponseEntity<ProblemDetail> handleCustomerNotFound() {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.NOT_FOUND);
+        problem.setTitle("Customer not found");
+        problem.setProperty("code", "CUSTOMER_NOT_FOUND");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
     }
 
     @ExceptionHandler(CpfRequiredException.class)
