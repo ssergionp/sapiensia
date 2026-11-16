@@ -8,7 +8,7 @@ Regras que valem para tudo aqui:
 
 - **Nenhum valor de segredo** (senha, chave, token) em chat, arquivo, commit, PR, issue ou log. Este documento só tem nomes e `<marcadores>`.
 - Os valores ficam no Bitwarden. A **chave privada do age** (`AGE-SECRET-KEY-...`) nunca vai para o GitHub nem para o chat.
-- Comandos de senha: coloque o valor numa variável de ambiente (`$env:NOME = "..."`) e apague-a no fim (`Remove-Item Env:NOME`). Assim a senha não aparece na linha do comando.
+- Comandos de senha: **copie a senha do Bitwarden** e use `Get-Clipboard` no comando (`$env:NOME = Get-Clipboard`), em vez de digitar o valor. Assim a senha não fica no histórico do PowerShell (o que você digita fica gravado em `ConsoleHost_history.txt`; o que está na área de transferência, não). Apague a variável no fim (`Remove-Item Env:NOME`). Vale o cuidado de `docs/runbooks/homologacao-fly.md` ("Passo zero"): histórico da área de transferência do Windows desligado e limpeza automática no Bitwarden.
 
 ## O que existe
 
@@ -90,19 +90,19 @@ O backup não usa a senha do `postgres` da aplicação: usa um papel só de leit
 
    Mostra a versão do servidor. Anote o número maior (por exemplo, `17` em `17.4`): é o `PG_MAJOR`. Me diga o número.
 
-2. **[RESPONSÁVEL]** Gere no Bitwarden uma senha nova para o `backup_reader` e coloque nas variáveis de ambiente, junto com a senha do `postgres` do projeto.
+2. **[RESPONSÁVEL]** Gere no Bitwarden uma senha nova para o `backup_reader` e coloque nas variáveis de ambiente, junto com a senha do `postgres` do projeto. Copie cada senha do Bitwarden logo antes do comando dela.
 
    ```powershell
-   $env:BACKUP_ROLE_PASSWORD = "<senha nova do backup_reader>"
+   $env:BACKUP_ROLE_PASSWORD = Get-Clipboard
    ```
 
-   Guarda a senha nova só nesta janela do terminal.
+   Guarda a senha nova (a que está na área de transferência) só nesta janela do terminal.
 
    ```powershell
-   $env:PGPASSWORD = "<senha do postgres do projeto, do Bitwarden>"
+   $env:PGPASSWORD = Get-Clipboard
    ```
 
-   Guarda a senha do `postgres` só nesta janela, para o `psql` entrar.
+   Guarda a senha do `postgres` (copiada do Bitwarden) só nesta janela, para o `psql` entrar.
 
 3. **[RESPONSÁVEL]** Rode o script contra o pooler em modo sessão (o host e o `<ref>` estão em Supabase > Connect > Session pooler).
 
@@ -204,10 +204,10 @@ Use para o desastre de verdade e para o exercício periódico. Um banco restaura
    Usuário do projeto novo.
 
    ```powershell
-   $env:PGPASSWORD = "<senha do postgres do projeto novo>"
+   $env:PGPASSWORD = Get-Clipboard
    ```
 
-   Senha do projeto novo, só nesta janela.
+   Copie antes a senha do projeto novo do Bitwarden; ela fica só nesta janela.
 
    ```powershell
    $env:PGDATABASE = "postgres"
@@ -253,11 +253,31 @@ Use para o desastre de verdade e para o exercício periódico. Um banco restaura
 
 7. **[RESPONSÁVEL]** Aponte a aplicação para o banco novo, trocando `DB_URL`, `DB_USER` e `DB_PASSWORD` (formato em `docs/runbooks/homologacao-fly.md`, seção 3).
 
+   Para cada segredo, copie o valor do Bitwarden (ou do Connect do Supabase) e rode o comando dele.
+
    ```powershell
-   fly secrets set -c fly.homolog.toml DB_URL="<jdbc do pooler novo>" DB_USER="postgres.<ref novo>" DB_PASSWORD="<senha nova>"
+   fly secrets set DB_URL="$(Get-Clipboard)" --stage -c fly.homolog.toml
    ```
 
-   Troca os três segredos e reinicia a máquina. Confira o health check (`/api/system/health`) e um login do Administrador com MFA.
+   Grava o que está na área de transferência como `DB_URL` (o JDBC do pooler novo), sem reiniciar ainda.
+
+   ```powershell
+   fly secrets set DB_USER="$(Get-Clipboard)" --stage -c fly.homolog.toml
+   ```
+
+   Mesmo padrão para `DB_USER` (`postgres.<ref do projeto novo>`).
+
+   ```powershell
+   fly secrets set DB_PASSWORD="$(Get-Clipboard)" --stage -c fly.homolog.toml
+   ```
+
+   Mesmo padrão para `DB_PASSWORD` (a senha do projeto novo).
+
+   ```powershell
+   fly secrets deploy -c fly.homolog.toml
+   ```
+
+   Aplica os três segredos de uma vez e reinicia a máquina. Confira o health check (`/api/system/health`) e um login do Administrador com MFA.
 
 8. **Depois de restaurar:**
    - refaça as **anonimizações** pedidas depois da data do backup (`docs/runbooks/anonimizar-conta-cliente.md`): o backup guarda o Cliente como era antes;
