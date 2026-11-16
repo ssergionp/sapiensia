@@ -107,6 +107,6 @@ test.each([
 test("o rodapé de informações legais aparece nas telas", () => {
   renderAt("/entrar");
   expect(
-    screen.getByRole("navigation", { name: "Informações legais" }),
+    screen.getByRole("contentinfo", { name: "Informações legais" }),
   ).toBeInTheDocument();
 });

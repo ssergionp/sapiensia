@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { expect, test } from "vitest";
 import SiteFooter from "./SiteFooter";
@@ -11,11 +11,10 @@ function renderFooter() {
   );
 }
 
-test("o rodapé é um marco contentinfo com o nome Informações legais", () => {
+test("o rodapé é um marco contentinfo chamado Informações legais", () => {
   renderFooter();
-  const footer = screen.getByRole("contentinfo");
   expect(
-    within(footer).getByRole("navigation", { name: "Informações legais" }),
+    screen.getByRole("contentinfo", { name: "Informações legais" }),
   ).toBeInTheDocument();
 });
 

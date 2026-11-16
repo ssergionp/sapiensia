@@ -21,7 +21,7 @@ for (const { link, url, screen } of PAGES) {
   }) => {
     await page.goto("/");
     await page
-      .getByRole("navigation", { name: "Informações legais" })
+      .getByRole("contentinfo", { name: "Informações legais" })
       .getByRole("link", { name: link })
       .click();
 

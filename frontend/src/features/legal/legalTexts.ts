@@ -51,7 +51,7 @@ export const TERMS_OF_USE: LegalDocument = {
       paragraphs: [
         "A compra é feita só por Pix, processado pelo Asaas. Cada compra gera um Pedido com um código Pix para pagar.",
         "O valor cobrado é o preço do Produto calculado pelo servidor no momento do Pedido, em reais. Mudar o preço de um Produto afeta só os Pedidos feitos depois da mudança.",
-        "O Acesso ao Produto é liberado depois que o Asaas confirma o pagamento.",
+        "O código Pix de um Pedido vale por 30 minutos; depois disso o Pedido expira e é preciso fazer um novo. O Acesso ao Produto é liberado depois que o Asaas confirma o pagamento.",
       ],
     },
     {
@@ -123,6 +123,7 @@ export const PRIVACY_POLICY: LegalDocument = {
         "Registros de download: Cliente, Produto, versão do arquivo e data. Não guardamos o seu IP nos Registros de download.",
         "Trilha de auditoria das ações do Administrador no painel, que inclui o IP de origem dessas ações. Ela não leva o e-mail do Cliente.",
         "Para a cobrança Pix, o Asaas recebe o seu e-mail (usado como nome do cliente) e o seu CPF. O CPF não fica no nosso banco.",
+        "Para frear tentativas de login, o sistema guarda o seu IP e uma versão embaralhada (hash) do e-mail só na memória do servidor, por cerca de 15 minutos. Nada disso vai para o banco. Base legal proposta: legítimo interesse (segurança).",
         "Não tratamos dados pessoais sensíveis nem fazemos perfis para publicidade.",
       ],
     },
@@ -180,7 +181,7 @@ export const PRIVACY_POLICY: LegalDocument = {
     {
       heading: "Seus direitos",
       paragraphs: [
-        `Você pode pedir, pelo e-mail ${SUPPORT_EMAIL}, o acesso aos seus dados, a correção de dados errados, a exportação (cópia) dos seus dados e a exclusão da sua conta. Hoje esses pedidos são atendidos à mão, por e-mail. [a definir: prazo de resposta; proposta provisória de 15 dias].`,
+        `Você pode pedir, pelo e-mail ${SUPPORT_EMAIL}, o acesso aos seus dados, a correção de dados errados, a exportação (cópia) dos seus dados e a exclusão da sua conta. Hoje esses pedidos são atendidos à mão, por e-mail. [a definir: prazo de resposta; proposta provisória: declaração completa de acesso em até 15 dias, Lei 13.709/2018, art. 19, II].`,
         "A exclusão da conta é feita por anonimização: o e-mail e a senha são substituídos e as sessões encerradas. Os registros financeiros (Pedidos, Acessos, eventos de pagamento e Registros de download) ficam pelo prazo de guarda, sem o seu e-mail nem o seu nome.",
         "O Asaas guarda o e-mail e o CPF da cobrança por regra própria; a anonimização não apaga esses dados lá.",
       ],
@@ -220,7 +221,7 @@ export const REFUND_POLICY: LegalDocument = {
     {
       heading: "Como pedir",
       paragraphs: [
-        `Envie um e-mail para ${SUPPORT_EMAIL} com o e-mail da sua conta, o Produto e o motivo. [a definir: prazo de resposta ao pedido; proposta provisória de 3 dias úteis].`,
+        `Envie um e-mail para ${SUPPORT_EMAIL} com o e-mail da sua conta, o Produto e o motivo. [a definir: prazo de resposta ao pedido; proposta provisória: primeira resposta em até 2 dias úteis].`,
       ],
     },
     {

@@ -96,10 +96,11 @@ test("a Política de privacidade nomeia os operadores e os cookies essenciais", 
   expect(text).toContain("provisório");
 });
 
-test("os Termos de uso citam Pix, Download de 60 segundos e limite de 10 por dia", () => {
+test("os Termos de uso citam Pix de 30 minutos, Download de 60 segundos e limite de 10 por dia", () => {
   renderPage(TERMS_OF_USE);
   const text = document.body.textContent ?? "";
   expect(text).toContain("Pix");
   expect(text).toContain("60 segundos");
-  expect(text).toContain("10");
+  expect(text).toContain("limite de 10 Downloads por dia");
+  expect(text).toContain("30 minutos");
 });
