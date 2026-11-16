@@ -74,7 +74,7 @@ test: test-back test-front test-scripts
 
 # testes dos scripts e dos hooks (aspas: o node expande o glob, inclusive na pasta .claude)
 test-scripts:
-    node --test ".claude/**/*.test.mjs" "scripts/*.test.mjs"
+    node --test ".claude/**/*.test.mjs" "scripts/*.test.mjs" "scripts/carga/*.test.mjs"
 
 [working-directory: 'backend']
 test-back:
@@ -138,3 +138,7 @@ demo-pagar pedido:
 # mostra o código de verificação atual do Administrador da demonstração
 demo-codigo:
     node scripts/demo-codigo.mjs
+
+# teste de carga (k6 em Docker, so contra o sistema local; antes: node scripts/carga/preparar.mjs; veja docs/runbooks/teste-de-carga.md)
+carga:
+    docker run --rm -v "{{justfile_directory()}}/scripts/carga:/scripts:ro" -v "{{justfile_directory()}}/.tmp/carga:/carga" -e BASE_URL -e CARGA_PERMITIR_REMOTO -e RAMP_UP -e HOLD -e RAMP_DOWN -e VUS_CATALOG -e VUS_LIBRARY -e ORDERS_PER_HOUR -e DOWNLOADS_PER_ACCOUNT grafana/k6:2.3.0 run /scripts/cenarios.js

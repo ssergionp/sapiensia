@@ -22,6 +22,7 @@ Plataforma web para criar e revisar e-books, cartilhas, tutoriais e checklists c
 - `just demo-pagar <id do Pedido>`: na demonstração, marca o Pedido como pago, como se o Asaas tivesse confirmado o Pix (só contra a API local)
 - `just doctor`: confere o computador (Java, Docker, portas do banco e da API...)
 - `just e2e`: testes de ponta a ponta no navegador, contra o sistema de verdade (antes: `just db`, `just dev-back` e `just dev-front`)
+- `just carga`: teste de carga com k6 em Docker, só contra o sistema local (antes: `node scripts/carga/preparar.mjs`, que cria as contas); runbook em docs/runbooks/teste-de-carga.md
 - `just imagem`: gera a imagem Docker do sistema inteiro, a mesma que vai para homologação e produção
 - `just limpar-ticket`: depois do merge da PR, encerra os processos do ticket, remove a worktree, atualiza a main e apaga a branch local.
 - Antes de declarar um ticket pronto: skill `verificar-entrega` (check rápido recente, arquivos fora do plano, teste afrouxado, tela e sistema de verdade); depois da PR, o ticket só está pronto com o CI verde.
@@ -34,7 +35,7 @@ Plataforma web para criar e revisar e-books, cartilhas, tutoriais e checklists c
 - frontend/: React. Código por funcionalidade em src/features/<funcionalidade>/; componentes shadcn em src/components/ui; testes de ponta a ponta em e2e/ (arquivos `*.e2e.ts`).
 - backend/.../security/SecurityConfig.java: rotas de /api negadas por padrão, CSRF para a SPA e cabeçalhos de segurança. backend/.../web/SpaConfig.java: a API serve o build do React.
 - Dockerfile: imagem única (React dentro do jar), perfil `prod` (application-prod.yml). Health check em /api/system/health.
-- docs/: decisões em docs/adr/; passo a passo operacional em docs/runbooks/ (recuperar o acesso do Administrador; homologação no Fly.io; incidente, rollback e suporte ao Cliente: incidente.md, rollback.md, suporte-cliente.md); convenções das skills do Pocock em docs/agents/.
+- docs/: decisões em docs/adr/; passo a passo operacional em docs/runbooks/ (recuperar o acesso do Administrador; homologação no Fly.io; incidente, rollback e suporte ao Cliente: incidente.md, rollback.md, suporte-cliente.md; teste de carga: teste-de-carga.md); convenções das skills do Pocock em docs/agents/.
 - scripts/: novo-projeto.ps1 (usado uma vez, na criação), escolher-portas.ps1 (portas do banco e da API), verificar-ambiente.ps1 (just doctor), check-resumo.ps1 (just check-resumo) e limpar-ticket.ps1 (just limpar-ticket).
 - .claude/: hooks (Biome depois de cada edição; check antes de encerrar a resposta numa branch de ticket) e a skill verificar-entrega.
 
