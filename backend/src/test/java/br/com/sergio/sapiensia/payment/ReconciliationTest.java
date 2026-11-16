@@ -660,10 +660,11 @@ class ReconciliationTest {
                         .doesNotContain(title)
                         .doesNotContain(cpf)
                         .doesNotContain(referenceMarker));
+        // the message ends right after the counts: end of line (plain text) or the closing quote (JSON in CI)
         assertThat(lines)
                 .filteredOn(l -> l.contains("Reconciliation finished"))
                 .allMatch(l -> l.matches(".*Reconciliation finished: charges=\\d+ paymentFixes=\\d+ refundFixes=\\d+"
-                        + " divergences=\\d+ ignored=\\d+\\s*"));
+                        + " divergences=\\d+ ignored=\\d+(\\s*|\".*)"));
         assertThat(jdbc.queryForList(
                         "select distinct detail from admin_alerts"
                                 + " where type in ('RECONCILIATION_DIVERGENCE', 'RECONCILIATION_FAILED')"
