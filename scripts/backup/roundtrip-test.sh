@@ -113,6 +113,30 @@ else
   pass "$title"
 fi
 
+# ---- NFR-008: a dump cut off midway (more than 1 KiB, then pg_dump fails) produces no file ----
+# A stand-in `docker` on the PATH emits 4 KiB for pg_dump and then fails; every other call goes to the real docker.
+# Only pipefail (not the size check) can catch this: the truncated output is a valid age file above the minimum size.
+real_docker="$(command -v docker)"
+cat > "$work/bin/docker" <<'STUB'
+#!/usr/bin/env bash
+if [[ " $* " == *" pg_dump "* ]]; then
+  head -c 4096 /dev/zero
+  echo "simulated connection loss" >&2
+  exit 1
+fi
+exec "$REAL_DOCKER" "$@"
+STUB
+chmod +x "$work/bin/docker"
+title="NFR-008 a dump cut off midway produces no file and a non-zero exit"
+if run_backup "$work/failed-out" PATH="$work/bin:$PATH" REAL_DOCKER="$real_docker" >"$work/cut.log" 2>&1; then
+  fail "$title" "backup.sh exited 0"
+elif [[ -n "$(ls -A "$work/failed-out")" ]]; then
+  fail "$title" "a file was left in the output directory"
+else
+  pass "$title"
+fi
+rm -f "$work/bin/docker"
+
 # ---- the real backup, without the upload ----
 backup_file="$(run_backup "$work/out" 2>"$work/backup.log" | tail -n 1)" || backup_file=""
 

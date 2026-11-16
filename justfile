@@ -140,5 +140,12 @@ demo-codigo:
     node scripts/demo-codigo.mjs
 
 # restaura um backup criptografado num banco de destino (PGHOST, PGPORT, PGUSER, PGPASSWORD, PGDATABASE e PG_MAJOR no ambiente; veja o runbook)
+# no Windows usa o bash do Git (o "bash" do PATH pode ser o do WSL) e troca \ por / nos caminhos
+[windows]
 backup-restaurar arquivo chave:
-    bash scripts/backup/restore.sh {{arquivo}} {{chave}}
+    & (((git --exec-path) -replace '(mingw64|ucrt64|clangarm64|mingw32).*$','') + 'bin/bash.exe') scripts/backup/restore.sh ('{{arquivo}}'.Replace([string][char]92,'/')) ('{{chave}}'.Replace([string][char]92,'/'))
+
+# restaura um backup criptografado num banco de destino (variáveis PG* e PG_MAJOR no ambiente; veja o runbook)
+[unix]
+backup-restaurar arquivo chave:
+    bash scripts/backup/restore.sh "{{arquivo}}" "{{chave}}"
