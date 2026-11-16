@@ -1,0 +1,52 @@
+# Endpoints da API
+
+Lista revisada de todos os endpoints, conferida contra a `SecurityConfig` (SEC-016). O teste `OpenApiEndpointsTest` compara o OpenAPI gerado com `backend/src/test/resources/openapi/endpoints.txt`: um endpoint novo faz o teste falhar até ser revisado e incluído aqui e nesse arquivo. O Swagger e o `/v3/api-docs` ficam desligados em produção; esta lista é a referência.
+
+Toda rota de `/api` que não está nesta tabela é negada (`denyAll`). O logout (`DELETE /api/sessions/current`) é tratado pelo filtro de logout, por isso não aparece no OpenAPI; exige Cliente logado.
+
+"Painel" significa Administrador com a capacidade indicada e os dois fatores (senha e código TOTP). Limites: janela de 10 min salvo indicação; "login" segue o ADR-0004.
+
+| Método | Caminho | Quem pode chamar | Limite |
+|---|---|---|---|
+| GET | `/api/products` | anônimo | — |
+| GET | `/api/products/{id}` | anônimo | — |
+| GET | `/api/products/{id}/cover` | anônimo | 600 / 10 min por IP |
+| POST | `/api/customers` | anônimo | 5 / h por e-mail; 20 / h por IP |
+| POST | `/api/customers/email-confirmations` | anônimo (token no corpo) | 30 / 15 min por IP |
+| POST | `/api/customers/password-resets` | anônimo | 5 / h por e-mail; 20 / h por IP |
+| POST | `/api/customers/password-resets/confirmation` | anônimo (token no corpo) | 20 / 15 min por IP |
+| POST | `/api/sessions` | anônimo | login: limite próprio (ADR-0004) |
+| GET | `/api/sessions/current` | Cliente | — |
+| DELETE | `/api/sessions` | Cliente | — |
+| POST | `/api/orders` | Cliente | 10 / 10 min por conta; 30 / 10 min por IP |
+| GET | `/api/orders` | Cliente | — |
+| GET | `/api/orders/{id}` | Cliente | 60 / 10 min por conta; 120 / 10 min por IP |
+| GET | `/api/orders/{id}/status` | Cliente | — |
+| GET | `/api/library` | Cliente | — |
+| GET | `/api/library/{productId}/cover` | Cliente | 600 / 10 min por IP |
+| POST | `/api/library/{productId}/download` | Cliente | 30 / 10 min por conta; 60 / 10 min por IP (e 10 por Produto por dia, #34) |
+| GET | `/api/local-downloads/{token}` | Cliente; só fora de produção | — |
+| POST | `/api/webhooks/asaas` | webhook com token e IP | — |
+| POST | `/api/admin/password-setup` | anônimo (token no corpo) | 20 / 15 min por IP |
+| POST | `/api/admin/sessions` | anônimo (primeiro passo do painel) | login: limite próprio (ADR-0004) |
+| GET | `/api/admin/sessions/mfa` | Administrador com a senha confirmada (código pendente) | login: limite próprio (ADR-0004) |
+| POST | `/api/admin/sessions/mfa` | Administrador com a senha confirmada (código pendente) | login: limite próprio (ADR-0004) |
+| POST | `/api/admin/sessions/mfa/enrollment` | Administrador com a senha confirmada (código pendente) | — |
+| POST | `/api/admin/sessions/mfa/enrollment/confirmation` | Administrador com a senha confirmada (código pendente) | login: limite próprio (ADR-0004) |
+| POST | `/api/admin/sessions/mfa/recovery-code` | Administrador com a senha confirmada (código pendente) | login: limite próprio (ADR-0004) |
+| GET | `/api/admin/sessions/current` | Painel: `PANEL_ACCESS` | — |
+| POST | `/api/admin/sessions/reauthentication` | Painel: `PANEL_ACCESS` | — |
+| POST | `/api/admin/recovery-codes` | Painel: `RECOVERY_CODES_MANAGE` | — |
+| GET | `/api/admin/products` | Painel: `PRODUCTS_EDIT` | — |
+| GET | `/api/admin/products/{id}` | Painel: `PRODUCTS_EDIT` | — |
+| POST | `/api/admin/products` | Painel: `PRODUCTS_EDIT` | — |
+| PUT | `/api/admin/products/{id}` | Painel: `PRODUCTS_EDIT` | — |
+| PUT | `/api/admin/products/{id}/price` | Painel: `PRODUCTS_PRICE` | — |
+| POST | `/api/admin/products/{id}/file` | Painel: `PRODUCTS_FILE` e, se já foi publicado, autenticação recente | — |
+| GET | `/api/admin/products/{id}/cover` | Painel: `PRODUCTS_EDIT` | — |
+| POST | `/api/admin/products/{id}/cover` | Painel: `PRODUCTS_EDIT` | — |
+| DELETE | `/api/admin/products/{id}/cover` | Painel: `PRODUCTS_EDIT` | — |
+| PUT | `/api/admin/products/{id}/publication` | Painel: `PRODUCTS_PUBLISH` | — |
+| DELETE | `/api/admin/products/{id}/publication` | Painel: `PRODUCTS_PUBLISH` | — |
+| GET | `/api/admin/orders` | Painel: `ORDERS_VIEW` | — |
+| POST | `/api/admin/customer-anonymizations` | Painel: `CUSTOMERS_ANONYMIZE` e autenticação recente | — |
