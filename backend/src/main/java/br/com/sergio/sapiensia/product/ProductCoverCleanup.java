@@ -1,7 +1,9 @@
 package br.com.sergio.sapiensia.product;
 
+import br.com.sergio.sapiensia.alert.RecurringTaskFailureAlerts;
 import com.github.kagkarlsson.scheduler.task.helper.RecurringTask;
 import com.github.kagkarlsson.scheduler.task.helper.Tasks;
+import com.github.kagkarlsson.scheduler.task.schedule.Schedule;
 import com.github.kagkarlsson.scheduler.task.schedule.Schedules;
 import java.time.Duration;
 import org.slf4j.Logger;
@@ -25,8 +27,10 @@ class ProductCoverCleanup {
     private static final Logger log = LoggerFactory.getLogger(ProductCoverCleanup.class);
 
     @Bean
-    RecurringTask<Void> deleteOrphanCoverObjectsTask(Cleaner cleaner) {
-        return Tasks.recurring(TASK_NAME, Schedules.fixedDelay(Duration.ofHours(1)))
+    RecurringTask<Void> deleteOrphanCoverObjectsTask(Cleaner cleaner, RecurringTaskFailureAlerts failures) {
+        Schedule schedule = Schedules.fixedDelay(Duration.ofHours(1));
+        return Tasks.recurring(TASK_NAME, schedule)
+                .onFailure(failures.rescheduleAndAlert(TASK_NAME, schedule))
                 .execute((instance, context) -> {
                     Cleaner.Result result = cleaner.run();
                     // only counts are logged

@@ -1,7 +1,9 @@
 package br.com.sergio.sapiensia.audit;
 
+import br.com.sergio.sapiensia.alert.RecurringTaskFailureAlerts;
 import com.github.kagkarlsson.scheduler.task.helper.RecurringTask;
 import com.github.kagkarlsson.scheduler.task.helper.Tasks;
+import com.github.kagkarlsson.scheduler.task.schedule.Schedule;
 import com.github.kagkarlsson.scheduler.task.schedule.Schedules;
 import java.time.LocalTime;
 import org.slf4j.Logger;
@@ -19,11 +21,14 @@ class AuditRetentionCleanup {
     private static final Logger log = LoggerFactory.getLogger(AuditRetentionCleanup.class);
 
     @Bean
-    RecurringTask<Void> deleteExpiredAuditEventsTask(AuditCleaner cleaner) {
-        return Tasks.recurring(TASK_NAME, Schedules.daily(LocalTime.of(3, 30))).execute((instance, context) -> {
-            // only the count is logged
-            log.info("Deleted {} expired audit events", cleaner.deleteExpired());
-        });
+    RecurringTask<Void> deleteExpiredAuditEventsTask(AuditCleaner cleaner, RecurringTaskFailureAlerts failures) {
+        Schedule schedule = Schedules.daily(LocalTime.of(3, 30));
+        return Tasks.recurring(TASK_NAME, schedule)
+                .onFailure(failures.rescheduleAndAlert(TASK_NAME, schedule))
+                .execute((instance, context) -> {
+                    // only the count is logged
+                    log.info("Deleted {} expired audit events", cleaner.deleteExpired());
+                });
     }
 
     /** The work of the task, apart from the scheduler so a test can call it. */

@@ -1,7 +1,9 @@
 package br.com.sergio.sapiensia.customer;
 
+import br.com.sergio.sapiensia.alert.RecurringTaskFailureAlerts;
 import com.github.kagkarlsson.scheduler.task.helper.RecurringTask;
 import com.github.kagkarlsson.scheduler.task.helper.Tasks;
+import com.github.kagkarlsson.scheduler.task.schedule.Schedule;
 import com.github.kagkarlsson.scheduler.task.schedule.Schedules;
 import java.time.LocalTime;
 import org.slf4j.Logger;
@@ -19,11 +21,17 @@ class UnconfirmedCustomersCleanup {
     private static final Logger log = LoggerFactory.getLogger(UnconfirmedCustomersCleanup.class);
 
     @Bean
-    RecurringTask<Void> deleteUnconfirmedCustomersTask(ObjectProvider<CustomerService> customers) {
+    RecurringTask<Void> deleteUnconfirmedCustomersTask(
+            ObjectProvider<CustomerService> customers, RecurringTaskFailureAlerts failures) {
         // resolved at run time: CustomerService needs the scheduler client, which needs the task beans (a cycle)
-        return Tasks.recurring(TASK_NAME, Schedules.daily(LocalTime.of(3, 0))).execute((instance, context) -> {
-            // only the count is logged: never e-mails
-            log.info("Deleted {} unconfirmed customers", customers.getObject().deleteUnconfirmedOlderThanRetention());
-        });
+        Schedule schedule = Schedules.daily(LocalTime.of(3, 0));
+        return Tasks.recurring(TASK_NAME, schedule)
+                .onFailure(failures.rescheduleAndAlert(TASK_NAME, schedule))
+                .execute((instance, context) -> {
+                    // only the count is logged: never e-mails
+                    log.info(
+                            "Deleted {} unconfirmed customers",
+                            customers.getObject().deleteUnconfirmedOlderThanRetention());
+                });
     }
 }
