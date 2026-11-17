@@ -150,10 +150,12 @@ class RefundConfirmation {
         if (accesses.cancelByOrder(order.id(), now)) {
             audit.recordInTransaction(new AuditEntry(
                     AuditAction.ACCESS_CANCELLED, AuditResult.SUCCESS, null, AuditObject.ORDER, order.id(), null));
+            // same transaction as the refund; only when this Order's Access was cancelled, or the text would be false
+            scheduler.scheduleIfNotExists(
+                    new TaskInstance<Void>(
+                            OrderRefundedEmailTasks.SEND, order.id().toString()),
+                    now);
         }
-        // same transaction as the refund: the e-mail exists if and only if the refund was committed
-        scheduler.scheduleIfNotExists(
-                new TaskInstance<Void>(OrderRefundedEmailTasks.SEND, order.id().toString()), now);
         results.record(paymentEventId, PaymentResult.REFUNDED, order.id(), now);
         return PaymentResult.REFUNDED;
     }

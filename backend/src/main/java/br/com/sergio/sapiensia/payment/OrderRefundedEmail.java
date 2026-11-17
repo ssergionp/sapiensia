@@ -26,6 +26,9 @@ class OrderRefundedEmail {
 
     static final String SUBJECT = "Seu Pedido na SapiensIA foi reembolsado";
 
+    /** Same address as SUPPORT_EMAIL in frontend/src/features/legal/legalTexts.ts and docs/runbooks/suporte-cliente.md. */
+    static final String SUPPORT_EMAIL = "suporte@sapiensia.app.br";
+
     private static final Logger log = LoggerFactory.getLogger(OrderRefundedEmail.class);
 
     private static final String BODY = """
@@ -38,7 +41,7 @@ class OrderRefundedEmail {
 
             Com o Reembolso, o seu Acesso a este Produto foi cancelado e ele não aparece mais na sua Biblioteca.
 
-            Se você não reconhece este Reembolso, responda a este e-mail.""";
+            Se você não reconhece este Reembolso, escreva para %s.""";
 
     private final Orders orders;
     private final CustomerService customers;
@@ -61,7 +64,7 @@ class OrderRefundedEmail {
 
     /** The title goes in as an argument, so a "%" in it cannot break the formatting. */
     static String body(String title, int priceCents) {
-        return BODY.formatted(title, OrderPaidEmail.formatPrice(priceCents));
+        return BODY.formatted(title, OrderPaidEmail.formatPrice(priceCents), SUPPORT_EMAIL);
     }
 
     void send(UUID orderId) {

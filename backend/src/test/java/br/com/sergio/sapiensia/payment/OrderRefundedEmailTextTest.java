@@ -38,7 +38,7 @@ class OrderRefundedEmailTextTest {
 
                 Com o Reembolso, o seu Acesso a este Produto foi cancelado e ele não aparece mais na sua Biblioteca.
 
-                Se você não reconhece este Reembolso, responda a este e-mail.""";
+                Se você não reconhece este Reembolso, escreva para suporte@sapiensia.app.br.""";
 
         assertThat(OrderRefundedEmail.body("100% Prático", 123456)).isEqualTo(expected);
         assertThat(OrderRefundedEmail.SUBJECT).isEqualTo("Seu Pedido na SapiensIA foi reembolsado");

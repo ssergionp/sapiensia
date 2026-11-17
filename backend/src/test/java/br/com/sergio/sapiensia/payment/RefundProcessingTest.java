@@ -521,6 +521,8 @@ class RefundProcessingTest {
         assertAccessKept(first);
         assertThat(OrderHttp.json(first.customer().get("/api/library"), "$.items.length()"))
                 .isEqualTo("1");
+        assertThat(sender.awaitMessageTo(first.customer().email, Duration.ofSeconds(2)))
+                .isEmpty();
     }
 
     @Test

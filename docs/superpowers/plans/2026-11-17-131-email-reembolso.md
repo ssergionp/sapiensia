@@ -20,6 +20,8 @@ Plano do modo noturno: as decisões marcadas **DECIDIDO NO MODO NOTURNO — conf
 - **R4 — DECIDIDO NO MODO NOTURNO — conferir:** quando desiste, tipo de alerta novo `ORDER_REFUNDED_EMAIL_GAVE_UP` (no molde do `ORDER_PAID_EMAIL_GAVE_UP`, logo depois dele na ordem de prioridade), com o id do Pedido; um envio que dá certo depois resolve o alerta. O `TASK_GAVE_UP` genérico diria ao Administrador que "o Cliente pode pedir o e-mail de novo pelo site", o que não vale aqui.
 - **R5:** Cliente sem e-mail (conta anonimizada) → não envia, registra `NO_CUSTOMER` no log, como o e-mail de pagamento. Log só com o id do Pedido e um motivo (ADR-0006).
 - **R6 — DECIDIDO NO MODO NOTURNO — conferir:** o texto do e-mail é o do D4 com as mesmas palavras, quebrado em parágrafos como o e-mail de pagamento (seção abaixo).
+- **R7 (do /code-review) — DECIDIDO NO MODO NOTURNO — conferir:** o D4 terminava com "responda a este e-mail", mas o remetente é `nao-responda@sapiensia.app.br` (sem reply-to): a resposta de quem não reconhece o Reembolso iria para uma caixa que ninguém lê. A última frase passa a apontar o e-mail de atendimento do site (`suporte@sapiensia.app.br`, o mesmo do rodapé e do runbook suporte-cliente.md), numa constante do backend.
+- **R8 (do /code-review) — DECIDIDO NO MODO NOTURNO — conferir:** o e-mail só é agendado quando o reembolso cancelou de fato o Acesso deste Pedido. No reembolso de uma compra duplicada (o Acesso é de outro Pedido e continua), o texto "o seu Acesso foi cancelado e ele não aparece mais na sua Biblioteca" seria falso; nesse caso o Administrador, que combinou o Reembolso, avisa o Cliente. Fora (issue de pendências): reenvio manual; código repetido entre os dois e-mails de Pedido; Cliente anonimizado deixa as colunas de entrega vazias (herdado do e-mail de pagamento).
 
 ## Textos que o usuário vê (para aprovar na PR)
 
@@ -38,8 +40,10 @@ Valor: <valor>
 
 Com o Reembolso, o seu Acesso a este Produto foi cancelado e ele não aparece mais na sua Biblioteca.
 
-Se você não reconhece este Reembolso, responda a este e-mail.
+Se você não reconhece este Reembolso, escreva para suporte@sapiensia.app.br.
 ```
+
+(Última frase revista por R7; no D4 era "Se você não reconhece este Reembolso, responda a este e-mail.")
 
 `<valor>` no formato do e-mail de pagamento (`R$ 1.234,56`, `OrderPaidEmail.formatPrice`).
 
