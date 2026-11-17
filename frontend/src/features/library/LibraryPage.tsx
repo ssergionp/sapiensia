@@ -31,7 +31,7 @@ export default function LibraryPage() {
   useEffect(() => {
     if (notLoggedIn) {
       rememberReturnTo("/biblioteca");
-      navigate("/entrar");
+      navigate("/entrar", { replace: true });
     }
   }, [notLoggedIn, navigate]);
 
