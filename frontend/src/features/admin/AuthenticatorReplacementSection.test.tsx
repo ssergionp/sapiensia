@@ -7,6 +7,7 @@ import { adminSessionQueryKey } from "./hooks";
 
 const START = "/api/admin/authenticator-replacement";
 const CONFIRM = "/api/admin/authenticator-replacement/confirmation";
+// nosemgrep: generic.secrets.security.detected-generic-secret.detected-generic-secret -- fake TOTP test key, not a secret
 const SECRET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 const GROUPED_SECRET = "ABCD EFGH IJKL MNOP QRST UVWX YZ23 4567";
 const ENROLLMENT = {
