@@ -1,7 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router";
+import {
+  createMemoryRouter,
+  MemoryRouter,
+  Route,
+  RouterProvider,
+  Routes,
+} from "react-router";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { jsonResponse } from "@/features/products/testing";
 import OrdersPage from "./OrdersPage";
@@ -193,6 +199,32 @@ describe("OrdersPage", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText("tela de entrada")).toBeNull();
     expect(localStorage.getItem("sapiensia.returnTo")).toBeNull();
+  });
+
+  test("401 ao abrir a página substitui a entrada do histórico: Voltar não retorna aos Pedidos", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(401));
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const router = createMemoryRouter(
+      [
+        { path: "/", element: <p>tela inicial</p> },
+        { path: "/pedidos", element: <OrdersPage /> },
+        { path: "/entrar", element: <p>tela de entrada</p> },
+      ],
+      { initialEntries: ["/", "/pedidos"], initialIndex: 1 },
+    );
+    render(
+      <QueryClientProvider client={client}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("tela de entrada")).toBeInTheDocument();
+    await act(() => router.navigate(-1));
+
+    expect(await screen.findByText("tela inicial")).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/");
   });
 
   test("401 leva a /entrar e guarda /pedidos para depois do login", async () => {

@@ -1,6 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router";
+import {
+  createMemoryRouter,
+  MemoryRouter,
+  Route,
+  RouterProvider,
+  Routes,
+} from "react-router";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { jsonResponse } from "@/features/products/testing";
 import OrderPage from "./OrderPage";
@@ -323,6 +329,32 @@ describe("OrderPage", () => {
     expect(
       screen.getByRole("button", { name: "Tentar novamente" }),
     ).toBeTruthy();
+  });
+
+  test("401 ao abrir a página substitui a entrada do histórico: Voltar não retorna ao Pedido", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(401));
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const router = createMemoryRouter(
+      [
+        { path: "/", element: <p>tela inicial</p> },
+        { path: "/pedidos/:id", element: <OrderPage /> },
+        { path: "/entrar", element: <p>tela de entrada</p> },
+      ],
+      { initialEntries: ["/", `/pedidos/${ORDER_ID}`], initialIndex: 1 },
+    );
+    render(
+      <QueryClientProvider client={client}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("tela de entrada")).toBeInTheDocument();
+    await act(() => router.navigate(-1));
+
+    expect(await screen.findByText("tela inicial")).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/");
   });
 
   test("401 guarda o caminho do Pedido e leva a /entrar", async () => {

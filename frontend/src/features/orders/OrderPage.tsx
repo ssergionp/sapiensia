@@ -83,7 +83,7 @@ export default function OrderPage() {
   useEffect(() => {
     if (notLoggedIn) {
       rememberReturnTo(`/pedidos/${id}`);
-      navigate("/entrar");
+      navigate("/entrar", { replace: true });
     }
   }, [notLoggedIn, id, navigate]);
 

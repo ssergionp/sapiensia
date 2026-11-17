@@ -1,7 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router";
+import {
+  createMemoryRouter,
+  MemoryRouter,
+  Route,
+  RouterProvider,
+  Routes,
+} from "react-router";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { jsonResponse } from "@/features/products/testing";
 import LibraryPage from "./LibraryPage";
@@ -145,6 +151,32 @@ describe("LibraryPage", () => {
 
     expect(await screen.findByText("Guia de saúde")).toBeInTheDocument();
     expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  test("401 ao abrir a página substitui a entrada do histórico: Voltar não retorna à Biblioteca", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(401));
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const router = createMemoryRouter(
+      [
+        { path: "/", element: <p>tela inicial</p> },
+        { path: "/biblioteca", element: <LibraryPage /> },
+        { path: "/entrar", element: <p>tela de entrada</p> },
+      ],
+      { initialEntries: ["/", "/biblioteca"], initialIndex: 1 },
+    );
+    render(
+      <QueryClientProvider client={client}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("tela de entrada")).toBeInTheDocument();
+    await act(() => router.navigate(-1));
+
+    expect(await screen.findByText("tela inicial")).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/");
   });
 
   test("401 leva a /entrar e guarda /biblioteca para depois do login", async () => {
