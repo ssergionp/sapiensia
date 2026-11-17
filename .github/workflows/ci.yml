@@ -135,6 +135,7 @@ jobs:
         env:
           E2E_BASE_URL: http://localhost:8080
           E2E_ADMIN_EMAIL: admin-e2e@example.com
+          E2E_ASAAS_STUB_URL: http://localhost:54322
         run: ../.github/ci-report.sh "End-to-end tests" pnpm exec playwright test
       - name: Logs of the system
         if: failure()

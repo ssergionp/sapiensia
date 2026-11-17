@@ -1,6 +1,8 @@
 // Minimal Asaas stand-in for the CI end-to-end job (no npm packages).
 // Supports only what AsaasPixGateway uses: GET and POST /v3/customers, POST /v3/payments,
 // GET /v3/payments/<id>, GET /v3/payments/<id>/pixQrCode and DELETE /v3/payments/<id>. Objects live in memory.
+// GET /v3/payments/<id> reports RECEIVED until the e2e test calls POST /v3/__e2e/payments/<id>/refund (a stub-only
+// route, not part of Asaas), which makes the payment REFUNDED, as a real refund would.
 // The access_token header is checked against the fake CI key. Headers and bodies are never logged.
 import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
@@ -8,7 +10,7 @@ import { createServer } from 'node:http';
 const port = Number(process.argv[2] ?? process.env.PORT ?? 54322);
 const apiKey = 'ci-fake-asaas-key-not-real';
 const customers = [];
-// payment id -> { value, externalReference }; only these two fields are kept from the request body
+// payment id -> { value, externalReference, status }; value and externalReference come from the request body
 const payments = new Map();
 
 function reply(res, status, body) {
@@ -62,12 +64,22 @@ const server = createServer((req, res) => {
     return reply(res, 200, {
       object: 'payment',
       id,
-      status: 'RECEIVED',
+      status: payment.status,
       value: payment.value,
       billingType: 'PIX',
       externalReference: payment.externalReference,
       deleted: false,
     });
+  }
+  const refundMatch = /^\/v3\/__e2e\/payments\/([A-Za-z0-9_]+)\/refund$/.exec(path);
+  if (method === 'POST' && refundMatch) {
+    req.resume();
+    const payment = payments.get(refundMatch[1]);
+    if (!payment) {
+      return reply(res, 404, { errors: [{ code: 'invalid_object' }] });
+    }
+    payment.status = 'REFUNDED';
+    return reply(res, 200, { object: 'payment', id: refundMatch[1], status: 'REFUNDED' });
   }
   if (method === 'DELETE' && paymentMatch) {
     req.resume();
@@ -93,7 +105,7 @@ const server = createServer((req, res) => {
         return reply(res, 200, { object: 'customer', id });
       }
       const id = newId('pay');
-      payments.set(id, { value: body.value ?? null, externalReference: body.externalReference ?? null });
+      payments.set(id, { value: body.value ?? null, externalReference: body.externalReference ?? null, status: 'RECEIVED' });
       return reply(res, 200, { object: 'payment', id, status: 'PENDING', billingType: 'PIX' });
     });
     req.on('error', () => reply(res, 400, { errors: [{ code: 'invalid_object' }] }));
