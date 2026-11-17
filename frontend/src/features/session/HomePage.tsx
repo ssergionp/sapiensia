@@ -50,7 +50,10 @@ export default function HomePage() {
 
   return (
     <main className="p-8">
-      <p>Você entrou como {session.data.email}.</p>
+      <p>
+        Você entrou como{" "}
+        <span className="[overflow-wrap:anywhere]">{session.data.email}</span>.
+      </p>
       {logout.isError && (
         <p role="alert" className="mt-2 text-sm text-destructive">
           {LOGOUT_ERROR}

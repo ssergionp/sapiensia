@@ -28,6 +28,13 @@ function jsonResponse(status: number, body?: unknown) {
   });
 }
 
+// The e-mail sits in its own span, so match the paragraph by its full text.
+function signedInAs(email: string) {
+  return (_content: string, element: Element | null) =>
+    element?.tagName === "P" &&
+    element.textContent === `Você entrou como ${email}.`;
+}
+
 const LOGOUT_ERROR = "Não foi possível sair agora. Tente novamente.";
 const SESSION_URL = "/api/sessions/current";
 const SESSIONS_URL = "/api/sessions";
@@ -126,12 +133,26 @@ describe("HomePage", () => {
     renderPage();
 
     expect(
-      await screen.findByText("Você entrou como ana@example.com."),
+      await screen.findByText(signedInAs("ana@example.com")),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sair" })).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: "Entrar" }),
     ).not.toBeInTheDocument();
+  });
+
+  test("com um e-mail longo, o e-mail fica num trecho que pode quebrar em qualquer ponto", async () => {
+    const email = "ana.souza.com.nome.bem.comprido@example.com";
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(200, { email }),
+    );
+    renderPage();
+
+    const emailElement = await screen.findByText(email);
+    expect(emailElement).toHaveClass("[overflow-wrap:anywhere]");
+    expect(emailElement.parentElement).toHaveTextContent(
+      `Você entrou como ${email}.`,
+    );
   });
 
   test("Sair chama DELETE e volta ao estado sem sessão", async () => {
@@ -214,9 +235,7 @@ describe("HomePage", () => {
 
     const message = await screen.findByText(LOGOUT_ERROR);
     expect(message).toHaveAttribute("role", "alert");
-    expect(
-      screen.getByText("Você entrou como ana@example.com."),
-    ).toBeInTheDocument();
+    expect(screen.getByText(signedInAs("ana@example.com"))).toBeInTheDocument();
   });
 
   test("com sessão mostra também o botão Sair de todos os aparelhos", async () => {
@@ -284,9 +303,7 @@ describe("HomePage", () => {
 
     const message = await screen.findByText(LOGOUT_ALL_ERROR);
     expect(message).toHaveAttribute("role", "alert");
-    expect(
-      screen.getByText("Você entrou como ana@example.com."),
-    ).toBeInTheDocument();
+    expect(screen.getByText(signedInAs("ana@example.com"))).toBeInTheDocument();
   });
 
   test('mostra "Saindo de todos os aparelhos…" enquanto sai', async () => {
