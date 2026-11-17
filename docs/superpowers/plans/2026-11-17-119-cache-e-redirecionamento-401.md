@@ -21,7 +21,7 @@ Arquivos: `frontend/src/features/session/hooks.ts`, `HomePage.test.tsx`, `LoginP
 
 ## Task 2: o 401 ao abrir a página substitui a entrada do histórico
 
-Arquivos: `LibraryPage.tsx`, `OrdersPage.tsx`, `OrderPage.tsx` e os testes deles.
+Arquivos: `LibraryPage.tsx`, `OrdersPage.tsx`, `OrderPage.tsx`, `LibraryPage.test.tsx`, `OrdersPage.test.tsx` e `OrderPage.test.tsx`.
 
 - Nos três, o `navigate("/entrar")` do 401 ao carregar a página vira `navigate("/entrar", { replace: true })`.
 - Fica igual: o 401 depois de um clique (`DownloadButton`, `BuyWithPix`), porque ali a página continua válida no histórico
