@@ -127,6 +127,78 @@ describe("CatalogProductPage", () => {
     ).toBeInTheDocument();
   });
 
+  function mockProductAndLibrary(library: () => Response) {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) =>
+      String(input).startsWith("/api/library")
+        ? library()
+        : jsonResponse(200, product()),
+    );
+  }
+
+  test("Produto já na Biblioteca troca o botão pelo aviso e o link", async () => {
+    mockProductAndLibrary(() =>
+      jsonResponse(200, {
+        items: [
+          {
+            productId: "p1",
+            title: "Guia",
+            grantedAt: "2026-01-01T00:00:00Z",
+            coverVersion: null,
+          },
+        ],
+      }),
+    );
+    renderProduct();
+
+    expect(
+      await screen.findByText("Você já tem Acesso a este Produto."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Ir para a Biblioteca" }),
+    ).toHaveAttribute("href", "/biblioteca");
+    expect(
+      screen.queryByRole("button", { name: "Comprar com Pix" }),
+    ).not.toBeInTheDocument();
+  });
+
+  test("Biblioteca com outro Produto mantém o botão Comprar com Pix", async () => {
+    mockProductAndLibrary(() =>
+      jsonResponse(200, {
+        items: [
+          {
+            productId: "outro",
+            title: "Outro",
+            grantedAt: "2026-01-01T00:00:00Z",
+            coverVersion: null,
+          },
+        ],
+      }),
+    );
+    renderProduct();
+
+    expect(
+      await screen.findByRole("button", { name: "Comprar com Pix" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Você já tem Acesso a este Produto."),
+    ).not.toBeInTheDocument();
+  });
+
+  test.each([401, 403, 500])(
+    "mostra o botão Comprar com Pix quando a Biblioteca responde %i",
+    async (status) => {
+      mockProductAndLibrary(() => jsonResponse(status, {}));
+      renderProduct();
+
+      expect(
+        await screen.findByRole("button", { name: "Comprar com Pix" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("link", { name: "Ir para a Biblioteca" }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
   test("não mostra o botão Comprar com Pix em Produto não encontrado", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(404, {}));
     renderProduct();
@@ -184,7 +256,11 @@ describe("CatalogProductPage", () => {
     expect(
       await screen.findByRole("heading", { level: 1, name: "Guia" }),
     ).toBeInTheDocument();
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    // The Library lookup (#113) also calls fetch once the Product has loaded.
+    const productCalls = fetchSpy.mock.calls.filter(
+      ([input]) => !String(input).startsWith("/api/library"),
+    );
+    expect(productCalls).toHaveLength(2);
   });
 });
 
