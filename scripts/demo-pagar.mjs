@@ -38,15 +38,15 @@ function fail(message) {
   process.exit(1);
 }
 
-// The charge id of the Order, from the local database container published on port 5433 (demo database first).
-export function findChargeId(orderId) {
+// One column expression of the Order, from the local database container published on port 5433 (demo database first).
+function queryOrder(orderId, expression) {
   const container = execFileSync("docker", ["ps", "--filter", "publish=5433", "--format", "{{.ID}}"], {
     encoding: "utf8",
   })
     .split("\n")[0]
     .trim();
   if (!container) fail("O banco local não está ligado (porta 5433).");
-  const sql = `select provider_payment_id from orders where id = '${orderId}'`; // orderId is a validated UUID
+  const sql = `select ${expression} from orders where id = '${orderId}'`; // orderId is a validated UUID
   for (const db of ["app_demo", "app"]) {
     try {
       const out = execFileSync("docker", ["exec", container, "psql", "-U", "app", "-d", db, "-tAc", sql], {
@@ -59,6 +59,19 @@ export function findChargeId(orderId) {
     }
   }
   return null;
+}
+
+// The charge id of the Order, or null when the Order is not in the local database.
+export function findChargeId(orderId) {
+  return queryOrder(orderId, "provider_payment_id");
+}
+
+// The charge id and the status of the Order, or null when the Order is not in the local database.
+export function findOrder(orderId) {
+  const out = queryOrder(orderId, "provider_payment_id || '|' || status");
+  if (!out) return null;
+  const [chargeId, status] = out.split("|");
+  return { chargeId, status };
 }
 
 async function main() {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { refundEvent } from "./demo-estornar.mjs";
+import { notPaidMessage, refundEvent } from "./demo-estornar.mjs";
 
 test("refundEvent is a PAYMENT_REFUNDED event for the charge", () => {
   const event = refundEvent("pay_123");
@@ -27,7 +27,7 @@ test("the script imports the demo-pagar helpers instead of copying them", () => 
   for (const name of [
     "parseOrderId",
     "apiBaseUrl",
-    "findChargeId",
+    "findOrder",
     "LOCAL_WEBHOOK_TOKEN",
   ]) {
     assert.ok(
@@ -37,4 +37,16 @@ test("the script imports the demo-pagar helpers instead of copying them", () => 
     assert.ok(!source.includes(`function ${name}`), `${name} is not redefined`);
     assert.ok(!source.includes(`const ${name}`), `${name} is not redefined`);
   }
+});
+
+test("notPaidMessage names the status and the Order and points to demo-pagar", () => {
+  const id = "0b8f6c1e-8f4e-4c55-9d6a-1a2b3c4d5e6f";
+  assert.equal(
+    notPaidMessage("PENDING", id),
+    `Só um Pedido pago pode ser estornado. Situação atual: PENDING. Rode antes: just demo-pagar ${id}`,
+  );
+});
+
+test("notPaidMessage is null for a paid Order", () => {
+  assert.equal(notPaidMessage("PAID", "x"), null);
 });

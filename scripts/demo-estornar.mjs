@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import {
   apiBaseUrl,
-  findChargeId,
+  findOrder,
   LOCAL_WEBHOOK_TOKEN,
   parseOrderId,
 } from "./demo-pagar.mjs";
@@ -20,6 +20,12 @@ export function refundEvent(chargeId) {
       status: "REFUNDED",
     },
   };
+}
+
+// Only a paid Order can be refunded: refunding a pending charge would leave the fake charge refunded for good.
+export function notPaidMessage(status, orderId) {
+  if (status === "PAID") return null;
+  return `Só um Pedido pago pode ser estornado. Situação atual: ${status}. Rode antes: just demo-pagar ${orderId}`;
 }
 
 function fail(message) {
@@ -55,15 +61,18 @@ async function main() {
   } catch (e) {
     fail(e.message);
   }
-  const chargeId = findChargeId(orderId);
-  if (!chargeId) fail("Pedido não encontrado no banco local.");
+  const order = findOrder(orderId);
+  if (!order) fail("Pedido não encontrado no banco local.");
+  const notPaid = notPaidMessage(order.status, orderId);
+  if (notPaid) fail(notPaid);
+  const { chargeId } = order;
   // First the local route that marks the fake charge as refunded, then the webhook Asaas would send.
   const refund = await post(
     `${base}/api/local-demo/charges/${encodeURIComponent(chargeId)}/refund`,
   );
   checkStatus(
     refund,
-    "A API não tem o estorno da demonstração. Ela está no perfil local, com app.pix.provider=fake?",
+    "A API não achou a cobrança deste Pedido na demonstração. Confira se ela está no perfil local, com app.pix.provider=fake. Se a API foi reiniciada depois da compra, a cobrança fictícia se perdeu: faça uma compra nova.",
   );
   const webhook = await post(
     `${base}/api/webhooks/asaas`,
