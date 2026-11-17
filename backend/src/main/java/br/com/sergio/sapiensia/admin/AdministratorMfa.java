@@ -54,26 +54,37 @@ class AdministratorMfa {
      * regeneration (shown once); {@code sessionVersion} only when the accepted action changed it (the new session must carry it).
      * {@code toString()} shows only the verdict.
      */
-    record Outcome(Verdict verdict, Duration retryAfter, List<String> codes, OptionalInt sessionVersion) {
+    record Outcome(
+            Verdict verdict, Duration retryAfter, List<String> codes, OptionalInt sessionVersion, Started started) {
 
         Outcome {
             codes = List.copyOf(codes);
         }
 
         static Outcome of(Verdict verdict) {
-            return new Outcome(verdict, null, List.of(), OptionalInt.empty());
+            return new Outcome(verdict, null, List.of(), OptionalInt.empty(), null);
         }
 
         static Outcome locked(Duration retryAfter) {
-            return new Outcome(Verdict.LOCKED, retryAfter, List.of(), OptionalInt.empty());
+            return new Outcome(Verdict.LOCKED, retryAfter, List.of(), OptionalInt.empty(), null);
         }
 
         static Outcome withCodes(List<String> codes) {
-            return new Outcome(Verdict.ACCEPTED, null, codes, OptionalInt.empty());
+            return new Outcome(Verdict.ACCEPTED, null, codes, OptionalInt.empty(), null);
         }
 
         static Outcome acceptedAt(int sessionVersion) {
-            return new Outcome(Verdict.ACCEPTED, null, List.of(), OptionalInt.of(sessionVersion));
+            return new Outcome(Verdict.ACCEPTED, null, List.of(), OptionalInt.of(sessionVersion), null);
+        }
+
+        /** An accepted start of the authenticator replacement: the new secret, for the answer and the session. */
+        static Outcome startedReplacement(Started started) {
+            return new Outcome(Verdict.ACCEPTED, null, List.of(), OptionalInt.empty(), started);
+        }
+
+        /** An accepted replacement: the new recovery codes and the session version that ends the other sessions. */
+        static Outcome replaced(List<String> codes, int sessionVersion) {
+            return new Outcome(Verdict.ACCEPTED, null, codes, OptionalInt.of(sessionVersion), null);
         }
 
         @Override
@@ -306,6 +317,88 @@ class AdministratorMfa {
                 audit.recordInTransaction(
                         entry(AuditAction.ADMIN_RECOVERY_CODES_REGENERATED, AuditResult.SUCCESS, id, clientIp));
                 return Outcome.withCodes(codes);
+            });
+        });
+    }
+
+    /**
+     * Starts the replacement of the authenticator of the fully logged-in Administrator: a new secret, not stored
+     * anywhere here (the caller keeps its cipher text in the session, to give back to {@link #confirmReplacement}). The
+     * old authenticator stays valid until the confirmation. A session that began with a recovery code ({@code
+     * viaRecoveryCode}) needs no code; any other asks for the current TOTP code, through the same limiter and replay
+     * guard as every code step (the step is spent in a transaction of its own), so the code of the login is refused. A
+     * failed or locked attempt is audited as ADMIN_MFA_REPLACED; an accepted start changes nothing, so it is not.
+     */
+    Outcome startReplacement(AdministratorPrincipal who, String code, String clientIp) {
+        if (who.viaRecoveryCode()) {
+            try {
+                if (!enrolled(who.id())) {
+                    return Outcome.of(Verdict.NOT_ENROLLED);
+                }
+                return Outcome.startedReplacement(newReplacement(who));
+            } catch (UnavailableException e) {
+                return Outcome.of(Verdict.UNAVAILABLE);
+            } catch (DataAccessException | IllegalStateException e) {
+                unavailable(e);
+                return Outcome.of(Verdict.UNAVAILABLE);
+            }
+        }
+        return guarded(who.id(), AuditAction.ADMIN_MFA_REPLACED, clientIp, id -> {
+            Optional<Administrators.StoredTotp> totp = administrators.findTotp(id);
+            if (totp.isEmpty() || !totp.get().enabled()) {
+                return Outcome.of(Verdict.NOT_ENROLLED);
+            }
+            byte[] secret = cipher.decrypt(totp.get().secretCipher(), secretAad(id));
+            OptionalLong step = Totp.matchingStep(secret, code, clock.instant());
+            if (step.isEmpty()) {
+                return Outcome.of(Verdict.REJECTED);
+            }
+            return transaction.execute(status -> administrators.acceptStep(id, step.getAsLong()) == 0
+                    ? Outcome.of(Verdict.REJECTED)
+                    : Outcome.startedReplacement(newReplacement(who)));
+        });
+    }
+
+    private Started newReplacement(AdministratorPrincipal who) {
+        byte[] secret = Totp.newSecret();
+        return new Started(
+                new Enrollment(Totp.toBase32(secret), Totp.otpauthUri(ISSUER, who.email(), secret)),
+                cipher.encrypt(secret, secretAad(who.id())));
+    }
+
+    /**
+     * Confirms the replacement with a code of the new secret {@code pendingCipher} (the one started in this same
+     * session; null when none was, which with an inactive MFA is NOT_ENROLLED, not a code failure). Same limiter and
+     * answers as {@link #verify}. In one transaction, in this order: the session version goes up (locking the
+     * Administrator row first, as the recovery code login and the code regeneration do), the secret is swapped by a
+     * compare-and-set on the cipher text read (0 rows: another confirmation or an enrollment won, so everything rolls
+     * back and it is NOT_ENROLLED), every recovery code is replaced by 10 new ones and the event is audited. The
+     * outcome carries the new codes and the new session version (every other session ends, SEC-006).
+     */
+    Outcome confirmReplacement(AdministratorPrincipal who, String pendingCipher, String code, String clientIp) {
+        return guarded(who.id(), AuditAction.ADMIN_MFA_REPLACED, clientIp, id -> {
+            Optional<Administrators.StoredTotp> totp = administrators.findTotp(id);
+            if (pendingCipher == null || totp.isEmpty() || !totp.get().enabled()) {
+                return Outcome.of(Verdict.NOT_ENROLLED);
+            }
+            OptionalLong step = Totp.matchingStep(cipher.decrypt(pendingCipher, secretAad(id)), code, clock.instant());
+            if (step.isEmpty()) {
+                return Outcome.of(Verdict.REJECTED);
+            }
+            return transaction.execute(status -> {
+                OptionalInt version = administrators.incrementSessionVersion(id);
+                if (version.isEmpty()) {
+                    return Outcome.of(Verdict.NOT_ENROLLED);
+                }
+                if (administrators.replaceTotp(id, totp.get().secretCipher(), pendingCipher, step.getAsLong()) == 0) {
+                    status.setRollbackOnly();
+                    return Outcome.of(Verdict.NOT_ENROLLED);
+                }
+                List<String> codes = RecoveryCodes.generate();
+                recoveryCodes.replaceAll(
+                        id, codes.stream().map(RecoveryCodes::hash).toList());
+                audit.recordInTransaction(entry(AuditAction.ADMIN_MFA_REPLACED, AuditResult.SUCCESS, id, clientIp));
+                return Outcome.replaced(codes, version.getAsInt());
             });
         });
     }

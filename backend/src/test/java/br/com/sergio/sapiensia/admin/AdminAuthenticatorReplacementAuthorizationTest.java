@@ -36,7 +36,10 @@ import org.springframework.web.context.WebApplicationContext;
 @Import({TestcontainersConfiguration.class, AdminMfaTestSupport.ClockConfig.class})
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = {"test.isolated-context=admin-authenticator-replacement-authz", "app.login-limit.ip-max-attempts=1000"})
+        properties = {
+            "test.isolated-context=admin-authenticator-replacement-authz",
+            "app.login-limit.ip-max-attempts=1000"
+        })
 class AdminAuthenticatorReplacementAuthorizationTest {
 
     private static final String PASSWORD = "senha-do-painel-123"; // gitleaks:allow
@@ -141,9 +144,7 @@ class AdminAuthenticatorReplacementAuthorizationTest {
                         .statusCode())
                 .isEqualTo(204);
         for (String route : ROUTES) {
-            assertThat(full.postWithoutCsrf(route, "{}").statusCode())
-                    .as(route)
-                    .isEqualTo(403);
+            assertThat(full.postWithoutCsrf(route, "{}").statusCode()).as(route).isEqualTo(403);
         }
     }
 

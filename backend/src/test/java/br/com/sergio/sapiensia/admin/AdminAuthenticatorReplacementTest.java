@@ -190,7 +190,8 @@ class AdminAuthenticatorReplacementTest {
         assertThat(fresh).isNotEqualTo(activated.secret());
         Matcher uri = URI.matcher(response.body());
         assertThat(uri.find()).isTrue();
-        assertThat(uri.group(1)).contains("secret=" + Base32.toBase32String(fresh).replace("=", ""));
+        assertThat(uri.group(1))
+                .contains("secret=" + Base32.toBase32String(fresh).replace("=", ""));
         // nothing stored yet, nothing audited (D1, D10)
         assertThat(storedSecret()).isEqualTo(before);
         assertThat(auditOf(correlationId(response))).isEmpty();
@@ -204,12 +205,15 @@ class AdminAuthenticatorReplacementTest {
         HttpResponse<String> missing = full.post(START, "{}");
 
         assertThat(missing.statusCode()).isEqualTo(400);
-        assertThat(missing.body()).contains("\"errors\":{\"code\":\"CODE_INVALID\"}").doesNotContain("secret");
+        assertThat(missing.body())
+                .contains("\"errors\":{\"code\":\"CODE_INVALID\"}")
+                .doesNotContain("secret");
         assertThat(auditOf(correlationId(missing))).containsExactly("ADMIN_MFA_REPLACED FAILURE");
     }
 
     @Test
-    @DisplayName("SEC-008: a sessão TOTP não começa a troca com código errado (audita ADMIN_MFA_REPLACED FAILURE, sem segredo)")
+    @DisplayName(
+            "SEC-008: a sessão TOTP não começa a troca com código errado (audita ADMIN_MFA_REPLACED FAILURE, sem segredo)")
     void shouldNotStartWithWrongCode() throws Exception {
         Activated activated = activate();
         AdminBrowser full = totpSession(activated.secret());
@@ -289,14 +293,14 @@ class AdminAuthenticatorReplacementTest {
     }
 
     @Test
-    @DisplayName("SEC-006: depois de reautenticar por TOTP, a sessão que veio de recuperação volta a exigir o código antigo")
+    @DisplayName(
+            "SEC-006: depois de reautenticar por TOTP, a sessão que veio de recuperação volta a exigir o código antigo")
     void shouldAskForTheOldCodeAgainAfterReauthentication() throws Exception {
         Activated activated = activate();
         AdminBrowser recovered = recoverySession(activated.codes().getFirst());
         clock.advance(Duration.ofSeconds(30));
         HttpResponse<String> reauthentication = recovered.post(
-                REAUTHENTICATION,
-                "{\"password\":\"" + PASSWORD + "\",\"code\":\"" + totp(activated.secret()) + "\"}");
+                REAUTHENTICATION, "{\"password\":\"" + PASSWORD + "\",\"code\":\"" + totp(activated.secret()) + "\"}");
         assertThat(reauthentication.statusCode()).isEqualTo(204);
 
         assertThat(recovered.get(CURRENT).body()).contains("\"oldCodeRequired\":true");
@@ -368,7 +372,8 @@ class AdminAuthenticatorReplacementTest {
     }
 
     @Test
-    @DisplayName("SEC-006: confirmada a troca, a outra sessão do mesmo Administrador cai (401) e a atual segue com novo id e novo CSRF")
+    @DisplayName(
+            "SEC-006: confirmada a troca, a outra sessão do mesmo Administrador cai (401) e a atual segue com novo id e novo CSRF")
     void shouldEndTheOtherSessionsAndRenewTheCurrentOne() throws Exception {
         Activated activated = activate();
         AdminBrowser full = totpSession(activated.secret());
@@ -390,7 +395,8 @@ class AdminAuthenticatorReplacementTest {
     }
 
     @Test
-    @DisplayName("SEC-065: confirmada a troca, os códigos de recuperação antigos são recusados e os 10 novos funcionam uma vez")
+    @DisplayName(
+            "SEC-065: confirmada a troca, os códigos de recuperação antigos são recusados e os 10 novos funcionam uma vez")
     void shouldReplaceTheRecoveryCodes() throws Exception {
         Activated activated = activate();
         AdminBrowser recovered = recoverySession(activated.codes().getFirst());

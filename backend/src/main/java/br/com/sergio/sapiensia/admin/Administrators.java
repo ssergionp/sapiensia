@@ -139,6 +139,21 @@ class Administrators {
     }
 
     /**
+     * Swaps the active secret for {@code newCipher} and records {@code step} (of the new secret) as the last accepted
+     * one, only while MFA is active and the stored secret is still {@code oldCipher}: a compare-and-set, so of parallel
+     * confirmations the row lock lets exactly one through. Returns the rows changed (1 swapped, 0 refused).
+     */
+    int replaceTotp(UUID id, String oldCipher, String newCipher, long step) {
+        return jdbc.sql("update administrators set totp_secret = :new, totp_last_step = :step where id = :id"
+                        + " and totp_enabled_at is not null and totp_secret = :old")
+                .param("new", newCipher)
+                .param("step", step)
+                .param("id", id)
+                .param("old", oldCipher)
+                .update();
+    }
+
+    /**
      * Ends every session of the account (SEC-006): the version goes up, and the row stays locked until the current
      * transaction ends. Returns the new version, empty when the row no longer exists.
      */

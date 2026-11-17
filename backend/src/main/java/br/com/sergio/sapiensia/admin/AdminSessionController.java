@@ -156,6 +156,8 @@ class AdminSessionController {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("email", principal.email());
         body.put("capabilities", capabilities);
+        // false only in a session that began with a recovery code: it replaces the authenticator without the old code
+        body.put("oldCodeRequired", !principal.viaRecoveryCode());
         return body;
     }
 }
