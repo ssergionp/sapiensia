@@ -69,7 +69,11 @@ export default function AuthenticatorReplacementSection({
   const [codes, setCodes] = useState<string[] | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const start = useStartAuthenticatorReplacement(setEnrollment);
-  const confirm = useConfirmAuthenticatorReplacement(setCodes);
+  const confirm = useConfirmAuthenticatorReplacement((newCodes) => {
+    // The new secret is no longer needed once the codes arrive.
+    setEnrollment(null);
+    setCodes(newCodes);
+  });
   const oldForm = useForm<MfaCodeInput, unknown, MfaCodeOutput>({
     resolver: zodResolver(mfaCodeSchema),
     defaultValues: { code: "" },
@@ -100,7 +104,12 @@ export default function AuthenticatorReplacementSection({
   function begin(code: string | undefined) {
     setFailure(null);
     start.mutate(code, {
-      onSuccess: () => setStep("confirming"),
+      onSuccess: () => {
+        setStep("confirming");
+        // The old code and the finished start must not linger.
+        oldForm.reset();
+        start.reset();
+      },
       // On 401 the hook already marked the session as ended and the page redirects; no message here.
       onError: (error) => {
         if (!(error instanceof MfaExpiredError)) {

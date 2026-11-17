@@ -237,6 +237,7 @@ describe("ProductListPage", () => {
       {
         email: "a@example.com",
         capabilities: ["PANEL_ACCESS"],
+        oldCodeRequired: true,
       },
     );
     renderProducts("/painel/produtos");

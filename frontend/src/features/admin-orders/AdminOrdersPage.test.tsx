@@ -39,7 +39,11 @@ function mockApi(
   return vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
     const url = String(input);
     if (url === SESSION_URL) {
-      return jsonResponse(200, { email: "admin@example.com", capabilities });
+      return jsonResponse(200, {
+        email: "admin@example.com",
+        capabilities,
+        oldCodeRequired: true,
+      });
     }
     return (await handler(url)) ?? jsonResponse(200, page([]));
   });

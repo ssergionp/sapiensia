@@ -3,7 +3,7 @@ import {
   QueryClient,
   QueryClientProvider,
 } from "@tanstack/react-query";
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, describe, expect, test, vi } from "vitest";
@@ -42,6 +42,7 @@ function jsonResponse(status: number, body?: unknown) {
 const ADMIN_BODY = {
   email: "admin@example.com",
   capabilities: ["PANEL_ACCESS"],
+  oldCodeRequired: true,
 };
 
 describe("AdminHomePage", () => {
@@ -92,9 +93,87 @@ describe("AdminHomePage", () => {
     ).toBeTruthy();
   });
 
+  test("sessão por recuperação mostra a instrução e não pede o código atual", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(200, { ...ADMIN_BODY, oldCodeRequired: false }),
+    );
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        "Você entrou com um código de recuperação, então não precisa do código do autenticador atual.",
+      ),
+    ).toBeInTheDocument();
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Trocar o autenticador" }));
+    expect(
+      screen.queryByLabelText("Código do autenticador atual"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("os 10 códigos novos continuam na tela depois da confirmação e do refetch da sessão", async () => {
+    let sessionCalls = 0;
+    const codes = Array.from({ length: 10 }, (_, i) =>
+      String.fromCharCode(65 + i).repeat(24),
+    );
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url === ADMIN_URL) {
+        sessionCalls += 1;
+        return jsonResponse(200, ADMIN_BODY);
+      }
+      if (url === "/api/admin/authenticator-replacement") {
+        return jsonResponse(200, {
+          secret: "A".repeat(32),
+          otpauthUri: "otpauth://totp/x",
+        });
+      }
+      if (url === "/api/admin/authenticator-replacement/confirmation") {
+        return jsonResponse(200, { codes });
+      }
+      return jsonResponse(200);
+    });
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(
+      await screen.findByRole("button", { name: "Trocar o autenticador" }),
+    );
+    await user.type(
+      screen.getByLabelText("Código do autenticador atual"),
+      "123456",
+    );
+    await user.click(screen.getByRole("button", { name: "Continuar" }));
+    await user.type(
+      await screen.findByLabelText("Código do aplicativo novo"),
+      "654321",
+    );
+    await user.click(screen.getByRole("button", { name: "Confirmar a troca" }));
+
+    await screen.findByRole("heading", {
+      name: "Autenticador trocado. Seus novos códigos de recuperação",
+    });
+    await waitFor(() => expect(sessionCalls).toBeGreaterThanOrEqual(2));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(
+      screen.getByRole("heading", {
+        name: "Autenticador trocado. Seus novos códigos de recuperação",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("list", { name: "Códigos de recuperação" }),
+    ).toBeInTheDocument();
+  });
+
   test("o e-mail quebra desde o início ([overflow-wrap:anywhere])", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      jsonResponse(200, { email: LONG_EMAIL, capabilities: [] }),
+      jsonResponse(200, {
+        email: LONG_EMAIL,
+        capabilities: [],
+        oldCodeRequired: true,
+      }),
     );
     renderPage();
 

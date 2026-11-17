@@ -49,7 +49,7 @@ export default function AdminHomePage() {
           )}
           <RecoveryCodesSection />
           <AuthenticatorReplacementSection
-            oldCodeRequired={admin.oldCodeRequired !== false}
+            oldCodeRequired={admin.oldCodeRequired}
           />
           {logout.isError && (
             <p role="alert" className="mt-2 text-sm text-destructive">

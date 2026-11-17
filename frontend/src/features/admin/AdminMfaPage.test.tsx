@@ -281,7 +281,11 @@ describe("AdminMfaPage", () => {
           ...routes,
           [key]: path === "confirmation" ? CONFIRMED : () => json(204),
           "GET /api/admin/sessions/current": () =>
-            json(200, { email: "admin@example.com", capabilities: [] }),
+            json(200, {
+              email: "admin@example.com",
+              capabilities: [],
+              oldCodeRequired: true,
+            }),
         });
         const client = new QueryClient({
           defaultOptions: {
@@ -308,6 +312,7 @@ describe("AdminMfaPage", () => {
         expect(client.getQueryData(adminSessionQueryKey)).toEqual({
           email: "admin@example.com",
           capabilities: [],
+          oldCodeRequired: true,
         });
         expect(client.getQueryState(sessionQueryKey)?.isInvalidated).toBe(true);
       });
@@ -580,7 +585,11 @@ describe("AdminMfaPage", () => {
       ...enrollRoutes,
       [CONFIRM]: CONFIRMED,
       "GET /api/admin/sessions/current": () =>
-        json(200, { email: "admin@example.com", capabilities: [] }),
+        json(200, {
+          email: "admin@example.com",
+          capabilities: [],
+          oldCodeRequired: true,
+        }),
     });
     renderPage();
 

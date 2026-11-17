@@ -19,7 +19,7 @@ export function jsonResponse(status: number, body?: unknown) {
 }
 
 export function adminBody(capabilities: string[]) {
-  return { email: "admin@example.com", capabilities };
+  return { email: "admin@example.com", capabilities, oldCodeRequired: true };
 }
 
 export const FULL = adminBody([
