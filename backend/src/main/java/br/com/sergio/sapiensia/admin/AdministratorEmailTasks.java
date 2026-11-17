@@ -6,6 +6,7 @@ import com.github.kagkarlsson.scheduler.task.FailureHandler;
 import com.github.kagkarlsson.scheduler.task.helper.OneTimeTask;
 import com.github.kagkarlsson.scheduler.task.helper.Tasks;
 import java.time.Duration;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,6 +18,7 @@ import org.springframework.context.annotation.Configuration;
 class AdministratorEmailTasks {
 
     static final String PASSWORD_SETUP = "administrator-password-setup";
+    static final String AUTHENTICATOR_REPLACED_NOTICE = "administrator-authenticator-replaced-notice";
     /** Fixed instance id: scheduling it again while one is pending does nothing, so at most one is pending. */
     static final String BOOTSTRAP_INSTANCE = "bootstrap";
 
@@ -38,18 +40,25 @@ class AdministratorEmailTasks {
     @Bean
     OneTimeTask<Void> administratorPasswordSetupTask(AdministratorEmailService emails) {
         return Tasks.oneTime(PASSWORD_SETUP)
-                .onFailure(retryThenDrop())
+                .onFailure(retryThenDrop(PASSWORD_SETUP))
                 .execute((instance, context) -> emails.sendPasswordSetup());
     }
 
-    private FailureHandler<Void> retryThenDrop() {
+    @Bean
+    OneTimeTask<UUID> administratorAuthenticatorReplacedNoticeTask(AdministratorEmailService emails) {
+        return Tasks.oneTime(AUTHENTICATOR_REPLACED_NOTICE, UUID.class)
+                .onFailure(retryThenDrop(AUTHENTICATOR_REPLACED_NOTICE))
+                .execute((instance, context) -> emails.sendAuthenticatorReplacedNotice(instance.getData()));
+    }
+
+    private <T> FailureHandler<T> retryThenDrop(String taskName) {
         // the log names only the task: never the e-mail, the token or the hash
         // maxRetries counts the retries after the first run, so total attempts = retries + 1
-        return FailureHandler.<Void>maxRetries(maxAttempts - 1)
+        return FailureHandler.<T>maxRetries(maxAttempts - 1)
                 .retryEvery(retryDelay)
                 .thenRemove(execution -> {
-                    log.error("Task {} failed {} times and was dropped", PASSWORD_SETUP, maxAttempts);
-                    alerts.recordSafely(AdminAlertType.TASK_GAVE_UP, PASSWORD_SETUP);
+                    log.error("Task {} failed {} times and was dropped", taskName, maxAttempts);
+                    alerts.recordSafely(AdminAlertType.TASK_GAVE_UP, taskName);
                 });
     }
 }

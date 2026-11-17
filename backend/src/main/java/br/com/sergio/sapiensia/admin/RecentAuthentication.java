@@ -32,4 +32,13 @@ public class RecentAuthentication {
         return principal.passwordVerifiedAt().isAfter(oldest)
                 && principal.totpVerifiedAt().isAfter(oldest);
     }
+
+    /**
+     * Whether the Administrator must type the current TOTP code to replace the authenticator: always, except in a
+     * session that began with a recovery code and only while that login is still recent. The single rule behind
+     * {@code oldCodeRequired} in {@code GET /api/admin/sessions/current} and the start of the replacement.
+     */
+    public boolean oldCodeRequired(AdministratorPrincipal principal) {
+        return !(principal.viaRecoveryCode() && isRecent(principal));
+    }
 }

@@ -286,6 +286,7 @@ describe("ProductFormPage, create", () => {
     mockApi(() => undefined, {
       email: "a@b.c",
       capabilities: ["PANEL_ACCESS"],
+      oldCodeRequired: true,
     });
     renderProducts("/painel/produtos/novo");
 

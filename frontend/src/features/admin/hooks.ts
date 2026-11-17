@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { sessionQueryKey } from "../session/hooks";
 import {
   adminLogin,
+  confirmAuthenticatorReplacement,
   confirmMfaEnrollment,
   fetchAdminSession,
   fetchMfaStatus,
@@ -9,9 +10,11 @@ import {
   reauthenticate,
   regenerateRecoveryCodes,
   setAdminPassword,
+  startAuthenticatorReplacement,
   verifyMfaCode,
   verifyRecoveryCode,
 } from "./api";
+import type { MfaEnrollment } from "./schemas";
 
 export const adminSessionQueryKey = ["admin-session"] as const;
 export const mfaStatusQueryKey = ["admin-mfa-status"] as const;
@@ -79,6 +82,45 @@ export function useRegenerateRecoveryCodes(onCodes: (codes: string[]) => void) {
       onCodes(await regenerateRecoveryCodes(code));
     },
     // A 401 means the panel session ended: mark it as signed out (like the sign-out does) so the page redirects.
+    onError: (error) => {
+      if (error instanceof MfaExpiredError) {
+        queryClient.setQueryData(adminSessionQueryKey, null);
+      }
+    },
+  });
+}
+
+// The secret goes to onStarted (component state) and never into the mutation result; the typed code is not cached.
+export function useStartAuthenticatorReplacement(
+  onStarted: (enrollment: MfaEnrollment) => void,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    gcTime: 0,
+    mutationFn: async (code: string | undefined): Promise<void> => {
+      onStarted(await startAuthenticatorReplacement(code));
+    },
+    onError: (error) => {
+      if (error instanceof MfaExpiredError) {
+        queryClient.setQueryData(adminSessionQueryKey, null);
+      }
+    },
+  });
+}
+
+export function useConfirmAuthenticatorReplacement(
+  onCodes: (codes: string[]) => void,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    gcTime: 0,
+    mutationFn: async (code: string): Promise<void> => {
+      onCodes(await confirmAuthenticatorReplacement(code));
+    },
+    // The server replaced the session (new id and CSRF) and the flag oldCodeRequired may have changed.
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: adminSessionQueryKey });
+    },
     onError: (error) => {
       if (error instanceof MfaExpiredError) {
         queryClient.setQueryData(adminSessionQueryKey, null);

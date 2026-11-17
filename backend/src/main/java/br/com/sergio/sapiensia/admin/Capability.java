@@ -28,7 +28,12 @@ public enum Capability {
      * Anonymize a Customer's account (#41, FR-036, SEC-038): irreversible, so it has its own lock and the route also
      * asks for a recent authentication.
      */
-    CUSTOMERS_ANONYMIZE;
+    CUSTOMERS_ANONYMIZE,
+    /**
+     * Replace the TOTP authenticator of the Administrator (#73, SEC-006, SEC-008): the routes also ask for the current
+     * TOTP code, unless the session began with a recovery code.
+     */
+    AUTHENTICATOR_REPLACE;
 
     public String authority() {
         return "CAPABILITY_" + name();

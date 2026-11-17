@@ -51,6 +51,14 @@ class Administrators {
                 .optional();
     }
 
+    /** The e-mail of the Administrator, empty when the row no longer exists. */
+    Optional<String> findEmail(UUID id) {
+        return jdbc.sql("select email from administrators where id = :id")
+                .param("id", id)
+                .query(String.class)
+                .optional();
+    }
+
     /** The Administrator that still has no password (there is only one). */
     Optional<Pending> findWithoutPassword() {
         return jdbc.sql("select id, email from administrators where password_hash is null"
@@ -135,6 +143,21 @@ class Administrators {
                 .param("step", step)
                 .param("id", id)
                 .param("cipher", secretCipher)
+                .update();
+    }
+
+    /**
+     * Swaps the active secret for {@code newCipher} and records {@code step} (of the new secret) as the last accepted
+     * one, only while MFA is active and the stored secret is still {@code oldCipher}: a compare-and-set, so of parallel
+     * confirmations the row lock lets exactly one through. Returns the rows changed (1 swapped, 0 refused).
+     */
+    int replaceTotp(UUID id, String oldCipher, String newCipher, long step) {
+        return jdbc.sql("update administrators set totp_secret = :new, totp_last_step = :step where id = :id"
+                        + " and totp_enabled_at is not null and totp_secret = :old")
+                .param("new", newCipher)
+                .param("step", step)
+                .param("id", id)
+                .param("old", oldCipher)
                 .update();
     }
 

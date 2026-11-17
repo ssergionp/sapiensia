@@ -4,6 +4,8 @@ import { z } from "zod";
 export const adminSessionSchema = z.object({
   email: z.string(),
   capabilities: z.array(z.string()),
+  // false only for a session born from a recovery code.
+  oldCodeRequired: z.boolean(),
 });
 
 export type AdminSession = z.infer<typeof adminSessionSchema>;

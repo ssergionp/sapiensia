@@ -6,10 +6,17 @@ import AdminHomePage from "./AdminHomePage";
 
 function renderWith(capabilities: string[]) {
   vi.spyOn(globalThis, "fetch").mockResolvedValue(
-    new Response(JSON.stringify({ email: "a@example.com", capabilities }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    }),
+    new Response(
+      JSON.stringify({
+        email: "a@example.com",
+        capabilities,
+        oldCodeRequired: true,
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      },
+    ),
   );
   render(
     <QueryClientProvider

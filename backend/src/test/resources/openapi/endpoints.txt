@@ -17,6 +17,8 @@ GET /api/products
 GET /api/products/{id}
 GET /api/products/{id}/cover
 GET /api/sessions/current
+POST /api/admin/authenticator-replacement
+POST /api/admin/authenticator-replacement/confirmation
 POST /api/admin/customer-anonymizations
 POST /api/admin/password-setup
 POST /api/admin/products

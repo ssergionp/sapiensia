@@ -59,6 +59,8 @@ class AdminMfaLogTest {
     private static final String MFA = "/api/admin/sessions/mfa";
     private static final String ENROLLMENT = MFA + "/enrollment";
     private static final String CONFIRMATION = ENROLLMENT + "/confirmation";
+    private static final String REPLACEMENT = "/api/admin/authenticator-replacement";
+    private static final String REPLACEMENT_CONFIRMATION = REPLACEMENT + "/confirmation";
     private static final Pattern SECRET = Pattern.compile("\"secret\":\"([A-Z2-7]{32})\"");
     private static final Pattern OTPAUTH = Pattern.compile("\"otpauthUri\":\"([^\"]+)\"");
     private static final Pattern RECOVERY_CODE = Pattern.compile("\"([A-Z2-7]{24})\"");
@@ -163,6 +165,42 @@ class AdminMfaLogTest {
         codes.add(lockedCode);
         assertThat(third.verifyMfa(lockedCode).statusCode()).isEqualTo(429);
 
+        // the authenticator replacement (#73): start with the old code, confirm with a code of the new secret
+        String oldCipherText = jdbc.queryForObject("select totp_secret from administrators", String.class);
+        clock.advance(Duration.ofHours(2));
+        AdminBrowser fourth = new AdminBrowser(port);
+        assertThat(fourth.loginAdmin(email, PASSWORD).statusCode()).isEqualTo(204);
+        String fourthLogin = AdminMfaTestSupport.codeAt(secret, clock.instant());
+        codes.add(fourthLogin);
+        assertThat(fourth.verifyMfa(fourthLogin).statusCode()).isEqualTo(204);
+        clock.advance(Duration.ofSeconds(30));
+        String oldCode = AdminMfaTestSupport.codeAt(secret, clock.instant());
+        codes.add(oldCode);
+        HttpResponse<String> replacement = fourth.post(REPLACEMENT, body(oldCode));
+        assertThat(replacement.statusCode()).isEqualTo(200);
+        Matcher newSecretMatcher = SECRET.matcher(replacement.body());
+        assertThat(newSecretMatcher.find()).isTrue();
+        String newBase32 = newSecretMatcher.group(1);
+        byte[] newSecret = Base32.decode(newBase32);
+        Matcher newUriMatcher = OTPAUTH.matcher(replacement.body());
+        assertThat(newUriMatcher.find()).isTrue();
+        String newOtpauth = newUriMatcher.group(1);
+        assertThat(fourth.post(
+                                REPLACEMENT_CONFIRMATION,
+                                body(AdminMfaTestSupport.wrongCodeAt(newSecret, clock.instant())))
+                        .statusCode())
+                .isEqualTo(400);
+        String newCode = AdminMfaTestSupport.codeAt(newSecret, clock.instant());
+        codes.add(newCode);
+        HttpResponse<String> replaced = fourth.post(REPLACEMENT_CONFIRMATION, body(newCode));
+        assertThat(replaced.statusCode()).isEqualTo(200);
+        Matcher newRecoveryMatcher = RECOVERY_CODE.matcher(replaced.body());
+        List<String> newRecoveryCodes = new ArrayList<>();
+        while (newRecoveryMatcher.find()) {
+            newRecoveryCodes.add(newRecoveryMatcher.group(1));
+        }
+        assertThat(newRecoveryCodes).hasSize(10);
+
         String cipherText = jdbc.queryForObject("select totp_secret from administrators", String.class);
         String key = environment.getProperty("app.mfa.encryption-key");
         String badKey = Base64.getEncoder().encodeToString("sixteen-byte-key".getBytes(StandardCharsets.UTF_8));
@@ -181,6 +219,14 @@ class AdminMfaLogTest {
         forbidden.put("the Administrator e-mail", email);
         forbidden.put("the Administrator e-mail, URL-encoded", email.replace("@", "%40"));
         forbidden.put("the password", PASSWORD);
+        forbidden.put("the new Base32 secret", newBase32);
+        forbidden.put("the new secret in Base64", Base64.getEncoder().encodeToString(newSecret));
+        forbidden.put("the new otpauth URI", newOtpauth);
+        forbidden.put("the previous stored cipher text", oldCipherText);
+        for (int i = 0; i < newRecoveryCodes.size(); i++) {
+            forbidden.put("new recovery code " + i, newRecoveryCodes.get(i));
+            forbidden.put("the hash of new recovery code " + i, RecoveryCodes.hash(newRecoveryCodes.get(i)));
+        }
         for (int i = 0; i < recoveryCodes.size(); i++) {
             String recoveryCode = recoveryCodes.get(i);
             forbidden.put("recovery code " + i, recoveryCode);

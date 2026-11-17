@@ -466,6 +466,147 @@ async function loginWithStoredCredentials(page: Page) {
   );
 }
 
+const REPLACE_START = "Trocar o autenticador";
+const REPLACE_OLD_LABEL = "Código do autenticador atual";
+const REPLACE_CONTINUE = "Continuar";
+const REPLACE_NEW_LABEL = "Código do aplicativo novo";
+const REPLACE_CONFIRM = "Confirmar a troca";
+const REPLACE_RESULT_TITLE =
+  "Autenticador trocado. Seus novos códigos de recuperação";
+const REPLACE_RECOVERY_INSTRUCTION =
+  "Você entrou com um código de recuperação, então não precisa do código do autenticador atual.";
+const REPLACE_OLD_INSTRUCTION =
+  "Para começar, digite o código de 6 dígitos do autenticador atual.";
+
+// Starts the replacement, shows the new key and confirms it with a code of the new secret. The file with the new
+// secret is written right after the confirmation, before anything else can fail. Returns the new secret and the 10
+// new recovery codes. With oldSecret, the current app code is typed first (a session that came from the password
+// and the app code); without it, the section goes straight to the new key (a session from a recovery code).
+async function replaceAuthenticator(
+  page: Page,
+  oldSecret: string | null,
+): Promise<{ secret: string; codes: string[] }> {
+  await page.getByRole("button", { name: REPLACE_START, exact: true }).click();
+  if (oldSecret !== null) {
+    await expect(page.getByText(REPLACE_OLD_INSTRUCTION)).toBeVisible();
+    const lastStep = (await readStoredTotp())?.lastStep ?? 0;
+    await waitForStepAfter(lastStep);
+    const oldStep = currentStep();
+    // The old code is consumed by the server even if the rest fails.
+    await writeStoredTotp({ secret: oldSecret, lastStep: oldStep });
+    const oldField = page.getByLabel(REPLACE_OLD_LABEL, { exact: true });
+    try {
+      await fillSecret(oldField, totpCode(oldSecret, oldStep));
+      await page
+        .getByRole("button", { name: REPLACE_CONTINUE, exact: true })
+        .click();
+      await expect(page.getByText(ENROLL_ALTERNATIVE)).toBeVisible();
+    } finally {
+      await clearSecret(oldField);
+    }
+  } else {
+    await expect(page.getByText(ENROLL_ALTERNATIVE)).toBeVisible();
+  }
+  const secret = await readAndHideKey(page);
+  await expectNoA11yViolations(page, "painel: trocar o autenticador");
+
+  const newStep = currentStep();
+  const newField = page.getByLabel(REPLACE_NEW_LABEL, { exact: true });
+  try {
+    await fillSecret(newField, totpCode(secret, newStep));
+    await page
+      .getByRole("button", { name: REPLACE_CONFIRM, exact: true })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: REPLACE_RESULT_TITLE, exact: true }),
+    ).toBeVisible();
+  } finally {
+    await clearSecret(newField);
+  }
+  // The replacement happened: the stored secret must follow it before any other step.
+  await writeStoredTotp({ secret, lastStep: newStep });
+  const codes = await readAndHideCodes(page);
+  await acknowledgeCodes(page, "Concluir");
+  return { secret, codes };
+}
+
+test("SEC-001 SEC-006 SEC-008 SEC-065: o Administrador troca o autenticador, a outra sessão cai e o segredo antigo para de valer", async ({
+  page,
+  browser,
+  baseURL,
+}) => {
+  test.setTimeout(360_000);
+  const host = new URL(baseURL ?? "").hostname;
+  if (host !== "localhost" && host !== "127.0.0.1") {
+    throw new Error(
+      "Refusing to run the administrator e2e outside localhost/127.0.0.1",
+    );
+  }
+  const painel = page.getByRole("heading", { name: "Painel do Administrador" });
+  const panelShown = () => expect(painel).toBeVisible();
+
+  // 1. Two sessions of the Administrator: the page and a second context.
+  await loginWithStoredCredentials(page);
+  const otherContext = await browser.newContext({
+    baseURL: baseURL ?? undefined,
+  });
+  try {
+    const other = await otherContext.newPage();
+    await loginWithStoredCredentials(other);
+
+    // 2 and 3. First replacement, with the current code. The old secret comes from the file.
+    const before = await readStoredTotp();
+    const password = await readStoredPassword();
+    if (before === null || password === null) {
+      throw new Error("The stored Administrator credentials are missing.");
+    }
+    const first = await replaceAuthenticator(page, before.secret);
+
+    // 4. The other session is gone after a reload; this one stays; a new login works with the new secret.
+    await other.reload();
+    await expect(other).toHaveURL(/\/painel\/entrar$/);
+    await expect(
+      other.getByRole("heading", { name: "Painel do Administrador" }),
+    ).toBeHidden();
+    await page.reload();
+    await panelShown();
+    expect(await tryPassword(other, password), "the password was refused").toBe(
+      true,
+    );
+    const stored = await readStoredTotp();
+    await waitForStepAfter(stored?.lastStep ?? 0);
+    const loginStep = currentStep();
+    await writeStoredTotp({ secret: first.secret, lastStep: loginStep });
+    await enterCode(other, totpCode(first.secret, loginStep), async () => {
+      await expect(
+        other.getByRole("heading", { name: "Painel do Administrador" }),
+      ).toBeVisible();
+    });
+
+    // 5. A session that came from a recovery code does not ask for the current code.
+    await page.getByRole("button", { name: "Sair" }).click();
+    await expect(page).toHaveURL(/\/painel\/entrar$/);
+    await recoveryLogin(page, password, first.codes[0], panelShown);
+    await expect(page.getByText(REPLACE_RECOVERY_INSTRUCTION)).toBeVisible();
+    const second = await replaceAuthenticator(page, null);
+
+    // The recovery codes of the first replacement no longer work; the ones of the second do.
+    await page.getByRole("button", { name: "Sair" }).click();
+    await expect(page).toHaveURL(/\/painel\/entrar$/);
+    await recoveryLogin(page, password, first.codes[1], async () => {
+      await expect(page.getByText(RECOVERY_WRONG)).toBeVisible();
+      await expect(painel).toBeHidden();
+    });
+    await recoveryLogin(page, password, second.codes[0], panelShown);
+
+    // 6. The file points to the current secret, and its last step is the one the server accepted.
+    const final = await readStoredTotp();
+    expect(final?.secret === second.secret).toBe(true);
+  } finally {
+    await otherContext.close();
+  }
+});
+
 test("FR-016 FR-018: o Administrador cria um Produto em rascunho, edita os dados e o preço", async ({
   page,
   baseURL,

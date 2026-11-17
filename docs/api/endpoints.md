@@ -35,9 +35,11 @@ Toda rota de `/api` que não está nesta tabela é negada (`denyAll`), com uma e
 | POST | `/api/admin/sessions/mfa/enrollment` | Administrador com a senha confirmada (código pendente) | — |
 | POST | `/api/admin/sessions/mfa/enrollment/confirmation` | Administrador com a senha confirmada (código pendente) | login: limite próprio (ADR-0004) |
 | POST | `/api/admin/sessions/mfa/recovery-code` | Administrador com a senha confirmada (código pendente) | login: limite próprio (ADR-0004) |
-| GET | `/api/admin/sessions/current` | Painel: `PANEL_ACCESS` | — |
+| GET | `/api/admin/sessions/current` | Painel: `PANEL_ACCESS` | — (devolve `email`, `capabilities` e `oldCodeRequired`: `false` apenas na sessão que nasceu de um código de recuperação, que troca o autenticador sem o código antigo) |
 | POST | `/api/admin/sessions/reauthentication` | Painel: `PANEL_ACCESS` | login: limite próprio (ADR-0004) |
 | POST | `/api/admin/recovery-codes` | Painel: `RECOVERY_CODES_MANAGE` | login: limite próprio (ADR-0004) |
+| POST | `/api/admin/authenticator-replacement` | Painel: `AUTHENTICATOR_REPLACE` | limite: o do MFA do Administrador (ADR-0004) |
+| POST | `/api/admin/authenticator-replacement/confirmation` | Painel: `AUTHENTICATOR_REPLACE` | limite: o do MFA do Administrador (ADR-0004) |
 | GET | `/api/admin/products` | Painel: `PRODUCTS_EDIT` | — |
 | GET | `/api/admin/products/{id}` | Painel: `PRODUCTS_EDIT` | — |
 | POST | `/api/admin/products` | Painel: `PRODUCTS_EDIT` | — |

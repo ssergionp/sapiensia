@@ -242,6 +242,13 @@ public class SecurityConfig {
                         // also asks for a fresh TOTP code in the body, checked by the controller (SEC-008)
                         .requestMatchers(HttpMethod.POST, "/api/admin/recovery-codes")
                         .access(panel(Capability.RECOVERY_CODES_MANAGE))
+                        // the authenticator replacement (#73): the controller asks for the current TOTP code (SEC-008),
+                        // except in a session that began with a recovery code
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/admin/authenticator-replacement",
+                                "/api/admin/authenticator-replacement/confirmation")
+                        .access(panel(Capability.AUTHENTICATOR_REPLACE))
                         // Products (#17): one segment after /products, so /products/{id}/file stays denied. The price
                         // has its own capability (SEC-029): PRODUCTS_EDIT cannot change it.
                         .requestMatchers(HttpMethod.GET, "/api/admin/products", "/api/admin/products/*")

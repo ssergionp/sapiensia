@@ -59,6 +59,7 @@ class AdminSessionController {
     private final ClientIpResolver clientIp;
     private final TransactionTemplate transaction;
     private final Clock clock;
+    private final RecentAuthentication recentAuthentication;
 
     AdminSessionController(
             Administrators administrators,
@@ -67,12 +68,14 @@ class AdminSessionController {
             AuditLog audit,
             ClientIpResolver clientIp,
             PlatformTransactionManager transactionManager,
-            Clock clock) {
+            Clock clock,
+            RecentAuthentication recentAuthentication) {
         this.passwordLogin = passwordLogin;
         this.audit = audit;
         this.clientIp = clientIp;
         this.transaction = new TransactionTemplate(transactionManager);
         this.clock = clock;
+        this.recentAuthentication = recentAuthentication;
         DaoAuthenticationProvider provider =
                 new DaoAuthenticationProvider(new AdministratorUserDetailsService(administrators));
         provider.setPasswordEncoder(passwordEncoder);
@@ -156,6 +159,9 @@ class AdminSessionController {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("email", principal.email());
         body.put("capabilities", capabilities);
+        // false only in a session from a recovery code, within the recent-authentication window: it replaces the
+        // authenticator without the old code
+        body.put("oldCodeRequired", recentAuthentication.oldCodeRequired(principal));
         return body;
     }
 }

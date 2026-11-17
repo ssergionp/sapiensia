@@ -1,15 +1,15 @@
 # Recuperar o acesso do Administrador (troca definitiva do autenticador)
 
-Procedimento manual do ADR-0004 (`docs/adr/0004-identidade-e-mfa.md`). Não há rota pública para isso: quem tem acesso ao banco apaga a linha do Administrador, o sistema recria a conta e o Administrador refaz a senha e o MFA. Não coloque senha, segredo, chave nem código de recuperação em nenhum comando, ticket ou conversa.
+O primeiro caminho é pelo painel: quem tem o celular, ou ao menos um código de recuperação, troca o autenticador sozinho (veja a tabela abaixo e a atualização de 17/11/2026 do ADR-0004). O procedimento manual deste documento (ADR-0004, `docs/adr/0004-identidade-e-mfa.md`) é só para quem não tem nem o celular nem um código de recuperação. Não há rota pública para isso: quem tem acesso ao banco apaga a linha do Administrador, o sistema recria a conta e o Administrador refaz a senha e o MFA. Não coloque senha, segredo, chave nem código de recuperação em nenhum comando, ticket ou conversa.
 
 ## Quando usar este procedimento e quando usar os códigos
 
 | Situação | O que fazer |
 |---|---|
-| Perdi o celular, mas guardei os códigos de recuperação | Entre com um código ("Perdeu o celular? Use um código de recuperação"). Cada código vale uma vez, então são até 10 entradas. Gerar novos códigos no painel pede um código do aplicativo, que você não tem sem o celular: use as entradas para ganhar tempo. |
-| Quero trocar de celular de forma definitiva | Este procedimento. |
-| Perdi o celular e os códigos acabaram ou se perderam | Este procedimento. |
-| Troquei a `APP_MFA_ENCRYPTION_KEY` | Este procedimento (os segredos gravados deixam de decifrar). |
+| Perdi o celular, mas guardei os códigos de recuperação | Entre com um código ("Perdeu o celular? Use um código de recuperação") e, no painel, use "Trocar o autenticador": a sessão aberta por código de recuperação não pede o código do aplicativo antigo. Confirme com um código do aplicativo novo e guarde os 10 códigos novos (os anteriores deixam de valer, e as outras sessões caem). Cada código vale uma vez. |
+| Quero trocar de celular e ainda tenho o aplicativo atual | Entre normalmente, use "Trocar o autenticador" no painel e digite o código do aplicativo atual para começar. O autenticador antigo vale até você confirmar o novo. |
+| Perdi o celular e não tenho código de recuperação (acabaram ou se perderam) | Este procedimento manual. |
+| Troquei a `APP_MFA_ENCRYPTION_KEY` | Este procedimento manual (os segredos gravados deixam de decifrar). |
 
 ## Passos
 

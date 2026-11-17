@@ -56,7 +56,7 @@ class AdminMfaController {
             HttpServletRequest request,
             HttpServletResponse response) {
         var pending = (PendingAdministrator) authentication.getPrincipal();
-        return answer(pending, mfa.verify(pending, body.code(), clientIp.resolve(request)), request, response);
+        return answer(pending, mfa.verify(pending, body.code(), clientIp.resolve(request)), false, request, response);
     }
 
     /**
@@ -70,7 +70,8 @@ class AdminMfaController {
             HttpServletRequest request,
             HttpServletResponse response) {
         var pending = (PendingAdministrator) authentication.getPrincipal();
-        return answer(pending, mfa.recover(pending, body.code(), clientIp.resolve(request)), request, response);
+        // viaRecoveryCode: this session may replace the authenticator without the old code (#73)
+        return answer(pending, mfa.recover(pending, body.code(), clientIp.resolve(request)), true, request, response);
     }
 
     /** Whether the Administrator already has an active authenticator (the SPA picks the enrollment or the code). */
@@ -115,6 +116,7 @@ class AdminMfaController {
         return answer(
                 pending,
                 mfa.confirmEnrollment(pending, startedCipher, body.code(), clientIp.resolve(request)),
+                false,
                 request,
                 response);
     }
@@ -129,6 +131,7 @@ class AdminMfaController {
     private ResponseEntity<?> answer(
             PendingAdministrator pending,
             AdministratorMfa.Outcome outcome,
+            boolean viaRecoveryCode,
             HttpServletRequest request,
             HttpServletResponse response) {
         return switch (outcome.verdict()) {
@@ -140,7 +143,8 @@ class AdminMfaController {
                         outcome.sessionVersion().orElse(pending.sessionVersion()),
                         EnumSet.allOf(Capability.class),
                         pending.passwordVerifiedAt(),
-                        clock.instant());
+                        clock.instant(),
+                        viaRecoveryCode);
                 passwordLogin.startSession(
                         principal,
                         UsernamePasswordAuthenticationToken.authenticated(principal, null, principal.getAuthorities()),

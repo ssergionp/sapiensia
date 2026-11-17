@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useLogout } from "@/features/session/hooks";
 import { LOGOUT_ERROR } from "@/features/session/messages";
 import AdminGuard from "./AdminGuard";
+import AuthenticatorReplacementSection from "./AuthenticatorReplacementSection";
 import { adminSessionQueryKey } from "./hooks";
 import RecoveryCodesSection from "./RecoveryCodesSection";
 
@@ -47,6 +48,9 @@ export default function AdminHomePage() {
             </p>
           )}
           <RecoveryCodesSection />
+          <AuthenticatorReplacementSection
+            oldCodeRequired={admin.oldCodeRequired}
+          />
           {logout.isError && (
             <p role="alert" className="mt-2 text-sm text-destructive">
               {LOGOUT_ERROR}
