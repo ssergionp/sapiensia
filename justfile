@@ -135,6 +135,10 @@ demo-parar:
 demo-pagar pedido:
     node scripts/demo-pagar.mjs {{pedido}}
 
+# demonstração local: estorna um Pedido pago, como se o Asaas tivesse reembolsado o Pix
+demo-estornar pedido:
+    node scripts/demo-estornar.mjs {{pedido}}
+
 # mostra o código de verificação atual do Administrador da demonstração
 demo-codigo:
     node scripts/demo-codigo.mjs

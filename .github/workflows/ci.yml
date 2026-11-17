@@ -90,7 +90,7 @@ jobs:
             -e APP_RATE_LIMIT_IP_CAPACITY_FLOOR=10000 \
             -e APP_STORAGE_SUPABASE_URL=http://localhost:54321 \
             -e APP_STORAGE_SUPABASE_SECRET_KEY=ci-fake-secret-not-real \
-            -e APP_ASAAS_API_BASE_URL=http://localhost:54322 \
+            -e APP_ASAAS_API_BASE_URL=http://127.0.0.1:54322 \
             -e APP_ASAAS_API_KEY=ci-fake-asaas-key-not-real \
             -e DB_URL=jdbc:postgresql://localhost:5432/app -e DB_USER=app -e DB_PASSWORD=app \
             -e SERVER_SERVLET_SESSION_COOKIE_SECURE=false app:ci
@@ -135,6 +135,7 @@ jobs:
         env:
           E2E_BASE_URL: http://localhost:8080
           E2E_ADMIN_EMAIL: admin-e2e@example.com
+          E2E_ASAAS_STUB_URL: http://127.0.0.1:54322
         run: ../.github/ci-report.sh "End-to-end tests" pnpm exec playwright test
       - name: Logs of the system
         if: failure()

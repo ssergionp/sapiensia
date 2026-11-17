@@ -10,6 +10,7 @@ import br.com.sergio.sapiensia.payment.AsaasWebhookAccess;
 import br.com.sergio.sapiensia.product.ProductFileReplacementAccess;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -41,7 +42,9 @@ import org.springframework.security.web.csrf.CsrfTokenRepository;
 import org.springframework.security.web.header.writers.DelegatingRequestMatcherHeaderWriter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.AndRequestMatcher;
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 
 /**
  * Security baseline for every project created from the template.
@@ -183,8 +186,13 @@ public class SecurityConfig {
             AdminMfaAccess adminMfaAccess,
             ProductFileReplacementAccess productFileReplacementAccess,
             CustomerAnonymizationAccess customerAnonymizationAccess,
-            AsaasWebhookAccess asaasWebhookAccess)
+            AsaasWebhookAccess asaasWebhookAccess,
+            @Value("${app.pix.provider:}") String pixProvider)
             throws Exception {
+        // the demo refund route (#132) exists only with the fake gateway; with the real Asaas it is just /api/** denied
+        RequestMatcher demoRefund = new AndRequestMatcher(
+                request -> "fake".equals(pixProvider),
+                PathPatternRequestMatcher.pathPattern(HttpMethod.POST, "/api/local-demo/charges/*/refund"));
         // right after the context is loaded from the session: ends sessions opened before a password change (SEC-006)
         http.addFilterAfter(sessionVersionFilter, SecurityContextHolderFilter.class);
         http.authorizeHttpRequests(auth -> auth.requestMatchers("/api/system/health", "/api/system/health/**")
@@ -298,6 +306,10 @@ public class SecurityConfig {
                         // session, no CSRF
                         .requestMatchers(HttpMethod.POST, "/api/webhooks/asaas")
                         .access(asaasWebhookAccess)
+                        // demo-only refund of a fake charge (#132): same credential as the webhook, no session; the
+                        // route exists only with app.pix.provider=fake
+                        .requestMatchers(demoRefund)
+                        .access(asaasWebhookAccess)
                         .requestMatchers("/api/**")
                         .denyAll()
                         .anyRequest()
@@ -305,7 +317,8 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.spa()
                         .csrfTokenRepository(csrfTokenRepository)
                         .ignoringRequestMatchers(
-                                PathPatternRequestMatcher.pathPattern(HttpMethod.POST, "/api/webhooks/asaas")))
+                                PathPatternRequestMatcher.pathPattern(HttpMethod.POST, "/api/webhooks/asaas"),
+                                demoRefund))
                 // no login page to redirect to: anonymous requests to protected routes get 401
                 // nothing to redirect back to after a login, and the saved request would create a session for every
                 // anonymous visitor

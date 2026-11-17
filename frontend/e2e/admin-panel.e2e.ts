@@ -1115,23 +1115,25 @@ const PAID_HEADING = "Pagamento confirmado";
 const PAID_TEXT = "Recebemos o seu Pix. Você já tem Acesso a este Produto.";
 
 // The provider event is sent outside the browser, to the real endpoint, with the accepted token and IP.
-async function postPaymentReceived(
+async function postPaymentEvent(
   request: APIRequestContext,
   token: string,
   chargeId: string,
   id: string,
+  event: "PAYMENT_RECEIVED" | "PAYMENT_REFUNDED",
+  status: "RECEIVED" | "REFUNDED",
 ) {
   const response = await request.post("/api/webhooks/asaas", {
     headers: { "asaas-access-token": token, "Fly-Client-IP": ASAAS_IP },
     data: {
       id,
-      event: "PAYMENT_RECEIVED",
+      event,
       dateCreated: new Date().toISOString().replace("T", " ").slice(0, 19),
       payment: {
         object: "payment",
         id: chargeId,
         billingType: "PIX",
-        status: "RECEIVED",
+        status,
       },
     },
   });
@@ -1217,7 +1219,14 @@ test("FR-020 FR-021 FR-024 SEC-011 SEC-025 SEC-026 SEC-027 SEC-031: o pagamento 
   await expect(page.getByText("Produto publicado.")).toBeVisible();
 
   const sendPaymentReceived = (chargeId: string, id: string) =>
-    postPaymentReceived(request, token, chargeId, id);
+    postPaymentEvent(
+      request,
+      token,
+      chargeId,
+      id,
+      "PAYMENT_RECEIVED",
+      "RECEIVED",
+    );
   const logInNewCustomer = logInNewCustomerPage;
   const buyFirstTime = (customerPage: Page) =>
     buyProductWithPix(customerPage, productId);
@@ -1444,11 +1453,13 @@ test("FR-025 FR-029 SEC-011: a Biblioteca mostra o Produto comprado, mesmo despu
     // A new Customer buys with Pix and the payment is confirmed.
     const buyer = await first.newPage();
     const { chargeId } = await buyProductWithPix(buyer, productId);
-    await postPaymentReceived(
+    await postPaymentEvent(
       request,
       token,
       chargeId,
       `evt_e2e_${randomBytes(8).toString("hex")}`,
+      "PAYMENT_RECEIVED",
+      "RECEIVED",
     );
     await expect(
       buyer.getByRole("heading", { name: PAID_HEADING }),
@@ -1587,11 +1598,13 @@ test("NFR-005 FR-034 SEC-010 SEC-011 SEC-015: o Cliente baixa o Arquivo do Produ
     // A new Customer buys with Pix and the payment is confirmed.
     const buyer = await first.newPage();
     const { chargeId } = await buyProductWithPix(buyer, productId);
-    await postPaymentReceived(
+    await postPaymentEvent(
       request,
       token,
       chargeId,
       `evt_e2e_${randomBytes(8).toString("hex")}`,
+      "PAYMENT_RECEIVED",
+      "RECEIVED",
     );
     await expect(
       buyer.getByRole("heading", { name: PAID_HEADING }),
@@ -1821,11 +1834,13 @@ test("NFR-005 FR-016 FR-019 FR-021 FR-024 FR-029 FR-033 FR-034: jornada completa
     await expectNoA11yViolations(buyer, "pedido-pendente");
 
     // 5. Payment: the provider event arrives and the same page turns to paid, without a reload.
-    await postPaymentReceived(
+    await postPaymentEvent(
       request,
       token,
       chargeId,
       `evt_e2e_${randomBytes(8).toString("hex")}`,
+      "PAYMENT_RECEIVED",
+      "RECEIVED",
     );
     await expect(
       buyer.getByRole("heading", { name: PAID_HEADING }),
@@ -1872,5 +1887,133 @@ test("NFR-005 FR-016 FR-019 FR-021 FR-024 FR-029 FR-033 FR-034: jornada completa
     expect(await messagesFor(email, PAID_EMAIL_SUBJECT)).toHaveLength(1);
   } finally {
     await context.close();
+  }
+});
+
+// Marks the charge as refunded where the API will read it back: in CI that is the Asaas stand-in (stub-only route);
+// locally it is the demo route of the fake gateway, which takes the same token as the webhook.
+async function markChargeRefunded(
+  request: APIRequestContext,
+  token: string,
+  chargeId: string,
+) {
+  const stubUrl = process.env.E2E_ASAAS_STUB_URL;
+  if (stubUrl !== undefined && stubUrl !== "") {
+    const response = await request.post(
+      `${stubUrl}/v3/__e2e/payments/${chargeId}/refund`,
+      {
+        headers: { access_token: ["ci-fake-asaas-key", "not-real"].join("-") },
+      },
+    );
+    expect(response.status()).toBe(200);
+    return;
+  }
+  const response = await request.post(
+    `/api/local-demo/charges/${chargeId}/refund`,
+    { headers: { "asaas-access-token": token, "Fly-Client-IP": ASAAS_IP } },
+  );
+  expect(response.status()).toBe(204);
+}
+
+test("FR-023: estorno — o Produto some da Biblioteca e o Pedido aparece como Reembolsado", async ({
+  page,
+  browser,
+  baseURL,
+  request,
+}) => {
+  test.setTimeout(240_000);
+  const host = new URL(baseURL ?? "").hostname;
+  if (host !== "localhost" && host !== "127.0.0.1") {
+    throw new Error(
+      "Refusing to run the administrator e2e outside localhost/127.0.0.1",
+    );
+  }
+  const token = process.env.E2E_ASAAS_WEBHOOK_TOKEN ?? LOCAL_WEBHOOK_TOKEN;
+  const title = `E2E Estorno ${Date.now()}`;
+
+  // The Administrator publishes a Product.
+  await loginWithStoredCredentials(page);
+  await page.goto("/painel/produtos");
+  await page.getByRole("link", { name: "Novo Produto" }).click();
+  await page.getByLabel("Título").fill(title);
+  await page.getByLabel("Descrição").fill("Produto de teste do estorno.");
+  await page.getByLabel("Categoria").selectOption({ label: "Tecnologia" });
+  await page.getByLabel("Valor (R$)").fill("29,90");
+  await page.getByRole("button", { name: "Criar Produto" }).click();
+  await expect(page.getByText("Produto criado.")).toBeVisible();
+  await page.getByRole("link", { name: `Editar ${title}` }).click();
+  await expect(
+    page.getByRole("heading", { name: "Editar Produto", exact: true }),
+  ).toBeVisible();
+  const productId = PRODUCT_EDIT_PATH.exec(page.url())?.[1];
+  if (productId === undefined) {
+    throw new Error("Could not read the Product id from the edit page URL.");
+  }
+  await page.getByLabel("Arquivo PDF").setInputFiles({
+    name: "produto.pdf",
+    mimeType: "application/pdf",
+    buffer: buildPdf("estorno"),
+  });
+  await page.getByRole("button", { name: "Enviar arquivo" }).click();
+  await expect(page.getByText("Arquivo enviado.")).toBeVisible();
+  await page.getByRole("button", { name: "Publicar", exact: true }).click();
+  await page.getByRole("button", { name: "Confirmar publicação" }).click();
+  await expect(page.getByText("Produto publicado.")).toBeVisible();
+
+  const first = await browser.newContext({ baseURL: baseURL ?? undefined });
+  try {
+    // A new Customer buys with Pix and the payment is confirmed: the Library shows the Product.
+    const buyer = await first.newPage();
+    const { chargeId } = await buyProductWithPix(buyer, productId);
+    await postPaymentEvent(
+      request,
+      token,
+      chargeId,
+      `evt_e2e_${randomBytes(8).toString("hex")}`,
+      "PAYMENT_RECEIVED",
+      "RECEIVED",
+    );
+    await expect(
+      buyer.getByRole("heading", { name: PAID_HEADING }),
+    ).toBeVisible({ timeout: 30_000 });
+    await buyer.goto("/biblioteca");
+    await expect(buyer.getByText(title)).toBeVisible();
+
+    // Only with the CI stub (prod profile): the demo refund route does not exist there, even with a valid token.
+    if (process.env.E2E_ASAAS_STUB_URL) {
+      const demoRoute = await request.post(
+        `/api/local-demo/charges/${chargeId}/refund`,
+        { headers: { "asaas-access-token": token, "Fly-Client-IP": ASAAS_IP } },
+      );
+      expect(demoRoute.status()).toBe(403);
+    }
+
+    // The provider refunds the Pix and tells the system.
+    await markChargeRefunded(request, token, chargeId);
+    await postPaymentEvent(
+      request,
+      token,
+      chargeId,
+      `evt_e2e_${randomBytes(8).toString("hex")}`,
+      "PAYMENT_REFUNDED",
+      "REFUNDED",
+    );
+
+    // The Order shows as refunded and the Product leaves the Library.
+    // The webhook is processed in the background, so reload until the status changes.
+    await expect(async () => {
+      await buyer.goto("/pedidos");
+      const item = buyer.getByRole("listitem").filter({ hasText: title });
+      await expect(item.getByText("Reembolsado", { exact: true })).toBeVisible({
+        timeout: 2_000,
+      });
+    }).toPass({ timeout: 30_000 });
+    await buyer.goto("/biblioteca");
+    await expect(
+      buyer.getByText("Você ainda não tem Produtos na Biblioteca."),
+    ).toBeVisible();
+    await expect(buyer.getByText(title)).toHaveCount(0);
+  } finally {
+    await first.close();
   }
 });

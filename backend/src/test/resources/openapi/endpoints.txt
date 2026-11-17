@@ -34,6 +34,7 @@ POST /api/customers/email-confirmations
 POST /api/customers/password-resets
 POST /api/customers/password-resets/confirmation
 POST /api/library/{productId}/download
+POST /api/local-demo/charges/{chargeId}/refund
 POST /api/orders
 POST /api/sessions
 POST /api/webhooks/asaas
