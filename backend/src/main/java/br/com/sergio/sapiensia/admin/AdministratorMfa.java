@@ -131,6 +131,7 @@ class AdministratorMfa {
     private final AuditLog audit;
     private final TransactionTemplate transaction;
     private final Clock clock;
+    private final RecentAuthentication recentAuthentication;
 
     AdministratorMfa(
             Administrators administrators,
@@ -139,7 +140,8 @@ class AdministratorMfa {
             LoginAttemptLimiter limiter,
             AuditLog audit,
             PlatformTransactionManager transactionManager,
-            Clock clock) {
+            Clock clock,
+            RecentAuthentication recentAuthentication) {
         this.administrators = administrators;
         this.recoveryCodes = recoveryCodes;
         this.cipher = cipher;
@@ -147,6 +149,7 @@ class AdministratorMfa {
         this.audit = audit;
         this.transaction = new TransactionTemplate(transactionManager);
         this.clock = clock;
+        this.recentAuthentication = recentAuthentication;
     }
 
     /** The AAD of the encrypted secret: a cipher text copied to another row does not decrypt. */
@@ -324,13 +327,13 @@ class AdministratorMfa {
     /**
      * Starts the replacement of the authenticator of the fully logged-in Administrator: a new secret, not stored
      * anywhere here (the caller keeps its cipher text in the session, to give back to {@link #confirmReplacement}). The
-     * old authenticator stays valid until the confirmation. A session that began with a recovery code ({@code
-     * viaRecoveryCode}) needs no code; any other asks for the current TOTP code, through the same limiter and replay
+     * old authenticator stays valid until the confirmation. A session that began with a recovery code, while that login
+     * is recent ({@link RecentAuthentication#oldCodeRequired}), needs no code; any other asks for the current TOTP code, through the same limiter and replay
      * guard as every code step (the step is spent in a transaction of its own), so the code of the login is refused. A
      * failed or locked attempt is audited as ADMIN_MFA_REPLACED; an accepted start changes nothing, so it is not.
      */
     Outcome startReplacement(AdministratorPrincipal who, String code, String clientIp) {
-        if (who.viaRecoveryCode()) {
+        if (!recentAuthentication.oldCodeRequired(who)) {
             try {
                 if (!enrolled(who.id())) {
                     return Outcome.of(Verdict.NOT_ENROLLED);

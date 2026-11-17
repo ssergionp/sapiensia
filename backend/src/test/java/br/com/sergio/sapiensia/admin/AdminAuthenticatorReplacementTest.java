@@ -352,6 +352,28 @@ class AdminAuthenticatorReplacementTest {
     }
 
     @Test
+    @DisplayName(
+            "SEC-008 SEC-006: fora da janela de autenticação recente, a sessão que veio de recuperação volta a exigir o código atual")
+    void shouldAskForTheCurrentCodeOutsideTheRecentAuthenticationWindow() throws Exception {
+        Activated activated = activate();
+        AdminBrowser recovered = recoverySession(activated.codes().getFirst());
+        clock.advance(Duration.ofMinutes(4));
+        // inside the window (5 min) the shortcut still holds
+        assertThat(recovered.get(CURRENT).body()).contains("\"oldCodeRequired\":false");
+
+        clock.advance(Duration.ofMinutes(2));
+
+        assertThat(recovered.get(CURRENT).body()).contains("\"oldCodeRequired\":true");
+        HttpResponse<String> start = recovered.post(START, "{}");
+        assertThat(start.statusCode()).isEqualTo(400);
+        assertThat(start.body()).doesNotContain("secret");
+        assertThat(auditOf(correlationId(start))).containsExactly("ADMIN_MFA_REPLACED FAILURE");
+        // with the current code the same session starts
+        assertThat(recovered.post(START, body(totp(activated.secret()))).statusCode())
+                .isEqualTo(200);
+    }
+
+    @Test
     @DisplayName("SEC-001: antes da confirmação o segredo antigo continua entrando e o novo é recusado no login")
     void shouldKeepTheOldSecretUntilTheConfirmation() throws Exception {
         Activated activated = activate();

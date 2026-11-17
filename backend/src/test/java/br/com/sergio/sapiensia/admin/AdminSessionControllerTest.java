@@ -33,7 +33,8 @@ class AdminSessionControllerTest {
                 audit,
                 mock(ClientIpResolver.class),
                 mock(PlatformTransactionManager.class),
-                Clock.systemUTC());
+                Clock.systemUTC(),
+                mock(RecentAuthentication.class));
         var loaded = new AdministratorUserDetailsService.Loaded(UUID.randomUUID(), "a@example.com", 0, "hash");
 
         assertThatThrownBy(() -> controller.accept(

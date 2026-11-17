@@ -50,7 +50,7 @@ class AdminAuthenticatorReplacementController {
     /**
      * 200 with the new secret and its otpauth URI (never cached; the only answer that carries them), and the secret
      * kept in this session (a new start overwrites it); 400 CODE_INVALID for a wrong, malformed, used or missing
-     * current code (a session from a recovery code needs none: the body is optional and any code is ignored); 429
+     * current code (a session from a recovery code needs none only within the recent-authentication window: the body is optional and any code is then ignored); 429
      * with Retry-After while locked; 409 when MFA is not active; 503 when the check or its audit cannot be made.
      */
     @PostMapping
