@@ -184,14 +184,20 @@ describe("CatalogProductPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  test("sem sessão (401 na Biblioteca) mantém o botão Comprar com Pix", async () => {
-    mockProductAndLibrary(() => jsonResponse(401, {}));
-    renderProduct();
+  test.each([401, 403, 500])(
+    "mostra o botão Comprar com Pix quando a Biblioteca responde %i",
+    async (status) => {
+      mockProductAndLibrary(() => jsonResponse(status, {}));
+      renderProduct();
 
-    expect(
-      await screen.findByRole("button", { name: "Comprar com Pix" }),
-    ).toBeInTheDocument();
-  });
+      expect(
+        await screen.findByRole("button", { name: "Comprar com Pix" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("link", { name: "Ir para a Biblioteca" }),
+      ).not.toBeInTheDocument();
+    },
+  );
 
   test("não mostra o botão Comprar com Pix em Produto não encontrado", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(404, {}));
