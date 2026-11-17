@@ -74,7 +74,15 @@ class AdminAlertEmailTextTest {
                         "tarefa em segundo plano descartada",
                         "Uma tarefa em segundo plano falhou em todas as tentativas e foi descartada.",
                         "procure o nome da tarefa no log da aplicação para ver o motivo. Se for uma tarefa de"
-                                + " e-mail, o Cliente pode pedir o e-mail de novo pelo site."));
+                                + " e-mail, o Cliente pode pedir o e-mail de novo pelo site."),
+                Arguments.of(
+                        AdminAlertType.RECURRING_TASK_FAILING,
+                        "tarefa recorrente falhando",
+                        "Uma tarefa em segundo plano que roda de tempos em tempos falhou 3 vezes seguidas. Ela"
+                                + " continua tentando sozinha no próximo horário.",
+                        "procure o nome da tarefa no log da aplicação para ver o motivo. Este aviso sai uma vez por"
+                                + " sequência de falhas: se a tarefa voltar a funcionar e depois falhar 3 vezes"
+                                + " seguidas de novo, chega outro."));
     }
 
     @ParameterizedTest(name = "{0}")
