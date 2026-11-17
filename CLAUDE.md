@@ -20,6 +20,7 @@ Plataforma web para criar e revisar e-books, cartilhas, tutoriais e checklists c
 - `just check-resumo`: o mesmo check completo, com resumo curto; o log completo fica em .tmp/check.log
 - `just demo` · `just demo-parar` · `just demo-codigo`: sobe a demonstração local com dados fictícios (banco, API e frontend em segundo plano), para só os processos dela e mostra o código de verificação do Administrador da demonstração
 - `just demo-pagar <id do Pedido>`: na demonstração, marca o Pedido como pago, como se o Asaas tivesse confirmado o Pix (só contra a API local)
+- `just demo-estornar <id do Pedido>`: na demonstração, estorna o Pedido pago, como se o Asaas tivesse reembolsado o Pix (só contra a API local)
 - `just doctor`: confere o computador (Java, Docker, portas do banco e da API...)
 - `just e2e`: testes de ponta a ponta no navegador, contra o sistema de verdade (antes: `just db`, `just dev-back` e `just dev-front`)
 - `just carga`: teste de carga com k6 em Docker, só contra o sistema local (antes: `node scripts/carga/preparar.mjs`, que cria as contas); runbook em docs/runbooks/teste-de-carga.md
