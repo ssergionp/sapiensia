@@ -5,8 +5,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import br.com.sergio.sapiensia.RecordingEmailSender;
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
 import br.com.sergio.sapiensia.email.EmailMessage;
+import com.github.kagkarlsson.scheduler.SchedulerClient;
+import com.github.kagkarlsson.scheduler.task.TaskInstance;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +42,9 @@ class AdministratorEmailTest {
 
     @Autowired
     private RecordingEmailSender sender;
+
+    @Autowired
+    private SchedulerClient scheduler;
 
     private UUID administratorId;
 
@@ -108,6 +114,31 @@ class AdministratorEmailTest {
         assertThat(jdbc.queryForObject(
                         "select session_version from administrators where id = ?", Integer.class, administratorId))
                 .isZero();
+    }
+
+    @Test
+    @DisplayName(
+            "quando o envio de um e-mail ao Administrador falha de vez, ele é tentado exatamente max-attempts vezes")
+    void shouldTryTheAdministratorEmailExactlyMaxAttemptsTimesWhenItAlwaysFails() throws Exception {
+        // an address of its own: the sender is shared by the tests of this context
+        String failing = "failing-" + UUID.randomUUID() + "@example.com";
+        jdbc.update("update administrators set email = ? where id = ?", failing, administratorId);
+        sender.failAllSendsTo(failing);
+
+        scheduler.scheduleIfNotExists(
+                new TaskInstance<Void>(
+                        AdministratorEmailTasks.PASSWORD_SETUP, AdministratorEmailTasks.BOOTSTRAP_INSTANCE),
+                Instant.now());
+
+        AdminTestSupport.eventually(
+                Duration.ofSeconds(40),
+                "the task to be dropped",
+                () -> jdbc.queryForObject(
+                                "select count(*) from scheduled_tasks where task_name = 'administrator-password-setup'",
+                                Integer.class)
+                        == 0);
+        // app.email.max-attempts is 5 (application.yml): exactly 5 sends, then the task is dropped
+        assertThat(sender.attemptsTo(failing)).isEqualTo(5);
     }
 
     @Test

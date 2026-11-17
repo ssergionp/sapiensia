@@ -44,7 +44,8 @@ class AdministratorEmailTasks {
 
     private FailureHandler<Void> retryThenDrop() {
         // the log names only the task: never the e-mail, the token or the hash
-        return FailureHandler.<Void>maxRetries(maxAttempts)
+        // maxRetries counts the retries after the first run, so total attempts = retries + 1
+        return FailureHandler.<Void>maxRetries(maxAttempts - 1)
                 .retryEvery(retryDelay)
                 .thenRemove(execution -> {
                     log.error("Task {} failed {} times and was dropped", PASSWORD_SETUP, maxAttempts);

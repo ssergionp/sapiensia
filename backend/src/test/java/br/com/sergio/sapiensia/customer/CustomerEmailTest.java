@@ -221,6 +221,26 @@ class CustomerEmailTest {
     }
 
     @Test
+    @DisplayName("quando o envio de um e-mail ao Cliente falha de vez, ele é tentado exatamente max-attempts vezes")
+    void shouldTryTheCustomerEmailExactlyMaxAttemptsTimesWhenItAlwaysFails() throws Exception {
+        sender.failAllSendsTo(email);
+
+        customerService.register(email, PASSWORD);
+
+        long deadline = System.nanoTime() + Duration.ofSeconds(40).toNanos();
+        while (sender.attemptsTo(email) == 0
+                || jdbc.queryForObject(
+                                "select count(*) from scheduled_tasks where task_name = 'customer-email-confirmation'",
+                                Integer.class)
+                        > 0) {
+            assertThat(System.nanoTime()).as("the task to be dropped").isLessThan(deadline);
+            Thread.sleep(200);
+        }
+        // app.email.max-attempts is 5 (application.yml): exactly 5 sends, then the task is dropped
+        assertThat(sender.attemptsTo(email)).isEqualTo(5);
+    }
+
+    @Test
     void shouldKeepOneAccountAndSendOnlyConfirmationsWhenSameNewEmailRegistersConcurrently() throws Exception {
         int threads = 8;
         List<String> passwords = new ArrayList<>();

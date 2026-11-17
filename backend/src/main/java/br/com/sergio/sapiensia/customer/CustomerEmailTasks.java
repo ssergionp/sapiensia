@@ -79,9 +79,12 @@ class CustomerEmailTasks {
 
     private <T> FailureHandler<T> retryThenDrop(String taskName) {
         // the log names only the task: never the e-mail, the token or the customer data
-        return FailureHandler.<T>maxRetries(maxAttempts).retryEvery(retryDelay).thenRemove(execution -> {
-            log.error("Task {} failed {} times and was dropped", taskName, maxAttempts);
-            alerts.recordSafely(AdminAlertType.TASK_GAVE_UP, taskName);
-        });
+        // maxRetries counts the retries after the first run, so total attempts = retries + 1
+        return FailureHandler.<T>maxRetries(maxAttempts - 1)
+                .retryEvery(retryDelay)
+                .thenRemove(execution -> {
+                    log.error("Task {} failed {} times and was dropped", taskName, maxAttempts);
+                    alerts.recordSafely(AdminAlertType.TASK_GAVE_UP, taskName);
+                });
     }
 }
