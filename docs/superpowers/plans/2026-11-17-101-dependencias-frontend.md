@@ -6,7 +6,7 @@ Quatro etapas, **uma PR cada**, nesta ordem, cada uma a partir da `origin/main` 
 
 ## Task 1 (PR 1): versões menores e o Biome
 
-Branch `chore/101-frontend-deps-minor`. Arquivos: `frontend/package.json`, `frontend/pnpm-lock.yaml`, `frontend/biome.json` e o que o `just fmt` reformatar (por exemplo `README.md`).
+Branch `chore/101-frontend-deps-minor`. Arquivos: `frontend/package.json`, `frontend/pnpm-lock.yaml`, `frontend/biome.json` e o que o `just fmt` reformatar (`frontend/README.md`) e `frontend/src/features/products/ProductFormPage.tsx` (renomeia a função local `describe` para `fieldDescribedBy`, falso positivo da regra nova `usePlaywrightValidDescribeCallback` do Biome 2.6).
 
 Versões (as do PR #90, menos as duas maiores):
 
