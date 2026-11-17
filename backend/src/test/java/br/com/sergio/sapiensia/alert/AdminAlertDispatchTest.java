@@ -184,7 +184,10 @@ class AdminAlertDispatchTest {
     @Test
     @DisplayName("NFR-009: no máximo 8 e-mails de alerta por hora, o mais grave primeiro")
     void shouldSendAtMostEightAlertEmailsPerHourMostSeriousFirst() {
-        for (AdminAlertType type : AdminAlertType.values()) {
+        // the first round holds only the least serious types, one short of the hourly limit of 8, so the second
+        // round has room for exactly one mail and proves that the most serious type goes first
+        List<AdminAlertType> all = List.of(AdminAlertType.values());
+        for (AdminAlertType type : all.subList(all.size() - 7, all.size())) {
             recordDistinct(type);
         }
         assertThat(dispatch.run().sent()).isEqualTo(7);
@@ -199,11 +202,11 @@ class AdminAlertDispatchTest {
         assertThat(alertMails()).hasSize(8);
         assertThat(alertMails().get(7).subject()).contains("evento de pagamento não processado");
         assertThat(jdbc.queryForObject("select count(*) from admin_alerts where email_sent_at is null", Integer.class))
-                .isEqualTo(6);
+                .isEqualTo(7);
 
         clock.advance(Duration.ofMinutes(45));
-        assertThat(dispatch.run().sent()).isEqualTo(6);
-        assertThat(alertMails()).hasSize(14);
+        assertThat(dispatch.run().sent()).isEqualTo(7);
+        assertThat(alertMails()).hasSize(15);
     }
 
     @Test
