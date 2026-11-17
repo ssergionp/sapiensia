@@ -60,7 +60,14 @@ class AdminReauthenticationController {
             case ACCEPTED -> {
                 var now = clock.instant();
                 var renewed = new AdministratorPrincipal(
-                        current.id(), current.email(), current.sessionVersion(), current.capabilities(), now, now);
+                        current.id(),
+                        current.email(),
+                        current.sessionVersion(),
+                        current.capabilities(),
+                        now,
+                        now,
+                        // explicit: a reauthentication proves a TOTP code, so the recovery marker never survives it
+                        false);
                 passwordLogin.startSession(
                         renewed,
                         UsernamePasswordAuthenticationToken.authenticated(renewed, null, renewed.getAuthorities()),

@@ -273,6 +273,48 @@ class AdminAuthenticatorReplacementTest {
     }
 
     @Test
+    @DisplayName("SEC-006: as falhas do login MFA e as do início da troca somam no mesmo limite (3 + 2 dão 429)")
+    void shouldShareTheFailureLimitWithTheMfaLogin() throws Exception {
+        Activated activated = activate();
+        AdminBrowser full = totpSession(activated.secret());
+        AdminBrowser login = pending();
+        for (int i = 0; i < 3; i++) {
+            assertThat(login.verifyMfa(AdminMfaTestSupport.wrongCodeAt(activated.secret(), clock.instant()))
+                            .statusCode())
+                    .isEqualTo(400);
+        }
+        for (int i = 0; i < 2; i++) {
+            assertThat(full.post(START, body(AdminMfaTestSupport.wrongCodeAt(activated.secret(), clock.instant())))
+                            .statusCode())
+                    .isEqualTo(400);
+        }
+
+        HttpResponse<String> locked = full.post(START, body(totp(activated.secret())));
+
+        assertThat(locked.statusCode()).isEqualTo(429);
+        assertThat(locked.headers().firstValue("Retry-After")).isPresent();
+        assertThat(auditOf(correlationId(locked))).containsExactly("ADMIN_MFA_REPLACED BLOCKED");
+    }
+
+    @Test
+    @DisplayName(
+            "SEC-001: um segundo início na mesma sessão substitui o segredo pendente; o código do primeiro é recusado")
+    void shouldReplaceThePendingSecretOnASecondStart() throws Exception {
+        Activated activated = activate();
+        AdminBrowser recovered = recoverySession(activated.codes().getFirst());
+        byte[] first = secretOf(recovered.post(START, "{}"));
+        byte[] second = secretOf(recovered.post(START, "{}"));
+        String before = storedSecret();
+
+        HttpResponse<String> stale = recovered.post(CONFIRM, body(totp(first)));
+
+        assertThat(stale.statusCode()).isEqualTo(400);
+        assertThat(storedSecret()).isEqualTo(before);
+        assertThat(recovered.post(CONFIRM, body(totp(second))).statusCode()).isEqualTo(200);
+        assertThat(loginStatus(second)).isEqualTo(204);
+    }
+
+    @Test
     @DisplayName("SEC-065 SEC-006: a sessão que entrou com código de recuperação começa a troca sem código antigo")
     void shouldStartWithoutTheOldCodeInARecoverySession() throws Exception {
         Activated activated = activate();
@@ -405,6 +447,11 @@ class AdminAuthenticatorReplacementTest {
         HttpResponse<String> confirmation = recovered.post(CONFIRM, body(totp(fresh)));
 
         assertThat(confirmation.statusCode()).isEqualTo(200);
+        // the recovery marker does not survive the new session: the old code is required again
+        assertThat(recovered.get(CURRENT).body()).contains("\"oldCodeRequired\":true");
+        HttpResponse<String> startAgain = recovered.post(START, "{}");
+        assertThat(startAgain.statusCode()).isEqualTo(400);
+        assertThat(startAgain.body()).doesNotContain("secret");
         List<String> renewed = codesOf(confirmation);
         assertThat(renewed).doesNotContainAnyElementsOf(activated.codes());
         assertThat(unusedHashes())

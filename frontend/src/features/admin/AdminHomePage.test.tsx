@@ -74,6 +74,24 @@ describe("AdminHomePage", () => {
     expect(screen.getByRole("button", { name: "Sair" })).toBeInTheDocument();
   });
 
+  test("a seção de trocar o autenticador aparece abaixo dos códigos de recuperação", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(200, ADMIN_BODY),
+    );
+    renderPage();
+
+    const recovery = await screen.findByRole("heading", {
+      name: "Códigos de recuperação",
+    });
+    const replacement = screen.getByRole("heading", {
+      name: "Trocar o autenticador",
+    });
+    expect(
+      recovery.compareDocumentPosition(replacement) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   test("o e-mail quebra desde o início ([overflow-wrap:anywhere])", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       jsonResponse(200, { email: LONG_EMAIL, capabilities: [] }),

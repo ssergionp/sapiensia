@@ -65,16 +65,22 @@ export async function startMfaEnrollment(): Promise<MfaEnrollment | "active"> {
   return mfaEnrollmentSchema.parse(await response.json());
 }
 
+// A missing code sends no body (the replacement start of a session born from a recovery code).
 async function postMfaCode(
   path: string,
-  code: string,
+  code: string | undefined,
   okStatus = 204,
 ): Promise<Response> {
-  const response = await apiFetch(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code }),
-  });
+  const response = await apiFetch(
+    path,
+    code === undefined
+      ? { method: "POST" }
+      : {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code }),
+        },
+  );
   if (response.status === okStatus) return response;
   if (response.status === 400) throw new MfaCodeRejectedError();
   if (response.status === 429) throw new LoginBlockedError();
@@ -103,6 +109,31 @@ export async function verifyRecoveryCode(code: string): Promise<void> {
 
 export async function regenerateRecoveryCodes(code: string): Promise<string[]> {
   const response = await postMfaCode("/api/admin/recovery-codes", code, 200);
+  return recoveryCodesSchema.parse(await response.json()).codes;
+}
+
+// The code is the current authenticator code; omit it when the session was born from a recovery code.
+// The secret in the answer is shown once and must stay in component state only.
+export async function startAuthenticatorReplacement(
+  code?: string,
+): Promise<MfaEnrollment> {
+  const response = await postMfaCode(
+    "/api/admin/authenticator-replacement",
+    code,
+    200,
+  );
+  return mfaEnrollmentSchema.parse(await response.json());
+}
+
+// The code is from the NEW authenticator. The recovery codes are returned only here.
+export async function confirmAuthenticatorReplacement(
+  code: string,
+): Promise<string[]> {
+  const response = await postMfaCode(
+    "/api/admin/authenticator-replacement/confirmation",
+    code,
+    200,
+  );
   return recoveryCodesSchema.parse(await response.json()).codes;
 }
 
