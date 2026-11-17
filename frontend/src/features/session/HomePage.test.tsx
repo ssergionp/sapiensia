@@ -183,6 +183,7 @@ describe("HomePage", () => {
     });
     const client = newClient();
     client.setQueryData(["library"], { items: ["livro da Ana"] });
+    client.setQueryData(["orders"], { items: ["pedido da Ana"] });
     renderPage(client);
 
     await userEvent
@@ -191,6 +192,10 @@ describe("HomePage", () => {
 
     await screen.findByRole("link", { name: "Entrar" });
     expect(client.getQueryData(["library"])).toBeUndefined();
+    expect(client.getQueryData(["orders"])).toBeUndefined();
+    expect(
+      client.getQueryCache().find({ queryKey: ["session"] }),
+    ).toBeDefined();
   });
 
   test("falha ao sair mostra a mensagem e mantém a sessão", async () => {

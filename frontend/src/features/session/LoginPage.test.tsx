@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { hasReturnTo, rememberReturnTo } from "../orders/returnTo";
+import { fetchSession } from "./api";
 import LoginPage from "./LoginPage";
 
 function newClient() {
@@ -125,9 +126,16 @@ describe("LoginPage", () => {
   });
 
   test("login bem-sucedido esquece as consultas da conta anterior", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(204));
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) =>
+      String(input) === "/api/sessions/current"
+        ? jsonResponse(200, { email: "bia@example.com" })
+        : jsonResponse(204),
+    );
     const client = newClient();
     client.setQueryData(["library"], { items: ["livro da Ana"] });
+    // As in the app, the session query knows how to refetch itself.
+    client.setQueryDefaults(["session"], { queryFn: fetchSession });
+    client.setQueryData(["session"], { email: "ana@example.com" });
     client.setQueryData(["orders"], { items: ["pedido da Ana"] });
     renderPage(client);
 
@@ -136,6 +144,9 @@ describe("LoginPage", () => {
     await screen.findByText("pagina inicial");
     expect(client.getQueryData(["library"])).toBeUndefined();
     expect(client.getQueryData(["orders"])).toBeUndefined();
+    expect(
+      client.getQueryCache().find({ queryKey: ["session"] }),
+    ).toBeDefined();
   });
 
   test("login que falha (401) não mexe no cache", async () => {
