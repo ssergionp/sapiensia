@@ -17,6 +17,7 @@ import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -211,7 +212,7 @@ class SupabaseProductFileStorageWireTest {
                 new SupabaseProductFileStorage(RestClient.builder(), baseUrl, SECRET, BUCKET, COVER_BUCKET);
         int start = output.getAll().length();
 
-        java.util.Optional<String> url = storage.signedDownloadUrl(key, Duration.ofSeconds(60), fileName);
+        Optional<String> url = storage.signedDownloadUrl(key, Duration.ofSeconds(60), fileName);
 
         assertThat(url).isPresent();
         assertThat(url.get()).contains(TOKEN);
