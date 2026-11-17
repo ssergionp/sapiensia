@@ -164,3 +164,44 @@ O "segredo antigo vale até a confirmação" e o "código antigo é recusado dep
 - `/verificar-tela` na `AdminHomePage` (desktop e celular, teclado).
 - Sistema de verdade antes da PR: banco, API e frontend; troca real no navegador e login depois dela; `just e2e` do painel.
 - `verificar-entrega` antes da PR.
+
+## Apêndice: arquivos alterados (caminhos completos)
+
+- `backend/src/main/java/br/com/sergio/sapiensia/admin/AdminAuthenticatorReplacementController.java`
+- `backend/src/main/java/br/com/sergio/sapiensia/admin/AdminMfaController.java`
+- `backend/src/main/java/br/com/sergio/sapiensia/admin/AdminReauthenticationController.java`
+- `backend/src/main/java/br/com/sergio/sapiensia/admin/AdminSessionController.java`
+- `backend/src/main/java/br/com/sergio/sapiensia/admin/AdministratorMfa.java`
+- `backend/src/main/java/br/com/sergio/sapiensia/admin/AdministratorPrincipal.java`
+- `backend/src/main/java/br/com/sergio/sapiensia/admin/Administrators.java`
+- `backend/src/main/java/br/com/sergio/sapiensia/admin/Capability.java`
+- `backend/src/main/java/br/com/sergio/sapiensia/audit/AuditAction.java`
+- `backend/src/main/java/br/com/sergio/sapiensia/security/SecurityConfig.java`
+- `backend/src/test/java/br/com/sergio/sapiensia/admin/AdminAuthenticatorReplacementAuthorizationTest.java`
+- `backend/src/test/java/br/com/sergio/sapiensia/admin/AdminAuthenticatorReplacementTest.java`
+- `backend/src/test/java/br/com/sergio/sapiensia/admin/AdminMfaLogTest.java`
+- `backend/src/test/java/br/com/sergio/sapiensia/admin/AdminMfaLoginTest.java`
+- `backend/src/test/java/br/com/sergio/sapiensia/admin/AdminSessionTest.java`
+- `backend/src/test/resources/openapi/endpoints.txt`
+- `docs/adr/0004-identidade-e-mfa.md`
+- `docs/api/endpoints.md`
+- `docs/runbooks/recuperar-acesso-administrador.md`
+- `frontend/e2e/admin-panel.e2e.ts`
+- `frontend/src/features/admin-orders/AdminOrdersPage.test.tsx`
+- `frontend/src/features/admin/AdminHomeOrdersLink.test.tsx`
+- `frontend/src/features/admin/AdminHomePage.test.tsx`
+- `frontend/src/features/admin/AdminHomePage.tsx`
+- `frontend/src/features/admin/AdminHomeProductsLink.test.tsx`
+- `frontend/src/features/admin/AdminMfaPage.test.tsx`
+- `frontend/src/features/admin/AdminMfaPage.tsx`
+- `frontend/src/features/admin/AuthenticatorKey.tsx`
+- `frontend/src/features/admin/AuthenticatorReplacementSection.test.tsx`
+- `frontend/src/features/admin/AuthenticatorReplacementSection.tsx`
+- `frontend/src/features/admin/api.ts`
+- `frontend/src/features/admin/hooks.ts`
+- `frontend/src/features/admin/schemas.ts`
+- `frontend/src/features/products/ProductFormPage.test.tsx`
+- `frontend/src/features/products/ProductListPage.test.tsx`
+- `frontend/src/features/products/testing.tsx`
+
+Motivos dos que as tasks não citavam: os mocks da sessão do Administrador nos testes de Pedidos e Produtos (`AdminOrdersPage.test.tsx`, `AdminHome*Link.test.tsx`, `ProductFormPage.test.tsx`, `ProductListPage.test.tsx`, `products/testing.tsx`) ganharam `oldCodeRequired`, que o schema agora exige; a `AdminMfaPage.tsx` passou a usar o `AuthenticatorKey` extraído (D6); `AdminMfaLoginTest` e `AdminSessionTest` comparam o JSON exato de `sessions/current`, que ganhou a capacidade e o campo novos; `AdminMfaLogTest` varre também o fluxo novo (R4); `AdminReauthenticationController` passa `viaRecoveryCode = false` explicitamente (R1).
