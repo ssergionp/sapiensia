@@ -67,7 +67,7 @@ Documentação (não é tela): uma linha nova na tabela "O que cada tipo quer di
   - `shouldNotAlertAgainAfterTheThirdFailure` (`consecutiveFailures` 3 e 10): `verifyNoInteractions(alerts)`; `reschedule` chamado.
   - Em `AdminAlertEmailTextTest.texts()`: `Arguments.of(AdminAlertType.RECURRING_TASK_FAILING, "tarefa recorrente falhando", <introdução>, <o que fazer>)` com os textos exatos da seção acima.
   Para o RED ser por asserção: primeiro acrescente só o valor do enum, a classe com `rescheduleAndAlert` devolvendo um handler que não faz nada e um `case RECURRING_TASK_FAILING -> new Text("", "", "")`; rode e veja falhar nas asserções.
-- [ ] **Step 2:** `cd backend; .\mvnw.cmd test -Dtest=RecurringTaskFailureAlertsTest+AdminAlertEmailTextTest` → FAIL por asserção (Wanted but not invoked / expected texto).
+- [ ] **Step 2:** `cd backend; .\mvnw.cmd test -Dtest=RecurringTaskFailureAlertsTest,AdminAlertEmailTextTest` → FAIL por asserção (Wanted but not invoked / expected texto).
 - [ ] **Step 3: implementar.** `onFailure`: primeiro `new FailureHandler.OnFailureReschedule<T>(schedule).onFailure(complete, ops)`; depois, se `complete.getExecution().consecutiveFailures + 1 == CONSECUTIVE_FAILURES_TO_ALERT`, o log de N6 e `alerts.recordSafely(RECURRING_TASK_FAILING, taskName)`. Textos do e-mail exatos. Javadoc curto citando NFR-009 e o motivo de a dispatch ficar de fora. Linha no runbook (mesmo formato da `TASK_GAVE_UP`) e no glossário.
 - [ ] **Step 4:** o mesmo comando → PASS.
 - [ ] **Step 5:** `git commit -m "feat: alert the Administrator when a recurring task fails three times in a row (#134)"`
@@ -85,7 +85,7 @@ Documentação (não é tela): uma linha nova na tabela "O que cada tipo quer di
   - `shouldAlertOnRepeatedFailuresOfEveryRecurringTaskButTheAlertDispatch`: os nomes incluem `admin-alert-dispatch`, `expire-pending-orders`, `asaas-reconciliation`, `delete-orphan-cover-objects` e os nomes das duas limpezas (use as constantes `TASK_NAME`, se acessíveis; senão as strings); para cada tarefa ≠ dispatch, `getFailureHandler()` é `RescheduleAndAlert` com `taskName()` igual ao nome da tarefa; para a dispatch, **não** é.
 - [ ] **Step 2:** `.\mvnw.cmd test -Dtest=RecurringTaskFailureWiringTest` → FAIL por asserção (handler é `OnFailureReschedule`).
 - [ ] **Step 3:** em cada tarefa, injete `RecurringTaskFailureAlerts failures` no método `@Bean`, guarde o `Schedule` numa variável e use `Tasks.recurring(TASK_NAME, schedule).onFailure(failures.rescheduleAndAlert(TASK_NAME, schedule))`. Atualize o javadoc da `ReconciliationTasks` (que hoje cita `onFailureReschedule`).
-- [ ] **Step 4:** `.\mvnw.cmd test -Dtest=RecurringTaskFailureWiringTest+ReconciliationTasksTest+OrderExpirationTest` (só as classes que existirem; confira com `git grep -l` as classes de teste de cada tarefa alterada e inclua-as) → PASS.
+- [ ] **Step 4:** `.\mvnw.cmd test -Dtest=RecurringTaskFailureWiringTest,ReconciliationTasksTest,OrderExpirationTest` (só as classes que existirem; confira com `git grep -l` as classes de teste de cada tarefa alterada e inclua-as) → PASS.
 - [ ] **Step 5:** `git commit -m "feat: wire the repeated-failure alert into every recurring task but the alert dispatch (#134)"`
 
 ## Fora do escopo
