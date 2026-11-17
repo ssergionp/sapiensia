@@ -201,8 +201,9 @@ class AdminAlertDispatchTest {
 
         assertThat(alertMails()).hasSize(8);
         assertThat(alertMails().get(7).subject()).contains("evento de pagamento não processado");
+        // every type of the second round except the one that was sent is still waiting
         assertThat(jdbc.queryForObject("select count(*) from admin_alerts where email_sent_at is null", Integer.class))
-                .isEqualTo(7);
+                .isEqualTo(all.size() - 1);
 
         clock.advance(Duration.ofMinutes(45));
         assertThat(dispatch.run().sent()).isEqualTo(7);
