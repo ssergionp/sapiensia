@@ -124,7 +124,7 @@ function FieldError({ id, message }: { id: string; message?: string }) {
 function DataFields({ form }: { form: UseFormReturn<DataValues> }) {
   const { register, formState } = form;
   const errors = formState.errors;
-  const describe = (
+  const fieldDescribedBy = (
     name: "title" | "description" | "category",
     help?: string,
   ) =>
@@ -139,7 +139,7 @@ function DataFields({ form }: { form: UseFormReturn<DataValues> }) {
         <Input
           id="title"
           aria-invalid={errors.title ? true : undefined}
-          aria-describedby={describe("title", "help")}
+          aria-describedby={fieldDescribedBy("title", "help")}
           {...register("title")}
         />
         <p id="title-help" className="text-sm text-muted-foreground">
@@ -152,7 +152,7 @@ function DataFields({ form }: { form: UseFormReturn<DataValues> }) {
         <Textarea
           id="description"
           aria-invalid={errors.description ? true : undefined}
-          aria-describedby={describe("description", "help")}
+          aria-describedby={fieldDescribedBy("description", "help")}
           {...register("description")}
         />
         <p id="description-help" className="text-sm text-muted-foreground">
@@ -168,7 +168,7 @@ function DataFields({ form }: { form: UseFormReturn<DataValues> }) {
         <select
           id="category"
           aria-invalid={errors.category ? true : undefined}
-          aria-describedby={describe("category")}
+          aria-describedby={fieldDescribedBy("category")}
           className="h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30"
           {...register("category")}
         >
