@@ -57,7 +57,7 @@ class RecurringTaskFailureAlertsTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {0, 1, 3, 4, 6, 9, 10})
+    @ValueSource(ints = {0, 1, 3, 4, 6, 8, 9, 10, 14})
     @DisplayName("NFR-009: nas outras falhas seguidas só reagenda")
     void shouldOnlyRescheduleOnTheOtherFailures(int previousFailures) {
         ExecutionComplete complete = failureAfter(previousFailures);
