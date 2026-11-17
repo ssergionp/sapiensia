@@ -61,6 +61,13 @@ class AdminAlertEmail {
                                 + " O Pedido está pago e o Acesso foi concedido; só o e-mail falhou.",
                         "reenvie pelo runbook webhook-asaas.md, seção \"Reenviar o e-mail de pagamento"
                                 + " confirmado\".");
+            case ORDER_REFUNDED_EMAIL_GAVE_UP ->
+                new Text(
+                        "e-mail de reembolso não enviado",
+                        "O e-mail que avisa o Cliente do Reembolso não foi enviado depois de todas as tentativas."
+                                + " O Pedido está reembolsado e o Acesso foi cancelado; só o e-mail falhou.",
+                        "avise o Cliente do Reembolso pelo e-mail de suporte, seguindo o runbook suporte-cliente.md."
+                                + " O id do Pedido está em cada linha.");
             case WEBHOOK_REJECTED ->
                 new Text(
                         "webhook do Asaas recusado",

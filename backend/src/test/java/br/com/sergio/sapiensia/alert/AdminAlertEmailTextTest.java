@@ -63,6 +63,13 @@ class AdminAlertEmailTextTest {
                         "reenvie pelo runbook webhook-asaas.md, seção \"Reenviar o e-mail de pagamento"
                                 + " confirmado\"."),
                 Arguments.of(
+                        AdminAlertType.ORDER_REFUNDED_EMAIL_GAVE_UP,
+                        "e-mail de reembolso não enviado",
+                        "O e-mail que avisa o Cliente do Reembolso não foi enviado depois de todas as tentativas."
+                                + " O Pedido está reembolsado e o Acesso foi cancelado; só o e-mail falhou.",
+                        "avise o Cliente do Reembolso pelo e-mail de suporte, seguindo o runbook suporte-cliente.md."
+                                + " O id do Pedido está em cada linha."),
+                Arguments.of(
                         AdminAlertType.WEBHOOK_REJECTED,
                         "webhook do Asaas recusado",
                         "O sistema recusou chamadas ao webhook do Asaas. Enquanto o Asaas for recusado, os"

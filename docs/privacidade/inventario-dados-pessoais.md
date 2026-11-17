@@ -28,7 +28,7 @@ Titulares: o **Cliente** (quem compra e baixa) e o **Administrador** (uma pessoa
 | E-mail do Cliente no limite de tentativas de login | Só na memória da aplicação, por pouco tempo | Frear tentativas de login | Legítimo interesse (segurança) | Cliente | Fly.io (processo) | Some sozinho; nada a fazer na anonimização | Não se aplica |
 | Logs da aplicação | Fly.io | Operar e investigar falhas | Legítimo interesse (segurança) | Cliente e Administrador | Fly.io | Sem dado pessoal por regra (SEC-036). Prazo do Fly.io: **a conferir** no painel do Fly | Não se aplica (não deve haver dado pessoal) |
 | E-mail e CPF da cobrança no Asaas (o Asaas guarda o e-mail como nome do cliente) | Asaas | Cobrar o Pix e manter o registro financeiro | Execução de contrato; obrigação legal | Cliente | Asaas | Regra do Asaas: **a conferir** | A anonimização **não** chama o Asaas. O Administrador decide com o contador se pede a remoção lá (runbook) |
-| E-mails enviados (confirmação, nova senha, aparelho novo, pagamento confirmado) | Resend | Entregar os e-mails | Execução de contrato | Cliente e Administrador | Resend | Regra do Resend: **a conferir** | A anonimização não apaga o histórico do Resend; e-mail pendente para conta anonimizada é descartado |
+| E-mails enviados (confirmação, nova senha, aparelho novo, pagamento confirmado, reembolso) | Resend | Entregar os e-mails | Execução de contrato | Cliente e Administrador | Resend | Regra do Resend: **a conferir** | A anonimização não apaga o histórico do Resend; e-mail pendente para conta anonimizada é descartado |
 
 ## O que ainda não existe no sistema
 

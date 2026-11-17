@@ -250,6 +250,36 @@ class Orders {
                 == 1;
     }
 
+    /** True while the Order is refunded and its refund e-mail has not been sent. */
+    boolean refundEmailPending(UUID id) {
+        return jdbc.sql("select count(*) from orders where id = :id and status = 'REFUNDED'"
+                                + " and refund_email_sent_at is null")
+                        .param("id", id)
+                        .query(Long.class)
+                        .single()
+                == 1;
+    }
+
+    /** True only for the call that filled the column. */
+    boolean markRefundEmailSent(UUID id, Instant now) {
+        return jdbc.sql("update orders set refund_email_sent_at = :now"
+                                + " where id = :id and refund_email_sent_at is null")
+                        .param("now", java.sql.Timestamp.from(now))
+                        .param("id", id)
+                        .update()
+                == 1;
+    }
+
+    /** Records that the refund e-mail gave up; does nothing once it has been sent. True when a row changed. */
+    boolean markRefundEmailFailed(UUID id, Instant now) {
+        return jdbc.sql("update orders set refund_email_failed_at = :now"
+                                + " where id = :id and refund_email_sent_at is null")
+                        .param("now", java.sql.Timestamp.from(now))
+                        .param("id", id)
+                        .update()
+                == 1;
+    }
+
     private static final String CUSTOMER_LOCK_PREFIX = "order:";
 
     /** Transaction-scoped lock per Customer; must be called inside a transaction. */
