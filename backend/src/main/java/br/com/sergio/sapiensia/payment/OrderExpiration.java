@@ -1,7 +1,9 @@
 package br.com.sergio.sapiensia.payment;
 
+import br.com.sergio.sapiensia.alert.RecurringTaskFailureAlerts;
 import com.github.kagkarlsson.scheduler.task.helper.RecurringTask;
 import com.github.kagkarlsson.scheduler.task.helper.Tasks;
+import com.github.kagkarlsson.scheduler.task.schedule.Schedule;
 import com.github.kagkarlsson.scheduler.task.schedule.Schedules;
 import java.time.Clock;
 import java.time.Duration;
@@ -27,8 +29,10 @@ class OrderExpiration {
     private static final Logger log = LoggerFactory.getLogger(OrderExpiration.class);
 
     @Bean
-    RecurringTask<Void> expirePendingOrdersTask(Expirer expirer) {
-        return Tasks.recurring(TASK_NAME, Schedules.fixedDelay(Duration.ofMinutes(1)))
+    RecurringTask<Void> expirePendingOrdersTask(Expirer expirer, RecurringTaskFailureAlerts failures) {
+        Schedule schedule = Schedules.fixedDelay(Duration.ofMinutes(1));
+        return Tasks.recurring(TASK_NAME, schedule)
+                .onFailure(failures.rescheduleAndAlert(TASK_NAME, schedule))
                 .execute((instance, context) -> {
                     Expirer.Result result = expirer.run();
                     // only counts are logged
