@@ -1115,23 +1115,25 @@ const PAID_HEADING = "Pagamento confirmado";
 const PAID_TEXT = "Recebemos o seu Pix. Você já tem Acesso a este Produto.";
 
 // The provider event is sent outside the browser, to the real endpoint, with the accepted token and IP.
-async function postPaymentReceived(
+async function postPaymentEvent(
   request: APIRequestContext,
   token: string,
   chargeId: string,
   id: string,
+  event: "PAYMENT_RECEIVED" | "PAYMENT_REFUNDED",
+  status: "RECEIVED" | "REFUNDED",
 ) {
   const response = await request.post("/api/webhooks/asaas", {
     headers: { "asaas-access-token": token, "Fly-Client-IP": ASAAS_IP },
     data: {
       id,
-      event: "PAYMENT_RECEIVED",
+      event,
       dateCreated: new Date().toISOString().replace("T", " ").slice(0, 19),
       payment: {
         object: "payment",
         id: chargeId,
         billingType: "PIX",
-        status: "RECEIVED",
+        status,
       },
     },
   });
@@ -1217,7 +1219,14 @@ test("FR-020 FR-021 FR-024 SEC-011 SEC-025 SEC-026 SEC-027 SEC-031: o pagamento 
   await expect(page.getByText("Produto publicado.")).toBeVisible();
 
   const sendPaymentReceived = (chargeId: string, id: string) =>
-    postPaymentReceived(request, token, chargeId, id);
+    postPaymentEvent(
+      request,
+      token,
+      chargeId,
+      id,
+      "PAYMENT_RECEIVED",
+      "RECEIVED",
+    );
   const logInNewCustomer = logInNewCustomerPage;
   const buyFirstTime = (customerPage: Page) =>
     buyProductWithPix(customerPage, productId);
@@ -1444,11 +1453,13 @@ test("FR-025 FR-029 SEC-011: a Biblioteca mostra o Produto comprado, mesmo despu
     // A new Customer buys with Pix and the payment is confirmed.
     const buyer = await first.newPage();
     const { chargeId } = await buyProductWithPix(buyer, productId);
-    await postPaymentReceived(
+    await postPaymentEvent(
       request,
       token,
       chargeId,
       `evt_e2e_${randomBytes(8).toString("hex")}`,
+      "PAYMENT_RECEIVED",
+      "RECEIVED",
     );
     await expect(
       buyer.getByRole("heading", { name: PAID_HEADING }),
@@ -1587,11 +1598,13 @@ test("NFR-005 FR-034 SEC-010 SEC-011 SEC-015: o Cliente baixa o Arquivo do Produ
     // A new Customer buys with Pix and the payment is confirmed.
     const buyer = await first.newPage();
     const { chargeId } = await buyProductWithPix(buyer, productId);
-    await postPaymentReceived(
+    await postPaymentEvent(
       request,
       token,
       chargeId,
       `evt_e2e_${randomBytes(8).toString("hex")}`,
+      "PAYMENT_RECEIVED",
+      "RECEIVED",
     );
     await expect(
       buyer.getByRole("heading", { name: PAID_HEADING }),
@@ -1821,11 +1834,13 @@ test("NFR-005 FR-016 FR-019 FR-021 FR-024 FR-029 FR-033 FR-034: jornada completa
     await expectNoA11yViolations(buyer, "pedido-pendente");
 
     // 5. Payment: the provider event arrives and the same page turns to paid, without a reload.
-    await postPaymentReceived(
+    await postPaymentEvent(
       request,
       token,
       chargeId,
       `evt_e2e_${randomBytes(8).toString("hex")}`,
+      "PAYMENT_RECEIVED",
+      "RECEIVED",
     );
     await expect(
       buyer.getByRole("heading", { name: PAID_HEADING }),
@@ -1874,30 +1889,6 @@ test("NFR-005 FR-016 FR-019 FR-021 FR-024 FR-029 FR-033 FR-034: jornada completa
     await context.close();
   }
 });
-
-// The refund event the provider sends after a Pix is returned (the Order only changes after the API reads
-// the charge back as REFUNDED, so the trigger below must run first).
-async function postPaymentRefunded(
-  request: APIRequestContext,
-  token: string,
-  chargeId: string,
-) {
-  const response = await request.post("/api/webhooks/asaas", {
-    headers: { "asaas-access-token": token, "Fly-Client-IP": ASAAS_IP },
-    data: {
-      id: `evt_e2e_${randomBytes(8).toString("hex")}`,
-      event: "PAYMENT_REFUNDED",
-      dateCreated: new Date().toISOString().replace("T", " ").slice(0, 19),
-      payment: {
-        object: "payment",
-        id: chargeId,
-        billingType: "PIX",
-        status: "REFUNDED",
-      },
-    },
-  });
-  expect(response.status()).toBe(200);
-}
 
 // Marks the charge as refunded where the API will read it back: in CI that is the Asaas stand-in (stub-only route);
 // locally it is the demo route of the fake gateway, which takes the same token as the webhook.
@@ -1974,11 +1965,13 @@ test("FR-023: estorno — o Produto some da Biblioteca e o Pedido aparece como R
     // A new Customer buys with Pix and the payment is confirmed: the Library shows the Product.
     const buyer = await first.newPage();
     const { chargeId } = await buyProductWithPix(buyer, productId);
-    await postPaymentReceived(
+    await postPaymentEvent(
       request,
       token,
       chargeId,
       `evt_e2e_${randomBytes(8).toString("hex")}`,
+      "PAYMENT_RECEIVED",
+      "RECEIVED",
     );
     await expect(
       buyer.getByRole("heading", { name: PAID_HEADING }),
@@ -1986,9 +1979,25 @@ test("FR-023: estorno — o Produto some da Biblioteca e o Pedido aparece como R
     await buyer.goto("/biblioteca");
     await expect(buyer.getByText(title)).toBeVisible();
 
+    // Only with the CI stub (prod profile): the demo refund route does not exist there, even with a valid token.
+    if (process.env.E2E_ASAAS_STUB_URL) {
+      const demoRoute = await request.post(
+        `/api/local-demo/charges/${chargeId}/refund`,
+        { headers: { "asaas-access-token": token, "Fly-Client-IP": ASAAS_IP } },
+      );
+      expect(demoRoute.status()).toBe(403);
+    }
+
     // The provider refunds the Pix and tells the system.
     await markChargeRefunded(request, token, chargeId);
-    await postPaymentRefunded(request, token, chargeId);
+    await postPaymentEvent(
+      request,
+      token,
+      chargeId,
+      `evt_e2e_${randomBytes(8).toString("hex")}`,
+      "PAYMENT_REFUNDED",
+      "REFUNDED",
+    );
 
     // The Order shows as refunded and the Product leaves the Library.
     // The webhook is processed in the background, so reload until the status changes.
