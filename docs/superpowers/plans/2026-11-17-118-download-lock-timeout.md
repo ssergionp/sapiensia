@@ -6,7 +6,7 @@ Só backend; sem migration (a V34 reservada não é usada); nenhum texto novo.
 
 ## Task 1: limite de espera pela trava do Acesso
 
-Arquivos: `backend/src/main/java/br/com/sergio/sapiensia/product/ProductDownloadService.java`, `backend/src/main/java/br/com/sergio/sapiensia/product/ProductDownloads.java`, um teste de integração novo `backend/src/test/java/br/com/sergio/sapiensia/product/DownloadLockTimeoutTest.java` e `backend/src/test/java/br/com/sergio/sapiensia/product/SupabaseProductFileStorageWireTest.java` (só a limpeza do `java.util.Optional` com nome completo, ~linha 214, trocado por import).
+Arquivos: `backend/src/main/java/br/com/sergio/sapiensia/product/ProductDownloadService.java`, `backend/src/main/java/br/com/sergio/sapiensia/product/ProductDownloads.java`, um teste de integração novo `backend/src/test/java/br/com/sergio/sapiensia/payment/DownloadLockTimeoutTest.java` (no pacote `payment`, onde ficam os utilitários `OrderHttp`/`OrderTestSupport`) e `backend/src/test/java/br/com/sergio/sapiensia/product/SupabaseProductFileStorageWireTest.java` (só a limpeza do `java.util.Optional` com nome completo, ~linha 214, trocado por import).
 
 - Primeira instrução da transação de `ProductDownloadService.issue`: `set local lock_timeout = '3s'` (um método em `ProductDownloads`, por exemplo `limitLockWait()`). Assim, o pedido que espera a trava do Acesso (`for update of a`) desiste em 3 s com erro do banco. Esse erro vira o `503` sem corpo que o `LibraryDownloadController` já devolve para `DataAccessException`. O `set local` vale só para essa transação.
 - Javadoc da classe: uma frase dizendo que a espera pela trava é limitada a 3 s.

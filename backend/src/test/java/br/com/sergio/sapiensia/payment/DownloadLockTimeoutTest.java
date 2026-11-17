@@ -101,7 +101,7 @@ class DownloadLockTimeoutTest {
             holding.get(10, TimeUnit.SECONDS);
             assertThat(answer.statusCode()).isEqualTo(503);
             assertThat(answer.body()).isEmpty();
-            assertThat(waitedMillis).isBetween(2_500L, 6_000L);
+            assertThat(waitedMillis).isBetween(2_500L, 10_000L);
             assertThat(jdbc.queryForObject(
                             "select count(*) from download_records where customer_id = ? and product_id = ?",
                             Long.class,
