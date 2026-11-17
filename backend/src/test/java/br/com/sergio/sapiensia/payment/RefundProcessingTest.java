@@ -6,13 +6,16 @@ import static br.com.sergio.sapiensia.payment.AsaasWebhookTestSupport.paymentEve
 import static br.com.sergio.sapiensia.payment.AsaasWebhookTestSupport.uniqueId;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import br.com.sergio.sapiensia.RecordingEmailSender;
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
+import br.com.sergio.sapiensia.email.EmailMessage;
 import br.com.sergio.sapiensia.product.LocalDownloadFixtures;
 import java.math.BigDecimal;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
@@ -71,6 +74,9 @@ class RefundProcessingTest {
 
     @Autowired
     Accesses accesses;
+
+    @Autowired
+    RecordingEmailSender sender;
 
     @BeforeEach
     void setUp() {
@@ -386,6 +392,34 @@ class RefundProcessingTest {
                         Integer.class,
                         placed.orderId().toString()))
                 .isZero();
+    }
+
+    @Test
+    @DisplayName("FR-023: o reembolso confirmado envia um e-mail ao Cliente, uma vez; estorno parcial não envia")
+    void shouldSendOneRefundEmailOnlyWhenTheOrderIsRefunded() throws Exception {
+        Placed placed = placePaidOrder();
+        String email = placed.customer().email;
+        provider(placed, "RECEIVED");
+        String partial = uniqueId();
+        postEvent(partial, "PAYMENT_PARTIALLY_REFUNDED", placed);
+        awaitResult(partial, "PARTIAL_REFUND");
+        assertThat(sender.awaitMessageTo(email, Duration.ofSeconds(1))).isEmpty();
+
+        provider(placed, "REFUNDED");
+        String first = uniqueId();
+        postEvent(first, "PAYMENT_REFUNDED", placed);
+        awaitResult(first, "REFUNDED");
+        assertThat(sender.awaitMessageTo(email, Duration.ofSeconds(15)))
+                .isPresent()
+                .get()
+                .extracting(EmailMessage::subject)
+                .isEqualTo(OrderRefundedEmail.SUBJECT);
+
+        String second = uniqueId();
+        postEvent(second, "PAYMENT_REFUNDED", placed);
+        awaitResult(second, "ALREADY_REFUNDED");
+        assertThat(sender.awaitMessageTo(email, Duration.ofSeconds(1))).isEmpty();
+        assertThat(sender.messagesTo(email)).hasSize(1);
     }
 
     @Test

@@ -5,12 +5,15 @@ import br.com.sergio.sapiensia.audit.AuditEntry;
 import br.com.sergio.sapiensia.audit.AuditLog;
 import br.com.sergio.sapiensia.audit.AuditObject;
 import br.com.sergio.sapiensia.audit.AuditResult;
+import com.github.kagkarlsson.scheduler.SchedulerClient;
+import com.github.kagkarlsson.scheduler.task.TaskInstance;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -37,6 +40,7 @@ class RefundConfirmation {
     private final Accesses accesses;
     private final PixGateway gateway;
     private final AuditLog audit;
+    private final SchedulerClient scheduler;
     private final Clock clock;
     private final TransactionTemplate transaction;
 
@@ -48,6 +52,7 @@ class RefundConfirmation {
             Accesses accesses,
             PixGateway gateway,
             AuditLog audit,
+            @Lazy SchedulerClient scheduler,
             Clock clock,
             PlatformTransactionManager transactionManager) {
         this.events = events;
@@ -57,6 +62,7 @@ class RefundConfirmation {
         this.accesses = accesses;
         this.gateway = gateway;
         this.audit = audit;
+        this.scheduler = scheduler;
         this.clock = clock;
         this.transaction = new TransactionTemplate(transactionManager);
     }
@@ -145,6 +151,9 @@ class RefundConfirmation {
             audit.recordInTransaction(new AuditEntry(
                     AuditAction.ACCESS_CANCELLED, AuditResult.SUCCESS, null, AuditObject.ORDER, order.id(), null));
         }
+        // same transaction as the refund: the e-mail exists if and only if the refund was committed
+        scheduler.scheduleIfNotExists(
+                new TaskInstance<Void>(OrderRefundedEmailTasks.SEND, order.id().toString()), now);
         results.record(paymentEventId, PaymentResult.REFUNDED, order.id(), now);
         return PaymentResult.REFUNDED;
     }
