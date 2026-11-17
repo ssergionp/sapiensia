@@ -6,8 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoginBlockedError } from "@/features/session/api";
 import { LOGIN_BLOCKED } from "@/features/session/messages";
-import { MfaCodeRejectedError, MfaConflictError, MfaExpiredError } from "./api";
 import AuthenticatorKey from "./AuthenticatorKey";
+import { MfaCodeRejectedError, MfaConflictError, MfaExpiredError } from "./api";
 import {
   useConfirmAuthenticatorReplacement,
   useStartAuthenticatorReplacement,

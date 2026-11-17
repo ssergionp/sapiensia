@@ -23,7 +23,8 @@ const WRONG_NEW =
 const BLOCKED =
   "Muitas tentativas de entrada. Aguarde alguns minutos e tente de novo.";
 const INTERRUPTED = "A troca foi interrompida. Comece de novo.";
-const GENERAL = "Não foi possível trocar o autenticador agora. Tente novamente.";
+const GENERAL =
+  "Não foi possível trocar o autenticador agora. Tente novamente.";
 const OLD_LABEL = "Código do autenticador atual";
 const NEW_LABEL = "Código do aplicativo novo";
 const RESULT_TITLE = "Autenticador trocado. Seus novos códigos de recuperação";
@@ -57,6 +58,10 @@ function mockApi({ start, confirm }: Handlers = {}) {
 function renderSection(oldCodeRequired = true) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  client.setQueryData(adminSessionQueryKey, {
+    email: "a@b.c",
+    capabilities: [],
   });
   render(
     <QueryClientProvider client={client}>
@@ -150,15 +155,15 @@ describe("AuthenticatorReplacementSection", () => {
     renderSection(false);
     const user = userEvent.setup();
 
-    await begin(user);
-
-    expect(await screen.findByLabelText(NEW_LABEL)).toBeInTheDocument();
-    expect(screen.queryByLabelText(OLD_LABEL)).not.toBeInTheDocument();
     expect(
       screen.getByText(
         "Você entrou com um código de recuperação, então não precisa do código do autenticador atual.",
       ),
     ).toBeInTheDocument();
+    await begin(user);
+
+    expect(await screen.findByLabelText(NEW_LABEL)).toBeInTheDocument();
+    expect(screen.queryByLabelText(OLD_LABEL)).not.toBeInTheDocument();
     const [, init] = callsTo(spy, START)[0];
     expect(init?.body).toBeUndefined();
   });

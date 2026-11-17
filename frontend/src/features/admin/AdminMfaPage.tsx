@@ -1,5 +1,4 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { QRCodeSVG } from "qrcode.react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, Navigate, useNavigate } from "react-router";
@@ -11,6 +10,7 @@ import {
   LOGIN_BLOCKED,
   LOGIN_UNEXPECTED_ERROR,
 } from "@/features/session/messages";
+import AuthenticatorKey from "./AuthenticatorKey";
 import {
   MfaCodeRejectedError,
   MfaConflictError,
@@ -43,10 +43,6 @@ const ENROLLMENT_INTERRUPTED =
 const ENROLL_TITLE = "Ative a verificação em duas etapas";
 const ENROLL_INTRO =
   "Para proteger o painel, a entrada pede a senha e um código do aplicativo autenticador do seu celular.";
-const ENROLL_STEP_1 = "1. No aplicativo autenticador, leia o QR code abaixo.";
-const QR_NAME = "QR code para o aplicativo autenticador";
-const ENROLL_ALTERNATIVE =
-  "Não consegue ler o QR code? Digite esta chave no aplicativo:";
 const ENROLL_STEP_2 =
   "2. Digite o código de 6 dígitos que o aplicativo mostra.";
 const ENROLL_SUBMIT = "Ativar e entrar";
@@ -77,10 +73,6 @@ const RECOVERY_WRONG =
 const USE_APP_CODE = "Usar o código do aplicativo";
 
 type Mode = "enroll" | "verify";
-
-function groupKey(secret: string): string {
-  return secret.replace(/(.{4})(?=.)/g, "$1 ");
-}
 
 function submitFailure(error: Error, recovery: boolean): string {
   if (error instanceof MfaCodeRejectedError)
@@ -310,19 +302,10 @@ export default function AdminMfaPage() {
       {enrolling && enrollment ? (
         <>
           <p className="mt-4">{ENROLL_INTRO}</p>
-          <p className="mt-4">{ENROLL_STEP_1}</p>
-          <div className="mt-2 inline-block rounded-md bg-white p-3">
-            <QRCodeSVG
-              value={enrollment.otpauthUri}
-              size={192}
-              role="img"
-              aria-label={QR_NAME}
-            />
-          </div>
-          <p className="mt-4">{ENROLL_ALTERNATIVE}</p>
-          <p className="mt-1 font-mono text-lg font-semibold [overflow-wrap:anywhere]">
-            {groupKey(enrollment.secret)}
-          </p>
+          <AuthenticatorKey
+            secret={enrollment.secret}
+            otpauthUri={enrollment.otpauthUri}
+          />
           <p className="mt-4">{ENROLL_STEP_2}</p>
         </>
       ) : (
