@@ -21,6 +21,15 @@ class ProductDownloads {
     }
 
     /**
+     * Limits the wait for any lock to 3 s, for the current transaction only ({@code set local}); it must be the first
+     * statement. A request stuck behind another one on the Access row then fails with a database error instead of
+     * holding a connection.
+     */
+    void limitLockWait() {
+        jdbc.sql("set local lock_timeout = '3s'").update();
+    }
+
+    /**
      * The file of a Product with an active Access of the Customer, whatever the status of the Product (ADR-0007). It
      * locks the Access row ({@code for update of a}), so it is only valid inside a transaction: the lock is what
      * serializes the daily limit check.

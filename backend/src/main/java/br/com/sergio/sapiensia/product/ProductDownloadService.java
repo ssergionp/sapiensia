@@ -18,7 +18,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * return. The lock makes two simultaneous requests of the same Customer and Product pass one at a time, so the second
  * counts only after the first has recorded and committed; other Customers and Products never wait. The price is that
  * the database connection stays busy while the Storage signs (short, and the signing has its own short timeout). A
- * Storage failure or a limit refusal rolls back: no record, the lock and the connection are released.
+ * Storage failure or a limit refusal rolls back: no record, the lock and the connection are released. The wait for
+ * the lock is limited to 3 s: past that the request fails with a database error (the controller answers 503).
  */
 @Service
 class ProductDownloadService {
@@ -50,6 +51,7 @@ class ProductDownloadService {
      */
     Optional<String> issue(UUID customerId, UUID productId) {
         return transaction.execute(status -> {
+            downloads.limitLockWait();
             Optional<ProductDownloads.OwnedFile> owned = downloads.findOwned(customerId, productId);
             if (owned.isEmpty()) {
                 return Optional.<String>empty();
