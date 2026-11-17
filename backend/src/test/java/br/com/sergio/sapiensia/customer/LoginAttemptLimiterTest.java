@@ -145,6 +145,57 @@ class LoginAttemptLimiterTest {
         assertThat(limiter.admit("user0@example.com", "198.51.100.2").allowed()).isTrue();
     }
 
+    /** 20 attempts from {@code first} (one account each), then one from {@code second}: is that one admitted? */
+    private boolean secondIpIsAdmittedAfterTwentyFrom(String first, String second) {
+        for (int i = 0; i < 20; i++) {
+            assertThat(limiter.admit("v6-" + i + "@example.com", first).allowed())
+                    .isTrue();
+        }
+        return limiter.admit("v6-late@example.com", second).allowed();
+    }
+
+    @Test
+    @DisplayName("SEC-014: shouldShareTheIpLimitBetweenIpv6AddressesOfTheSame64")
+    void shouldShareTheIpLimitBetweenIpv6AddressesOfTheSame64() {
+        assertThat(secondIpIsAdmittedAfterTwentyFrom("2001:db8:1:2::1", "2001:db8:1:2:aaaa:bbbb:cccc:dddd"))
+                .isFalse();
+    }
+
+    @Test
+    @DisplayName("SEC-014: shouldNotShareTheIpLimitBetweenDifferent64Prefixes")
+    void shouldNotShareTheIpLimitBetweenDifferent64Prefixes() {
+        assertThat(secondIpIsAdmittedAfterTwentyFrom("2001:db8:1:2::1", "2001:db8:1:3::1"))
+                .isTrue();
+    }
+
+    @Test
+    @DisplayName("SEC-014: shouldKeepIpv4LimitedPerAddress")
+    void shouldKeepIpv4LimitedPerAddress() {
+        assertThat(secondIpIsAdmittedAfterTwentyFrom("203.0.113.7", "203.0.113.8"))
+                .isTrue();
+    }
+
+    @Test
+    @DisplayName("SEC-014: shouldCountIpv6WithEmbeddedIpv4AsTheIpv4")
+    void shouldCountIpv6WithEmbeddedIpv4AsTheIpv4() {
+        assertThat(secondIpIsAdmittedAfterTwentyFrom("::ffff:203.0.113.7", "203.0.113.7"))
+                .isFalse();
+    }
+
+    @Test
+    @DisplayName("SEC-014: shouldIgnoreHowTheIpv6AddressIsWritten")
+    void shouldIgnoreHowTheIpv6AddressIsWritten() {
+        assertThat(secondIpIsAdmittedAfterTwentyFrom("2001:db8::1", "2001:0db8:0:0::2"))
+                .isFalse();
+    }
+
+    @Test
+    @DisplayName("SEC-014: shouldStillCountAnUnparsableIpAsItIs")
+    void shouldStillCountAnUnparsableIpAsItIs() {
+        assertThat(secondIpIsAdmittedAfterTwentyFrom("not:an:ip", "not:an:ip")).isFalse();
+        assertThat(limiter.admit("other@example.com", "not:an:other").allowed()).isTrue();
+    }
+
     @Test
     @DisplayName("SEC-014: shouldKeepIpWindowFixedAndRefuseTheTwentyFirstAttempt")
     void shouldKeepIpWindowFixedAndRefuseTheTwentyFirstAttempt() {
