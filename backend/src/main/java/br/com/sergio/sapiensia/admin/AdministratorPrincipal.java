@@ -14,6 +14,8 @@ import org.springframework.security.core.userdetails.UserDetails;
 /**
  * The fully logged-in Administrator (password and TOTP code) as kept in the session: no password hash, but the session
  * version to check. Created only after the code is accepted. Authorities: the capabilities plus the two factors.
+ * {@code viaRecoveryCode} is true only for a session that began with a one-time recovery code instead of the TOTP; a
+ * reauthentication or a completed authenticator replacement (both prove a TOTP code) start a session with it false.
  */
 public record AdministratorPrincipal(
         UUID id,
@@ -21,8 +23,20 @@ public record AdministratorPrincipal(
         int sessionVersion,
         Set<Capability> capabilities,
         Instant passwordVerifiedAt,
-        Instant totpVerifiedAt)
+        Instant totpVerifiedAt,
+        boolean viaRecoveryCode)
         implements UserDetails {
+
+    /** A session that did not begin with a recovery code ({@code viaRecoveryCode} false). */
+    public AdministratorPrincipal(
+            UUID id,
+            String email,
+            int sessionVersion,
+            Set<Capability> capabilities,
+            Instant passwordVerifiedAt,
+            Instant totpVerifiedAt) {
+        this(id, email, sessionVersion, capabilities, passwordVerifiedAt, totpVerifiedAt, false);
+    }
 
     /** The authority of the TOTP factor; Spring Security has no constant for it. */
     public static final String TOTP_AUTHORITY = "FACTOR_TOTP";
