@@ -1325,12 +1325,16 @@ test("FR-020 FR-021 FR-024 SEC-011 SEC-025 SEC-026 SEC-027 SEC-031: o pagamento 
     ).toBeVisible();
     await expect(buyer.getByText(PAID_TEXT)).toBeVisible();
 
-    // Buying the same Product again is refused: the Customer already has Access.
+    // #113: the Product page no longer offers to buy what the Customer already has; it points to the Library.
     await buyer.goto(`/catalogo/${productId}`);
-    await buyer.getByRole("button", { name: "Comprar com Pix" }).click();
     await expect(
       buyer.getByText("Você já tem Acesso a este Produto."),
     ).toBeVisible();
+    await expect(
+      buyer.getByRole("button", { name: "Comprar com Pix" }),
+    ).toHaveCount(0);
+    await buyer.getByRole("link", { name: "Ir para a Biblioteca" }).click();
+    await expect(buyer).toHaveURL(/\/biblioteca$/);
 
     // Another Customer does not see the paid Order.
     const other = await second.newPage();

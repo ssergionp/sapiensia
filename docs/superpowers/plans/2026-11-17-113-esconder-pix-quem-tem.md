@@ -11,7 +11,9 @@ do botão "Comprar com Pix" aparece um aviso e um link para `/biblioteca`.
 - Visitante sem sessão (401), Administrador (403), erro ou Biblioteca ainda carregando: o botão
   continua como hoje. O `409 ALREADY_OWNED` do servidor segue sendo a proteção de verdade.
 - Nenhuma mudança no backend, nenhuma migration (a V30 reservada não é usada).
-- Arquivos: `frontend/src/features/catalog/CatalogProductPage.tsx` e `CatalogProductPage.test.tsx`.
+- Arquivos: `frontend/src/features/catalog/CatalogProductPage.tsx` e `CatalogProductPage.test.tsx`; no e2e
+  `frontend/e2e/admin-panel.e2e.ts`, o trecho "comprar de novo o mesmo Produto" passa a esperar o aviso e o link
+  no lugar do botão (o `409 ALREADY_OWNED` continua coberto pelo `PaidOrderReadTest`).
 
 ## Decisões
 
