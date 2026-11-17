@@ -4,6 +4,7 @@ import br.com.sergio.sapiensia.email.EmailMessage;
 import br.com.sergio.sapiensia.email.EmailSender;
 import br.com.sergio.sapiensia.security.Tokens;
 import java.time.Duration;
+import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -24,6 +25,18 @@ class AdministratorEmailService {
             %s
 
             Se você não esperava esta mensagem, não use o link.
+            """;
+
+    private static final String REPLACED_SUBJECT = "O autenticador do painel foi trocado";
+    private static final String REPLACED_TEXT = """
+            Olá!
+
+            O autenticador do painel da SapiensIA foi trocado. O autenticador anterior e os códigos de recuperação \
+            anteriores não funcionam mais.
+
+            Se foi você, não precisa fazer nada.
+
+            Se não foi você, siga agora o procedimento de recuperação de acesso do Administrador.
             """;
 
     private final Administrators administrators;
@@ -59,6 +72,13 @@ class AdministratorEmailService {
             sender.send(new EmailMessage(pending.email(), SUBJECT, text(link, tokens.ttl())));
             tokens.replaceWith(pending.id(), Tokens.hash(token));
         });
+    }
+
+    /** Tells the Administrator the authenticator was replaced; carries no secret, code, link, time or IP. */
+    void sendAuthenticatorReplacedNotice(UUID administratorId) {
+        administrators
+                .findEmail(administratorId)
+                .ifPresent(email -> sender.send(new EmailMessage(email, REPLACED_SUBJECT, REPLACED_TEXT)));
     }
 
     /** The e-mail body; the validity comes from the same TTL that sets the link's expiry. */

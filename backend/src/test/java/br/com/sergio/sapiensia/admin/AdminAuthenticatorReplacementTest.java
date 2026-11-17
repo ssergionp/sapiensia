@@ -2,7 +2,9 @@ package br.com.sergio.sapiensia.admin;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import br.com.sergio.sapiensia.RecordingEmailSender;
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
+import br.com.sergio.sapiensia.email.EmailMessage;
 import br.com.sergio.sapiensia.security.Tokens;
 import java.net.http.HttpResponse;
 import java.time.Duration;
@@ -61,6 +63,9 @@ class AdminAuthenticatorReplacementTest {
 
     @Autowired
     PasswordEncoder passwordEncoder;
+
+    @Autowired
+    RecordingEmailSender sender;
 
     @Autowired
     AdminMfaTestSupport.MutableClock clock;
@@ -551,6 +556,58 @@ class AdminAuthenticatorReplacementTest {
         for (String value : forbidden) {
             assertThat(trail).doesNotContain(value);
         }
+    }
+
+    @Test
+    @DisplayName("SEC-065 SEC-006: a troca confirmada agenda exatamente um aviso por e-mail ao Administrador")
+    void shouldEmailExactlyOneNoticeWhenTheReplacementIsConfirmed() throws Exception {
+        Activated activated = activate();
+        AdminBrowser full = totpSession(activated.secret());
+        HttpResponse<String> start = full.post(START, body(totp(activated.secret())));
+        byte[] fresh = secretOf(start);
+
+        HttpResponse<String> confirmation = full.post(CONFIRM, body(totp(fresh)));
+
+        assertThat(confirmation.statusCode()).isEqualTo(200);
+        EmailMessage mail = sender.awaitMessageTo(email, Duration.ofSeconds(15)).orElseThrow();
+        assertThat(mail.subject()).isEqualTo("O autenticador do painel foi trocado");
+        assertThat(mail.text())
+                .contains("O autenticador do painel da SapiensIA foi trocado")
+                .doesNotContain("otpauth")
+                .doesNotContain(Base32.toBase32String(fresh).replace("=", ""))
+                .doesNotContain(Base32.toBase32String(activated.secret()).replace("=", ""));
+        Matcher uri = URI.matcher(start.body());
+        assertThat(uri.find()).isTrue();
+        assertThat(mail.text()).doesNotContain(uri.group(1));
+        for (String code : codesOf(confirmation)) {
+            assertThat(mail.text()).doesNotContain(code);
+        }
+        Thread.sleep(2000); // a second notice, if any, would arrive by now
+        assertThat(sender.messagesTo(email)).hasSize(1);
+        assertThat(noticeTasks()).isZero();
+    }
+
+    @Test
+    @DisplayName("SEC-065 SEC-006: a troca recusada (código errado) ou abandonada (só o início) não agenda aviso")
+    void shouldNotEmailWhenTheReplacementIsRefusedOrOnlyStarted() throws Exception {
+        Activated activated = activate();
+        AdminBrowser recovered = recoverySession(activated.codes().getFirst());
+        byte[] fresh = secretOf(recovered.post(START, "{}"));
+
+        HttpResponse<String> wrong =
+                recovered.post(CONFIRM, body(AdminMfaTestSupport.wrongCodeAt(fresh, clock.instant())));
+
+        assertThat(wrong.statusCode()).isEqualTo(400);
+        Thread.sleep(2500);
+        assertThat(sender.attemptsTo(email)).isZero();
+        assertThat(noticeTasks()).isZero();
+    }
+
+    private Integer noticeTasks() {
+        return jdbc.queryForObject(
+                "select count(*) from scheduled_tasks where task_name = ?",
+                Integer.class,
+                AdministratorEmailTasks.AUTHENTICATOR_REPLACED_NOTICE);
     }
 
     @Test

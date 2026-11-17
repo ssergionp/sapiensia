@@ -51,6 +51,14 @@ class Administrators {
                 .optional();
     }
 
+    /** The e-mail of the Administrator, empty when the row no longer exists. */
+    Optional<String> findEmail(UUID id) {
+        return jdbc.sql("select email from administrators where id = :id")
+                .param("id", id)
+                .query(String.class)
+                .optional();
+    }
+
     /** The Administrator that still has no password (there is only one). */
     Optional<Pending> findWithoutPassword() {
         return jdbc.sql("select id, email from administrators where password_hash is null"

@@ -8,8 +8,11 @@ import br.com.sergio.sapiensia.audit.AuditResult;
 import br.com.sergio.sapiensia.customer.LoginAttemptLimiter;
 import br.com.sergio.sapiensia.security.SecretCipher;
 import br.com.sergio.sapiensia.security.Totp;
+import com.github.kagkarlsson.scheduler.SchedulerClient;
+import com.github.kagkarlsson.scheduler.task.TaskInstance;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -132,6 +135,7 @@ class AdministratorMfa {
     private final TransactionTemplate transaction;
     private final Clock clock;
     private final RecentAuthentication recentAuthentication;
+    private final SchedulerClient scheduler;
 
     AdministratorMfa(
             Administrators administrators,
@@ -141,7 +145,8 @@ class AdministratorMfa {
             AuditLog audit,
             PlatformTransactionManager transactionManager,
             Clock clock,
-            RecentAuthentication recentAuthentication) {
+            RecentAuthentication recentAuthentication,
+            SchedulerClient scheduler) {
         this.administrators = administrators;
         this.recoveryCodes = recoveryCodes;
         this.cipher = cipher;
@@ -150,6 +155,7 @@ class AdministratorMfa {
         this.transaction = new TransactionTemplate(transactionManager);
         this.clock = clock;
         this.recentAuthentication = recentAuthentication;
+        this.scheduler = scheduler;
     }
 
     /** The AAD of the encrypted secret: a cipher text copied to another row does not decrypt. */
@@ -401,6 +407,13 @@ class AdministratorMfa {
                 recoveryCodes.replaceAll(
                         id, codes.stream().map(RecoveryCodes::hash).toList());
                 audit.recordInTransaction(entry(AuditAction.ADMIN_MFA_REPLACED, AuditResult.SUCCESS, id, clientIp));
+                // same transaction as the swap: the notice exists if and only if the swap was committed
+                scheduler.schedule(
+                        new TaskInstance<>(
+                                AdministratorEmailTasks.AUTHENTICATOR_REPLACED_NOTICE,
+                                UUID.randomUUID().toString(),
+                                id),
+                        Instant.now());
                 return Outcome.replaced(codes, version.getAsInt());
             });
         });
