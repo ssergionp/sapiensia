@@ -298,6 +298,10 @@ public class SecurityConfig {
                         // session, no CSRF
                         .requestMatchers(HttpMethod.POST, "/api/webhooks/asaas")
                         .access(asaasWebhookAccess)
+                        // demo-only refund of a fake charge (#132): same credential as the webhook, no session; the
+                        // controller exists only with app.pix.provider=fake
+                        .requestMatchers(HttpMethod.POST, "/api/local-demo/charges/*/refund")
+                        .access(asaasWebhookAccess)
                         .requestMatchers("/api/**")
                         .denyAll()
                         .anyRequest()
@@ -305,7 +309,9 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.spa()
                         .csrfTokenRepository(csrfTokenRepository)
                         .ignoringRequestMatchers(
-                                PathPatternRequestMatcher.pathPattern(HttpMethod.POST, "/api/webhooks/asaas")))
+                                PathPatternRequestMatcher.pathPattern(HttpMethod.POST, "/api/webhooks/asaas"),
+                                PathPatternRequestMatcher.pathPattern(
+                                        HttpMethod.POST, "/api/local-demo/charges/*/refund")))
                 // no login page to redirect to: anonymous requests to protected routes get 401
                 // nothing to redirect back to after a login, and the saved request would create a session for every
                 // anonymous visitor

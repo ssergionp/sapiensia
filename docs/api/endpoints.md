@@ -27,6 +27,7 @@ Toda rota de `/api` que não está nesta tabela é negada (`denyAll`), com uma e
 | POST | `/api/library/{productId}/download` | Cliente | 30 / 10 min por conta; 60 / 10 min por IP (e 10 por Produto por dia, #34) |
 | GET | `/api/local-downloads/{token}` | Cliente; só fora de produção | — |
 | POST | `/api/webhooks/asaas` | webhook, protegido por token e IP | — |
+| POST | `/api/local-demo/charges/{chargeId}/refund` | só com o provedor fake (demonstração local): marca a cobrança como estornada; protegido pelo token e IP do webhook | — |
 | POST | `/api/admin/password-setup` | anônimo (token no corpo) | 20 / 15 min por IP |
 | POST | `/api/admin/sessions` | anônimo (primeiro passo do painel) | login: limite próprio (ADR-0004) |
 | GET | `/api/admin/sessions/mfa` | Administrador com a senha confirmada (código pendente) | — |

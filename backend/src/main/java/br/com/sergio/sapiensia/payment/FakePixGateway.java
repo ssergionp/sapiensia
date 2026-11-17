@@ -7,6 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -20,6 +21,7 @@ import org.springframework.stereotype.Component;
 class FakePixGateway implements PixGateway {
 
     private final Map<UUID, String> customerCodes = new ConcurrentHashMap<>();
+    private final Set<String> refunded = ConcurrentHashMap.newKeySet();
     private final Map<String, PixCharge> charges = Collections.synchronizedMap(new LinkedHashMap<>());
 
     FakePixGateway(Environment environment) {
@@ -55,9 +57,18 @@ class FakePixGateway implements PixGateway {
         if (charge == null) {
             throw new PixGatewayException(PixGatewayException.Kind.REFUSED, "READ_CHARGE", "HTTP 404");
         }
-        // a fake charge counts as paid as soon as it is read (decision D11)
-        return new PixCharge(
-                charge.id(), "RECEIVED", charge.value(), "PIX", charge.externalReference(), charge.deleted());
+        // a fake charge counts as paid as soon as it is read (decision D11), until the demo refunds it (#132)
+        String status = refunded.contains(chargeId) ? "REFUNDED" : "RECEIVED";
+        return new PixCharge(charge.id(), status, charge.value(), "PIX", charge.externalReference(), charge.deleted());
+    }
+
+    /** Demo only (#132): from now on the charge reads as REFUNDED; false when the fake does not know it. */
+    boolean refund(String chargeId) {
+        if (!charges.containsKey(chargeId)) {
+            return false;
+        }
+        refunded.add(chargeId);
+        return true;
     }
 
     @Override
