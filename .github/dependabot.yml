@@ -1,5 +1,6 @@
 version: 2
 # One grouped pull request per ecosystem each week, instead of one per dependency.
+# Major versions stay out of the groups and arrive in their own pull request (#101).
 # cooldown: a version must be 7 days old before it is proposed (a just-published package may be malicious or broken).
 updates:
   - package-ecosystem: maven
@@ -11,6 +12,7 @@ updates:
     groups:
       backend:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
   - package-ecosystem: npm
     directory: /frontend
     schedule:
@@ -20,6 +22,7 @@ updates:
     groups:
       frontend:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
     ignore:
       # the types follow the Node LTS installed on the computer, not the newest Node
       - dependency-name: "@types/node"
@@ -33,3 +36,4 @@ updates:
     groups:
       github-actions:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
