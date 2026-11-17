@@ -6,10 +6,13 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { hasReturnTo, rememberReturnTo } from "../orders/returnTo";
 import LoginPage from "./LoginPage";
 
-function renderPage() {
-  const client = new QueryClient({
+function newClient() {
+  return new QueryClient({
     defaultOptions: { mutations: { retry: false } },
   });
+}
+
+function renderPage(client = newClient()) {
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={["/entrar"]}>
@@ -119,6 +122,32 @@ describe("LoginPage", () => {
       email: "ana@example.com",
       password: "curta",
     });
+  });
+
+  test("login bem-sucedido esquece as consultas da conta anterior", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(204));
+    const client = newClient();
+    client.setQueryData(["library"], { items: ["livro da Ana"] });
+    client.setQueryData(["orders"], { items: ["pedido da Ana"] });
+    renderPage(client);
+
+    await fillAndSubmit("bia@example.com", "curta");
+
+    await screen.findByText("pagina inicial");
+    expect(client.getQueryData(["library"])).toBeUndefined();
+    expect(client.getQueryData(["orders"])).toBeUndefined();
+  });
+
+  test("login que falha (401) não mexe no cache", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(401));
+    const client = newClient();
+    client.setQueryData(["library"], { items: ["livro"] });
+    renderPage(client);
+
+    await fillAndSubmit("ana@example.com", "senha errada");
+
+    await screen.findByText(FAILURE);
+    expect(client.getQueryData(["library"])).toEqual({ items: ["livro"] });
   });
 
   test("401 mostra a mensagem de falha de login", async () => {

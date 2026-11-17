@@ -5,10 +5,13 @@ import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import HomePage from "./HomePage";
 
-function renderPage() {
-  const client = new QueryClient({
+function newClient() {
+  return new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
+}
+
+function renderPage(client = newClient()) {
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
@@ -159,6 +162,35 @@ describe("HomePage", () => {
         ([url, init]) => url === SESSION_URL && init?.method === "DELETE",
       ),
     ).toHaveLength(1);
+  });
+
+  test.each([
+    ["Sair", SESSION_URL],
+    ["Sair de todos os aparelhos", SESSIONS_URL],
+  ])("%s esquece as consultas da conta", async (button, deleteUrl) => {
+    let loggedIn = true;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input) === deleteUrl && init?.method === "DELETE") {
+        loggedIn = false;
+        return jsonResponse(204);
+      }
+      if (String(input) === SESSION_URL) {
+        return loggedIn
+          ? jsonResponse(200, { email: "ana@example.com" })
+          : jsonResponse(401);
+      }
+      return jsonResponse(200);
+    });
+    const client = newClient();
+    client.setQueryData(["library"], { items: ["livro da Ana"] });
+    renderPage(client);
+
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("button", { name: button }));
+
+    await screen.findByRole("link", { name: "Entrar" });
+    expect(client.getQueryData(["library"])).toBeUndefined();
   });
 
   test("falha ao sair mostra a mensagem e mantém a sessão", async () => {
