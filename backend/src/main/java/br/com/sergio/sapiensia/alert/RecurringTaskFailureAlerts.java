@@ -10,7 +10,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * The failure handler of the recurring tasks (NFR-009): it reschedules the task exactly as db-scheduler's default does
- * and, on the third failure in a row, alerts the Administrator once per sequence. The {@code admin-alert-dispatch} task
+ * and alerts the Administrator on the 3rd, 6th, 12th... failure in a row (intervals that double, so a lost alert
+ * does not silence the whole sequence and the e-mails do not come once per run). The {@code admin-alert-dispatch} task
  * does not use it: an alert about the sending of alerts could loop.
  */
 @Component
@@ -42,6 +43,12 @@ public class RecurringTaskFailureAlerts {
             this.alerts = alerts;
         }
 
+        /** True on the 3rd, 6th, 12th, 24th... failure: a multiple of 3 whose quotient is a power of two. */
+        static boolean shouldAlert(int failures) {
+            return failures % CONSECUTIVE_FAILURES_TO_ALERT == 0
+                    && Integer.bitCount(failures / CONSECUTIVE_FAILURES_TO_ALERT) == 1;
+        }
+
         String taskName() {
             return taskName;
         }
@@ -50,9 +57,10 @@ public class RecurringTaskFailureAlerts {
         public void onFailure(ExecutionComplete complete, ExecutionOperations<T> operations) {
             new FailureHandler.OnFailureReschedule<T>(schedule).onFailure(complete, operations);
             // consecutiveFailures counts the failures before this one
-            if (complete.getExecution().consecutiveFailures + 1 == CONSECUTIVE_FAILURES_TO_ALERT) {
+            int failures = complete.getExecution().consecutiveFailures + 1;
+            if (shouldAlert(failures)) {
                 // the log names only the task: never the exception message (ADR-0006)
-                log.error("Recurring task {} failed {} times in a row", taskName, CONSECUTIVE_FAILURES_TO_ALERT);
+                log.error("Recurring task {} failed {} times in a row", taskName, failures);
                 alerts.recordSafely(AdminAlertType.RECURRING_TASK_FAILING, taskName);
             }
         }

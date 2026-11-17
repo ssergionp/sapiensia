@@ -13,7 +13,6 @@ import com.github.kagkarlsson.scheduler.task.schedule.FixedDelay;
 import java.time.Duration;
 import java.time.Instant;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -45,10 +44,11 @@ class RecurringTaskFailureAlertsTest {
         return ExecutionComplete.failure(execution, START, DONE, new RuntimeException("x"));
     }
 
-    @Test
-    @DisplayName("NFR-009: a 3ª falha seguida reagenda e alerta o Administrador")
-    void shouldAlertOnTheThirdConsecutiveFailure() {
-        ExecutionComplete complete = failureAfter(2);
+    @ParameterizedTest
+    @ValueSource(ints = {2, 5, 11, 23})
+    @DisplayName("NFR-009: na 3ª, 6ª, 12ª e 24ª falha seguida reagenda e alerta o Administrador")
+    void shouldAlertOnTheThirdThenEveryDoublingFailure(int previousFailures) {
+        ExecutionComplete complete = failureAfter(previousFailures);
 
         handler.onFailure(complete, ops);
 
@@ -57,21 +57,9 @@ class RecurringTaskFailureAlertsTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {0, 1})
-    @DisplayName("NFR-009: antes da 3ª falha seguida só reagenda")
-    void shouldNotAlertBeforeTheThirdFailure(int previousFailures) {
-        ExecutionComplete complete = failureAfter(previousFailures);
-
-        handler.onFailure(complete, ops);
-
-        verifyNoInteractions(alerts);
-        verify(ops).reschedule(complete, DONE.plus(Duration.ofMinutes(1)));
-    }
-
-    @ParameterizedTest
-    @ValueSource(ints = {3, 10})
-    @DisplayName("NFR-009: depois da 3ª falha seguida não alerta de novo")
-    void shouldNotAlertAgainAfterTheThirdFailure(int previousFailures) {
+    @ValueSource(ints = {0, 1, 3, 4, 6, 9, 10})
+    @DisplayName("NFR-009: nas outras falhas seguidas só reagenda")
+    void shouldOnlyRescheduleOnTheOtherFailures(int previousFailures) {
         ExecutionComplete complete = failureAfter(previousFailures);
 
         handler.onFailure(complete, ops);

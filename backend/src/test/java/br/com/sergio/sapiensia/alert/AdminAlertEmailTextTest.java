@@ -78,11 +78,11 @@ class AdminAlertEmailTextTest {
                 Arguments.of(
                         AdminAlertType.RECURRING_TASK_FAILING,
                         "tarefa recorrente falhando",
-                        "Uma tarefa em segundo plano que roda de tempos em tempos falhou 3 vezes seguidas. Ela"
+                        "Uma tarefa em segundo plano que roda de tempos em tempos falhou pelo menos 3 vezes seguidas. Ela"
                                 + " continua tentando sozinha no próximo horário.",
-                        "procure o nome da tarefa no log da aplicação para ver o motivo. Este aviso sai uma vez por"
-                                + " sequência de falhas: se a tarefa voltar a funcionar e depois falhar 3 vezes"
-                                + " seguidas de novo, chega outro."));
+                        "procure o nome da tarefa no log da aplicação para ver o motivo. Enquanto a tarefa continuar"
+                                + " falhando, este aviso se repete com intervalos cada vez maiores: na 3ª, na 6ª, na 12ª falha"
+                                + " seguida e assim por diante."));
     }
 
     @ParameterizedTest(name = "{0}")

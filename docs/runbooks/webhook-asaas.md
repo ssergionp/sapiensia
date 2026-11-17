@@ -273,7 +273,7 @@ Quando algo no pagamento precisa de você, o sistema manda um e-mail ao Administ
 | `WEBHOOK_REJECTED` (webhook do Asaas recusado) | O sistema recusou chamadas ao webhook; enquanto o Asaas for recusado, os pagamentos não são confirmados. O motivo vem na linha (veja abaixo). | Confira o token e a lista de IPs. |
 | `RECONCILIATION_FAILED` (conciliação com o Asaas não terminou) | A conciliação noturna parou antes do fim (`ASAAS_UNAVAILABLE`, `TOO_MANY_CHARGES` ou `UNEXPECTED_ERROR`). | Veja a seção "A conciliação não terminou" do `docs/runbooks/conciliacao-asaas.md`. |
 | `TASK_GAVE_UP` (tarefa em segundo plano descartada) | Uma tarefa de e-mail falhou em todas as tentativas e foi descartada; a linha traz o nome da tarefa. | Procure o nome da tarefa no log para ver o motivo; o Cliente pode pedir o e-mail de novo pelo site. |
-| `RECURRING_TASK_FAILING` (tarefa recorrente falhando) | Uma tarefa recorrente falhou 3 vezes seguidas; a linha traz o nome da tarefa. O aviso sai uma vez por sequência de falhas. | Procure o nome da tarefa no log para ver o motivo; ela tenta de novo sozinha no próximo horário. Se voltar a funcionar e falhar 3 vezes de novo, chega outro aviso. |
+| `RECURRING_TASK_FAILING` (tarefa recorrente falhando) | Uma tarefa recorrente falhou pelo menos 3 vezes seguidas; a linha traz o nome da tarefa. O aviso se repete na 3ª, 6ª, 12ª... falha seguida enquanto ela continuar falhando. Uma execução derrubada no meio (processo caiu e o db-scheduler a reviveu) não conta como falha. | Procure o nome da tarefa no log para ver o motivo; ela tenta de novo sozinha no próximo horário. Se for a `asaas-reconciliation`, confira primeiro o `RECONCILIATION_FAILED` e o runbook conciliacao-asaas.md. |
 
 ### Motivos do `WEBHOOK_REJECTED`
 

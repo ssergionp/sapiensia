@@ -74,14 +74,16 @@ class AdminAlertEmail {
                         "Uma tarefa em segundo plano falhou em todas as tentativas e foi descartada.",
                         "procure o nome da tarefa no log da aplicação para ver o motivo. Se for uma tarefa de"
                                 + " e-mail, o Cliente pode pedir o e-mail de novo pelo site.");
-            case RECURRING_TASK_FAILING ->
-                new Text(
+            case RECURRING_TASK_FAILING -> {
+                int first = RecurringTaskFailureAlerts.CONSECUTIVE_FAILURES_TO_ALERT;
+                yield new Text(
                         "tarefa recorrente falhando",
-                        "Uma tarefa em segundo plano que roda de tempos em tempos falhou 3 vezes seguidas. Ela"
-                                + " continua tentando sozinha no próximo horário.",
-                        "procure o nome da tarefa no log da aplicação para ver o motivo. Este aviso sai uma vez por"
-                                + " sequência de falhas: se a tarefa voltar a funcionar e depois falhar 3 vezes"
-                                + " seguidas de novo, chega outro.");
+                        "Uma tarefa em segundo plano que roda de tempos em tempos falhou pelo menos " + first
+                                + " vezes seguidas. Ela continua tentando sozinha no próximo horário.",
+                        "procure o nome da tarefa no log da aplicação para ver o motivo. Enquanto a tarefa continuar"
+                                + " falhando, este aviso se repete com intervalos cada vez maiores: na " + first
+                                + "ª, na " + 2 * first + "ª, na " + 4 * first + "ª falha seguida e assim por diante.");
+            }
         };
     }
 

@@ -73,7 +73,7 @@ O aviso que o Asaas envia ao sistema (webhook) sobre uma cobrança ou o saldo, i
 _Avoid_: Notificação, callback
 
 **Alerta**:
-O aviso por e-mail ao Administrador de que algo no pagamento precisa dele: webhook recusado, Evento de pagamento que desistiu ou que terminou com resultado para revisar, e-mail de pagamento que desistiu, tarefa em segundo plano descartada, tarefa recorrente que falha seguidas vezes, Divergência da Conciliação ou Conciliação que não terminou. Alertas iguais viram um só com contagem, e o e-mail sai agrupado por tipo, no máximo um a cada 15 minutos. Traz só tipo, ids, hora e contagem, nunca dado pessoal.
+O aviso por e-mail ao Administrador de que algo no pagamento precisa dele: webhook recusado, Evento de pagamento que desistiu ou que terminou com resultado para revisar, e-mail de pagamento que desistiu, tarefa em segundo plano descartada, tarefa recorrente que falha seguidas vezes (repetido na 3ª, 6ª, 12ª... falha), Divergência da Conciliação ou Conciliação que não terminou. Alertas iguais viram um só com contagem, e o e-mail sai agrupado por tipo, no máximo um a cada 15 minutos. Traz só tipo, ids, hora e contagem, nunca dado pessoal.
 _Avoid_: Notificação, aviso (quando for ao Cliente)
 
 **Reembolso**:

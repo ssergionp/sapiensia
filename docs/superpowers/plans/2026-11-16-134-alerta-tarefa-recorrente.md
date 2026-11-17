@@ -20,14 +20,17 @@ Plano do modo noturno: as decisões marcadas **DECIDIDO NO MODO NOTURNO — conf
 - **N4:** a `admin-alert-dispatch` continua **sem** o handler (evita laço: alerta sobre o próprio envio de alertas). Um teste garante isso.
 - **N5:** tarefas que passam a alertar: `expire-pending-orders`, `delete-orphan-cover-objects`, a limpeza de contas não confirmadas (`UnconfirmedCustomersCleanup`), a limpeza da auditoria (`AuditRetentionCleanup`) e a `asaas-reconciliation` (que já grava `RECONCILIATION_FAILED` por noite; este alerta a mais só chega na 3ª noite seguida). Um teste de contexto confere que toda `RecurringTask` exceto a dispatch usa o handler, para tarefa nova não ficar de fora.
 - **N6:** log da 3ª falha: `log.error("Recurring task {} failed {} times in a row", taskName, 3)` — só o nome, nunca a mensagem da exceção (ADR-0006).
+- **N7 (do /code-review; substitui N2) — DECIDIDO NO MODO NOTURNO — conferir:** com o alerta só na 3ª exata, um alerta perdido (falha ao gravar, ou deploy com a tarefa já falhando: o contador fica no banco) deixava a sequência inteira em silêncio. Agora o alerta sai quando a falha atual `n` (= `consecutiveFailures + 1`) é `3 × 2^k`: 3ª, 6ª, 12ª, 24ª… (`n % 3 == 0 && Integer.bitCount(n / 3) == 1`). Repete com intervalos que dobram, sem virar um e-mail por minuto. O log de N6 passa a levar `n`. Os números do texto do e-mail vêm da constante.
+- **N8 (do /code-review):** o runbook diz que a `asaas-reconciliation` também tem o `RECONCILIATION_FAILED` (conferir lá primeiro) e que uma execução "morta" (processo derrubado no meio, revivida pelo db-scheduler) não passa pelo handler e não conta como falha. Ficam de fora, registrados na PR: nome e `Schedule` passados duas vezes em cada tarefa; teste de integração com uma tarefa que falha de verdade (pediria um contexto Spring novo); nomes literais no teste de ligação. Não procede: "8 tipos = limite de 8 e-mails/hora" (cada tipo pode mandar 4 por hora, uma a cada janela de 15 min, então o limite continua valendo).
 
 ## Textos que o usuário vê
 
 O Administrador lê no e-mail de alerta (assunto `Alerta SapiensIA: <título> (<n>)`, corpo no molde dos outros tipos). **DECIDIDO NO MODO NOTURNO — conferir:**
 
 - Título: `tarefa recorrente falhando`
-- Introdução: `Uma tarefa em segundo plano que roda de tempos em tempos falhou 3 vezes seguidas. Ela continua tentando sozinha no próximo horário.`
-- O que fazer: `procure o nome da tarefa no log da aplicação para ver o motivo. Este aviso sai uma vez por sequência de falhas: se a tarefa voltar a funcionar e depois falhar 3 vezes seguidas de novo, chega outro.`
+- Introdução: `Uma tarefa em segundo plano que roda de tempos em tempos falhou pelo menos 3 vezes seguidas. Ela continua tentando sozinha no próximo horário.`
+- O que fazer: `procure o nome da tarefa no log da aplicação para ver o motivo. Enquanto a tarefa continuar falhando, este aviso se repete com intervalos cada vez maiores: na 3ª, na 6ª, na 12ª falha seguida e assim por diante.`
+  (Texto revisto por N7; o primeiro texto dizia "falhou 3 vezes seguidas" e "Este aviso sai uma vez por sequência de falhas…".)
 
 Documentação (não é tela): uma linha nova na tabela "O que cada tipo quer dizer" de `docs/runbooks/webhook-asaas.md` e "tarefa recorrente que falha seguidas vezes" na lista do verbete de alerta do `GLOSSARY.md`.
 
