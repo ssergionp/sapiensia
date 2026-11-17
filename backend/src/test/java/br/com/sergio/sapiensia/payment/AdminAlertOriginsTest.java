@@ -255,6 +255,19 @@ class AdminAlertOriginsTest {
         jdbc.execute("drop function if exists admin_alerts_test_fail()");
     }
 
+    /** Delays every insert into {@code admin_alerts}, to widen the window between a task removal and its alert. */
+    private void slowAlertWrites() {
+        jdbc.execute("create or replace function admin_alerts_test_slow() returns trigger language plpgsql as"
+                + " $$ begin perform pg_sleep(0.5); return new; end $$");
+        jdbc.execute("create trigger admin_alerts_test_slow before insert on admin_alerts"
+                + " for each row execute function admin_alerts_test_slow()");
+    }
+
+    private void unslowAlertWrites() {
+        jdbc.execute("drop trigger if exists admin_alerts_test_slow on admin_alerts");
+        jdbc.execute("drop function if exists admin_alerts_test_slow()");
+    }
+
     @Test
     @DisplayName("NFR-009: compra duplicada grava o alerta na transação do pagamento")
     void shouldRecordTheDuplicatePurchaseAlertInThePaymentTransaction() {
@@ -420,19 +433,30 @@ class AdminAlertOriginsTest {
         String email = jdbc.queryForObject("select email from customers where id = ?", String.class, customerId);
         sender.failAllSendsTo(email);
 
-        scheduler.schedule(
-                new TaskInstance<>(
-                        "customer-password-changed-notice", UUID.randomUUID().toString(), customerId),
-                Instant.now());
+        // the alert is written after the task row is removed: a slow write keeps that window open
+        slowAlertWrites();
+        try {
+            scheduler.schedule(
+                    new TaskInstance<>(
+                            "customer-password-changed-notice",
+                            UUID.randomUUID().toString(),
+                            customerId),
+                    Instant.now());
 
-        // app.email.max-attempts is 5 in this context
-        await("the dropped task", () -> sender.attemptsTo(email) >= 5 && droppedTasks() == 0);
+            // wait for the alert itself: the task row is removed before the alert is written
+            await("the TASK_GAVE_UP alert", () -> !alerts("TASK_GAVE_UP").isEmpty());
 
-        List<Map<String, Object>> rows = alerts("TASK_GAVE_UP");
-        assertThat(rows).hasSize(1);
-        assertThat(rows.getFirst())
-                .containsEntry("detail", "customer-password-changed-notice")
-                .containsEntry("order_id", null)
-                .containsEntry("payment_event_id", null);
+            // app.email.max-attempts is 5 in this context
+            assertThat(droppedTasks()).isZero();
+            assertThat(sender.attemptsTo(email)).isGreaterThanOrEqualTo(5);
+            List<Map<String, Object>> rows = alerts("TASK_GAVE_UP");
+            assertThat(rows).hasSize(1);
+            assertThat(rows.getFirst())
+                    .containsEntry("detail", "customer-password-changed-notice")
+                    .containsEntry("order_id", null)
+                    .containsEntry("payment_event_id", null);
+        } finally {
+            unslowAlertWrites();
+        }
     }
 }
