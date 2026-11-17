@@ -69,7 +69,11 @@ test("depois do login a página inicial nunca volta a mostrar o estado sem sess�
   await user.click(screen.getByRole("button", { name: "Entrar" }));
 
   expect(
-    await screen.findByText("Você entrou como ana@example.com."),
+    await screen.findByText(
+      (_content, element) =>
+        element?.tagName === "P" &&
+        element.textContent === "Você entrou como ana@example.com.",
+    ),
   ).toBeInTheDocument();
   observer.disconnect();
   expect(anonymousFlash).toBe(false);

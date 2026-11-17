@@ -6,7 +6,7 @@ Só frontend; sem migration; nenhum texto novo nem alterado.
 
 ## Task 1: deixar o e-mail quebrar
 
-Arquivos: `frontend/src/features/session/HomePage.tsx` e `frontend/src/features/session/HomePage.test.tsx`.
+Arquivos: `frontend/src/features/session/HomePage.tsx` e `frontend/src/features/session/HomePage.test.tsx` (o texto ficou dividido pelo span do e-mail), mais `frontend/src/App.test.tsx`.
 
 - No parágrafo "Você entrou como {email}.", o e-mail vai num `<span className="[overflow-wrap:anywhere]">`, igual à `AdminHomePage` ("Você entrou como …" do painel).
 - Teste (falha pela asserção antes do código): `com um e-mail longo, o e-mail fica num trecho que pode quebrar em qualquer ponto` — com o e-mail `ana.souza.com.nome.bem.comprido@example.com`, o elemento com o texto do e-mail tem a classe `[overflow-wrap:anywhere]` e o parágrafo continua com o texto "Você entrou como ana.souza.com.nome.bem.comprido@example.com.".
