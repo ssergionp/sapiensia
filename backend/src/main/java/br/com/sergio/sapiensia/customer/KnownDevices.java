@@ -4,6 +4,7 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * The browsers an account has already logged in from, told apart by the random token of the device cookie. Only the
@@ -15,7 +16,9 @@ class KnownDevices {
     private static final Pattern VALID_TOKEN = Pattern.compile("[A-Za-z0-9_-]{43}");
 
     /** The token to put in the cookie, and whether the owner must be told about this login. */
-    record DeviceCheck(String token, boolean notifyOwner) {}
+    record DeviceCheck(String token, boolean notifyOwner) {
+        static final DeviceCheck NOT_REGISTERED = new DeviceCheck(null, false);
+    }
 
     private final JdbcClient jdbc;
 
@@ -32,13 +35,28 @@ class KnownDevices {
     }
 
     /**
-     * Registers the device for the account after a correct login. The first login of an account never notifies; a
-     * later login notifies unless the cookie token is already registered for this account. {@code cookieToken} is
-     * null when the browser sent no device cookie.
+     * Registers the device for the account after a correct login, in one transaction. The customer row is locked first
+     * and must still have the {@code sessionVersion} read at login: if the password changed (or the account is gone)
+     * since then, nothing is recorded and {@link DeviceCheck#NOT_REGISTERED} comes back. A cookie token already
+     * registered for this account is kept; any other login gets a new token generated here, never the cookie value.
+     * The first login of an account never notifies; a later login notifies unless the cookie token was known.
+     * {@code cookieToken} is null when the browser sent no device cookie.
      */
-    DeviceCheck recognize(UUID customerId, String cookieToken) {
-        boolean wellFormed = isWellFormed(cookieToken);
-        if (wellFormed) {
+    @Transactional
+    DeviceCheck recognize(UUID customerId, int sessionVersion, String cookieToken) {
+        // the same lock as a plain update: waits for a password change and other logins of this account, not for an
+        // insert that references the customer
+        boolean current = jdbc.sql("select 1 from customers where id = :customerId"
+                        + " and session_version = :sessionVersion for no key update")
+                .param("customerId", customerId)
+                .param("sessionVersion", sessionVersion)
+                .query(Integer.class)
+                .optional()
+                .isPresent();
+        if (!current) {
+            return DeviceCheck.NOT_REGISTERED;
+        }
+        if (isWellFormed(cookieToken)) {
             int seen = jdbc.sql("update customer_devices set last_seen_at = now()"
                             + " where customer_id = :customerId and token_hash = :hash")
                     .param("customerId", customerId)
@@ -48,9 +66,8 @@ class KnownDevices {
                 return new DeviceCheck(cookieToken, false);
             }
         }
-        String token = wellFormed ? cookieToken : PasswordResetTokens.newToken();
-        jdbc.sql("insert into customer_devices (customer_id, token_hash) values (:customerId, :hash)"
-                        + " on conflict do nothing")
+        String token = PasswordResetTokens.newToken();
+        jdbc.sql("insert into customer_devices (customer_id, token_hash) values (:customerId, :hash)")
                 .param("customerId", customerId)
                 .param("hash", EmailConfirmationTokens.hash(token))
                 .update();

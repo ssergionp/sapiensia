@@ -91,17 +91,23 @@ class SessionController {
             return Optional.empty();
         }
         return Optional.of(() -> {
-            rememberDevice(fullPrincipal.credentials().id(), request, response);
+            rememberDevice(
+                    fullPrincipal.credentials().id(),
+                    fullPrincipal.credentials().sessionVersion(),
+                    request,
+                    response);
             // the session keeps the principal without the password hash
             return fullPrincipal.withoutPassword();
         });
     }
 
     /**
-     * Registers the browser of a correct login and refreshes its device cookie. The notice never changes the answer of
-     * the login: on any failure only the exception type is logged (the message could carry the e-mail or the token).
+     * Registers the browser of a correct login and refreshes its device cookie, only while the account still has the
+     * {@code sessionVersion} read at login; otherwise no device cookie is written. The notice never changes the answer
+     * of the login: on any failure only the exception type is logged (the message could carry the e-mail or the token).
      */
-    private void rememberDevice(UUID customerId, HttpServletRequest request, HttpServletResponse response) {
+    private void rememberDevice(
+            UUID customerId, int sessionVersion, HttpServletRequest request, HttpServletResponse response) {
         try {
             String cookieToken = null;
             if (request.getCookies() != null) {
@@ -111,17 +117,18 @@ class SessionController {
                     }
                 }
             }
-            String token = customerService.recognizeDevice(customerId, cookieToken, Instant.now());
-            response.addHeader(
-                    HttpHeaders.SET_COOKIE,
-                    ResponseCookie.from(DEVICE_COOKIE, token)
-                            .maxAge(DEVICE_COOKIE_MAX_AGE)
-                            .path("/api/sessions")
-                            .httpOnly(true)
-                            .secure(secureCookie)
-                            .sameSite("Lax")
-                            .build()
-                            .toString());
+            customerService
+                    .recognizeDevice(customerId, sessionVersion, cookieToken, Instant.now())
+                    .ifPresent(token -> response.addHeader(
+                            HttpHeaders.SET_COOKIE,
+                            ResponseCookie.from(DEVICE_COOKIE, token)
+                                    .maxAge(DEVICE_COOKIE_MAX_AGE)
+                                    .path("/api/sessions")
+                                    .httpOnly(true)
+                                    .secure(secureCookie)
+                                    .sameSite("Lax")
+                                    .build()
+                                    .toString()));
         } catch (RuntimeException e) {
             log.warn("Could not register the login device ({})", e.getClass().getName());
         }

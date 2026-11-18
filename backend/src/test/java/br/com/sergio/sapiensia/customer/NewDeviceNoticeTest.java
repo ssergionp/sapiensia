@@ -212,7 +212,7 @@ class NewDeviceNoticeTest {
     }
 
     @Test
-    @DisplayName("SEC-007: o cookie da conta A no primeiro login da conta B não avisa B e volta o mesmo valor")
+    @DisplayName("SEC-007: o cookie da conta A no primeiro login da conta B não avisa B e é trocado por um token novo")
     void shouldNotNotifyAccountBOnItsFirstLoginWithTheCookieOfAccountA() throws Exception {
         Account a = newAccount();
         Account b = newAccount();
@@ -221,7 +221,8 @@ class NewDeviceNoticeTest {
         HttpResponse<String> firstOfB = login(b, PASSWORD, deviceOfA);
 
         assertThat(firstOfB.statusCode()).isEqualTo(204);
-        assertThat(deviceOf(firstOfB)).isEqualTo(deviceOfA);
+        // #64: a cookie value unknown to the account is never stored; the server issues a token of its own
+        assertThat(deviceOf(firstOfB)).isNotEqualTo(deviceOfA);
         assertThat(mail(b, NO_MAIL_WAIT)).isEmpty();
         assertThat(mail(a, NO_MAIL_WAIT)).isEmpty();
         assertThat(deviceRows(b.id())).isEqualTo(1);
@@ -250,9 +251,23 @@ class NewDeviceNoticeTest {
 
         assertThat(response.statusCode()).isEqualTo(204);
         assertThat(mail(b, WAIT).orElseThrow().subject()).isEqualTo(SUBJECT);
-        assertThat(deviceOf(response)).isEqualTo(deviceOfA);
+        assertThat(deviceOf(response)).isNotEqualTo(deviceOfA); // #64: a server token replaces it
         assertThat(deviceRows(b.id())).isEqualTo(2);
         assertThat(deviceRows(a.id())).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("SEC-007: um cookie plantado é trocado por um token do servidor e o dono é avisado")
+    void shouldReplaceAPlantedCookieAndNotifyTheOwner() throws Exception {
+        Account account = newAccount();
+        login(account, PASSWORD, null);
+        String planted = "A".repeat(43);
+
+        HttpResponse<String> response = login(account, PASSWORD, planted);
+
+        assertThat(response.statusCode()).isEqualTo(204);
+        assertThat(mail(account, WAIT).orElseThrow().subject()).isEqualTo(SUBJECT);
+        assertThat(deviceOf(response)).isNotEqualTo(planted);
     }
 
     @Test
