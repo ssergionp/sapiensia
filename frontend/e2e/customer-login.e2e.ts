@@ -103,6 +103,25 @@ test("SEC-004: o Cliente confirmado entra, continua logado ao recarregar, sai e 
   await expectAnonymousHome(page);
 });
 
+test("#192: ao sair de Meus Pedidos o Cliente vai para a página inicial e a próxima entrada não volta para os Pedidos", async ({
+  page,
+}, testInfo) => {
+  const email = uniqueEmail(testInfo.project.name);
+  const password = strongPassword();
+  await registerAndConfirm(page, email, password);
+  await logIn(page, email, password);
+  await expect(page.getByText(`Você entrou como ${email}.`)).toBeVisible();
+
+  await page.goto("/pedidos");
+  await page.getByRole("button", { name: "Sair", exact: true }).click();
+  await expect(page).toHaveURL("/");
+  await expectAnonymousHome(page);
+
+  await logIn(page, email, password);
+  await expect(page.getByText(`Você entrou como ${email}.`)).toBeVisible();
+  await expect(page).toHaveURL("/");
+});
+
 test("SEC-004/SEC-006: senha errada mostra a mensagem única e não cria sessão", async ({
   page,
 }, testInfo) => {
