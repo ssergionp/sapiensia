@@ -189,7 +189,7 @@ export default function AdminMfaPage() {
 
   if (codes) {
     return (
-      <main className="mx-auto max-w-md p-8">
+      <main className="auth-panel">
         <RecoveryCodesList
           title={CODES_TITLE}
           intro={CODES_INTRO}
@@ -210,10 +210,10 @@ export default function AdminMfaPage() {
 
   if (expired || status.data === "expired") {
     return (
-      <main className="mx-auto max-w-md p-8">
+      <main className="auth-panel">
         <p role="alert">{EXPIRED}</p>
         <p className="mt-4">
-          <Link to="/painel/entrar" className="underline">
+          <Link to="/painel/entrar" className="text-link">
             {BACK_TO_LOGIN}
           </Link>
         </p>
@@ -223,7 +223,7 @@ export default function AdminMfaPage() {
 
   if (status.isError || loadFailed) {
     return (
-      <main className="mx-auto max-w-md p-8">
+      <main className="auth-panel">
         <p role="alert" className="text-destructive">
           {LOAD_ERROR}
         </p>
@@ -233,7 +233,7 @@ export default function AdminMfaPage() {
 
   if (status.isPending || (mode === "enroll" && enrollment === null)) {
     return (
-      <main className="mx-auto max-w-md p-8">
+      <main className="auth-panel">
         <p>{LOADING}</p>
       </main>
     );
@@ -243,8 +243,8 @@ export default function AdminMfaPage() {
 
   if (recovery && !enrolling) {
     return (
-      <main className="mx-auto max-w-md p-8">
-        <h1 className="text-2xl font-bold">{RECOVERY_TITLE}</h1>
+      <main className="auth-panel">
+        <h1 className="text-3xl">{RECOVERY_TITLE}</h1>
         <p className="mt-4">{RECOVERY_INSTRUCTION}</p>
         <form
           onSubmit={handleSubmitRecovery(onSubmit)}
@@ -279,7 +279,11 @@ export default function AdminMfaPage() {
               {failure}
             </p>
           )}
-          <Button type="submit" disabled={submit.isPending}>
+          <Button
+            type="submit"
+            disabled={submit.isPending}
+            className="mt-2 h-11 w-full text-base"
+          >
             {submit.isPending ? VERIFY_SUBMITTING : VERIFY_SUBMIT}
           </Button>
           <Button
@@ -295,10 +299,8 @@ export default function AdminMfaPage() {
   }
 
   return (
-    <main className="mx-auto max-w-md p-8">
-      <h1 className="text-2xl font-bold">
-        {enrolling ? ENROLL_TITLE : VERIFY_TITLE}
-      </h1>
+    <main className="auth-panel">
+      <h1 className="text-3xl">{enrolling ? ENROLL_TITLE : VERIFY_TITLE}</h1>
       {enrolling && enrollment ? (
         <>
           <p className="mt-4">{ENROLL_INTRO}</p>
@@ -341,7 +343,11 @@ export default function AdminMfaPage() {
             {failure}
           </p>
         )}
-        <Button type="submit" disabled={submit.isPending}>
+        <Button
+          type="submit"
+          disabled={submit.isPending}
+          className="mt-2 h-11 w-full text-base"
+        >
           {submit.isPending
             ? enrolling
               ? ENROLL_SUBMITTING

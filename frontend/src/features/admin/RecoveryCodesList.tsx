@@ -44,7 +44,9 @@ export default function RecoveryCodesList({
 
   return (
     <div>
-      <Heading className="text-2xl font-bold">{title}</Heading>
+      <Heading className={Heading === "h1" ? "text-3xl" : "text-xl font-bold"}>
+        {title}
+      </Heading>
       {intro && <p className="mt-4">{intro}</p>}
       <p className="mt-4 font-semibold">{warning}</p>
       <ol

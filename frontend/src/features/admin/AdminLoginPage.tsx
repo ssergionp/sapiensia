@@ -43,8 +43,8 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <main className="mx-auto max-w-md p-8">
-      <h1 className="text-2xl font-bold">Entrar no painel</h1>
+    <main className="auth-panel">
+      <h1 className="text-3xl">Entrar no painel</h1>
       <form
         onSubmit={handleSubmit(onSubmit)}
         noValidate
@@ -95,7 +95,11 @@ export default function AdminLoginPage() {
             {failure}
           </p>
         )}
-        <Button type="submit" disabled={mutation.isPending}>
+        <Button
+          type="submit"
+          disabled={mutation.isPending}
+          className="mt-2 h-11 w-full text-base"
+        >
           {mutation.isPending ? "Entrando…" : "Entrar"}
         </Button>
       </form>
