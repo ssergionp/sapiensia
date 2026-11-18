@@ -1,5 +1,6 @@
 package br.com.sergio.sapiensia.customer;
 
+import java.time.Duration;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -19,6 +20,9 @@ class KnownDevices {
     record DeviceCheck(String token, boolean notifyOwner) {
         static final DeviceCheck NOT_REGISTERED = new DeviceCheck(null, false);
     }
+
+    /** How long the device cookie lives; a device not seen for this long is forgotten by the daily cleanup. */
+    static final Duration COOKIE_MAX_AGE = Duration.ofDays(365);
 
     private final JdbcClient jdbc;
 
@@ -77,5 +81,15 @@ class KnownDevices {
                 .param("customerId", customerId)
                 .update();
         return new DeviceCheck(token, firstLogin == 0);
+    }
+
+    /** Daily cleanup: forgets devices not seen for {@link #COOKIE_MAX_AGE}, skipping rows a login holds locked. */
+    int deleteNotSeenWithinCookieMaxAge() {
+        // "skip locked" never waits: a device a login is touching stays for the next night, so no lock cycle
+        return jdbc.sql("delete from customer_devices where (customer_id, token_hash) in ("
+                        + "select customer_id, token_hash from customer_devices"
+                        + " where last_seen_at < now() - make_interval(secs => :seconds) for update skip locked)")
+                .param("seconds", COOKIE_MAX_AGE.toSeconds())
+                .update();
     }
 }

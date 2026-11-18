@@ -101,4 +101,12 @@ class PasswordResetTokens {
                 .param("customerId", customerId)
                 .update();
     }
+
+    /** Daily cleanup: deletes used or expired links, skipping rows another transaction holds locked. */
+    int deleteUsedOrExpired() {
+        return jdbc.sql("delete from password_reset_tokens where id in ("
+                        + "select id from password_reset_tokens"
+                        + " where used_at is not null or expires_at <= now() for update skip locked)")
+                .update();
+    }
 }

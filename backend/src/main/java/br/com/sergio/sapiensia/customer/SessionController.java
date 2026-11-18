@@ -3,7 +3,6 @@ package br.com.sergio.sapiensia.customer;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
@@ -46,7 +45,6 @@ class SessionController {
     private static final Logger log = LoggerFactory.getLogger(SessionController.class);
 
     private static final String DEVICE_COOKIE = "SAPIENSIA_DEVICE";
-    private static final Duration DEVICE_COOKIE_MAX_AGE = Duration.ofDays(365);
 
     private final LogoutHandler currentSessionCloser = new CompositeLogoutHandler(
             new SecurityContextLogoutHandler(), new CookieClearingLogoutHandler("JSESSIONID"));
@@ -104,7 +102,7 @@ class SessionController {
 
     static ResponseCookie deviceCookie(String token, boolean secure) {
         return ResponseCookie.from(DEVICE_COOKIE, token)
-                .maxAge(DEVICE_COOKIE_MAX_AGE)
+                .maxAge(KnownDevices.COOKIE_MAX_AGE)
                 .path("/api/sessions")
                 .httpOnly(true)
                 .secure(secure)

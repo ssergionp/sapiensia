@@ -30,6 +30,7 @@ class RecurringTaskFailureWiringTest {
                         "asaas-reconciliation",
                         "delete-orphan-cover-objects",
                         "delete-unconfirmed-customers",
+                        "delete-stale-devices-and-tokens",
                         "delete-expired-audit-events");
 
         for (RecurringTask<?> task : tasks) {
