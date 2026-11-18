@@ -24,6 +24,38 @@ describe("CoverImage", () => {
     expect(frame.textContent).toBe("");
   });
 
+  test("sem imagem, mostra a cor da categoria e o título só como enfeite", () => {
+    const { container } = render(
+      <CoverImage
+        src={null}
+        alt="Capa de Guia"
+        category="FINANCE"
+        title="Guia de finanças"
+      />,
+    );
+    const frame = container.firstElementChild as HTMLElement;
+    expect(frame.getAttribute("aria-hidden")).toBe("true");
+    expect(frame.dataset.category).toBe("FINANCE");
+    expect(frame.style.backgroundColor).toBe("rgb(17, 75, 62)");
+    // drawn by CSS from data-title, so screen readers and text queries never see a second title
+    expect(frame.dataset.title).toBe("Guia de finanças");
+    expect(frame.textContent).toBe("");
+  });
+
+  test("com falha ao carregar, troca pela cor da categoria", () => {
+    const { container } = render(
+      <CoverImage
+        src="/api/products/p1/cover?v=abc"
+        alt="Capa de Guia"
+        category="LAW"
+        title="Guia"
+      />,
+    );
+    fireEvent.error(screen.getByRole("img"));
+    const frame = container.firstElementChild as HTMLElement;
+    expect(frame.style.backgroundColor).toBe("rgb(140, 59, 32)");
+  });
+
   test("se a imagem falhar, troca pelo quadro neutro", () => {
     const { container } = render(
       <CoverImage src="/api/products/p1/cover?v=abc" alt="Capa de Guia" />,
