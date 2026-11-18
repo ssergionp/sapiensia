@@ -11,18 +11,24 @@ type Props = {
   title?: string;
 };
 
-// Reserve backgrounds while the cover loads or when there is none. All dark, so Papiro text passes AA.
+// Reserve backgrounds while the cover loads or when there is none. All dark (tokens in index.css), so the cover text passes AA.
 const COVER_COLORS: Record<ProductCategory, string> = {
-  FINANCE: "#114B3E",
-  LAW: "#8C3B20",
-  SECURITY: "#182026",
-  HEALTH: "#1F5C4D",
-  EDUCATION: "#16264C",
-  TECHNOLOGY: "#133B4D",
-  BUSINESS: "#114B3E",
-  OTHER: "#182026",
+  FINANCE: "var(--cover-finance)",
+  LAW: "var(--cover-law)",
+  SECURITY: "var(--cover-security)",
+  HEALTH: "var(--cover-health)",
+  EDUCATION: "var(--cover-education)",
+  TECHNOLOGY: "var(--cover-technology)",
+  BUSINESS: "var(--cover-business)",
+  OTHER: "var(--cover-other)",
 };
-const NEUTRAL_COVER = "#182026";
+const NEUTRAL_COVER = "var(--cover-other)";
+
+// The title is never cut: its size follows the frame width (cqw) and shrinks with the length, so the longest
+// title allowed (120 characters) still fits inside the frame. 10cqw is the size of short titles.
+function titleSize(title: string): string {
+  return `min(10cqw, ${(75 / Math.sqrt(Math.max(title.length, 1))).toFixed(1)}cqw)`;
+}
 
 // 2:3 frame, the whole image is shown (nothing is cropped). Without a source, or when the image fails to
 // load, a frame of the same ratio takes its place: neutral, or the category color with the title drawn by
@@ -47,11 +53,14 @@ export default function CoverImage({
         aria-hidden="true"
         data-category={category}
         data-title={title}
-        style={background ? { backgroundColor: background } : undefined}
+        style={{
+          ...(background ? { backgroundColor: background } : {}),
+          ...(title ? { "--cover-title-size": titleSize(title) } : {}),
+        }}
         className={cn(
           "aspect-[2/3] w-full rounded-md bg-muted",
           title &&
-            "flex items-end p-[8%] font-heading text-lg leading-tight font-semibold text-balance text-[#FAF6F0] [overflow-wrap:anywhere] before:line-clamp-5 before:content-[attr(data-title)]",
+            "@container flex items-end p-[8%] font-heading leading-tight font-semibold text-balance text-cover-foreground [overflow-wrap:anywhere] before:text-[length:var(--cover-title-size)] before:content-[attr(data-title)]",
           className,
         )}
       />

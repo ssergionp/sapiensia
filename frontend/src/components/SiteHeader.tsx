@@ -1,4 +1,6 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "cn";
+import { useEffect } from "react";
 import { Link, NavLink, useLocation } from "react-router";
 import {
   BRAND_TEXTS,
@@ -8,8 +10,13 @@ import {
 import Logo from "@/components/brand/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { useLogoutToHome, useSession } from "@/features/session/hooks";
+import {
+  sessionQueryKey,
+  useLogoutToHome,
+  useSession,
+} from "@/features/session/hooks";
 import { LOGOUT_ERROR } from "@/features/session/messages";
+import { onUnauthorized } from "@/lib/api";
 
 const NAV_TEXTS = {
   label: "Navegação principal",
@@ -54,6 +61,15 @@ function CustomerNavigation({ pathname }: { pathname: string }) {
   const session = useSession();
   const logout = useLogoutToHome();
   const signedIn = Boolean(session.data);
+  // A 401 from any account call means the session ended on the server: ask again instead of showing "Sair"
+  const queryClient = useQueryClient();
+  useEffect(
+    () =>
+      onUnauthorized(() => {
+        void queryClient.invalidateQueries({ queryKey: sessionQueryKey });
+      }),
+    [queryClient],
+  );
   // While the session loads nothing account-related shows, so the header never flashes the signed-out
   // state; if it fails to load, "Entrar" is the way out. On /entrar itself the link would only repeat the page.
   const showSignIn =

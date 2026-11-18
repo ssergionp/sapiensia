@@ -321,3 +321,27 @@ describe("LoginPage", () => {
     expect(await screen.findByText("pagina de cadastro")).toBeInTheDocument();
   });
 });
+
+test("na ordem do teclado, Esqueci minha senha vem antes de Entrar e Criar conta depois", async () => {
+  renderPage();
+  const user = userEvent.setup();
+  const order = [
+    "E-mail",
+    "Senha",
+    "Esqueci minha senha",
+    "Entrar",
+    "Ainda não tem conta? Criar conta",
+  ];
+  const seen: string[] = [];
+  for (let i = 0; i < order.length; i++) {
+    await user.tab();
+    const el = document.activeElement as HTMLElement;
+    seen.push(
+      el.getAttribute("aria-label") ??
+        document.querySelector(`label[for="${el.id}"]`)?.textContent ??
+        el.textContent ??
+        "",
+    );
+  }
+  expect(seen).toEqual(order);
+});

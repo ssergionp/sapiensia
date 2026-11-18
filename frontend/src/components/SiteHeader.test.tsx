@@ -11,6 +11,7 @@ import {
 } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useSession } from "@/features/session/hooks";
+import { apiFetch } from "@/lib/api";
 import { mockSystemTheme, resetTheme } from "@/test/systemTheme";
 import SiteHeader from "./SiteHeader";
 
@@ -310,5 +311,59 @@ describe("SiteHeader", () => {
       await header().findByRole("link", { name: "Catálogo" }),
     ).toBeInTheDocument();
     expect(header().queryByRole("link", { name: "Entrar" })).toBeNull();
+  });
+});
+
+describe("sessão vencida no servidor", () => {
+  function expiringSession() {
+    let expired = false;
+    const spy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input) => {
+        const url = String(input);
+        if (url === SESSION_URL) {
+          return expired
+            ? new Response(null, { status: 401 })
+            : new Response(JSON.stringify({ email: "ana@example.com" }), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+              });
+        }
+        expired = true;
+        return new Response(null, { status: 401 });
+      });
+    const sessionCalls = () =>
+      spy.mock.calls.filter(([input]) => String(input) === SESSION_URL).length;
+    return { sessionCalls };
+  }
+
+  it("troca Sair por Entrar quando uma chamada da conta recebe 401", async () => {
+    const { sessionCalls } = expiringSession();
+    renderHeader("/catalogo");
+    expect(
+      await screen.findByRole("button", { name: "Sair" }),
+    ).toBeInTheDocument();
+
+    await apiFetch("/api/library");
+
+    expect(
+      await screen.findByRole("link", { name: "Entrar" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Sair" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Biblioteca" })).toBeNull();
+    expect(sessionCalls()).toBe(2);
+  });
+
+  it("invalidar a sessão não gera laço: a consulta da sessão que volta 401 não dispara outra", async () => {
+    const { sessionCalls } = expiringSession();
+    renderHeader("/catalogo");
+    await screen.findByRole("button", { name: "Sair" });
+
+    await apiFetch("/api/library");
+    await screen.findByRole("link", { name: "Entrar" });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    // one query on arrival, one refetch after the 401: nothing more
+    expect(sessionCalls()).toBe(2);
   });
 });

@@ -12,6 +12,7 @@
   --font-sans: "Plus Jakarta Sans Variable", system-ui, sans-serif;
   --color-brand-mark: var(--brand-mark);
   --color-brand-decor: var(--brand-decor);
+  --color-cover-foreground: var(--cover-foreground);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -80,6 +81,16 @@
   /* status badge fill (Pinho 12% on the card) and its text, also the paid icon */
   --success: #dee1db;
   --success-foreground: #114b3e;
+  /* Reserve cover backgrounds (CoverImage): dark in both themes so --cover-foreground passes AA */
+  --cover-finance: #114b3e;
+  --cover-law: #8c3b20;
+  --cover-security: #182026;
+  --cover-health: #1f5c4d;
+  --cover-education: #16264c;
+  --cover-technology: #133b4d;
+  --cover-business: #114b3e;
+  --cover-other: #182026;
+  --cover-foreground: #faf6f0;
   --chart-1: #114b3e;
   --chart-2: #f08a4b;
   --chart-3: #133b4d;
@@ -121,6 +132,16 @@
   /* status badge fill (#6fb8a2 15% on the card) and its text, also the paid icon */
   --success: #202e2a;
   --success-foreground: #6fb8a2;
+  /* Reserve cover backgrounds (CoverImage): dark in both themes so --cover-foreground passes AA */
+  --cover-finance: #114b3e;
+  --cover-law: #8c3b20;
+  --cover-security: #182026;
+  --cover-health: #1f5c4d;
+  --cover-education: #16264c;
+  --cover-technology: #133b4d;
+  --cover-business: #114b3e;
+  --cover-other: #182026;
+  --cover-foreground: #faf6f0;
   --chart-1: #f08a4b;
   --chart-2: #6fb8a2;
   --chart-3: #a9b0ac;

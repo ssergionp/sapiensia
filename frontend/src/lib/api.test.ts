@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { apiFetch } from "./api";
+import { apiFetch, onUnauthorized } from "./api";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -121,4 +121,65 @@ test("two change requests started together share one CSRF priming call", async (
   for (const [, init] of real) {
     expect(new Headers(init.headers).get("X-XSRF-TOKEN")).toBe("shared-token");
   }
+});
+
+test("tells the listeners about a 401 on a customer route", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(new Response(null, { status: 401 })),
+  );
+  const listener = vi.fn();
+  const stop = onUnauthorized(listener);
+
+  await apiFetch("/api/library");
+  expect(listener).toHaveBeenCalledTimes(1);
+
+  stop();
+  await apiFetch("/api/library");
+  expect(listener).toHaveBeenCalledTimes(1);
+});
+
+test("a 401 on the session, login or admin routes is not an ended session", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(new Response(null, { status: 401 })),
+  );
+  const listener = vi.fn();
+  const stop = onUnauthorized(listener);
+
+  await apiFetch("/api/sessions/current");
+  await apiFetch("/api/sessions", { method: "POST", body: "{}" });
+  await apiFetch("/api/admin/orders");
+  expect(listener).not.toHaveBeenCalled();
+  stop();
+});
+
+test("other statuses never reach the listeners", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(new Response(null, { status: 403 })),
+  );
+  const listener = vi.fn();
+  const stop = onUnauthorized(listener);
+  await apiFetch("/api/library");
+  expect(listener).not.toHaveBeenCalled();
+  stop();
+});
+
+test("only the exact session and admin routes are excluded, not routes that share the prefix", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(new Response(null, { status: 401 })),
+  );
+  const listener = vi.fn();
+  const stop = onUnauthorized(listener);
+
+  await apiFetch("/api/sessions/current?x=1");
+  await apiFetch("/api/admin");
+  expect(listener).not.toHaveBeenCalled();
+
+  await apiFetch("/api/sessions-old");
+  await apiFetch("/api/administrators");
+  expect(listener).toHaveBeenCalledTimes(2);
+  stop();
 });

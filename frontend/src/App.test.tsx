@@ -114,3 +114,21 @@ test("o rodapé de informações legais aparece nas telas", () => {
     screen.getByRole("contentinfo", { name: "Informações legais" }),
   ).toBeInTheDocument();
 });
+
+test("FR-033/NFR-005: o link Pular para o conteúdo é a primeira parada do teclado e leva ao conteúdo", async () => {
+  vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    new Response(null, { status: 401 }),
+  );
+  const user = userEvent.setup();
+  const { container } = renderAt("/catalogo");
+  await screen.findByRole("link", { name: "Entrar" });
+
+  await user.tab();
+  const skip = screen.getByRole("link", { name: "Pular para o conteúdo" });
+  expect(skip).toHaveFocus();
+  expect(skip).toHaveAttribute("href", "#conteudo");
+  const target = container.querySelector("#conteudo");
+  expect(target).not.toBeNull();
+  expect(target).toHaveAttribute("tabindex", "-1");
+  expect(target?.querySelector("main")).not.toBeNull();
+});

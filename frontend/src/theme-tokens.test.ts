@@ -119,4 +119,28 @@ describe("tokens de cor do tema", () => {
       colors.filter((c) => /^#[0-9a-f]{6}$/i.test(c) && isPurple(c)),
     ).toEqual([]);
   });
+
+  it.each(themes)(
+    "FR-033/NFR-005: as cores de reserva das capas existem no tema %s e passam AA com o texto da capa",
+    (_, t) => {
+      const covers = [
+        "finance",
+        "law",
+        "security",
+        "health",
+        "education",
+        "technology",
+        "business",
+        "other",
+      ];
+      expect(t["cover-foreground"]).toBeDefined();
+      for (const name of covers) {
+        const color = t[`cover-${name}`];
+        expect(color, `cover-${name}`).toBeDefined();
+        expect(contrast(t["cover-foreground"], color)).toBeGreaterThanOrEqual(
+          4.5,
+        );
+      }
+    },
+  );
 });

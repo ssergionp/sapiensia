@@ -30,8 +30,14 @@ export default function App() {
   return (
     // full-height column: the footer sits at the bottom even on short pages
     <div className="flex min-h-dvh flex-col">
+      <a
+        href="#conteudo"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:font-semibold focus:text-primary-foreground"
+      >
+        Pular para o conteúdo
+      </a>
       <SiteHeader />
-      <div className="flex-1">
+      <div id="conteudo" tabIndex={-1} className="flex-1 outline-none">
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/entrar" element={<LoginPage />} />
