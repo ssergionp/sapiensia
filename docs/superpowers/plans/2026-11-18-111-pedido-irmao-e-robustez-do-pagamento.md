@@ -42,6 +42,8 @@ Aprovadas pelo Sérgio como recomendadas, com uma condição para D3: o valor br
 | D4 | Resultado da cobrança excluída e não paga | **`NOT_PAID`** (final, com o alerta de revisão que já existe). Sem valor novo de resultado. Um evento de pagamento posterior da mesma cobrança é outro evento e paga normalmente. |
 | D5 | Auditoria | Uma ação nova, `DUPLICATE_PURCHASE`, no Pedido duplicado. O cancelamento do irmão fica só no log (ids dos dois Pedidos) e em `orders.expired_at`; se quiser também na auditoria, é mais uma ação. |
 
+**Ajuste em D4 depois das revisões (18/11/2026, a confirmar pelo Sérgio antes do merge):** a revisão geral e o `/code-review` mostraram que fechar a cobrança excluída como `NOT_PAID` já na primeira leitura pode deixar sem Acesso um Cliente que pagou, se a leitura do Asaas atrasar em relação ao aviso (as cobranças excluídas e pagas são justamente as de Pedido expirado ou de irmão cancelado), e um resultado final não pode ser reprocessado. Por isso a cobrança excluída e não paga repete por **10 minutos** a partir da chegada do evento e só então termina em `NOT_PAID`. O resultado continua o aprovado; muda o instante. Voltar para "na primeira leitura" é uma linha em `PaymentConfirmation.check`.
+
 ## Textos que o usuário vê
 
 Nenhum texto novo. Com D1, o irmão cancelado usa os textos de "Expirado" que já existem. Para o Administrador: o alerta `PAYMENT_EVENT_NEEDS_REVIEW` com detalhe `NOT_PAID` e o `DUPLICATE_PURCHASE` já existem.
