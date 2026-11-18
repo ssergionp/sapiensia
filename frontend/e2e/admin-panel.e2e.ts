@@ -1643,7 +1643,6 @@ test("FR-025 FR-029 SEC-011: a Biblioteca mostra o Produto comprado, mesmo despu
   });
   await page.getByRole("button", { name: "Enviar arquivo" }).click();
   await expect(page.getByText("Arquivo enviado.")).toBeVisible();
-  await uploadCover(page);
   await page.getByRole("button", { name: "Publicar", exact: true }).click();
   await page.getByRole("button", { name: "Confirmar publicação" }).click();
   await expect(page.getByText("Produto publicado.")).toBeVisible();
