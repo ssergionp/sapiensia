@@ -30,7 +30,9 @@
 
 Fora deste plano, continuam no #111: R1 (update condicional antes do cancelamento), `giveUp` com id desconhecido, validação do `chargeId` duplicada, `Ref.eventType`, os demais testes, a demonstração local e o roteiro de sandbox.
 
-## Decisões para o Sérgio
+## Decisões aprovadas (18/11/2026)
+
+Aprovadas pelo Sérgio como recomendadas, com uma condição para D3: o valor bruto da cobrança (`value`) continua conferido contra o preço do Pedido. **Conferido:** `PaymentConfirmation.check` (linha 142) recusa com `AMOUNT_MISMATCH` quando `value` falta ou difere de `price_cents`, antes de olhar o estado da cobrança; os testes `shouldNotGrantWhenTheValueDiffers`, `shouldPayWhenTheValueHasAnotherScale` e, na conciliação, `shouldNotPayWhenTheAmountDiffersAndRaiseTheReviewAlert` cobrem isso. Este plano não toca essa linha, e os três testes rodam nas Tasks 1 e 3.
 
 | # | Decisão | Recomendação |
 |---|---|---|
@@ -183,7 +185,7 @@ private void cancelPendingSibling(Orders.Row paid) {
 }
 ```
 
-- [ ] **Step 4: Rodar** `.\mvnw.cmd test "-Dtest=PaymentConfirmationTest,PaymentConcurrencyTest,RefundRepurchaseTest,AuditLogTest,AuditPrivacyTest,PaymentLogTest"`. Esperado: verde. Se `shouldGrantOneAccessWhenTwoOrdersOfTheSameProductArePaidTogether` falhar por causa do cancelamento novo, **pare e relate**: não afrouxe a asserção.
+- [ ] **Step 4: Rodar** `.\mvnw.cmd test "-Dtest=PaymentConfirmationTest,PaymentConcurrencyTest,ReconciliationTest,RefundRepurchaseTest,AuditLogTest,AuditPrivacyTest,PaymentLogTest"`. Esperado: verde. Se `shouldGrantOneAccessWhenTwoOrdersOfTheSameProductArePaidTogether` falhar por causa do cancelamento novo, **pare e relate**: não afrouxe a asserção.
 
 - [ ] **Step 5: Documentos.**
   - ADR-0003, regra nova: ao pagar um Pedido, o Pedido pendente do mesmo Cliente e Produto é cancelado (cobrança cancelada no Asaas, Pedido `EXPIRED`); se os dois forem pagos, o segundo é `DUPLICATE_PURCHASE`, com auditoria e devolução manual. Nota do `netValue` (D3), com a data da conferência.
