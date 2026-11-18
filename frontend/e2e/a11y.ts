@@ -44,6 +44,10 @@ export function themedScreen(screen: string, theme: "light" | "dark"): string {
 }
 
 async function scan(page: Page, screen: string): Promise<void> {
+  // buttons have color and opacity transitions: scanning mid-transition measures a color that is never at rest
+  await page.waitForFunction(() =>
+    document.getAnimations().every((a) => a.playState !== "running"),
+  );
   const results = await new AxeBuilder({ page }).withTags(WCAG_TAGS).analyze();
   const remaining = unresolved(results.violations, screen, KNOWN_ISSUES);
   expect(
@@ -77,10 +81,6 @@ export async function expectNoA11yViolations(
     await page.emulateMedia({ colorScheme: other });
     if (other === "dark") await expect(html).toHaveClass(/\bdark\b/);
     else await expect(html).not.toHaveClass(/\bdark\b/);
-    // buttons have color transitions: scanning mid-transition measures a color that is never at rest
-    await page.waitForFunction(() =>
-      document.getAnimations().every((a) => a.playState !== "running"),
-    );
     await scan(page, themedScreen(screen, other));
   } finally {
     // back to the original theme even when the scan fails, so later steps on the same page are not affected
