@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { Link, NavLink, useLocation } from "react-router";
+import { Link, NavLink, useLocation, useNavigate } from "react-router";
 import {
   BRAND_TEXTS,
   CHROME_FOCUS_RING,
@@ -52,11 +52,13 @@ export default function SiteHeader() {
 
 function CustomerNavigation({ pathname }: { pathname: string }) {
   const session = useSession();
-  const logout = useLogout();
+  const navigate = useNavigate();
+  const logout = useLogout(() => navigate("/"));
   const signedIn = Boolean(session.data);
-  // While the session loads (or fails) nothing account-related shows, so the header never flashes the
-  // signed-out state; on /entrar itself the link would only repeat the page.
-  const showSignIn = session.data === null && pathname !== "/entrar";
+  // While the session loads nothing account-related shows, so the header never flashes the signed-out
+  // state; if it fails to load, "Entrar" is the way out. On /entrar itself the link would only repeat the page.
+  const showSignIn =
+    (session.data === null || session.isError) && pathname !== "/entrar";
 
   return (
     <>

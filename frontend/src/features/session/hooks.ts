@@ -49,11 +49,14 @@ export function useLogoutEverywhere() {
   });
 }
 
-export function useLogout() {
+// `onSignedOut` runs before the session is refreshed: the page the visitor leaves must be gone by then,
+// otherwise it would see "no session" first and send them to /entrar (remembering itself as return-to).
+export function useLogout(onSignedOut?: () => void) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: logout,
     onSuccess: () => {
+      onSignedOut?.();
       forgetPreviousAccount(queryClient);
       return queryClient.invalidateQueries({ queryKey: sessionQueryKey });
     },
