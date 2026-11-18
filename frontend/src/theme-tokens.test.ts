@@ -7,9 +7,9 @@ import { describe, expect, it } from "vitest";
 const css = readFileSync(resolve("src/index.css"), "utf8");
 
 function tokens(selector: ":root" | ".dark"): Record<string, string> {
-  const start = css.search(
-    new RegExp(`^${selector.replace(".", "\\.")} \\{`, "m"),
-  );
+  // the token blocks start at the beginning of a line: "\n:root {" and "\n.dark {"
+  const start = css.indexOf(`\n${selector} {`);
+  if (start < 0) throw new Error(`token block ${selector} not found`);
   const block = css.slice(start, css.indexOf("}", start));
   const result: Record<string, string> = {};
   for (const [, name, value] of block.matchAll(/--([\w-]+):\s*([^;]+);/g)) {
