@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
+import StatusBadge from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import AdminGuard from "@/features/admin/AdminGuard";
 import { ProductForbiddenError, ProductUnavailableError } from "./api";
@@ -11,6 +12,7 @@ import {
   UNAVAILABLE_LOAD,
 } from "./messages";
 import { formatCents } from "./schemas";
+import { PRODUCT_STATUS_TONE } from "./statusTone";
 
 const LOAD_ERROR =
   "Não foi possível carregar os Produtos agora. Tente novamente.";
@@ -86,7 +88,14 @@ function ProductList() {
                     {CATEGORY_LABELS[item.category]}
                   </td>
                   <td className="py-2 pr-4">{formatCents(item.priceCents)}</td>
-                  <td className="py-2 pr-4">{STATUS_LABELS[item.status]}</td>
+                  <td className="py-2 pr-4">
+                    <StatusBadge
+                      status={item.status}
+                      tone={PRODUCT_STATUS_TONE[item.status]}
+                    >
+                      {STATUS_LABELS[item.status]}
+                    </StatusBadge>
+                  </td>
                   <td className="py-2">
                     <Link
                       to={`/painel/produtos/${item.id}`}

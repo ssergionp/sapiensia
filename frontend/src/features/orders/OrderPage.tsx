@@ -201,7 +201,7 @@ export default function OrderPage() {
       <main className="auth-panel">
         <CircleCheck
           aria-hidden="true"
-          className="mb-4 size-10 text-[#114B3E] dark:text-[#6FB8A2]"
+          className="mb-4 size-10 text-success-foreground"
         />
         <h1 ref={headingRef} tabIndex={-1} className="text-3xl outline-none">
           {T.paidHeading}
