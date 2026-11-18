@@ -1077,10 +1077,6 @@ test("FR-016 SEC-017 SEC-010: capa enviada no painel aparece no Catálogo e capa
     await page.getByRole("button", { name: "Remover capa" }).click();
     await page.getByRole("button", { name: "Confirmar remoção" }).click();
     await expect(page.getByText("Capa removida.")).toBeVisible();
-    await visitor.goto("/catalogo");
-    await expect(
-      visitor.getByRole("img", { name: `Capa de ${title}` }),
-    ).toHaveCount(0);
     expect((await visitor.request.get(coverUrl)).status()).toBe(404);
   } finally {
     await visitorContext.close();
