@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
@@ -53,7 +54,9 @@ class PaymentConfirmationTest {
     /** A clock the test moves by hand. */
     static final class MutableClock extends Clock {
 
-        private final AtomicReference<Instant> now = new AtomicReference<>(Instant.now());
+        // whole microseconds, like the database: a stored instant never rounds past the clock
+        private final AtomicReference<Instant> now =
+                new AtomicReference<>(Instant.now().truncatedTo(ChronoUnit.MICROS));
 
         void advance(Duration duration) {
             now.updateAndGet(t -> t.plus(duration));
