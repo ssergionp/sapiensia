@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Link, Navigate } from "react-router";
+import AdminNav from "./AdminNav";
 import { useAdminSession } from "./hooks";
 import type { AdminSession } from "./schemas";
 
@@ -22,7 +23,7 @@ export default function AdminGuard({
 
   if (session.isPending) {
     return (
-      <main className="p-8">
+      <main className="page-container">
         <p>Carregando…</p>
       </main>
     );
@@ -31,7 +32,7 @@ export default function AdminGuard({
   // A failed background refetch keeps the previous data; it must not replace a screen that is already showing.
   if (session.isError && session.data === undefined) {
     return (
-      <main className="p-8">
+      <main className="page-container">
         <p role="alert" className="text-destructive">
           {LOAD_ERROR}
         </p>
@@ -45,10 +46,10 @@ export default function AdminGuard({
 
   if (session.data === "forbidden") {
     return (
-      <main className="p-8">
+      <main className="page-container">
         <p role="alert">Esta área é só para o Administrador.</p>
         <p className="mt-4">
-          <Link to="/" className="underline">
+          <Link to="/" className="text-link">
             Voltar ao início
           </Link>
         </p>
@@ -56,13 +57,17 @@ export default function AdminGuard({
     );
   }
 
-  if (capability && !session.data.capabilities.includes(capability)) {
-    return (
-      <main className="p-8">
-        <p role="alert">{missingMessage}</p>
-      </main>
-    );
-  }
-
-  return <>{children(session.data)}</>;
+  // The panel bar uses the session loaded above: no extra request, and never on a page without a full session.
+  return (
+    <>
+      <AdminNav session={session.data} />
+      {capability && !session.data.capabilities.includes(capability) ? (
+        <main className="page-container">
+          <p role="alert">{missingMessage}</p>
+        </main>
+      ) : (
+        children(session.data)
+      )}
+    </>
+  );
 }
