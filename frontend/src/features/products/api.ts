@@ -161,15 +161,33 @@ export async function removeProductCover(id: string): Promise<void> {
   await check(raw, 204);
 }
 
-// 409 with errors.file: the Product cannot be published without a file. Any other 409 stays a conflict.
+// The string codes of errors.file and errors.cover in a 409 body; any other field is dropped.
+async function readPublicationErrors(
+  raw: Response,
+): Promise<Record<string, string>> {
+  const body: unknown = await raw.json().catch(() => null);
+  const found: Record<string, string> = {};
+  if (typeof body !== "object" || body === null || !("errors" in body))
+    return found;
+  const errors = body.errors;
+  if (typeof errors !== "object" || errors === null) return found;
+  if ("file" in errors && typeof errors.file === "string")
+    found.file = errors.file;
+  if ("cover" in errors && typeof errors.cover === "string")
+    found.cover = errors.cover;
+  return found;
+}
+
+// 409 with errors.file and/or errors.cover: the Product cannot be published without them. Any other 409 stays a conflict.
 async function publication(id: string, method: "PUT" | "DELETE") {
   const raw = await apiFetch(
     `/api/admin/products/${encodeURIComponent(id)}/publication`,
     { method },
   );
   if (raw.status === 409) {
-    const code = await readFileErrorCode(raw);
-    if (code !== undefined) throw new ProductValidationError({ file: code });
+    const errors = await readPublicationErrors(raw);
+    if (Object.keys(errors).length > 0)
+      throw new ProductValidationError(errors);
     throw new ProductConflictError();
   }
   const response = await check(raw, 200);

@@ -114,6 +114,7 @@ export const PUBLICATION_MESSAGES = {
   publishAgain: "Publicar de novo",
   unpublish: "Despublicar",
   needFile: "Envie o Arquivo do produto para poder publicar.",
+  needCover: "Envie a Capa do produto para poder publicar.",
   confirmQuestion:
     "Publicar este Produto? Ele vai aparecer no Catálogo. Depois da primeira publicação, trocar o arquivo vai exigir sua senha e o código do aplicativo autenticador.",
   confirm: "Confirmar publicação",
@@ -127,6 +128,7 @@ export const PUBLICATION_MESSAGES = {
 
 export const PUBLICATION_ERRORS = {
   fileRequired: "Envie o Arquivo do produto antes de publicar.",
+  coverRequired: "Envie a Capa do produto antes de publicar.",
   forbidden:
     "Você não tem permissão para publicar ou despublicar este Produto.",
   unavailable:

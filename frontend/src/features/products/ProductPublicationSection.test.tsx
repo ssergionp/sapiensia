@@ -17,14 +17,30 @@ const FILE = {
   pageCount: 120,
   uploadedAt: "2026-11-09T17:32:00Z",
 };
+const COVER = {
+  mediaType: "image/png",
+  sizeBytes: 120_000,
+  width: 800,
+  height: 1200,
+  version: "v1",
+  uploadedAt: "2026-11-09T17:40:00Z",
+};
 const PUBLISHED_AT = "2026-11-10T12:00:00Z";
+const NEED_FILE = "Envie o Arquivo do produto para poder publicar.";
+const NEED_COVER = "Envie a Capa do produto para poder publicar.";
 
-const draftWithFile = () => product({ file: FILE });
+const draftWithFile = () => product({ file: FILE, cover: COVER });
 const published = () =>
-  product({ file: FILE, status: "PUBLISHED", firstPublishedAt: PUBLISHED_AT });
+  product({
+    file: FILE,
+    cover: COVER,
+    status: "PUBLISHED",
+    firstPublishedAt: PUBLISHED_AT,
+  });
 const unpublished = () =>
   product({
     file: FILE,
+    cover: COVER,
     status: "UNPUBLISHED",
     firstPublishedAt: PUBLISHED_AT,
   });
@@ -69,6 +85,49 @@ describe("ProductPublicationSection", () => {
       screen.getByText("Envie o Arquivo do produto para poder publicar."),
     ).toBeInTheDocument();
     expect(publicationCalls(spy)).toHaveLength(0);
+  });
+
+  test("draft with a file and no cover: Publicar is disabled and only the cover hint shows", async () => {
+    const spy = apiWith(product({ file: FILE }));
+    await open();
+    expect(screen.getByRole("button", { name: "Publicar" })).toBeDisabled();
+    expect(screen.getByText(NEED_COVER)).toBeInTheDocument();
+    expect(screen.queryByText(NEED_FILE)).not.toBeInTheDocument();
+    expect(publicationCalls(spy)).toHaveLength(0);
+  });
+
+  test("draft with neither file nor cover shows both hints", async () => {
+    apiWith(product());
+    await open();
+    expect(screen.getByRole("button", { name: "Publicar" })).toBeDisabled();
+    expect(screen.getByText(NEED_FILE)).toBeInTheDocument();
+    expect(screen.getByText(NEED_COVER)).toBeInTheDocument();
+  });
+
+  test("unpublished without a cover: Publicar de novo is disabled with the cover hint", async () => {
+    apiWith({ ...unpublished(), cover: null });
+    await open();
+    expect(
+      screen.getByRole("button", { name: "Publicar de novo" }),
+    ).toBeDisabled();
+    expect(screen.getByText(NEED_COVER)).toBeInTheDocument();
+  });
+
+  test("a 409 with both codes shows both errors, file first", async () => {
+    apiWith(unpublished(), () =>
+      jsonResponse(409, {
+        errors: { file: "FILE_REQUIRED", cover: "COVER_REQUIRED" },
+      }),
+    );
+    await open();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Publicar de novo" }));
+    const alert = await screen.findByRole("alert");
+    const lines = Array.from(alert.children).map((c) => c.textContent);
+    expect(lines).toEqual([
+      "Envie o Arquivo do produto antes de publicar.",
+      "Envie a Capa do produto antes de publicar.",
+    ]);
   });
 
   test("FR-011 draft with a file asks for confirmation; Cancelar does not call the API", async () => {
@@ -277,6 +336,11 @@ describe("ProductPublicationSection", () => {
       () => jsonResponse(403),
       "Você não tem permissão para publicar ou despublicar este Produto.",
     ],
+    [
+      "409 COVER_REQUIRED",
+      () => jsonResponse(409, { errors: { cover: "COVER_REQUIRED" } }),
+      "Envie a Capa do produto antes de publicar.",
+    ],
     ["404", () => jsonResponse(404), "Produto não encontrado."],
     [
       "503",
@@ -333,6 +397,7 @@ describe("ProductPublicationSection", () => {
       product({
         status: status as Product["status"],
         file: FILE,
+        cover: COVER,
         firstPublishedAt: status === "DRAFT" ? null : PUBLISHED_AT,
       }),
     );
