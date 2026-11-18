@@ -24,3 +24,14 @@ CLAUDE.local.md
 
 # frontend build copied into the backend by the Dockerfile (never committed)
 backend/src/main/resources/static/
+
+# Impeccable skill: runtime state stays local. Shared files stay in git: .impeccable/config.json,
+# design.json, surfaces/, live/config.json and critique/ignore.md (reference/init.md of the skill).
+.impeccable/questions/
+.impeccable/mocks/
+.impeccable/review/
+.impeccable/build/
+.impeccable/live/sessions/
+.impeccable/critique/*
+!.impeccable/critique/ignore.md
+.impeccable/config.local.json
