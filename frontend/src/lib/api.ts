@@ -72,10 +72,7 @@ export async function apiFetch(
     headers,
     credentials: "same-origin",
   });
-  if (
-    response.status === 401 &&
-    !endsSessionByDesign(path)
-  ) {
+  if (response.status === 401 && !endsSessionByDesign(path)) {
     for (const listener of unauthorizedListeners) listener();
   }
   return response;
