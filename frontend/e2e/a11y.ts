@@ -38,14 +38,43 @@ export function unresolved(
   );
 }
 
-export async function expectNoA11yViolations(
-  page: Page,
-  screen: string,
-): Promise<void> {
+// Screen name of the scan in the other theme, e.g. "catalogo-escuro"; also the name KNOWN_ISSUES matches.
+export function themedScreen(screen: string, theme: "light" | "dark"): string {
+  return `${screen}-${theme === "dark" ? "escuro" : "claro"}`;
+}
+
+async function scan(page: Page, screen: string): Promise<void> {
   const results = await new AxeBuilder({ page }).withTags(WCAG_TAGS).analyze();
   const remaining = unresolved(results.violations, screen, KNOWN_ISSUES);
   expect(
     remaining.map((v) => v.id),
     `Accessibility violations on "${screen}":\n${formatViolations(remaining)}`,
   ).toEqual([]);
+}
+
+// bothThemes (#186): scans, flips the browser color scheme (the page follows it while the visitor has not
+// chosen a theme), scans again as "<screen>-escuro" or "<screen>-claro", then flips back.
+export async function expectNoA11yViolations(
+  page: Page,
+  screen: string,
+  options: { bothThemes?: boolean } = {},
+): Promise<void> {
+  await scan(page, screen);
+  if (!options.bothThemes) return;
+
+  const html = page.locator("html");
+  const wasDark = await html.evaluate((el) => el.classList.contains("dark"));
+  const other = wasDark ? "light" : "dark";
+  await page.emulateMedia({ colorScheme: other });
+  if (other === "dark") await expect(html).toHaveClass(/\bdark\b/);
+  else await expect(html).not.toHaveClass(/\bdark\b/);
+  // buttons have color transitions: scanning mid-transition measures a color that is never at rest
+  await page.waitForFunction(() =>
+    document.getAnimations().every((a) => a.playState !== "running"),
+  );
+  await scan(page, themedScreen(screen, other));
+
+  await page.emulateMedia({ colorScheme: wasDark ? "dark" : "light" });
+  if (wasDark) await expect(html).toHaveClass(/\bdark\b/);
+  else await expect(html).not.toHaveClass(/\bdark\b/);
 }
