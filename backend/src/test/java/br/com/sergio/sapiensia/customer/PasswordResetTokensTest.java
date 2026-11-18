@@ -196,6 +196,32 @@ class PasswordResetTokensTest {
     }
 
     @Test
+    @DisplayName("SEC-007: um link já usado não espera nem trava o login da conta")
+    void shouldNotWaitForTheCustomerLockWithAUsedLink() throws Exception {
+        String token = tokens.issue(customerId);
+        assertThat(tokens.consumeAndSetPassword(token, "new-hash")).contains(customerId);
+        CountDownLatch locked = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        try (ExecutorService pool = Executors.newFixedThreadPool(2)) {
+            Future<?> login =
+                    pool.submit(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+                        jdbc.queryForObject(
+                                "select id from customers where id = ? for no key update", UUID.class, customerId);
+                        locked.countDown();
+                        await(release);
+                    }));
+            try {
+                assertThat(locked.await(10, TimeUnit.SECONDS)).isTrue();
+                Future<Optional<UUID>> reuse = pool.submit(() -> tokens.consumeAndSetPassword(token, "other-hash"));
+                assertThat(reuse.get(2, TimeUnit.SECONDS)).isEmpty();
+            } finally {
+                release.countDown();
+            }
+            login.get(10, TimeUnit.SECONDS);
+        }
+    }
+
+    @Test
     @DisplayName("SEC-007: um link inexistente não apaga os aparelhos da conta")
     void shouldKeepTheDevicesWhenTheLinkIsNotValid() {
         addDevice(customerId);

@@ -45,14 +45,16 @@ class PasswordResetTokens {
      * statement, in the same order as {@link #reissue} and the login, so they never deadlock. A second statement in the
      * same transaction then forgets the account's known devices (ADR-0004): it reads the database after any login that
      * held the lock, so a new password makes every device new again, including one registered meanwhile. Unknown, used
-     * and expired links give the same empty result and forget nothing.
+     * and expired links give the same empty result, take no lock and forget nothing.
      *
      * @return the customer id, or empty if the link is not valid
      */
     @Transactional
     Optional<UUID> consumeAndSetPassword(String token, String newPasswordHash) {
         String hash = EmailConfirmationTokens.hash(token);
-        Optional<UUID> owner = jdbc.sql("select customer_id from password_reset_tokens where token_hash = :hash")
+        // only a valid link takes the customer lock: a used or expired one must not delay the account's logins
+        Optional<UUID> owner = jdbc.sql("select customer_id from password_reset_tokens where token_hash = :hash"
+                        + " and used_at is null and expires_at > now()")
                 .param("hash", hash)
                 .query(UUID.class)
                 .optional();
