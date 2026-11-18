@@ -1,4 +1,5 @@
 import { Moon, Sun } from "lucide-react";
+import { CHROME_FOCUS_RING } from "@/components/brand/brandTexts";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/lib/theme";
 
@@ -16,8 +17,9 @@ export default function ThemeToggle() {
       type="button"
       variant="ghost"
       size="icon-lg"
-      // 44px touch target and a solid focus ring (the shared Button halo is too faint on Papiro)
-      className="size-11 focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+      // cn merges like tailwind-merge: size-11 (44px touch target) and the solid chrome ring replace the
+      // icon-lg size and the shared Button halo, which is too faint on Papiro
+      className={`size-11 ${CHROME_FOCUS_RING}`}
       aria-label={label}
       title={label}
       onClick={toggle}

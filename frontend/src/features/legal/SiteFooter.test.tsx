@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import SiteFooter from "./SiteFooter";
 
 function renderFooter() {
@@ -38,7 +38,20 @@ test("o rodapé mostra a frase da marca e o ano", () => {
     name: "Informações legais",
   });
   expect(footer).toHaveTextContent("Conhecimento pronto para usar.");
-  expect(footer).toHaveTextContent("© 2026 SapiensIA");
+  expect(footer).toHaveTextContent(`© ${new Date().getFullYear()} SapiensIA`);
+});
+
+test("o ano do rodapé acompanha o ano corrente", () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(2027, 2, 1));
+  try {
+    renderFooter();
+    expect(
+      screen.getByRole("contentinfo", { name: "Informações legais" }),
+    ).toHaveTextContent("© 2027 SapiensIA");
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 test("o rodapé mostra o canal de atendimento como mailto", () => {

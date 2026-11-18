@@ -1,10 +1,9 @@
 import { Link } from "react-router";
-import { BRAND_TEXTS } from "@/components/brand/brandTexts";
+import { BRAND_TEXTS, CHROME_FOCUS_RING } from "@/components/brand/brandTexts";
 import Logo from "@/components/brand/Logo";
 import { LEGAL_DOCUMENTS, LEGAL_TEXTS, SUPPORT_EMAIL } from "./legalTexts";
 
-const LINK =
-  "rounded-sm underline-offset-4 outline-none hover:text-primary hover:underline focus-visible:underline focus-visible:ring-3 focus-visible:ring-ring";
+const LINK = `rounded-sm underline-offset-4 hover:text-primary hover:underline focus-visible:underline ${CHROME_FOCUS_RING}`;
 
 export default function SiteFooter() {
   return (
@@ -33,7 +32,7 @@ export default function SiteFooter() {
             </a>
           </nav>
           <p className="text-xs text-muted-foreground">
-            {BRAND_TEXTS.copyright}
+            {BRAND_TEXTS.copyright(new Date().getFullYear())}
           </p>
         </div>
       </div>

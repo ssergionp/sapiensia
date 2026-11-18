@@ -138,13 +138,11 @@
   html {
     @apply font-sans;
     color-scheme: light;
+    /* browser surfaces take the palette too */
+    caret-color: var(--primary);
   }
   html.dark {
     color-scheme: dark;
-  }
-  /* browser surfaces take the palette too */
-  html {
-    caret-color: var(--primary);
   }
   ::selection {
     background-color: color-mix(in oklab, var(--primary) 25%, transparent);

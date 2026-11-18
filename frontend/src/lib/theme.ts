@@ -7,9 +7,11 @@ export type Theme = "light" | "dark";
 
 const SYSTEM_DARK = "(prefers-color-scheme: dark)";
 
-function readStored(): string | null {
+// Only "light" or "dark" is a choice, as in theme-init.js; anything else means "follow the system"
+function readStored(): Theme | null {
   try {
-    return localStorage.getItem(THEME_STORAGE_KEY);
+    const stored = localStorage.getItem(THEME_STORAGE_KEY);
+    return stored === "light" || stored === "dark" ? stored : null;
   } catch {
     return null;
   }

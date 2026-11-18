@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { BRAND_TEXTS } from "@/components/brand/brandTexts";
+import { BRAND_TEXTS, CHROME_FOCUS_RING } from "@/components/brand/brandTexts";
 import Logo from "@/components/brand/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
 
@@ -11,7 +11,7 @@ export default function SiteHeader() {
         <Link
           to="/"
           aria-label={BRAND_TEXTS.homeLink}
-          className="-mx-1 rounded-md px-1 py-1 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+          className={`-mx-1 rounded-md px-1 py-1 ${CHROME_FOCUS_RING}`}
         >
           <Logo />
         </Link>
