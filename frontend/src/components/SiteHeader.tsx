@@ -11,7 +11,7 @@ export default function SiteHeader() {
         <Link
           to="/"
           aria-label={BRAND_TEXTS.homeLink}
-          className="-mx-1 rounded-md px-1 py-1 outline-none focus-visible:ring-3 focus-visible:ring-ring"
+          className="-mx-1 rounded-md px-1 py-1 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
         >
           <Logo />
         </Link>

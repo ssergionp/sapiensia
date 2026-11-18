@@ -26,11 +26,20 @@ export function LogoMark({ className }: { className?: string }) {
   );
 }
 
-export default function Logo({ className }: { className?: string }) {
+// "sm" keeps the footer visibly quieter than the header
+export default function Logo({ size = "md" }: { size?: "md" | "sm" }) {
+  const small = size === "sm";
   return (
-    <span className={cn("inline-flex items-center gap-2.5", className)}>
-      <LogoMark />
-      <span className="font-heading text-xl font-semibold leading-none tracking-[-0.025em]">
+    <span
+      className={cn("inline-flex items-center", small ? "gap-2" : "gap-2.5")}
+    >
+      <LogoMark className={small ? "size-6" : undefined} />
+      <span
+        className={cn(
+          "font-heading font-semibold leading-none tracking-[-0.025em]",
+          small ? "text-base" : "text-xl",
+        )}
+      >
         Sapiens<span className="italic text-primary">IA</span>
       </span>
     </span>
