@@ -296,9 +296,7 @@ describe("ProductCoverSection", () => {
     // A notice of the section, not an error of the "Imagem da capa" field.
     const field = screen.getByLabelText("Imagem da capa");
     expect(field).not.toHaveAttribute("aria-invalid");
-    expect(field).not.toHaveAccessibleDescription(
-      expect.stringContaining(T4),
-    );
+    expect(field).not.toHaveAccessibleDescription(expect.stringContaining(T4));
     const productGets = () =>
       spy.mock.calls.filter(([url]) => String(url) === PRODUCT_URL);
     await waitFor(() => expect(productGets().length).toBeGreaterThan(1));
