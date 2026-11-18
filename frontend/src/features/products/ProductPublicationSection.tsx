@@ -141,16 +141,34 @@ export default function ProductPublicationSection({
         ) : (
           <>
             {!hasFile && (
-              <p className="text-sm text-muted-foreground">{T.needFile}</p>
+              <p
+                id="publish-need-file"
+                className="text-sm text-muted-foreground"
+              >
+                {T.needFile}
+              </p>
             )}
             {!hasCover && (
-              <p className="text-sm text-muted-foreground">{T.needCover}</p>
+              <p
+                id="publish-need-cover"
+                className="text-sm text-muted-foreground"
+              >
+                {T.needCover}
+              </p>
             )}
             <div>
               <Button
                 ref={publishButtonRef}
                 type="button"
                 disabled={!hasFile || !hasCover || pending}
+                aria-describedby={
+                  [
+                    hasFile ? null : "publish-need-file",
+                    hasCover ? null : "publish-need-cover",
+                  ]
+                    .filter(Boolean)
+                    .join(" ") || undefined
+                }
                 onClick={() =>
                   product.status === "DRAFT"
                     ? setConfirming(true)

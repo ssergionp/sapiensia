@@ -256,6 +256,11 @@ describe("ProductCoverSection", () => {
       ),
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Enviar capa" })).toBeTruthy();
+    expect(screen.getByLabelText("Imagem da capa")).toHaveAccessibleDescription(
+      expect.stringContaining(
+        "Para remover a capa, despublique o Produto. Para trocá-la, envie outra imagem.",
+      ),
+    );
   });
 
   test("Publicado sem capa mostra o aviso de publicado sem capa", async () => {
@@ -266,6 +271,9 @@ describe("ProductCoverSection", () => {
         "Este Produto está publicado sem capa. Ele continua no Catálogo, mas, se for despublicado, só poderá ser publicado de novo depois que você enviar uma capa.",
       ),
     ).toBeTruthy();
+    expect(screen.getByLabelText("Imagem da capa")).toHaveAccessibleDescription(
+      expect.stringContaining("Este Produto está publicado sem capa."),
+    );
   });
 
   test("409 COVER_REQUIRED_WHILE_PUBLISHED mostra o alerta e recarrega o Produto", async () => {
@@ -282,8 +290,14 @@ describe("ProductCoverSection", () => {
     const user = setup();
     await user.click(screen.getByRole("button", { name: "Remover capa" }));
     await user.click(screen.getByRole("button", { name: "Confirmar remoção" }));
-    expect((await screen.findByRole("alert")).textContent).toBe(
-      "Este Produto está publicado e precisa de capa. Para remover a capa, despublique o Produto.",
+    const T4 =
+      "Este Produto está publicado e precisa de capa. Para remover a capa, despublique o Produto.";
+    expect((await screen.findByRole("alert")).textContent).toBe(T4);
+    // A notice of the section, not an error of the "Imagem da capa" field.
+    const field = screen.getByLabelText("Imagem da capa");
+    expect(field).not.toHaveAttribute("aria-invalid");
+    expect(field).not.toHaveAccessibleDescription(
+      expect.stringContaining(T4),
     );
     const productGets = () =>
       spy.mock.calls.filter(([url]) => String(url) === PRODUCT_URL);

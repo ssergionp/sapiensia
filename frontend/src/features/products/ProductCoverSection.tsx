@@ -38,7 +38,8 @@ function describeError(error: unknown): string {
 
 const dimensions = new Intl.NumberFormat("pt-BR");
 
-type Result = { kind: "status" | "alert"; text: string };
+// `section`: an alert about the whole section (the removal was refused), not about the file field.
+type Result = { kind: "status" | "alert"; text: string; section?: boolean };
 
 export default function ProductCoverSection({ product }: { product: Product }) {
   const upload = useUploadProductCover(product.id);
@@ -96,11 +97,18 @@ export default function ProductCoverSection({ product }: { product: Product }) {
     setConfirming(false);
     remove.mutate(undefined, {
       onSuccess: () => setResult({ kind: "status", text: T.removed }),
-      onError: (e) => setResult({ kind: "alert", text: describeError(e) }),
+      onError: (e) =>
+        setResult({
+          kind: "alert",
+          text: describeError(e),
+          section: e instanceof ProductCoverRequiredWhilePublishedError,
+        }),
     });
   }
 
-  const errorId = result?.kind === "alert" ? "cover-error" : undefined;
+  const fieldError = result?.kind === "alert" && !result.section;
+  const errorId = fieldError ? "cover-error" : undefined;
+  const publicationNoteId = published ? "cover-publication-note" : undefined;
 
   return (
     <section
@@ -138,7 +146,12 @@ export default function ProductCoverSection({ product }: { product: Product }) {
               disabled={busy}
               accept="image/png,image/jpeg,image/webp"
               aria-invalid={errorId ? true : undefined}
-              aria-describedby={["cover-help", "cover-help-replace", errorId]
+              aria-describedby={[
+                "cover-help",
+                "cover-help-replace",
+                publicationNoteId,
+                errorId,
+              ]
                 .filter(Boolean)
                 .join(" ")}
             />
@@ -151,7 +164,7 @@ export default function ProductCoverSection({ product }: { product: Product }) {
             >
               {T.helpReplace}
             </p>
-            {result?.kind === "alert" && (
+            {fieldError && (
               <p
                 id="cover-error"
                 role="alert"
@@ -184,8 +197,16 @@ export default function ProductCoverSection({ product }: { product: Product }) {
           </div>
         </form>
         {published && (
-          <p className="text-sm text-muted-foreground">
+          <p
+            id="cover-publication-note"
+            className="text-sm text-muted-foreground"
+          >
             {cover ? T.removeBlocked : T.publishedWithoutCover}
+          </p>
+        )}
+        {result?.kind === "alert" && result.section && (
+          <p role="alert" className="text-sm text-destructive">
+            {result.text}
           </p>
         )}
         {confirming && !published && (
