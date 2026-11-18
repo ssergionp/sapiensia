@@ -35,6 +35,8 @@ digitais correlatos. O produto integra backoffice editorial,
 orquestração de IA, catálogo, checkout, entrega segura, biblioteca do
 cliente, acessibilidade, comunicação e governança operacional.
 
+> **Adiado (ADR-0008, 17/11/2026).** A criação e a revisão de conteúdo por IA dentro da plataforma saem do plano atual: o SapiensIA só publica e vende material pronto (PDF + capa). As partes de IA deste documento ficam preservadas, marcadas como adiadas.
+
 A IA é um componente probabilístico e um fornecedor externo; não deve
 ser tratada como fonte infalível. Conteúdos factuais precisam de fontes
 rastreáveis e controles de qualidade. Categorias de maior impacto — como
@@ -249,24 +251,25 @@ acumulado e política de cancelamento.
 # 5. Requisitos funcionais
 
 ## 5.1 Fábrica editorial e IA
+> **Adiado (ADR-0008, Fase 2, Fábrica de IA).** Os requisitos marcados como adiados (FR-001 a FR-006, FR-012, FR-013, FR-014 e FR-015) não valem para o lançamento e voltam só por uma decisão nova. FR-007 e FR-009 a FR-011 continuam valendo para o material enviado à mão (publicar continua exigindo PDF e capa). FR-008 (tradução) fica com a Fase 3.
 
 | **ID** | **Requisito**           | **Critério resumido**                                                                                  |
 |--------|-------------------------|--------------------------------------------------------------------------------------------------------|
-| FR-001 | Assistente de criação   | Permitir tema, tipo, idioma, público, tom, objetivo, tamanho, estrutura e complexidade.                |
-| FR-002 | Fontes de referência    | Registrar origem, título, data de captura, hash, direitos declarados e estado de processamento.        |
-| FR-003 | Aprovação do sumário    | Editar, aprovar, reordenar, excluir e regenerar seções antes da redação integral.                      |
-| FR-004 | Geração por etapas      | Gerar capítulos individualmente, persistir resultados parciais e retomar após falha.                   |
-| FR-005 | Rastreabilidade factual | Associar afirmações relevantes a fontes/trechos quando disponíveis e sinalizar afirmações sem suporte. |
-| FR-006 | Revisão editorial       | Comentários, comparação de versões, aprovação/rejeição e identidade do aprovador.                      |
+| FR-001 (adiado, ADR-0008) | Assistente de criação   | Permitir tema, tipo, idioma, público, tom, objetivo, tamanho, estrutura e complexidade.                |
+| FR-002 (adiado, ADR-0008) | Fontes de referência    | Registrar origem, título, data de captura, hash, direitos declarados e estado de processamento.        |
+| FR-003 (adiado, ADR-0008) | Aprovação do sumário    | Editar, aprovar, reordenar, excluir e regenerar seções antes da redação integral.                      |
+| FR-004 (adiado, ADR-0008) | Geração por etapas      | Gerar capítulos individualmente, persistir resultados parciais e retomar após falha.                   |
+| FR-005 (adiado, ADR-0008) | Rastreabilidade factual | Associar afirmações relevantes a fontes/trechos quando disponíveis e sinalizar afirmações sem suporte. |
+| FR-006 (adiado, ADR-0008) | Revisão editorial       | Comentários, comparação de versões, aprovação/rejeição e identidade do aprovador.                      |
 | FR-007 | Política por categoria  | Exigir revisão humana proporcional ao risco para saúde, direito, finanças e segurança.                 |
 | FR-008 | Tradução                | Preservar estrutura, glossário, links e referências; permitir revisão humana.                          |
 | FR-009 | Exportação              | Gerar PDF/EPUB com metadados, sumário, links e validações de saída.                                    |
 | FR-010 | Versionamento           | Versões publicadas imutáveis; nova edição gera nova versão e política de acesso definida.              |
 | FR-011 | Publicação              | Bloquear publicação até concluir aprovações e validações requeridas.                                   |
-| FR-012 | Telemetria de IA        | Registrar provedor, modelo, configuração, versão de template, tokens/custo, latência e resultado.      |
-| FR-013 | Cancelamento            | Permitir cancelar quando tecnicamente possível e informar custos já incorridos.                        |
-| FR-014 | Controle de custo       | Limites por tarefa, usuário, dia e mês; alerta, bloqueio ou aprovação ao exceder.                      |
-| FR-015 | Avaliação de qualidade  | Executar testes de factualidade, citações, idioma, estrutura e conteúdo inseguro.                      |
+| FR-012 (adiado, ADR-0008) | Telemetria de IA        | Registrar provedor, modelo, configuração, versão de template, tokens/custo, latência e resultado.      |
+| FR-013 (adiado, ADR-0008) | Cancelamento            | Permitir cancelar quando tecnicamente possível e informar custos já incorridos.                        |
+| FR-014 (adiado, ADR-0008) | Controle de custo       | Limites por tarefa, usuário, dia e mês; alerta, bloqueio ou aprovação ao exceder.                      |
+| FR-015 (adiado, ADR-0008) | Avaliação de qualidade  | Executar testes de factualidade, citações, idioma, estrutura e conteúdo inseguro.                      |
 
 ## 5.2 Catálogo e comércio
 
@@ -486,47 +489,48 @@ abaixo.
   processamento.
 
 ## 6.6 IA generativa e RAG
+> **Adiado (ADR-0008, Fase 2, Fábrica de IA).** SEC-051 a SEC-064 só voltam a valer se a IA voltar ao plano.
 
-- SEC-051 — Tratar prompts, documentos, páginas e resultados de
+- SEC-051 (adiado, ADR-0008) — Tratar prompts, documentos, páginas e resultados de
   ferramentas como entradas não confiáveis.
 
-- SEC-052 — Mitigar prompt injection direta/indireta; instruções dentro
+- SEC-052 (adiado, ADR-0008) — Mitigar prompt injection direta/indireta; instruções dentro
   de documentos não alteram políticas nem permissões.
 
-- SEC-053 — Separar instruções do sistema, usuário e conteúdo
+- SEC-053 (adiado, ADR-0008) — Separar instruções do sistema, usuário e conteúdo
   recuperado; rotular fontes não confiáveis.
 
-- SEC-054 — Não expor segredos, tokens, credenciais ou ferramentas
+- SEC-054 (adiado, ADR-0008) — Não expor segredos, tokens, credenciais ou ferramentas
   irrestritas ao modelo.
 
-- SEC-055 — Ações privilegiadas implementadas em código determinístico e
+- SEC-055 (adiado, ADR-0008) — Ações privilegiadas implementadas em código determinístico e
   protegidas por autorização.
 
-- SEC-056 — Validar saídas antes de renderizar, persistir, executar ou
+- SEC-056 (adiado, ADR-0008) — Validar saídas antes de renderizar, persistir, executar ou
   usar em chamadas subsequentes.
 
-- SEC-057 — Aplicar ACL/tenant no RAG para impedir recuperação de fontes
+- SEC-057 (adiado, ADR-0008) — Aplicar ACL/tenant no RAG para impedir recuperação de fontes
   privadas de terceiros.
 
-- SEC-058 — Registrar origem, versão e hash das fontes; permitir remoção
+- SEC-058 (adiado, ADR-0008) — Registrar origem, versão e hash das fontes; permitir remoção
   e reindexação.
 
-- SEC-059 — Avaliar relevância, suporte de citações, factualidade,
+- SEC-059 (adiado, ADR-0008) — Avaliar relevância, suporte de citações, factualidade,
   conteúdo nocivo e vazamento com testes versionados.
 
-- SEC-060 — Limitar tokens, tempo, chamadas, concorrência e custo;
+- SEC-060 (adiado, ADR-0008) — Limitar tokens, tempo, chamadas, concorrência e custo;
   detectar loops e exaustão de recursos.
 
-- SEC-061 — Não apresentar saída como aconselhamento profissional
+- SEC-061 (adiado, ADR-0008) — Não apresentar saída como aconselhamento profissional
   definitivo; avisos conforme categoria.
 
-- SEC-062 — Exigir revisão humana antes de publicar conteúdo de alto
+- SEC-062 (adiado, ADR-0008) — Exigir revisão humana antes de publicar conteúdo de alto
   impacto.
 
-- SEC-063 — Testar prompt injection, extração de prompt, vazamento,
+- SEC-063 (adiado, ADR-0008) — Testar prompt injection, extração de prompt, vazamento,
   poisoning, citações fabricadas e abuso de ferramentas.
 
-- SEC-064 — Avaliar retenção de prompts, uso para treinamento,
+- SEC-064 (adiado, ADR-0008) — Avaliar retenção de prompts, uso para treinamento,
   residência, limites, disponibilidade e mudança de modelo.
 
 ## 6.7 Auditoria, segredos e cadeia de fornecimento
@@ -565,7 +569,7 @@ do serviço.
 |-----------------------------|------------------------------------------------------------------------|-----------------------------------------------------------------------------|
 | NFR-001 Disponibilidade     | 99,5% mensal para aplicação principal                                  | Medição de SLI, exclusões de manutenção documentadas                        |
 | NFR-002 API                 | p95 \< 500 ms e p99 \< 1,5 s em endpoints comuns sob carga nominal     | Teste de carga com cenário e dataset definidos                              |
-| NFR-003 Geração             | Confirmação da tarefa em até 2 s p95; duração medida por classe        | Benchmark por tamanho, idioma e categoria; 3–5 min não é garantia universal |
+| NFR-003 Geração (adiado, ADR-0008)             | Confirmação da tarefa em até 2 s p95; duração medida por classe        | Benchmark por tamanho, idioma e categoria; 3–5 min não é garantia universal |
 | NFR-004 Resiliência         | Tarefas sobrevivem a reinício; retry e dead-letter operacionais        | Testes de falha e replay                                                    |
 | NFR-005 Acessibilidade      | WCAG 2.2 AA geral; AAA selecionado para critérios prioritários         | Ferramentas automáticas e auditoria manual                                  |
 | NFR-006 Compatibilidade     | Matriz explícita de navegadores/dispositivos                           | Testes de PWA, instalação, atualização e offline                            |
@@ -584,8 +588,8 @@ do serviço.
 |-----------------------------------------------------------------------|---------------------------------------------------|
 | User, Role, Permission, UserSession, MfaCredential                    | Identidade, acesso, sessão e MFA                  |
 | Book, BookVersion, Chapter, ContentBlock, PublicationReview           | Conteúdo editorial, versões e aprovação           |
-| SourceDocument, SourceChunk, SourceCitation, IngestionJob             | Fontes, indexação e proveniência                  |
-| GenerationJob, GenerationAttempt, PromptTemplateVersion, ModelUsage   | Execução de IA, tentativas, configuração e custos |
+| SourceDocument, SourceChunk, SourceCitation, IngestionJob             | (adiado, ADR-0008) Fontes, indexação e proveniência |
+| GenerationJob, GenerationAttempt, PromptTemplateVersion, ModelUsage   | (adiado, ADR-0008) Execução de IA, tentativas, configuração e custos |
 | Product, ProductPrice, Category, Tag, SampleAsset                     | Catálogo e preços                                 |
 | Order, OrderItem, PaymentAttempt, PaymentEvent, Refund, Entitlement   | Pedido, pagamento, reembolso e direito de acesso  |
 | DownloadGrant, GiftInvitation, ReadingProgress, Bookmark, PrivateNote | Entrega e experiência de leitura                  |
@@ -610,6 +614,7 @@ do serviço.
 # 9. Fluxos críticos
 
 ## 9.1 Geração e publicação
+> **Adiado (ADR-0008, Fase 2, Fábrica de IA).** Este fluxo não existe hoje: o Administrador envia o PDF e a capa e publica à mão.
 
 11. Usuário autorizado cria solicitação; backend valida categoria,
     fontes, limites e orçamento.
@@ -663,6 +668,7 @@ do serviço.
 32. Não disponibilizar URLs públicas permanentes para arquivos pagos.
 
 ## 9.4 Atendimento por IA
+> **Adiado (ADR-0008, Fase 4).** Não há atendimento por IA hoje; o suporte é por e-mail (docs/runbooks/suporte-cliente.md).
 
 33. Classificar intenção e risco.
 
@@ -696,7 +702,7 @@ do serviço.
 
 - Acessibilidade automatizada e manual com teclado/leitor de tela.
 
-- Avaliação de IA com conjunto de referência, regressão, factualidade e
+- (Adiado, ADR-0008) Avaliação de IA com conjunto de referência, regressão, factualidade e
   testes adversariais.
 
 - Teste periódico de restauração de backup e reprocessamento.
@@ -713,7 +719,7 @@ do serviço.
 
 - Restauração demonstrada e metas RPO/RTO validadas.
 
-- Limites de custo de IA, quotas e alertas ativos e testados.
+- (Adiado, ADR-0008) Limites de custo de IA, quotas e alertas ativos e testados.
 
 - Consentimento, descadastro e mensagens transacionais testados.
 
@@ -760,7 +766,7 @@ deve ser documentada.
 |-----------------------|-------------------------------------------------------------------------------------------|
 | Aplicação             | Erro, latência p50/p95/p99, disponibilidade por endpoint                                  |
 | Fila                  | Tamanho, idade, tarefas por estado, tentativas, falhas e dead letters                     |
-| IA                    | Tokens, custo por provedor/modelo/tarefa/livro, latência, sucesso e qualidade de citações |
+| IA (adiado, ADR-0008)  | Tokens, custo por provedor/modelo/tarefa/livro, latência, sucesso e qualidade de citações |
 | Pagamentos            | Pendências, eventos rejeitados/duplicados, divergências de conciliação                    |
 | Entrega               | Downloads negados, links expirados e padrões de abuso                                     |
 | Comunicação           | Entregabilidade de e-mail, falhas de mensagens e opt-outs                                 |
@@ -785,7 +791,7 @@ segredos, dados completos de cartão ou CPF completo.
 - Definir política para plágio, difamação, conteúdo ilegal, enganoso ou
   infrator.
 
-- Informar uso de IA conforme política editorial e obrigações
+- (Adiado, ADR-0008) Informar uso de IA conforme política editorial e obrigações
   aplicáveis.
 
 - Estabelecer denúncia, revisão, correção, retirada e contestação.
@@ -824,9 +830,11 @@ global AAA antes de auditoria.
 |-------------------------------|------------------------------------------------------------------------------------------------------------|----------------------------------------------------|
 | Fase 0 — Descoberta           | Modelo comercial, público, volume, ameaças, fornecedores, SLOs e privacidade                               | Decisões pendentes prioritárias aprovadas          |
 | Fase 1 — MVP seguro           | Conta/admin MFA, catálogo, conteúdo manual, um provedor de pagamento, pedidos, biblioteca e entrega segura | Fluxo de compra/entrega e recuperação testados     |
-| Fase 2 — Fábrica de IA        | Fontes/RAG, sumário, capítulos, revisão, quotas, avaliação e versionamento                                 | Qualidade e custo dentro dos limites definidos     |
+| Fase 2 — Fábrica de IA (ADIADA, backlog) | Fontes/RAG, sumário, capítulos, revisão, quotas, avaliação e versionamento                                 | Qualidade e custo dentro dos limites definidos     |
 | Fase 3 — Experiência ampliada | Leitor acessível, notas, áudio, tradução, presentes e recomendações                                        | Acessibilidade e políticas de dados verificadas    |
-| Fase 4 — Escala               | WhatsApp, novos modelos comerciais e otimização                                                            | Métricas demonstram necessidade e sustentabilidade |
+| Fase 4 — Escala (ADIADA, backlog)         | WhatsApp, novos modelos comerciais e otimização                                                            | Métricas demonstram necessidade e sustentabilidade |
+
+> **Adiado (ADR-0008, Fases 2 e 4).** A Fase 2 (Fábrica de IA) e a Fase 4 (Escala: WhatsApp, novos modelos comerciais) ficam no backlog como evolutivas, para depois que o site estiver em produção e gerando renda. A Fase 3 continua no plano, depois do lançamento. A Fase 2 pode voltar como decisão nova.
 
 Não desenvolver todas as fases em paralelo. Priorizar compra e entrega
 confiáveis antes de ampliar automações e complexidade de IA.
@@ -837,8 +845,8 @@ confiáveis antes de ampliar automações e complexidade de IA.
 |-----------------------------------|----------------|-----------------------------------------------------------------------|
 | Liberação indevida de produto     | Crítica        | Webhook autenticado, conciliação, idempotência e entitlement separado |
 | Acesso cruzado entre usuários     | Crítica        | Autorização por objeto e testes negativos                             |
-| Prompt injection/vazamento no RAG | Alta           | Isolamento, menor privilégio, validação e testes adversariais         |
-| Abuso e custo imprevisível de IA  | Alta           | Quotas, budgets, timeouts, limite de tokens e alertas                 |
+| (Adiado, ADR-0008) Prompt injection/vazamento no RAG | Alta           | Isolamento, menor privilégio, validação e testes adversariais         |
+| (Adiado, ADR-0008) Abuso e custo imprevisível de IA  | Alta           | Quotas, budgets, timeouts, limite de tokens e alertas                 |
 | Upload malicioso/renderizador     | Alta           | Quarentena, análise, sandbox e renderização sem rede                  |
 | PII em logs ou marca d'água       | Alta           | Minimização, mascaramento e retenção                                  |
 | Fraude em links de presente       | Alta           | Token aleatório, uso único, expiração e revogação                     |
@@ -881,7 +889,7 @@ conformidade de segurança.
 
 - Recuperação de dados e tarefas foi demonstrada.
 
-- Limites de consumo de IA estão ativos.
+- (Adiado, ADR-0008) Limites de consumo de IA estão ativos.
 
 - Integrações externas têm timeout, retry, observabilidade e fallback
   definidos.
@@ -946,7 +954,7 @@ conformidade de segurança.
 
 - Política de fontes, direitos autorais e revisão editorial aprovada.
 
-- Fornecedor de IA, retenção de dados e limites de custo aprovados.
+- (Adiado, ADR-0008) Fornecedor de IA, retenção de dados e limites de custo aprovados.
 
 - Política de privacidade, retenção e resposta a incidentes revisada.
 
