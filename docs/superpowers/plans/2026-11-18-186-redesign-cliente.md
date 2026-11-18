@@ -128,8 +128,8 @@
   - "Pagamento por Pix, confirmado automaticamente."
   - "Arquivo em PDF, sempre na versão mais recente."
   - "Fica guardado na sua Biblioteca."
-  - "Quer devolver? Veja a [Política de reembolso]."
-  - "Dúvidas? [suporte@sapiensia.app.br]"
+  - "Precisa de reembolso? Veja a [Política de reembolso]."
+  - "Dúvidas? [{SUPPORT_EMAIL}]" — sempre a constante `SUPPORT_EMAIL` de `features/legal/legalTexts.ts`, nunca o endereço escrito à mão (o #181 vai trocá-lo)
 - Nenhum texto existente muda; "Entrar", "Biblioteca", "Meus Pedidos", "Sair", "Saindo…", "Ver o Catálogo", "Criar conta" e "Sair de todos os aparelhos" só mudam de lugar.
 
 ## Seletores de teste que mudam (sem afrouxar)
@@ -142,5 +142,5 @@
 ## Riscos
 
 - O `App.test.tsx` vigia, com um MutationObserver, qualquer link para `/entrar` durante o login; por isso o cabeçalho esconde "Entrar" na própria `/entrar` e não mostra o estado sem sessão enquanto a sessão carrega.
-- O cabeçalho chama a sessão em toda tela do Cliente: é a mesma query da página inicial (sem chamada a mais lá), mas telas como `/termos-de-uso` passam a fazer um GET `/api/sessions/current` que não faziam (com o cache do TanStack Query, uma vez por montagem e ao voltar o foco à aba). Antes de implementar, confiro se esse endpoint tem limite por IP que o e2e possa estourar.
+- O cabeçalho chama a sessão em toda tela do Cliente: é a mesma query da página inicial (sem chamada a mais lá), mas telas como `/termos-de-uso` passam a fazer um GET `/api/sessions/current` que não faziam (com o cache do TanStack Query, uma vez por montagem e ao voltar o foco à aba). O Sérgio conferiu: esse endpoint não tem limite por IP (só pedidos e downloads têm).
 - A etapa 2 é grande (11 telas). Se a revisão ficar pesada, separo a Task 5 numa PR própria, avisando antes.
