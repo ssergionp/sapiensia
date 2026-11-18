@@ -215,6 +215,74 @@ describe("SiteHeader", () => {
     expect(visited).not.toContain("/entrar");
   });
 
+  it("se o Cliente já estiver na página inicial quando o logout terminar, o logout termina e o cabeçalho atualiza", async () => {
+    let finishLogout: () => void = () => {};
+    let signedOut = false;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (init?.method === "DELETE") {
+        await new Promise<void>((resolve) => {
+          finishLogout = resolve;
+        });
+        signedOut = true;
+        return new Response(null, { status: 204 });
+      }
+      if (String(input) === SESSION_URL)
+        return signedOut
+          ? new Response(null, { status: 401 })
+          : new Response(JSON.stringify({ email: "ana@example.com" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            });
+      return new Response(null, { status: 404 });
+    });
+    renderHeader("/pedidos");
+
+    await userEvent.click(
+      await header().findByRole("button", { name: "Sair" }),
+    );
+    // While the request is in flight the visitor goes home by themselves.
+    await userEvent.click(
+      screen.getByRole("link", { name: "SapiensIA — página inicial" }),
+    );
+    finishLogout();
+
+    expect(
+      await header().findByRole("link", { name: "Entrar" }),
+    ).toBeInTheDocument();
+    expect(header().queryByRole("button", { name: /Sa/ })).toBeNull();
+  });
+
+  it("com a sessão já carregada, uma falha ao atualizá-la não mostra Entrar ao lado de Sair", async () => {
+    let answer = 200;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      answer === 200
+        ? new Response(JSON.stringify({ email: "ana@example.com" }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        : new Response(null, { status: 500 }),
+    );
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <SiteHeader />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await header().findByRole("button", { name: "Sair" });
+
+    answer = 500;
+    await client.invalidateQueries({ queryKey: ["session"] });
+
+    expect(
+      await header().findByRole("button", { name: "Sair" }),
+    ).toBeInTheDocument();
+    expect(header().queryByRole("link", { name: "Entrar" })).toBeNull();
+  });
+
   it("se a sessão falhar ao carregar, mostra Entrar e não Sair", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(null, { status: 500 }),

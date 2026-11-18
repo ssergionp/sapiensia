@@ -1,6 +1,5 @@
 import { cn } from "cn";
-import { useEffect, useRef } from "react";
-import { Link, NavLink, useLocation, useNavigate } from "react-router";
+import { Link, NavLink, useLocation } from "react-router";
 import {
   BRAND_TEXTS,
   CHROME_FOCUS_RING,
@@ -9,7 +8,7 @@ import {
 import Logo from "@/components/brand/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { useLogout, useSession } from "@/features/session/hooks";
+import { useLogoutToHome, useSession } from "@/features/session/hooks";
 import { LOGOUT_ERROR } from "@/features/session/messages";
 
 const NAV_TEXTS = {
@@ -53,27 +52,14 @@ export default function SiteHeader() {
 
 function CustomerNavigation({ pathname }: { pathname: string }) {
   const session = useSession();
-  const navigate = useNavigate();
-  // The session refresh waits until the home page is on screen (see useLogout).
-  const arrivedHome = useRef<(() => void) | null>(null);
-  useEffect(() => {
-    if (pathname === "/") {
-      arrivedHome.current?.();
-      arrivedHome.current = null;
-    }
-  }, [pathname]);
-  const logout = useLogout(() => {
-    if (pathname === "/") return;
-    navigate("/");
-    return new Promise<void>((resolve) => {
-      arrivedHome.current = resolve;
-    });
-  });
+  const logout = useLogoutToHome();
   const signedIn = Boolean(session.data);
   // While the session loads nothing account-related shows, so the header never flashes the signed-out
   // state; if it fails to load, "Entrar" is the way out. On /entrar itself the link would only repeat the page.
   const showSignIn =
-    (session.data === null || session.isError) && pathname !== "/entrar";
+    (session.data === null ||
+      (session.isError && session.data === undefined)) &&
+    pathname !== "/entrar";
 
   return (
     <>
