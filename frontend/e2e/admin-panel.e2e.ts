@@ -10,7 +10,7 @@ import {
   test,
 } from "@playwright/test";
 import { expectNoA11yViolations } from "./a11y";
-import { buildPng, buildWebpWithExif } from "./image";
+import { buildPng, buildWebpWithExif, uploadCover } from "./image";
 import {
   messagesFor,
   registerAndConfirm,
@@ -796,6 +796,13 @@ test("FR-011 FR-016 FR-018 SEC-008 SEC-010 FR-010: o Administrador publica, desp
   await page.getByRole("button", { name: "Enviar arquivo" }).click();
   await expect(page.getByText("Arquivo enviado.")).toBeVisible();
 
+  // With the file but without a Capa, publishing is still disabled and the hint asks for the Capa.
+  await expect(publish).toBeDisabled();
+  await expect(
+    page.getByText("Envie a Capa do produto para poder publicar."),
+  ).toBeVisible();
+  await uploadCover(page);
+
   // Publish with the inline confirmation.
   await expect(publish).toBeEnabled();
   await publish.click();
@@ -985,6 +992,28 @@ test("FR-016 SEC-017 SEC-010: capa enviada no painel aparece no Catálogo e capa
     });
     await page.getByRole("button", { name: "Enviar arquivo" }).click();
     await expect(page.getByText("Arquivo enviado.")).toBeVisible();
+    // The Product is still a Rascunho: its Capa can be removed (with the confirmation) and sent again.
+    await page.getByRole("button", { name: "Remover capa" }).click();
+    await expect(
+      page.getByText(
+        "Remover a capa deste Produto? Sem capa, ele não pode ser publicado.",
+      ),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Confirmar remoção" }).click();
+    await expect(page.getByText("Capa removida.")).toBeVisible();
+    await expect(
+      page.getByRole("img", { name: `Capa de ${title}` }),
+    ).toHaveCount(0);
+    expect((await visitor.request.get(coverUrl)).status()).toBe(404);
+    await page.getByLabel("Imagem da capa").setInputFiles({
+      name: "capa.webp",
+      mimeType: "image/webp",
+      buffer: buildWebpWithExif(),
+    });
+    await page.getByRole("button", { name: "Enviar capa" }).click();
+    await expect(page.getByText("Capa enviada.")).toBeVisible();
+    await expect.poll(() => loaded(preview)).toBeGreaterThan(0);
+
     await page.getByRole("button", { name: "Publicar", exact: true }).click();
     await page.getByRole("button", { name: "Confirmar publicação" }).click();
     await expect(page.getByText("Produto publicado.")).toBeVisible();
@@ -998,6 +1027,7 @@ test("FR-016 SEC-017 SEC-010: capa enviada no painel aparece no Catálogo e capa
     expect(served.headers()["content-type"]).toBe("image/webp");
     expect(served.headers()["x-content-type-options"]).toBe("nosniff");
     expect((await served.body()).includes(Buffer.from("Exif"))).toBe(false);
+    const versionBefore = await card.getAttribute("src");
 
     // 4. Replace with a 12x18 PNG; the Product page shows the new one.
     await page.getByLabel("Imagem da capa").setInputFiles({
@@ -1010,13 +1040,45 @@ test("FR-016 SEC-017 SEC-010: capa enviada no painel aparece no Catálogo e capa
     await visitor.goto(`/catalogo/${productId}`);
     const productImg = visitor.getByRole("img", { name: `Capa de ${title}` });
     await expect.poll(() => loaded(productImg)).toBe(12);
+    // Replacing the Capa of a published Product is allowed: the public Capa gets a new version and still answers 200.
+    const versionAfter = await productImg.getAttribute("src");
+    expect(versionAfter).not.toBe(versionBefore);
+    expect((await visitor.request.get(coverUrl)).status()).toBe(200);
 
-    // 5. Remove (with confirmation); the Catálogo shows the neutral frame and the route answers 404.
+    // 5. While published, "Remover capa" is gone and the panel explains why; a direct DELETE is refused
+    // and the public Capa stays.
+    await expect(
+      page.getByRole("button", { name: "Remover capa" }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByText(
+        "Para remover a capa, despublique o Produto. Para trocá-la, envie outra imagem.",
+      ),
+    ).toBeVisible();
+    const xsrf = (await page.context().cookies()).find(
+      (c) => c.name === "XSRF-TOKEN",
+    );
+    if (xsrf === undefined) {
+      throw new Error("The XSRF-TOKEN cookie is missing.");
+    }
+    const refused = await page.request.delete(
+      `/api/admin/products/${productId}/cover`,
+      { headers: { "X-XSRF-TOKEN": decodeURIComponent(xsrf.value) } },
+    );
+    expect(refused.status()).toBe(409);
+    expect(await refused.json()).toEqual({
+      errors: { cover: "COVER_REQUIRED_WHILE_PUBLISHED" },
+    });
+    expect((await visitor.request.get(coverUrl)).status()).toBe(200);
+
+    // 6. After unpublishing, remove (with confirmation); the Catálogo shows the neutral frame and the route answers 404.
+    await page.getByRole("button", { name: "Despublicar" }).click();
+    await expect(page.getByText("Produto despublicado.")).toBeVisible();
     await page.getByRole("button", { name: "Remover capa" }).click();
     await page.getByRole("button", { name: "Confirmar remoção" }).click();
     await expect(page.getByText("Capa removida.")).toBeVisible();
     await visitor.goto("/catalogo");
-    await expect(visitor.getByRole("link", { name: title })).toBeVisible();
+    await expect(visitor.getByText("Carregando…")).toHaveCount(0);
     await expect(
       visitor.getByRole("img", { name: `Capa de ${title}` }),
     ).toHaveCount(0);
@@ -1112,6 +1174,7 @@ test("FR-019 SEC-012 SEC-033 SEC-011: o Visitante é levado a entrar, volta ao P
   });
   await page.getByRole("button", { name: "Enviar arquivo" }).click();
   await expect(page.getByText("Arquivo enviado.")).toBeVisible();
+  await uploadCover(page);
   await page.getByRole("button", { name: "Publicar", exact: true }).click();
   await page.getByRole("button", { name: "Confirmar publicação" }).click();
   await expect(page.getByText("Produto publicado.")).toBeVisible();
@@ -1355,6 +1418,7 @@ test("FR-020 FR-021 FR-024 SEC-011 SEC-025 SEC-026 SEC-027 SEC-031: o pagamento 
   });
   await page.getByRole("button", { name: "Enviar arquivo" }).click();
   await expect(page.getByText("Arquivo enviado.")).toBeVisible();
+  await uploadCover(page);
   await page.getByRole("button", { name: "Publicar", exact: true }).click();
   await page.getByRole("button", { name: "Confirmar publicação" }).click();
   await expect(page.getByText("Produto publicado.")).toBeVisible();
@@ -1584,6 +1648,7 @@ test("FR-025 FR-029 SEC-011: a Biblioteca mostra o Produto comprado, mesmo despu
   });
   await page.getByRole("button", { name: "Enviar arquivo" }).click();
   await expect(page.getByText("Arquivo enviado.")).toBeVisible();
+  await uploadCover(page);
   await page.getByRole("button", { name: "Publicar", exact: true }).click();
   await page.getByRole("button", { name: "Confirmar publicação" }).click();
   await expect(page.getByText("Produto publicado.")).toBeVisible();
@@ -1710,6 +1775,7 @@ test("NFR-005 FR-034 SEC-010 SEC-011 SEC-015: o Cliente baixa o Arquivo do Produ
   });
   await page.getByRole("button", { name: "Enviar arquivo" }).click();
   await expect(page.getByText("Arquivo enviado.")).toBeVisible();
+  await uploadCover(page);
   await page.getByRole("button", { name: "Publicar", exact: true }).click();
   await page.getByRole("button", { name: "Confirmar publicação" }).click();
   await expect(page.getByText("Produto publicado.")).toBeVisible();
@@ -1923,6 +1989,7 @@ test("NFR-005 FR-016 FR-019 FR-021 FR-024 FR-029 FR-033 FR-034: jornada completa
   });
   await page.getByRole("button", { name: "Enviar arquivo" }).click();
   await expect(page.getByText("Arquivo enviado.")).toBeVisible();
+  await uploadCover(page);
   await page.getByRole("button", { name: "Publicar", exact: true }).click();
   await page.getByRole("button", { name: "Confirmar publicação" }).click();
   await expect(page.getByText("Produto publicado.")).toBeVisible();
@@ -2103,6 +2170,7 @@ test("FR-023: estorno — o Produto some da Biblioteca e o Pedido aparece como R
   });
   await page.getByRole("button", { name: "Enviar arquivo" }).click();
   await expect(page.getByText("Arquivo enviado.")).toBeVisible();
+  await uploadCover(page);
   await page.getByRole("button", { name: "Publicar", exact: true }).click();
   await page.getByRole("button", { name: "Confirmar publicação" }).click();
   await expect(page.getByText("Produto publicado.")).toBeVisible();
