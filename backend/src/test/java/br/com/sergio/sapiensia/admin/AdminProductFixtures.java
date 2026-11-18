@@ -71,6 +71,23 @@ final class AdminProductFixtures {
         return id;
     }
 
+    /** Inserts a DRAFT Product with a file row and a Capa row (no objects in the storage) and returns its id. */
+    static UUID insertProductWithFileAndCover(JdbcTemplate jdbc) {
+        UUID id = insertProductWithFile(jdbc);
+        addCover(jdbc, id);
+        return id;
+    }
+
+    /** Gives the Product a Capa row (a valid PNG record; no object in the storage). */
+    static void addCover(JdbcTemplate jdbc, UUID productId) {
+        jdbc.update(
+                "insert into product_covers (product_id, object_key, media_type, size_bytes, width, height, version)"
+                        + " values (?, ?, 'image/png', 1000, 600, 800, ?)",
+                productId,
+                "covers/" + productId + "/" + UUID.randomUUID() + ".png",
+                "0123456789abcdef");
+    }
+
     /** Puts the Product in PUBLISHED straight in the database, keeping an earlier first publication date. */
     static void publish(JdbcTemplate jdbc, UUID id) {
         jdbc.update(

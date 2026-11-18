@@ -64,7 +64,7 @@ class AdminProductPublicationCapabilityTest {
     void setUp() {
         clearState();
         account = AdminProductFixtures.insertAdmin(jdbc, passwordEncoder, cipher);
-        existing = AdminProductFixtures.insertProductWithFile(jdbc);
+        existing = AdminProductFixtures.insertProductWithFileAndCover(jdbc);
     }
 
     @AfterEach
@@ -73,6 +73,7 @@ class AdminProductPublicationCapabilityTest {
     }
 
     private void clearState() {
+        jdbc.update("delete from product_covers");
         jdbc.update("delete from product_files");
         jdbc.update("delete from products");
     }

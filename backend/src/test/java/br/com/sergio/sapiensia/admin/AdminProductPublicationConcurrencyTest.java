@@ -58,6 +58,7 @@ class AdminProductPublicationConcurrencyTest {
 
     @BeforeEach
     void setUp() throws Exception {
+        jdbc.update("delete from product_covers");
         jdbc.update("delete from product_files");
         jdbc.update("delete from products");
         AdminProductFixtures.Admin account = AdminProductFixtures.insertAdmin(jdbc, passwordEncoder, cipher);
@@ -71,6 +72,7 @@ class AdminProductPublicationConcurrencyTest {
     @DisplayName("FR-011: publicar espera a troca de arquivo em andamento e vê o arquivo gravado")
     void shouldWaitForTheFileSwapInProgressAndSeeTheSavedFile() throws Exception {
         UUID id = AdminProductFixtures.insertProduct(jdbc);
+        AdminProductFixtures.addCover(jdbc, id);
         CompletableFuture<HttpResponse<String>> publishing;
         try (Connection swap = dataSource.getConnection()) {
             swap.setAutoCommit(false);

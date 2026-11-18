@@ -49,6 +49,7 @@ class AdminProductPublicationTest {
 
     @BeforeEach
     void setUp() throws Exception {
+        jdbc.update("delete from product_covers");
         jdbc.update("delete from product_files");
         jdbc.update("delete from products");
         AdminProductFixtures.Admin account = AdminProductFixtures.insertAdmin(jdbc, passwordEncoder, cipher);
@@ -83,6 +84,7 @@ class AdminProductPublicationTest {
     @DisplayName("FR-011: publicar sem Arquivo do produto é recusado e nada muda")
     void shouldRefusePublishingWithoutAFile() throws Exception {
         UUID id = AdminProductFixtures.insertProduct(jdbc);
+        AdminProductFixtures.addCover(jdbc, id);
 
         HttpResponse<String> response = admin.put(path(id), "");
 
@@ -100,9 +102,70 @@ class AdminProductPublicationTest {
     }
 
     @Test
+    @DisplayName("FR-011: recusa publicar um Rascunho sem capa")
+    void shouldRefusePublishingWithoutACover() throws Exception {
+        UUID id = AdminProductFixtures.insertProductWithFile(jdbc);
+
+        HttpResponse<String> response = admin.put(path(id), "");
+
+        assertThat(response.statusCode()).isEqualTo(409);
+        assertThat((String) JsonPath.read(response.body(), "$.errors.cover")).isEqualTo("COVER_REQUIRED");
+        assertThat((Map<String, Object>) JsonPath.read(response.body(), "$.errors"))
+                .doesNotContainKey("file");
+        assertThat(status(id)).isEqualTo("DRAFT");
+        List<Map<String, Object>> rows = rowsOf(response);
+        assertThat(rows).hasSize(1);
+        assertThat(rows.getFirst())
+                .containsEntry("action", "ADMIN_PRODUCT_PUBLISHED")
+                .containsEntry("result", "FAILURE")
+                .containsEntry("object_id", id);
+    }
+
+    @Test
+    @DisplayName("FR-011: sem arquivo e sem capa, a recusa traz os dois motivos")
+    void shouldReportBothReasonsWithoutFileAndCover() throws Exception {
+        UUID id = AdminProductFixtures.insertProduct(jdbc);
+
+        HttpResponse<String> response = admin.put(path(id), "");
+
+        assertThat(response.statusCode()).isEqualTo(409);
+        assertThat((String) JsonPath.read(response.body(), "$.errors.file")).isEqualTo("FILE_REQUIRED");
+        assertThat((String) JsonPath.read(response.body(), "$.errors.cover")).isEqualTo("COVER_REQUIRED");
+        assertThat(status(id)).isEqualTo("DRAFT");
+        assertThat(rowsOf(response)).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("FR-011: Produto despublicado sem capa não é publicado de novo")
+    void shouldNotRepublishAnUnpublishedProductWithoutACover() throws Exception {
+        UUID id = AdminProductFixtures.insertProductWithFile(jdbc);
+        jdbc.update("update products set status = 'UNPUBLISHED', first_published_at = now() where id = ?", id);
+
+        HttpResponse<String> response = admin.put(path(id), "");
+
+        assertThat(response.statusCode()).isEqualTo(409);
+        assertThat((String) JsonPath.read(response.body(), "$.errors.cover")).isEqualTo("COVER_REQUIRED");
+        assertThat(status(id)).isEqualTo("UNPUBLISHED");
+    }
+
+    @Test
+    @DisplayName("FR-011: Produto já publicado sem capa continua publicado, mas publicar de novo é recusado")
+    void shouldKeepAPublishedProductWithoutCoverPublished() throws Exception {
+        UUID id = AdminProductFixtures.insertProductWithFile(jdbc);
+        AdminProductFixtures.publish(jdbc, id);
+
+        HttpResponse<String> response = admin.put(path(id), "");
+
+        assertThat(response.statusCode()).isEqualTo(409);
+        assertThat((String) JsonPath.read(response.body(), "$.errors.cover")).isEqualTo("COVER_REQUIRED");
+        assertThat(status(id)).isEqualTo("PUBLISHED");
+        assertThat(new AdminBrowser(port).get("/api/products").body()).contains(id.toString());
+    }
+
+    @Test
     @DisplayName("FR-011 FR-016: publicar com arquivo deixa o Produto publicado")
     void shouldPublishAProductWithAFile() throws Exception {
-        UUID id = AdminProductFixtures.insertProductWithFile(jdbc);
+        UUID id = AdminProductFixtures.insertProductWithFileAndCover(jdbc);
 
         HttpResponse<String> response = admin.put(path(id), "");
 
@@ -136,7 +199,7 @@ class AdminProductPublicationTest {
     @Test
     @DisplayName("FR-016: despublicar tira o Produto de publicado e mantém a data da primeira publicação")
     void shouldUnpublishAndKeepTheFirstPublicationDate() throws Exception {
-        UUID id = AdminProductFixtures.insertProductWithFile(jdbc);
+        UUID id = AdminProductFixtures.insertProductWithFileAndCover(jdbc);
         String first = JsonPath.read(admin.put(path(id), "").body(), "$.firstPublishedAt");
 
         HttpResponse<String> response = admin.delete(path(id));
@@ -155,7 +218,7 @@ class AdminProductPublicationTest {
     @Test
     @DisplayName("FR-016: publicar de novo mantém a data da primeira publicação")
     void shouldKeepTheFirstPublicationDateWhenPublishingAgain() throws Exception {
-        UUID id = AdminProductFixtures.insertProductWithFile(jdbc);
+        UUID id = AdminProductFixtures.insertProductWithFileAndCover(jdbc);
         String first = JsonPath.read(admin.put(path(id), "").body(), "$.firstPublishedAt");
         assertThat(admin.delete(path(id)).statusCode()).isEqualTo(200);
 
@@ -170,7 +233,7 @@ class AdminProductPublicationTest {
     @Test
     @DisplayName("SEC-065: publicar ou despublicar duas vezes responde 200 e audita uma vez")
     void shouldAnswer200AndAuditOnceWhenRepeated() throws Exception {
-        UUID id = AdminProductFixtures.insertProductWithFile(jdbc);
+        UUID id = AdminProductFixtures.insertProductWithFileAndCover(jdbc);
 
         HttpResponse<String> firstPut = admin.put(path(id), "");
         HttpResponse<String> secondPut = admin.put(path(id), "");
@@ -194,7 +257,7 @@ class AdminProductPublicationTest {
     @Test
     @DisplayName("FR-016: despublicar um rascunho não muda nada nem audita")
     void shouldNotChangeADraftWhenUnpublishing() throws Exception {
-        UUID id = AdminProductFixtures.insertProductWithFile(jdbc);
+        UUID id = AdminProductFixtures.insertProductWithFileAndCover(jdbc);
 
         HttpResponse<String> response = admin.delete(path(id));
 
@@ -206,7 +269,7 @@ class AdminProductPublicationTest {
     @Test
     @DisplayName("FR-016: publicar não muda a versão do Produto")
     void shouldNotBumpTheVersion() throws Exception {
-        UUID id = AdminProductFixtures.insertProductWithFile(jdbc);
+        UUID id = AdminProductFixtures.insertProductWithFileAndCover(jdbc);
 
         HttpResponse<String> response = admin.put(path(id), "");
 
@@ -218,7 +281,7 @@ class AdminProductPublicationTest {
     @DisplayName("FR-016 SEC-010: a published Product shows in the public catalog and detail; unpublished it leaves"
             + " both with 404; republished it comes back")
     void shouldFollowThePublicationInThePublicCatalog() throws Exception {
-        UUID id = AdminProductFixtures.insertProductWithFile(jdbc);
+        UUID id = AdminProductFixtures.insertProductWithFileAndCover(jdbc);
         AdminBrowser visitor = new AdminBrowser(port);
 
         assertThat(admin.put(path(id), "").statusCode()).isEqualTo(200);

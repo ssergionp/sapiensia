@@ -112,6 +112,7 @@ class AdminProductFileUploadTest {
         for (String key : storage.keys()) {
             storage.delete(key);
         }
+        jdbc.update("delete from product_covers");
         jdbc.update("delete from product_files");
         jdbc.update("delete from products");
     }
@@ -435,7 +436,7 @@ class AdminProductFileUploadTest {
     @Test
     @DisplayName("SEC-008: depois de publicar e despublicar, trocar o arquivo sem reautenticação recente é recusado")
     void shouldRefuseReplacingTheFileAfterPublishAndUnpublishWithoutRecentReauthentication() throws Exception {
-        productId = AdminProductFixtures.insertProductWithFile(jdbc);
+        productId = AdminProductFixtures.insertProductWithFileAndCover(jdbc);
         String before = currentKey();
         assertThat(admin.put(publicationPath(), "").statusCode()).isEqualTo(200);
         assertThat(admin.delete(publicationPath()).statusCode()).isEqualTo(200);
@@ -454,7 +455,7 @@ class AdminProductFileUploadTest {
     @Test
     @DisplayName("SEC-008: Produto publicado não aceita arquivo novo sem reautenticação recente")
     void shouldRefuseANewFileForAPublishedProductWithoutRecentReauthentication() throws Exception {
-        productId = AdminProductFixtures.insertProductWithFile(jdbc);
+        productId = AdminProductFixtures.insertProductWithFileAndCover(jdbc);
         String before = currentKey();
         assertThat(admin.put(publicationPath(), "").statusCode()).isEqualTo(200);
         clock.advance(Duration.ofMinutes(5).plusSeconds(1));
@@ -470,7 +471,7 @@ class AdminProductFileUploadTest {
     @Test
     @DisplayName("SEC-008: a publicação que entra antes da trava faz a troca em andamento ser recusada")
     void shouldRefuseAReplacementWhenThePublicationWinsTheLock() throws Exception {
-        productId = AdminProductFixtures.insertProductWithFile(jdbc);
+        productId = AdminProductFixtures.insertProductWithFileAndCover(jdbc);
         String before = currentKey();
         SwitchableProductFileStorage.Pause pause = storage.pausePuts();
         CompletableFuture<HttpResponse<String>> replacement = CompletableFuture.supplyAsync(() -> {
