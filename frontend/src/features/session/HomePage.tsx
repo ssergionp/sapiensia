@@ -1,7 +1,7 @@
 import { cn } from "cn";
 import type { ReactNode } from "react";
 import { Link } from "react-router";
-import { BRAND_TEXTS } from "@/components/brand/brandTexts";
+import { BRAND_TEXTS, splitTagline } from "@/components/brand/brandTexts";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { CATALOG_TEXTS } from "@/features/catalog/messages";
 import { DEFAULT_TITLE, useDocumentTitle } from "@/lib/useDocumentTitle";
@@ -13,15 +13,8 @@ const LOGOUT_ALL_ERROR =
   "Não foi possível sair de todos os aparelhos agora. Tente novamente.";
 const LOGOUT_ALL_SUCCESS = "Você saiu de todos os aparelhos.";
 
-// The tagline is the hero title; "para usar." is set apart in italic and the action color (DESIGN.md).
+// The tagline is the hero title; the last two words are set apart in italic and the action color (DESIGN.md).
 const [TAGLINE_START, TAGLINE_END] = splitTagline(BRAND_TEXTS.tagline);
-
-function splitTagline(tagline: string): [string, string] {
-  const end = "para usar.";
-  return tagline.endsWith(end)
-    ? [tagline.slice(0, -end.length), end]
-    : [tagline, ""];
-}
 
 const ACTION = "h-11 px-5 text-base";
 

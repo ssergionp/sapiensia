@@ -6,6 +6,14 @@ export const BRAND_TEXTS = {
   copyright: (year: number) => `© ${year} SapiensIA`,
 } as const;
 
+// The hero title sets the last two words of the tagline apart (italic, action color); a tagline of
+// fewer than three words is shown whole. Returns [start, highlight].
+export function splitTagline(tagline: string): [string, string] {
+  const words = tagline.split(" ");
+  if (words.length < 3) return [tagline, ""];
+  return [`${words.slice(0, -2).join(" ")} `, words.slice(-2).join(" ")];
+}
+
 // Solid ring with a gap in the action color, for the site chrome (header and footer sit on bg-card)
 export const CHROME_FOCUS_RING =
   "outline-none focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card";
