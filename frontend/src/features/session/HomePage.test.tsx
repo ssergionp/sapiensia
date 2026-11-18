@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, test, vi } from "vitest";
+import SiteHeader from "@/components/SiteHeader";
 import HomePage from "./HomePage";
 
 function newClient() {
@@ -11,10 +12,13 @@ function newClient() {
   });
 }
 
+// The home screen as the visitor sees it: since #186 stage 2 the navigation links and "Sair" live in the
+// site header, so the header is rendered too and these tests keep proving what the screen offers.
 function renderPage(client = newClient()) {
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
+        <SiteHeader />
         <HomePage />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -346,6 +350,51 @@ describe("HomePage", () => {
     expect(
       await screen.findByRole("button", { name: "Saindo…" }),
     ).toBeDisabled();
+  });
+
+  test("o título da página é a frase da marca, com e sem sessão", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(401));
+    const first = renderPage();
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "Conhecimento pronto para usar.",
+      }),
+    ).toBeInTheDocument();
+    first.unmount();
+
+    fetchSpy.mockResolvedValue(jsonResponse(200, { email: "ana@example.com" }));
+    renderPage();
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "Conhecimento pronto para usar.",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  test("o corpo da página não repete os links e o Sair do cabeçalho", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(401));
+    const first = renderPage();
+    const anonymousMain = within(await screen.findByRole("main"));
+    await anonymousMain.findByRole("link", { name: "Criar conta" });
+    expect(anonymousMain.queryByRole("link", { name: "Entrar" })).toBeNull();
+    first.unmount();
+
+    fetchSpy.mockResolvedValue(jsonResponse(200, { email: "ana@example.com" }));
+    renderPage();
+    await screen.findByText(signedInAs("ana@example.com"));
+    const main = within(screen.getByRole("main"));
+    expect(main.queryByRole("link", { name: "Biblioteca" })).toBeNull();
+    expect(main.queryByRole("link", { name: "Meus Pedidos" })).toBeNull();
+    expect(main.queryByRole("button", { name: "Sair" })).toBeNull();
+    expect(
+      main.getByRole("button", { name: "Sair de todos os aparelhos" }),
+    ).toBeInTheDocument();
   });
 
   test("the tab title is SapiensIA while loading, signed out and signed in", async () => {
