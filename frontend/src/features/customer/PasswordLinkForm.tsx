@@ -91,13 +91,13 @@ function PasswordLinkContent({
   let content: ReactNode;
   if (mutation.isSuccess) {
     content = (
-      <p role="status" className="mt-4">
+      <p role="status" className="mt-4 rounded-lg bg-muted p-4">
         {successContent}
       </p>
     );
   } else if (!token || tokenRejected) {
     content = (
-      <p role="alert" className="mt-4">
+      <p role="alert" className="mt-4 rounded-lg bg-destructive/10 p-4">
         {invalidLinkContent}
       </p>
     );
@@ -139,7 +139,11 @@ function PasswordLinkContent({
                 : SAVE_UNEXPECTED_ERROR}
             </p>
           )}
-          <Button type="submit" disabled={mutation.isPending}>
+          <Button
+            type="submit"
+            className="mt-2 h-11 w-full text-base"
+            disabled={mutation.isPending}
+          >
             {mutation.isPending ? pendingLabel : submitLabel}
           </Button>
         </form>
@@ -148,8 +152,8 @@ function PasswordLinkContent({
   }
 
   return (
-    <main className="mx-auto max-w-md p-8">
-      <h1 className="text-2xl font-bold">{title}</h1>
+    <main className="auth-panel">
+      <h1 className="text-3xl">{title}</h1>
       {content}
     </main>
   );

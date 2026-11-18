@@ -47,10 +47,10 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="mx-auto max-w-md p-8">
-      <h1 className="text-2xl font-bold">Entrar</h1>
+    <main className="auth-panel">
+      <h1 className="text-3xl">Entrar</h1>
       {purchaseWaiting && (
-        <p role="status" className="mt-4 text-sm">
+        <p role="status" className="mt-4 rounded-lg bg-muted p-4 text-sm">
           {LOGIN_PURCHASE_NOTICE}
         </p>
       )}
@@ -104,17 +104,21 @@ export default function LoginPage() {
             {failure}
           </p>
         )}
-        <Button type="submit" disabled={mutation.isPending}>
+        <Button
+          type="submit"
+          className="mt-2 h-11 w-full text-base"
+          disabled={mutation.isPending}
+        >
           {mutation.isPending ? "Entrando…" : "Entrar"}
         </Button>
       </form>
       <p className="mt-4 text-sm">
-        <Link to="/esqueci-senha" className="underline">
+        <Link to="/esqueci-senha" className="text-link">
           Esqueci minha senha
         </Link>
       </p>
       <p className="mt-2 text-sm">
-        <Link to="/cadastro" className="underline">
+        <Link to="/cadastro" className="text-link">
           Ainda não tem conta? Criar conta
         </Link>
       </p>

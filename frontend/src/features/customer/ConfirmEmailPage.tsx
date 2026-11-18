@@ -68,15 +68,15 @@ export default function ConfirmEmailPage() {
   let content: React.ReactNode;
   if (mutation.isSuccess) {
     content = (
-      <p role="status" className="mt-4">
+      <p role="status" className="mt-4 rounded-lg bg-muted p-4">
         E-mail confirmado. Agora você já pode entrar na sua conta.
       </p>
     );
   } else if (tokenLocked) {
     content = (
-      <p role="alert" className="mt-4">
+      <p role="alert" className="mt-4 rounded-lg bg-destructive/10 p-4">
         Você errou a senha 5 vezes e, por segurança, este link foi cancelado.{" "}
-        <Link to="/cadastro" className="underline">
+        <Link to="/cadastro" className="text-link">
           Faça o cadastro de novo
         </Link>{" "}
         para receber outro link.
@@ -84,7 +84,7 @@ export default function ConfirmEmailPage() {
     );
   } else if (!token || tokenRejected) {
     content = (
-      <p role="alert" className="mt-4">
+      <p role="alert" className="mt-4 rounded-lg bg-destructive/10 p-4">
         {INVALID_LINK}
       </p>
     );
@@ -127,7 +127,11 @@ export default function ConfirmEmailPage() {
                 : UNEXPECTED_ERROR}
             </p>
           )}
-          <Button type="submit" disabled={mutation.isPending}>
+          <Button
+            type="submit"
+            className="mt-2 h-11 w-full text-base"
+            disabled={mutation.isPending}
+          >
             {mutation.isPending ? "Confirmando…" : "Confirmar e-mail"}
           </Button>
         </form>
@@ -136,8 +140,8 @@ export default function ConfirmEmailPage() {
   }
 
   return (
-    <main className="mx-auto max-w-md p-8">
-      <h1 className="text-2xl font-bold">Confirmação de e-mail</h1>
+    <main className="auth-panel">
+      <h1 className="text-3xl">Confirmação de e-mail</h1>
       {content}
     </main>
   );

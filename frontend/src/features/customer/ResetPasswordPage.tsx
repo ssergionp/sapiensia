@@ -15,7 +15,7 @@ export default function ResetPasswordPage() {
         <>
           Senha alterada. Por segurança, você saiu de todos os aparelhos. Entre
           com a nova senha.{" "}
-          <Link to="/entrar" className="underline">
+          <Link to="/entrar" className="text-link">
             Entrar
           </Link>
         </>
@@ -23,7 +23,7 @@ export default function ResetPasswordPage() {
       invalidLinkContent={
         <>
           Este link venceu ou já foi usado. Peça um novo link em "
-          <Link to="/esqueci-senha" className="underline">
+          <Link to="/esqueci-senha" className="text-link">
             Esqueci minha senha
           </Link>
           ".

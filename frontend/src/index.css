@@ -139,6 +139,29 @@
   }
 }
 
+/* Centered card for the account screens (sign in, sign up, password) */
+@utility auth-panel {
+  margin: --spacing(10) auto;
+  width: calc(100% - --spacing(8));
+  max-width: var(--container-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background-color: var(--card);
+  padding: --spacing(6);
+  @variant sm {
+    margin-block: --spacing(16);
+    padding: --spacing(10);
+  }
+}
+
+/* A link inside running text: action color and underline, so it never relies on color alone */
+@utility text-link {
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration-line: underline;
+  text-underline-offset: 0.2em;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
