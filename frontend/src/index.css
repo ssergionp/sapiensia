@@ -139,7 +139,7 @@
   }
 }
 
-/* Centered card for the account screens (sign in, sign up, password) */
+/* Centered card: account screens (sign in, sign up, password) and the order / Pix screen */
 @utility auth-panel {
   margin: --spacing(10) auto;
   width: calc(100% - --spacing(8));

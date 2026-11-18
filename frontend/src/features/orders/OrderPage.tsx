@@ -151,15 +151,15 @@ export default function OrderPage() {
   }
 
   const catalogLink = (
-    <Link to="/catalogo" className="underline">
+    <Link to="/catalogo" className="text-link">
       {T.backToCatalog}
     </Link>
   );
 
   if (notFound) {
     return (
-      <main className="p-8">
-        <h1 className="text-2xl font-bold">{T.notFoundHeading}</h1>
+      <main className="auth-panel">
+        <h1 className="text-3xl">{T.notFoundHeading}</h1>
         <p className="mt-4">{T.notFoundText}</p>
         <p className="mt-4">{catalogLink}</p>
       </main>
@@ -168,7 +168,7 @@ export default function OrderPage() {
 
   if (query.isError && !notLoggedIn) {
     return (
-      <main className="p-8">
+      <main className="auth-panel">
         <p>{catalogLink}</p>
         <p role="alert" className="mt-4 text-destructive">
           {query.error instanceof TooManyRequestsError
@@ -188,7 +188,7 @@ export default function OrderPage() {
 
   if (!order || notLoggedIn) {
     return (
-      <main className="p-8">
+      <main className="auth-panel">
         <p role="status">{T.loading}</p>
       </main>
     );
@@ -196,19 +196,21 @@ export default function OrderPage() {
 
   if (order.status === "PAID") {
     return (
-      <main className="mx-auto max-w-md p-8">
-        <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-bold">
+      <main className="auth-panel">
+        <h1 ref={headingRef} tabIndex={-1} className="text-3xl outline-none">
           {T.paidHeading}
         </h1>
         <p className="mt-4">{T.paidText}</p>
-        <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
-          <dt className="font-semibold">{T.productTerm}</dt>
+        <dl className="mt-6 grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-2 rounded-lg bg-muted p-4">
+          <dt className="text-sm text-muted-foreground">{T.productTerm}</dt>
           <dd className="[overflow-wrap:anywhere]">{order.productTitle}</dd>
-          <dt className="font-semibold">{T.valueTerm}</dt>
-          <dd>{formatCents(order.priceCents)}</dd>
+          <dt className="text-sm text-muted-foreground">{T.valueTerm}</dt>
+          <dd className="text-lg font-bold tabular-nums">
+            {formatCents(order.priceCents)}
+          </dd>
         </dl>
         <p className="mt-4">
-          <Link to="/biblioteca" className="underline">
+          <Link to="/biblioteca" className="text-link">
             {T.goToLibrary}
           </Link>
         </p>
@@ -219,14 +221,14 @@ export default function OrderPage() {
 
   if (order.status === "EXPIRED") {
     return (
-      <main className="mx-auto max-w-md p-8">
-        <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-bold">
+      <main className="auth-panel">
+        <h1 ref={headingRef} tabIndex={-1} className="text-3xl outline-none">
           {T.expiredHeading}
         </h1>
         <p className="mt-4">{T.expiredText}</p>
         <p className="mt-4">{T.expiredAlreadyPaid}</p>
         <p className="mt-4">
-          <Link to={`/catalogo/${order.productId}`} className="underline">
+          <Link to={`/catalogo/${order.productId}`} className="text-link">
             {T.backToProduct}
           </Link>
         </p>
@@ -236,13 +238,13 @@ export default function OrderPage() {
 
   if (order.status === "REFUNDED") {
     return (
-      <main className="mx-auto max-w-md p-8">
-        <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-bold">
+      <main className="auth-panel">
+        <h1 ref={headingRef} tabIndex={-1} className="text-3xl outline-none">
           {T.refundedHeading}
         </h1>
         <p className="mt-4">{T.refundedText}</p>
         <p className="mt-4">
-          <Link to={`/catalogo/${order.productId}`} className="underline">
+          <Link to={`/catalogo/${order.productId}`} className="text-link">
             {T.backToProduct}
           </Link>
         </p>
@@ -252,18 +254,21 @@ export default function OrderPage() {
 
   const code = order.pixCopyPaste ?? "";
   return (
-    <main className="mx-auto max-w-md p-8">
-      <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-bold">
+    <main className="auth-panel">
+      <h1 ref={headingRef} tabIndex={-1} className="text-3xl outline-none">
         {T.heading}
       </h1>
       <p className="mt-4">{T.instruction}</p>
-      <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
-        <dt className="font-semibold">{T.productTerm}</dt>
+      <dl className="mt-6 grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-2 rounded-lg bg-muted p-4">
+        <dt className="text-sm text-muted-foreground">{T.productTerm}</dt>
         <dd className="[overflow-wrap:anywhere]">{order.productTitle}</dd>
-        <dt className="font-semibold">{T.valueTerm}</dt>
-        <dd>{formatCents(order.priceCents)}</dd>
+        <dt className="text-sm text-muted-foreground">{T.valueTerm}</dt>
+        <dd className="text-lg font-bold tabular-nums">
+          {formatCents(order.priceCents)}
+        </dd>
       </dl>
-      <div className="mt-4 w-full max-w-64 rounded-md bg-white p-3">
+      {/* always white, also in the dark theme: banking apps read the code on white */}
+      <div className="mx-auto mt-6 w-full max-w-64 rounded-lg border bg-white p-3">
         <QRCodeSVG
           value={code}
           role="img"
@@ -282,7 +287,11 @@ export default function OrderPage() {
           value={code}
           className="w-full rounded-md border bg-background p-2 font-mono text-sm [overflow-wrap:anywhere]"
         />
-        <Button type="button" onClick={() => copyCode(code)}>
+        <Button
+          type="button"
+          className="h-11 w-full text-base"
+          onClick={() => copyCode(code)}
+        >
           {T.copy}
         </Button>
         {copy === "done" && <p role="status">{T.copied}</p>}
@@ -292,7 +301,10 @@ export default function OrderPage() {
           </p>
         )}
       </div>
-      <p role="timer" className="mt-4 font-semibold">
+      <p
+        role="timer"
+        className="mt-6 rounded-lg bg-[#F08A4B]/20 p-3 text-center font-semibold tabular-nums"
+      >
         {T.countdown(mmss(remaining ?? order.secondsToExpire))}
       </p>
       <div aria-live="polite" className="sr-only">

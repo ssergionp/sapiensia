@@ -264,3 +264,20 @@ describe("OrdersPage", () => {
     await vi.waitFor(() => expect(document.activeElement).toBe(heading));
   });
 });
+
+describe("selo do estado do pedido (#186)", () => {
+  test.each([
+    ["PENDING", "Aguardando pagamento"],
+    ["PAID", "Pago"],
+    ["EXPIRED", "Expirado"],
+    ["REFUNDED", "Reembolsado"],
+  ])("o estado %s aparece como texto no selo", async (status, text) => {
+    mockItems([summary({ status })]);
+    renderOrders();
+
+    const item = await screen.findByRole("listitem");
+    const badge = within(item).getByText(text);
+    // color + text, never color alone: the badge carries the same words as before
+    expect(badge).toHaveAttribute("data-status", status);
+  });
+});
