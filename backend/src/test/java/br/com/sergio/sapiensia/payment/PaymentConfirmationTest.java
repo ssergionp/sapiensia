@@ -463,6 +463,16 @@ class PaymentConfirmationTest {
     }
 
     @ParameterizedTest
+    @ValueSource(strings = {"PENDING", "OVERDUE"})
+    @DisplayName("SEC-031, ADR-0003: shouldRecordNotPaidForADeletedChargeThatWasNeverPaid")
+    void shouldRecordNotPaidForADeletedChargeThatWasNeverPaid(String status, CapturedOutput output) {
+        Fixture f = fixture();
+        provider(f, new PixCharge(f.chargeId(), status, new BigDecimal("29.90"), "PIX", f.orderId().toString(), true));
+
+        assertRefused(f, PaymentResult.NOT_PAID, output);
+    }
+
+    @ParameterizedTest
     @ValueSource(
             strings = {
                 "{\"event\":\"PAYMENT_RECEIVED\"}",

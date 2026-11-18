@@ -142,7 +142,7 @@ class PaymentConfirmation {
         if (charge.value() == null || charge.value().compareTo(BigDecimal.valueOf(order.priceCents(), 2)) != 0) {
             return PaymentResult.AMOUNT_MISMATCH;
         }
-        if (charge.isAwaitingPayment()) {
+        if (charge.isAwaitingPayment() && !charge.deleted()) {
             throw new PaymentNotReadyException();
         }
         if (!charge.isPaid()) {
