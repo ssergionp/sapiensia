@@ -158,7 +158,21 @@ class NewDeviceNoticeTest {
         assertThat(header.split("; ")[0]).matches("SAPIENSIA_DEVICE=[A-Za-z0-9_-]{43}");
         assertThat(List.of(header.split("; ")))
                 .contains("Max-Age=31536000", "Path=/api/sessions", "HttpOnly", "SameSite=Lax")
-                .doesNotContain("Secure");
+                .contains("Secure"); // the test context neither sets the property nor is local: fail closed (D2)
+        assertThat(mail(account, NO_MAIL_WAIT)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("SEC-007: com dois cookies de aparelho no pedido vale o primeiro, sem e-mail e com o mesmo cookie")
+    void shouldUseTheFirstDeviceCookieWhenTheBrowserSendsTwo() throws Exception {
+        Account account = newAccount();
+        String known = deviceOf(login(account, PASSWORD, null));
+
+        // the helper prefixes "; SAPIENSIA_DEVICE=", so this sends two cookies of the same name
+        HttpResponse<String> again = login(account, PASSWORD, known + "; SAPIENSIA_DEVICE=" + "B".repeat(43));
+
+        assertThat(again.statusCode()).isEqualTo(204);
+        assertThat(deviceOf(again)).isEqualTo(known);
         assertThat(mail(account, NO_MAIL_WAIT)).isEmpty();
     }
 

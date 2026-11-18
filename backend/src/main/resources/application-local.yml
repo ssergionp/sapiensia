@@ -1,3 +1,9 @@
+server:
+  servlet:
+    session:
+      cookie:
+        # local http dev and the demo have no https, so the session and device cookies cannot be Secure
+        secure: false
 spring:
   flyway:
     locations: classpath:db/migration,classpath:db/seed

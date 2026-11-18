@@ -32,6 +32,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.util.WebUtils;
 
 /**
  * Customer login and "who am I". {@code DELETE /api/sessions/current} (logout) is configured in SecurityConfig;
@@ -60,7 +61,7 @@ class SessionController {
             PasswordEncoder passwordEncoder,
             PasswordLogin passwordLogin,
             CustomerService customerService,
-            @Value("${server.servlet.session.cookie.secure:false}") boolean secureCookie) {
+            @Value("${server.servlet.session.cookie.secure:true}") boolean secureCookie) {
         this.customerService = customerService;
         this.secureCookie = secureCookie;
         this.passwordLogin = passwordLogin;
@@ -101,6 +102,16 @@ class SessionController {
         });
     }
 
+    static ResponseCookie deviceCookie(String token, boolean secure) {
+        return ResponseCookie.from(DEVICE_COOKIE, token)
+                .maxAge(DEVICE_COOKIE_MAX_AGE)
+                .path("/api/sessions")
+                .httpOnly(true)
+                .secure(secure)
+                .sameSite("Lax")
+                .build();
+    }
+
     /**
      * Registers the browser of a correct login and refreshes its device cookie, only while the account still has the
      * {@code sessionVersion} read at login; otherwise no device cookie is written. The notice never changes the answer
@@ -109,26 +120,14 @@ class SessionController {
     private void rememberDevice(
             UUID customerId, int sessionVersion, HttpServletRequest request, HttpServletResponse response) {
         try {
-            String cookieToken = null;
-            if (request.getCookies() != null) {
-                for (Cookie cookie : request.getCookies()) {
-                    if (DEVICE_COOKIE.equals(cookie.getName())) {
-                        cookieToken = cookie.getValue();
-                    }
-                }
-            }
+            // the first cookie of that name: a later one (e.g. from a sibling path) cannot override it
+            Cookie cookie = WebUtils.getCookie(request, DEVICE_COOKIE);
+            String cookieToken = cookie == null ? null : cookie.getValue();
             customerService
                     .recognizeDevice(customerId, sessionVersion, cookieToken, Instant.now())
                     .ifPresent(token -> response.addHeader(
                             HttpHeaders.SET_COOKIE,
-                            ResponseCookie.from(DEVICE_COOKIE, token)
-                                    .maxAge(DEVICE_COOKIE_MAX_AGE)
-                                    .path("/api/sessions")
-                                    .httpOnly(true)
-                                    .secure(secureCookie)
-                                    .sameSite("Lax")
-                                    .build()
-                                    .toString()));
+                            deviceCookie(token, secureCookie).toString()));
         } catch (RuntimeException e) {
             log.warn("Could not register the login device ({})", e.getClass().getName());
         }
