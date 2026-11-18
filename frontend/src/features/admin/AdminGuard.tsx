@@ -58,8 +58,9 @@ export default function AdminGuard({
   }
 
   // The panel bar uses the session loaded above: no extra request, and never on a page without a full session.
+  // Every button in the panel is 44 px tall (touch target); one rule here instead of a size on each button.
   return (
-    <>
+    <div className="[&_[data-slot=button]]:h-11">
       <AdminNav session={session.data} />
       {capability && !session.data.capabilities.includes(capability) ? (
         <main className="page-container">
@@ -68,6 +69,6 @@ export default function AdminGuard({
       ) : (
         children(session.data)
       )}
-    </>
+    </div>
   );
 }
