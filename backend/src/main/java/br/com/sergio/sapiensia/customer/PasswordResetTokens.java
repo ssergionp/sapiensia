@@ -39,27 +39,47 @@ class PasswordResetTokens {
     }
 
     /**
-     * Uses the link and sets the new password hash in one statement, so only the request that marks the link as used
-     * changes the password. The same statement increments the session version, which ends every session opened
-     * before (SEC-006), so the password never changes without that. It also forgets the account's known devices
-     * (ADR-0004), so a new password makes every device new again in the same operation. Unknown, used and expired
-     * links give the same empty result.
+     * Uses the link and sets the new password hash in one conditional statement, so only the request that marks the
+     * link as used changes the password. The same statement increments the session version, which ends every session
+     * opened before (SEC-006), so the password never changes without that. The customer row is locked before that
+     * statement, in the same order as {@link #reissue} and the login, so they never deadlock. A second statement in the
+     * same transaction then forgets the account's known devices (ADR-0004): it reads the database after any login that
+     * held the lock, so a new password makes every device new again, including one registered meanwhile. Unknown, used
+     * and expired links give the same empty result, take no lock and forget nothing.
      *
      * @return the customer id, or empty if the link is not valid
      */
+    @Transactional
     Optional<UUID> consumeAndSetPassword(String token, String newPasswordHash) {
-        return jdbc.sql("with used as (update password_reset_tokens set used_at = now()"
+        String hash = EmailConfirmationTokens.hash(token);
+        // only a valid link takes the customer lock: a used or expired one must not delay the account's logins
+        Optional<UUID> owner = jdbc.sql("select customer_id from password_reset_tokens where token_hash = :hash"
+                        + " and used_at is null and expires_at > now()")
+                .param("hash", hash)
+                .query(UUID.class)
+                .optional();
+        if (owner.isEmpty()) {
+            return Optional.empty();
+        }
+        // the same lock as the login takes: waits for a login of this account that is registering a device
+        jdbc.sql("select id from customers where id = :customerId for no key update")
+                .param("customerId", owner.get())
+                .query(UUID.class)
+                .optional();
+        Optional<UUID> changed = jdbc.sql("with used as (update password_reset_tokens set used_at = now()"
                         + " where token_hash = :hash and used_at is null and expires_at > now()"
-                        + " returning customer_id),"
-                        + " forgotten as (delete from customer_devices where customer_id in"
-                        + " (select customer_id from used))"
+                        + " returning customer_id)"
                         + " update customers set password_hash = :passwordHash,"
                         + " session_version = session_version + 1 from used"
                         + " where customers.id = used.customer_id returning customers.id")
-                .param("hash", EmailConfirmationTokens.hash(token))
+                .param("hash", hash)
                 .param("passwordHash", newPasswordHash)
                 .query(UUID.class)
                 .optional();
+        changed.ifPresent(customerId -> jdbc.sql("delete from customer_devices where customer_id = :customerId")
+                .param("customerId", customerId)
+                .update());
+        return changed;
     }
 
     /**
@@ -81,6 +101,14 @@ class PasswordResetTokens {
     void revokeUnused(UUID customerId) {
         jdbc.sql("delete from password_reset_tokens where customer_id = :customerId and used_at is null")
                 .param("customerId", customerId)
+                .update();
+    }
+
+    /** Daily cleanup: deletes used or expired links, skipping rows another transaction holds locked. */
+    int deleteUsedOrExpired() {
+        return jdbc.sql("delete from password_reset_tokens where id in ("
+                        + "select id from password_reset_tokens"
+                        + " where used_at is not null or expires_at <= now() for update skip locked)")
                 .update();
     }
 }

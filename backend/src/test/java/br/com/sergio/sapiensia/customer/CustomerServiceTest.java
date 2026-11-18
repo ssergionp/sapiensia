@@ -4,7 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import br.com.sergio.sapiensia.RecordingEmailSender;
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -39,6 +42,9 @@ class CustomerServiceTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private RecordingEmailSender sender;
 
     @BeforeEach
     void cleanTable() {
@@ -132,6 +138,23 @@ class CustomerServiceTest {
         registerConcurrently("leakcheck@example.com", 8);
 
         assertThat(output.getAll()).doesNotContain("leakcheck");
+    }
+
+    @Test
+    @DisplayName("SEC-007: um aparelho não registrado não ganha cookie nem aviso de aparelho novo")
+    void shouldNotScheduleTheNoticeWhenTheDeviceWasNotRegistered() throws Exception {
+        java.util.UUID id = java.util.UUID.randomUUID();
+        String email = "not-registered-" + id + "@example.com";
+        // logged in before, so a registered device would be a new one; the password changed after the login read 0
+        jdbc.update(
+                "insert into customers (id, email, password_hash, email_confirmed_at, session_version, first_login_at)"
+                        + " values (?, ?, 'x', now(), 1, now())",
+                id,
+                email);
+
+        assertThat(customerService.recognizeDevice(id, 0, null, Instant.now())).isEmpty();
+
+        assertThat(sender.awaitMessageTo(email, Duration.ofSeconds(3))).isEmpty();
     }
 
     private void registerConcurrently(String email, int threads) throws Exception {

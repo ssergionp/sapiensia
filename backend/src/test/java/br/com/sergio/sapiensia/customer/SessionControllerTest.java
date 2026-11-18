@@ -288,4 +288,11 @@ class SessionControllerTest {
                 .hasSize(1)
                 .allSatisfy(bean -> assertThat(bean).isInstanceOf(CustomerUserDetailsService.class));
     }
+
+    @Test
+    @DisplayName("SEC-007: o cookie do aparelho só sai sem Secure quando o ambiente manda")
+    void shouldBuildTheDeviceCookieWithoutSecureOnlyWhenToldTo() {
+        assertThat(SessionController.deviceCookie("t", false).toString()).doesNotContain("Secure");
+        assertThat(SessionController.deviceCookie("t", true).toString()).contains("Secure");
+    }
 }

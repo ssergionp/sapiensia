@@ -58,6 +58,13 @@ class EmailConfirmationTokens {
                 .optional();
     }
 
+    /** Daily cleanup: deletes expired links, skipping rows another transaction holds locked. */
+    int deleteExpired() {
+        return jdbc.sql("delete from email_confirmation_tokens where id in ("
+                        + "select id from email_confirmation_tokens where expires_at <= now() for update skip locked)")
+                .update();
+    }
+
     void delete(UUID tokenId) {
         jdbc.sql("delete from email_confirmation_tokens where id = :id")
                 .param("id", tokenId)

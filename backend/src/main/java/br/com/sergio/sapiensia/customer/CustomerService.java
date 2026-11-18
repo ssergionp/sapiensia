@@ -128,14 +128,21 @@ public class CustomerService {
 
     /**
      * Registers the device of a correct login and, if the account has logged in before from another device, schedules
-     * the e-mail to its owner. {@code cookieToken} is null when the browser sent no device cookie.
+     * the e-mail to its owner. The device is recorded in one transaction and only while the account still has the
+     * {@code sessionVersion} read at login (see {@link KnownDevices#recognize}). {@code cookieToken} is null when the
+     * browser sent no device cookie.
      *
-     * @return the token for the device cookie
+     * @return the token for the device cookie, or empty when the device was not registered (the session version
+     *     changed or the account is gone): then no cookie is written and no notice is scheduled
      */
-    public String recognizeDevice(UUID customerId, String cookieToken, Instant loggedInAt) {
-        // not atomic: if scheduling throws after recognize(), the device row and first_login_at stay recorded, the
-        // cookie is not written and the notice is lost. Login still succeeds by design.
-        KnownDevices.DeviceCheck check = knownDevices.recognize(customerId, cookieToken);
+    public Optional<String> recognizeDevice(
+            UUID customerId, int sessionVersion, String cookieToken, Instant loggedInAt) {
+        KnownDevices.DeviceCheck check = knownDevices.recognize(customerId, sessionVersion, cookieToken);
+        if (KnownDevices.DeviceCheck.NOT_REGISTERED.equals(check)) {
+            return Optional.empty();
+        }
+        // scheduling runs after recognize() committed: if it throws, the device row and first_login_at stay recorded,
+        // the cookie is not written and the notice is lost. Login still succeeds by design.
         if (check.notifyOwner()) {
             scheduler.schedule(
                     new TaskInstance<>(
@@ -144,7 +151,7 @@ public class CustomerService {
                             new NewDeviceNotice(customerId, loggedInAt)),
                     Instant.now());
         }
-        return check.token();
+        return Optional.of(check.token());
     }
 
     /** Ends every session of the account, the current one included (SEC-009, SEC-006). */

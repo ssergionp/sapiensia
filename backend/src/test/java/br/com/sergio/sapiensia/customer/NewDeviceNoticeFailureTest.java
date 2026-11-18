@@ -2,6 +2,7 @@ package br.com.sergio.sapiensia.customer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doThrow;
 
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
@@ -86,7 +87,7 @@ class NewDeviceNoticeFailureTest {
                 passwordEncoder.encode(PASSWORD));
         doThrow(new IllegalStateException("scheduler down for " + email))
                 .when(customerService)
-                .recognizeDevice(any(), any(), any());
+                .recognizeDevice(any(), anyInt(), any(), any());
         String base = "http://localhost:" + port;
         HttpResponse<String> page = client.send(
                 HttpRequest.newBuilder(URI.create(base + "/entrar")).build(), HttpResponse.BodyHandlers.ofString());
