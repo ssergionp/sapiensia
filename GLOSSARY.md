@@ -13,7 +13,7 @@ Estado de um Produto que os clientes ainda não conseguem ver nem comprar. É o 
 _Avoid_: Esboço
 
 **Publicar**:
-Colocar um Produto no Catálogo, para os clientes poderem vê-lo e comprá-lo. Só é possível com Arquivo do produto enviado. Depois da primeira publicação, o Arquivo do produto só pode ser trocado com nova autenticação do Administrador.
+Colocar um Produto no Catálogo, para os clientes poderem vê-lo e comprá-lo. Só é possível com Arquivo do produto e Capa enviados. Depois da primeira publicação, o Arquivo do produto só pode ser trocado com nova autenticação do Administrador.
 _Avoid_: Ativar, lançar
 
 **Despublicar**:
@@ -29,7 +29,7 @@ A vitrine pública dos Produtos publicados, visível a qualquer visitante. Mostr
 _Avoid_: Loja, vitrine
 
 **Capa**:
-Imagem de apresentação de um Produto, mostrada no Catálogo, na página do Produto e na Biblioteca de quem comprou; não é entregue ao Cliente.
+Imagem de apresentação de um Produto, mostrada no Catálogo, na página do Produto e na Biblioteca de quem comprou; não é entregue ao Cliente. Obrigatória para publicar; um Produto publicado não pode ficar sem ela (pode trocá-la).
 _Avoid_: Imagem, thumbnail, banner
 
 **Arquivo do produto**:
