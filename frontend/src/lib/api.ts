@@ -40,6 +40,14 @@ function primeCsrfCookie(): Promise<void> {
 const NOT_A_SESSION_END = ["/api/sessions", "/api/admin"];
 const unauthorizedListeners = new Set<() => void>();
 
+// Exact route or a sub-route ("/api/sessions", "/api/sessions/current"), never a name that merely starts alike
+function endsSessionByDesign(path: string): boolean {
+  const route = path.split("?")[0];
+  return NOT_A_SESSION_END.some(
+    (prefix) => route === prefix || route.startsWith(`${prefix}/`),
+  );
+}
+
 export function onUnauthorized(listener: () => void): () => void {
   unauthorizedListeners.add(listener);
   return () => {
@@ -66,7 +74,7 @@ export async function apiFetch(
   });
   if (
     response.status === 401 &&
-    !NOT_A_SESSION_END.some((prefix) => path.startsWith(prefix))
+    !endsSessionByDesign(path)
   ) {
     for (const listener of unauthorizedListeners) listener();
   }

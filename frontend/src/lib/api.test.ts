@@ -165,3 +165,21 @@ test("other statuses never reach the listeners", async () => {
   expect(listener).not.toHaveBeenCalled();
   stop();
 });
+
+test("only the exact session and admin routes are excluded, not routes that share the prefix", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(new Response(null, { status: 401 })),
+  );
+  const listener = vi.fn();
+  const stop = onUnauthorized(listener);
+
+  await apiFetch("/api/sessions/current?x=1");
+  await apiFetch("/api/admin");
+  expect(listener).not.toHaveBeenCalled();
+
+  await apiFetch("/api/sessions-old");
+  await apiFetch("/api/administrators");
+  expect(listener).toHaveBeenCalledTimes(2);
+  stop();
+});

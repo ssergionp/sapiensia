@@ -100,7 +100,7 @@ export default function LoginPage() {
           )}
           <Link
             to="/esqueci-senha"
-            className="w-fit text-sm text-muted-foreground underline underline-offset-4"
+            className="w-fit rounded-sm text-sm text-muted-foreground underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
           >
             Esqueci minha senha
           </Link>

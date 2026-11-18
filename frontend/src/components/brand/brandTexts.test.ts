@@ -24,3 +24,12 @@ describe("splitTagline", () => {
     ]);
   });
 });
+
+describe("splitTagline com espaços sobrando", () => {
+  it("ignora espaço duplo e espaço no fim", () => {
+    expect(splitTagline("Conteúdo pronto  para usar. ")).toEqual([
+      "Conteúdo pronto ",
+      "para usar.",
+    ]);
+  });
+});

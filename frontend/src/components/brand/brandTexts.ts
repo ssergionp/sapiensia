@@ -9,8 +9,8 @@ export const BRAND_TEXTS = {
 // The hero title sets the last two words of the tagline apart (italic, action color); a tagline of
 // fewer than three words is shown whole. Returns [start, highlight].
 export function splitTagline(tagline: string): [string, string] {
-  const words = tagline.split(" ");
-  if (words.length < 3) return [tagline, ""];
+  const words = tagline.trim().split(/\s+/);
+  if (words.length < 3) return [words.join(" "), ""];
   return [`${words.slice(0, -2).join(" ")} `, words.slice(-2).join(" ")];
 }
 
