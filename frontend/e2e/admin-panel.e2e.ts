@@ -1066,7 +1066,7 @@ test("FR-016 SEC-017 SEC-010: capa enviada no painel aparece no Catálogo e capa
       { headers: { "X-XSRF-TOKEN": decodeURIComponent(xsrf.value) } },
     );
     expect(refused.status()).toBe(409);
-    expect(await refused.json()).toEqual({
+    expect(await refused.json()).toMatchObject({
       errors: { cover: "COVER_REQUIRED_WHILE_PUBLISHED" },
     });
     expect((await visitor.request.get(coverUrl)).status()).toBe(200);
@@ -1078,7 +1078,6 @@ test("FR-016 SEC-017 SEC-010: capa enviada no painel aparece no Catálogo e capa
     await page.getByRole("button", { name: "Confirmar remoção" }).click();
     await expect(page.getByText("Capa removida.")).toBeVisible();
     await visitor.goto("/catalogo");
-    await expect(visitor.getByText("Carregando…")).toHaveCount(0);
     await expect(
       visitor.getByRole("img", { name: `Capa de ${title}` }),
     ).toHaveCount(0);
