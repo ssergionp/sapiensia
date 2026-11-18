@@ -153,15 +153,24 @@ export async function uploadProductCover(
   return productSchema.parse(await response.json());
 }
 
+// 409 with errors.cover = COVER_REQUIRED_WHILE_PUBLISHED: a published Product keeps its cover.
+export class ProductCoverRequiredWhilePublishedError extends Error {}
+
 export async function removeProductCover(id: string): Promise<void> {
   const raw = await apiFetch(
     `/api/admin/products/${encodeURIComponent(id)}/cover`,
     { method: "DELETE" },
   );
+  if (
+    raw.status === 409 &&
+    (await readCoverErrorCode(raw)) === "COVER_REQUIRED_WHILE_PUBLISHED"
+  ) {
+    throw new ProductCoverRequiredWhilePublishedError();
+  }
   await check(raw, 204);
 }
 
-// The string codes of errors.file and errors.cover in a 409 body; any other field is dropped.
+// The known codes FILE_REQUIRED (errors.file) and COVER_REQUIRED (errors.cover) of a 409 body; any other field or value is dropped.
 async function readPublicationErrors(
   raw: Response,
 ): Promise<Record<string, string>> {
@@ -171,9 +180,9 @@ async function readPublicationErrors(
     return found;
   const errors = body.errors;
   if (typeof errors !== "object" || errors === null) return found;
-  if ("file" in errors && typeof errors.file === "string")
+  if ("file" in errors && errors.file === "FILE_REQUIRED")
     found.file = errors.file;
-  if ("cover" in errors && typeof errors.cover === "string")
+  if ("cover" in errors && errors.cover === "COVER_REQUIRED")
     found.cover = errors.cover;
   return found;
 }

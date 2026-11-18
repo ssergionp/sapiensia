@@ -341,6 +341,11 @@ describe("ProductPublicationSection", () => {
       () => jsonResponse(409, { errors: { cover: "COVER_REQUIRED" } }),
       "Envie a Capa do produto antes de publicar.",
     ],
+    [
+      "409 with an unknown cover code",
+      () => jsonResponse(409, { errors: { cover: "OTHER" } }),
+      "Não foi possível alterar a publicação agora. Tente novamente.",
+    ],
     ["404", () => jsonResponse(404), "Produto não encontrado."],
     [
       "503",

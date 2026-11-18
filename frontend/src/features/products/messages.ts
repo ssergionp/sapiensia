@@ -149,7 +149,11 @@ export const COVER_TEXTS = {
   sent: "Capa enviada.",
   remove: "Remover capa",
   confirmQuestion:
-    "Remover a capa deste Produto? O Catálogo passa a mostrar um quadro sem imagem.",
+    "Remover a capa deste Produto? Sem capa, ele não pode ser publicado.",
+  removeBlocked:
+    "Para remover a capa, despublique o Produto. Para trocá-la, envie outra imagem.",
+  publishedWithoutCover:
+    "Este Produto está publicado sem capa. Ele continua no Catálogo, mas, se for despublicado, só poderá ser publicado de novo depois que você enviar uma capa.",
   confirmRemove: "Confirmar remoção",
   removing: "Removendo capa…",
   cancel: "Cancelar",
@@ -173,6 +177,8 @@ export const COVER_MESSAGES: Record<ProductCoverRejectionCode, string> = {
 };
 
 export const COVER_ERRORS = {
+  requiredWhilePublished:
+    "Este Produto está publicado e precisa de capa. Para remover a capa, despublique o Produto.",
   forbidden: "Você não tem permissão para alterar a capa do Produto.",
   unavailable:
     "O sistema está indisponível no momento e a capa não foi alterada. Tente novamente em alguns instantes.",
