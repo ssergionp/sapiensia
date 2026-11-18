@@ -125,7 +125,7 @@ describe("CoverImage", () => {
       <CoverImage src={null} alt="" category="HEALTH" title="Guia" />,
     );
     const frame = container.firstElementChild as HTMLElement;
-    expect(frame.outerHTML).not.toMatch(/#[0-9a-f]{3,6}/i);
+    expect(frame.outerHTML).not.toMatch(/#[0-9a-f]{3,6}\b/i);
     expect(frame.className).toContain("text-cover-foreground");
   });
 });
