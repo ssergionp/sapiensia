@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { hasReturnTo, takeReturnTo } from "../orders/returnTo";
@@ -98,6 +98,12 @@ export default function LoginPage() {
               {errors.password.message}
             </p>
           )}
+          <Link
+            to="/esqueci-senha"
+            className="w-fit text-sm text-muted-foreground underline underline-offset-4"
+          >
+            Esqueci minha senha
+          </Link>
         </div>
         {failure && (
           <p role="alert" className="text-sm text-destructive">
@@ -112,16 +118,17 @@ export default function LoginPage() {
           {mutation.isPending ? "Entrando…" : "Entrar"}
         </Button>
       </form>
-      <p className="mt-4 text-sm">
-        <Link to="/esqueci-senha" className="text-link">
-          Esqueci minha senha
-        </Link>
-      </p>
-      <p className="mt-2 text-sm">
-        <Link to="/cadastro" className="text-link">
+      <div className="mt-6 border-t pt-6">
+        <Link
+          to="/cadastro"
+          className={buttonVariants({
+            variant: "outline",
+            className: "h-11 w-full text-base",
+          })}
+        >
           Ainda não tem conta? Criar conta
         </Link>
-      </p>
+      </div>
     </main>
   );
 }
