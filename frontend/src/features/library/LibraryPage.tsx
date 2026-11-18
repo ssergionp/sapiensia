@@ -81,7 +81,8 @@ export default function LibraryPage() {
             <CoverImage
               src={libraryCoverUrl(item.productId, item.coverVersion)}
               alt=""
-              className="w-20 shrink-0"
+              title={item.title}
+              className="w-20 shrink-0 p-1.5 text-[0.6rem] leading-tight"
             />
             <div className="min-w-0 flex-1">
               <p className="font-semibold [overflow-wrap:anywhere]">

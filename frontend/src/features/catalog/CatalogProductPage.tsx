@@ -95,7 +95,7 @@ export default function CatalogProductPage() {
     <main className="page-container">
       <p>{backLink}</p>
       <div className="mt-6 grid gap-8 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:gap-14">
-        <div className="mx-auto w-full max-w-xs md:max-w-none">
+        <div className="mx-auto w-full max-w-48 sm:max-w-xs md:max-w-none">
           <CoverImage
             src={coverUrl(product.id, product.coverVersion)}
             alt={T.coverAlt(product.title)}
@@ -105,7 +105,7 @@ export default function CatalogProductPage() {
           />
         </div>
         <div className="min-w-0">
-          <h1 className="text-4xl leading-tight [overflow-wrap:anywhere] sm:text-5xl">
+          <h1 className="text-4xl leading-tight text-balance [overflow-wrap:anywhere] sm:text-5xl">
             {product.title}
           </h1>
           <dl className="mt-6 grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-2">

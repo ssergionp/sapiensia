@@ -1,7 +1,9 @@
+import { cn } from "cn";
+import { CircleCheck, Clock } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { formatCents } from "@/features/products/schemas";
 import { TOO_MANY_REQUESTS, TooManyRequestsError } from "@/lib/tooManyRequests";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
@@ -197,6 +199,10 @@ export default function OrderPage() {
   if (order.status === "PAID") {
     return (
       <main className="auth-panel">
+        <CircleCheck
+          aria-hidden="true"
+          className="mb-4 size-10 text-[#114B3E] dark:text-[#6FB8A2]"
+        />
         <h1 ref={headingRef} tabIndex={-1} className="text-3xl outline-none">
           {T.paidHeading}
         </h1>
@@ -209,12 +215,14 @@ export default function OrderPage() {
             {formatCents(order.priceCents)}
           </dd>
         </dl>
-        <p className="mt-4">
-          <Link to="/biblioteca" className="text-link">
-            {T.goToLibrary}
-          </Link>
-        </p>
-        <p className="mt-4">{catalogLink}</p>
+        {/* the payoff: the Library is the one next step */}
+        <Link
+          to="/biblioteca"
+          className={cn(buttonVariants(), "mt-6 h-12 w-full text-base")}
+        >
+          {T.goToLibrary}
+        </Link>
+        <p className="mt-4 text-center">{catalogLink}</p>
       </main>
     );
   }
@@ -267,51 +275,56 @@ export default function OrderPage() {
           {formatCents(order.priceCents)}
         </dd>
       </dl>
-      {/* always white, also in the dark theme: banking apps read the code on white */}
-      <div className="mx-auto mt-6 w-full max-w-64 rounded-lg border bg-white p-3">
-        <QRCodeSVG
-          value={code}
-          role="img"
-          aria-label={T.qrName}
-          style={{ width: "100%", height: "auto" }}
-        />
-      </div>
-      <div className="mt-4 flex flex-col gap-2">
-        <label htmlFor="pix-code" className="font-semibold">
-          {T.codeLabel}
-        </label>
-        <textarea
-          id="pix-code"
-          readOnly
-          rows={5}
-          value={code}
-          className="w-full rounded-md border bg-background p-2 font-mono text-sm [overflow-wrap:anywhere]"
-        />
-        <Button
-          type="button"
-          className="h-11 w-full text-base"
-          onClick={() => copyCode(code)}
-        >
-          {T.copy}
-        </Button>
-        {copy === "done" && <p role="status">{T.copied}</p>}
-        {copy === "failed" && (
-          <p role="alert" className="text-destructive">
-            {T.copyFailed}
-          </p>
-        )}
-      </div>
       <p
         role="timer"
-        className="mt-6 rounded-lg bg-[#F08A4B]/20 p-3 text-center font-semibold tabular-nums"
+        className="mt-6 flex items-center gap-2 font-semibold tabular-nums"
       >
+        <Clock aria-hidden="true" className="size-5 shrink-0 text-primary" />
         {T.countdown(mmss(remaining ?? order.secondsToExpire))}
       </p>
       <div aria-live="polite" className="sr-only">
         {announcement}
       </div>
-      <p className="mt-4">{T.afterPaying}</p>
-      <p className="mt-4">{catalogLink}</p>
+      <p className="mt-2 text-sm text-muted-foreground">{T.afterPaying}</p>
+      {/* on a phone the customer pays on the same screen, so the code and "Copiar código" come before
+          the QR Code (also in the HTML, for screen readers); from 640px the QR Code moves first */}
+      <div className="mt-6 flex flex-col gap-6">
+        <div className="flex flex-col gap-2">
+          <label htmlFor="pix-code" className="font-semibold">
+            {T.codeLabel}
+          </label>
+          <textarea
+            id="pix-code"
+            readOnly
+            rows={5}
+            value={code}
+            className="w-full rounded-md border bg-background p-2 font-mono text-sm [overflow-wrap:anywhere]"
+          />
+          <Button
+            type="button"
+            className="h-11 w-full text-base"
+            onClick={() => copyCode(code)}
+          >
+            {T.copy}
+          </Button>
+          {copy === "done" && <p role="status">{T.copied}</p>}
+          {copy === "failed" && (
+            <p role="alert" className="text-destructive">
+              {T.copyFailed}
+            </p>
+          )}
+        </div>
+        {/* always white, also in the dark theme: banking apps read the code on white */}
+        <div className="mx-auto w-full max-w-56 rounded-lg border bg-white p-3 sm:order-first sm:max-w-64">
+          <QRCodeSVG
+            value={code}
+            role="img"
+            aria-label={T.qrName}
+            style={{ width: "100%", height: "auto" }}
+          />
+        </div>
+      </div>
+      <p className="mt-6">{catalogLink}</p>
     </main>
   );
 }

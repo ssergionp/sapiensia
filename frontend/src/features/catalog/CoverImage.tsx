@@ -22,6 +22,7 @@ const COVER_COLORS: Record<ProductCategory, string> = {
   BUSINESS: "#114B3E",
   OTHER: "#182026",
 };
+const NEUTRAL_COVER = "#182026";
 
 // 2:3 frame, the whole image is shown (nothing is cropped). Without a source, or when the image fails to
 // load, a frame of the same ratio takes its place: neutral, or the category color with the title drawn by
@@ -34,7 +35,12 @@ export default function CoverImage({
   title,
 }: Props) {
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
-  const background = category ? COVER_COLORS[category] : undefined;
+  // A title without a category (the Library has none) gets the neutral dark reserve color
+  const background = category
+    ? COVER_COLORS[category]
+    : title
+      ? NEUTRAL_COVER
+      : undefined;
   if (src === null || failedSrc === src) {
     return (
       <div

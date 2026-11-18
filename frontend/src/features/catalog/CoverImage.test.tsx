@@ -42,6 +42,15 @@ describe("CoverImage", () => {
     expect(frame.textContent).toBe("");
   });
 
+  test("com título e sem categoria (Biblioteca), usa o fundo escuro neutro com o título", () => {
+    const { container } = render(
+      <CoverImage src={null} alt="" title="Guia de finanças" />,
+    );
+    const frame = container.firstElementChild as HTMLElement;
+    expect(frame.style.backgroundColor).toBe("rgb(24, 32, 38)");
+    expect(frame.dataset.title).toBe("Guia de finanças");
+  });
+
   test("com falha ao carregar, troca pela cor da categoria", () => {
     const { container } = render(
       <CoverImage
