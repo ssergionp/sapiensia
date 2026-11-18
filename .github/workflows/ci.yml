@@ -46,8 +46,16 @@ jobs:
           --health-cmd "pg_isready -U app" --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Same Dockerfile and same image as homologation and production (ADR-0001); the GitHub Actions layer cache only
+      # reuses layers whose inputs did not change (e.g. pnpm install and dependency:go-offline with the same lockfiles).
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      # exposes the Actions cache credentials to the shell, so the build can go through ci-report.sh (error annotation)
+      - uses: crazy-max/ghaction-github-runtime@04d248b84655b509d8c44dc1d6f990c879747487 # v4.0.0
+      # a failure to save the cache must not fail the build (ignore-error)
       - name: Build the image
-        run: .github/ci-report.sh "Docker build" docker build -t app:ci .
+        run: >-
+          .github/ci-report.sh "Docker build" docker buildx build --load -t app:ci
+          --cache-from type=gha --cache-to type=gha,mode=max,ignore-error=true .
       # prod requires Supabase Storage; this stub stands in for it (the secret below is fake)
       - name: Start the Storage stub
         run: |
