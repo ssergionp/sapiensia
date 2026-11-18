@@ -87,4 +87,36 @@ describe("CoverImage", () => {
       "true",
     );
   });
+
+  describe("título longo na capa de reserva", () => {
+    function titleSize(title: string): number {
+      const { container } = render(
+        <CoverImage src={null} alt="" category="LAW" title={title} />,
+      );
+      const frame = container.firstElementChild as HTMLElement;
+      const value = frame.style.getPropertyValue("--cover-title-size");
+      // "min(10cqw, 9.1cqw)" → the smaller number is the one that applies
+      const numbers = [...value.matchAll(/([\d.]+)cqw/g)].map((m) =>
+        Number(m[1]),
+      );
+      expect(numbers.length).toBeGreaterThan(0);
+      return Math.min(...numbers);
+    }
+
+    test("não corta o título com reticências e escala a fonte pela largura da capa", () => {
+      const { container } = render(
+        <CoverImage src={null} alt="" category="LAW" title={"A".repeat(120)} />,
+      );
+      const frame = container.firstElementChild as HTMLElement;
+      expect(frame.className).not.toContain("line-clamp");
+      expect(frame.className).toContain("@container");
+    });
+
+    test("o título de 120 caracteres usa fonte menor que o curto, e o curto não passa do teto", () => {
+      const short = titleSize("Guia");
+      const longest = titleSize("palavra ".repeat(15).trim());
+      expect(longest).toBeLessThan(short);
+      expect(short).toBeLessThanOrEqual(10);
+    });
+  });
 });

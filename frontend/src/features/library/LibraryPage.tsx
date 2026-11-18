@@ -82,7 +82,7 @@ export default function LibraryPage() {
               src={libraryCoverUrl(item.productId, item.coverVersion)}
               alt=""
               title={item.title}
-              className="w-20 shrink-0 p-1.5 text-[0.6rem] leading-tight"
+              className="w-20 shrink-0 p-1.5"
             />
             <div className="min-w-0 flex-1">
               <p className="font-semibold [overflow-wrap:anywhere]">
