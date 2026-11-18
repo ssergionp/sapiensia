@@ -24,6 +24,59 @@ describe("CoverImage", () => {
     expect(frame.textContent).toBe("");
   });
 
+  test("sem imagem, mostra a cor da categoria e o título só como enfeite", () => {
+    const { container } = render(
+      <CoverImage
+        src={null}
+        alt="Capa de Guia"
+        category="FINANCE"
+        title="Guia de finanças"
+      />,
+    );
+    const frame = container.firstElementChild as HTMLElement;
+    expect(frame.getAttribute("aria-hidden")).toBe("true");
+    expect(frame.dataset.category).toBe("FINANCE");
+    expect(frame.style.backgroundColor).toBe("rgb(17, 75, 62)");
+    // drawn by CSS from data-title, so screen readers and text queries never see a second title
+    expect(frame.dataset.title).toBe("Guia de finanças");
+    expect(frame.textContent).toBe("");
+  });
+
+  test("com título e sem categoria (Biblioteca), usa o fundo escuro neutro com o título", () => {
+    const { container } = render(
+      <CoverImage src={null} alt="" title="Guia de finanças" />,
+    );
+    const frame = container.firstElementChild as HTMLElement;
+    expect(frame.style.backgroundColor).toBe("rgb(24, 32, 38)");
+    expect(frame.dataset.title).toBe("Guia de finanças");
+  });
+
+  test("a capa real não ganha a cor de reserva (sem faixas escuras em capa fora de 2:3)", () => {
+    render(
+      <CoverImage
+        src="/api/products/p1/cover?v=abc"
+        alt="Capa de Guia"
+        category="LAW"
+        title="Guia"
+      />,
+    );
+    expect(screen.getByRole("img").style.backgroundColor).toBe("");
+  });
+
+  test("com falha ao carregar, troca pela cor da categoria", () => {
+    const { container } = render(
+      <CoverImage
+        src="/api/products/p1/cover?v=abc"
+        alt="Capa de Guia"
+        category="LAW"
+        title="Guia"
+      />,
+    );
+    fireEvent.error(screen.getByRole("img"));
+    const frame = container.firstElementChild as HTMLElement;
+    expect(frame.style.backgroundColor).toBe("rgb(140, 59, 32)");
+  });
+
   test("se a imagem falhar, troca pelo quadro neutro", () => {
     const { container } = render(
       <CoverImage src="/api/products/p1/cover?v=abc" alt="Capa de Guia" />,

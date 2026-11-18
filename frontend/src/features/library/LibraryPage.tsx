@@ -65,29 +65,30 @@ export default function LibraryPage() {
     content = (
       <p className="mt-4">
         {T.empty}{" "}
-        <Link to="/catalogo" className="underline">
+        <Link to="/catalogo" className="text-link">
           {T.goToCatalog}
         </Link>
       </p>
     );
   } else {
     content = (
-      <ul aria-labelledby={HEADING_ID} className="mt-4 flex flex-col gap-4">
+      <ul aria-labelledby={HEADING_ID} className="mt-8 flex flex-col gap-4">
         {library.data.items.map((item) => (
           <li
             key={item.productId}
-            className="flex flex-wrap items-start gap-4 rounded-lg border p-4"
+            className="flex flex-wrap items-center gap-5 rounded-xl border bg-card p-5"
           >
             <CoverImage
               src={libraryCoverUrl(item.productId, item.coverVersion)}
               alt=""
-              className="w-16 shrink-0"
+              title={item.title}
+              className="w-20 shrink-0 p-1.5 text-[0.6rem] leading-tight"
             />
             <div className="min-w-0 flex-1">
               <p className="font-semibold [overflow-wrap:anywhere]">
                 {item.title}
               </p>
-              <p className="mt-1 text-sm">
+              <p className="mt-1 text-sm text-muted-foreground">
                 <time dateTime={item.grantedAt}>
                   {T.grantedOn(dateFormat.format(new Date(item.grantedAt)))}
                 </time>
@@ -103,12 +104,12 @@ export default function LibraryPage() {
   }
 
   return (
-    <main className="mx-auto max-w-2xl p-8">
+    <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
       <h1
         ref={heading}
         id={HEADING_ID}
         tabIndex={-1}
-        className="text-2xl font-bold"
+        className="text-4xl outline-none sm:text-5xl"
       >
         {T.heading}
       </h1>

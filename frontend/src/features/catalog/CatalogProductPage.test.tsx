@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, describe, expect, test, vi } from "vitest";
+import { SUPPORT_EMAIL } from "@/features/legal/legalTexts";
 import { jsonResponse } from "@/features/products/testing";
 import CatalogProductPage from "./CatalogProductPage";
 import type { CatalogProduct } from "./schemas";
@@ -47,6 +48,34 @@ describe("CatalogProductPage", () => {
 
     const img = await screen.findByRole("img", { name: "Capa de Guia" });
     expect(img).toHaveAttribute("src", "/api/products/p1/cover?v=abc");
+  });
+
+  test("mostra as vantagens, a Política de reembolso e o atendimento perto do botão de compra", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(200, product()),
+    );
+    renderProduct();
+
+    const buy = await screen.findByRole("button", { name: "Comprar com Pix" });
+    const area = buy.closest("section") as HTMLElement;
+    expect(area).not.toBeNull();
+    const inArea = within(area);
+    expect(
+      inArea.getByText("Pagamento por Pix, confirmado automaticamente."),
+    ).toBeInTheDocument();
+    expect(
+      inArea.getByText("Arquivo em PDF, sempre na versão mais recente."),
+    ).toBeInTheDocument();
+    expect(
+      inArea.getByText("Fica guardado na sua Biblioteca."),
+    ).toBeInTheDocument();
+    expect(
+      inArea.getByRole("link", { name: "Política de reembolso" }),
+    ).toHaveAttribute("href", "/reembolso");
+    expect(inArea.getByRole("link", { name: SUPPORT_EMAIL })).toHaveAttribute(
+      "href",
+      `mailto:${SUPPORT_EMAIL}`,
+    );
   });
 
   test("sem capa mostra o quadro neutro e nenhuma imagem", async () => {
@@ -158,6 +187,30 @@ describe("CatalogProductPage", () => {
     ).toHaveAttribute("href", "/biblioteca");
     expect(
       screen.queryByRole("button", { name: "Comprar com Pix" }),
+    ).not.toBeInTheDocument();
+  });
+
+  test("Produto já na Biblioteca não mostra as vantagens da compra nem o reembolso", async () => {
+    mockProductAndLibrary(() =>
+      jsonResponse(200, {
+        items: [
+          {
+            productId: "p1",
+            title: "Guia",
+            grantedAt: "2026-01-01T00:00:00Z",
+            coverVersion: null,
+          },
+        ],
+      }),
+    );
+    renderProduct();
+
+    await screen.findByText("Você já tem Acesso a este Produto.");
+    expect(
+      screen.queryByText("Pagamento por Pix, confirmado automaticamente."),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Política de reembolso" }),
     ).not.toBeInTheDocument();
   });
 

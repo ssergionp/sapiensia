@@ -54,9 +54,9 @@ export default function RegisterPage() {
 
   if (mutation.isSuccess) {
     return (
-      <main className="mx-auto max-w-md p-8">
-        <h1 className="text-2xl font-bold">Criar conta</h1>
-        <p role="status" className="mt-4">
+      <main className="auth-panel">
+        <h1 className="text-3xl">Criar conta</h1>
+        <p role="status" className="mt-4 rounded-lg bg-muted p-4">
           Cadastro recebido. Verifique seu e-mail para continuar.
         </p>
       </main>
@@ -64,8 +64,8 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="mx-auto max-w-md p-8">
-      <h1 className="text-2xl font-bold">Criar conta</h1>
+    <main className="auth-panel">
+      <h1 className="text-3xl">Criar conta</h1>
       <form
         onSubmit={handleSubmit(onSubmit)}
         noValidate
@@ -123,7 +123,11 @@ export default function RegisterPage() {
               : UNEXPECTED_ERROR}
           </p>
         )}
-        <Button type="submit" disabled={mutation.isPending}>
+        <Button
+          type="submit"
+          className="mt-2 h-11 w-full text-base"
+          disabled={mutation.isPending}
+        >
           {mutation.isPending ? "Criando conta…" : "Criar conta"}
         </Button>
       </form>

@@ -1,22 +1,115 @@
-import { Link } from "react-router";
+import { cn } from "cn";
+import { Link, NavLink, useLocation } from "react-router";
 import { BRAND_TEXTS, CHROME_FOCUS_RING } from "@/components/brand/brandTexts";
 import Logo from "@/components/brand/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { useLogout, useSession } from "@/features/session/hooks";
+import { LOGOUT_ERROR } from "@/features/session/messages";
 
-// #186 stage 1: brand and theme only; the navigation links join in stage 2 (plan D2)
+const NAV_TEXTS = {
+  label: "Navegação principal",
+  catalog: "Catálogo",
+  library: "Biblioteca",
+  orders: "Meus Pedidos",
+  signIn: "Entrar",
+  signOut: "Sair",
+  signingOut: "Saindo…",
+} as const;
+
+// The current page gets aria-current from NavLink and a decorative Terracota bar (DESIGN.md: Terracota
+// only as decoration in the light theme).
+const NAV_LINK = cn(
+  "relative inline-flex min-h-11 items-center rounded-md px-3 text-sm font-semibold hover:text-primary",
+  "aria-[current=page]:after:absolute aria-[current=page]:after:inset-x-3 aria-[current=page]:after:bottom-1.5",
+  "aria-[current=page]:after:h-0.5 aria-[current=page]:after:rounded-full aria-[current=page]:after:bg-brand-decor",
+  CHROME_FOCUS_RING,
+);
+
+function isPanel(pathname: string) {
+  return pathname === "/painel" || pathname.startsWith("/painel/");
+}
+
+// Brand, navigation and the account action. The admin panel keeps brand + theme only and never asks for
+// the customer session (an administrator would get 403 from /api/sessions/current).
 export default function SiteHeader() {
+  const { pathname } = useLocation();
   return (
     <header className="border-b bg-card">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
+      <div className="mx-auto flex min-h-16 max-w-6xl flex-wrap items-center gap-x-2 px-4 sm:px-6">
         <Link
           to="/"
           aria-label={BRAND_TEXTS.homeLink}
-          className={`-mx-1 rounded-md px-1 py-1 ${CHROME_FOCUS_RING}`}
+          className={`mr-auto -ml-1 rounded-md px-1 py-1 sm:mr-4 ${CHROME_FOCUS_RING}`}
         >
           <Logo />
         </Link>
+        {isPanel(pathname) ? (
+          <span className="sm:ml-auto" />
+        ) : (
+          <CustomerNavigation pathname={pathname} />
+        )}
         <ThemeToggle />
       </div>
     </header>
+  );
+}
+
+function CustomerNavigation({ pathname }: { pathname: string }) {
+  const session = useSession();
+  const logout = useLogout();
+  const signedIn = Boolean(session.data);
+  // While the session loads (or fails) nothing account-related shows, so the header never flashes the
+  // signed-out state; on /entrar itself the link would only repeat the page.
+  const showSignIn = session.data === null && pathname !== "/entrar";
+
+  return (
+    <>
+      <nav
+        aria-label={NAV_TEXTS.label}
+        className="order-last -mx-3 flex w-full gap-1 pb-1 sm:order-none sm:mx-0 sm:mr-auto sm:w-auto sm:pb-0"
+      >
+        <NavLink to="/catalogo" className={NAV_LINK}>
+          {NAV_TEXTS.catalog}
+        </NavLink>
+        {signedIn && (
+          <>
+            <NavLink to="/biblioteca" className={NAV_LINK}>
+              {NAV_TEXTS.library}
+            </NavLink>
+            <NavLink to="/pedidos" className={NAV_LINK}>
+              {NAV_TEXTS.orders}
+            </NavLink>
+          </>
+        )}
+      </nav>
+      {showSignIn && (
+        <Link
+          to="/entrar"
+          className={cn(buttonVariants(), "h-11 px-4", CHROME_FOCUS_RING)}
+        >
+          {NAV_TEXTS.signIn}
+        </Link>
+      )}
+      {signedIn && (
+        <Button
+          type="button"
+          variant="ghost"
+          className={cn("h-11 px-3 font-semibold", CHROME_FOCUS_RING)}
+          disabled={logout.isPending}
+          onClick={() => logout.mutate()}
+        >
+          {logout.isPending ? NAV_TEXTS.signingOut : NAV_TEXTS.signOut}
+        </Button>
+      )}
+      {logout.isError && (
+        <p
+          role="alert"
+          className="order-last w-full pb-2 text-sm text-destructive"
+        >
+          {LOGOUT_ERROR}
+        </p>
+      )}
+    </>
   );
 }

@@ -31,10 +31,10 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <main className="mx-auto max-w-md p-8">
-      <h1 className="text-2xl font-bold">Recuperar senha</h1>
+    <main className="auth-panel">
+      <h1 className="text-3xl">Recuperar senha</h1>
       {mutation.isSuccess ? (
-        <p role="status" className="mt-4">
+        <p role="status" className="mt-4 rounded-lg bg-muted p-4">
           {SUCCESS}
         </p>
       ) : (
@@ -75,7 +75,11 @@ export default function ForgotPasswordPage() {
                   : UNEXPECTED_ERROR}
               </p>
             )}
-            <Button type="submit" disabled={mutation.isPending}>
+            <Button
+              type="submit"
+              className="mt-2 h-11 w-full text-base"
+              disabled={mutation.isPending}
+            >
               {mutation.isPending ? "Enviando…" : "Enviar link"}
             </Button>
           </form>

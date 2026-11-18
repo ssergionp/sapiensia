@@ -84,14 +84,14 @@ export default function BuyWithPix({ productId }: { productId: string }) {
   const cpfError = errors.cpf?.message;
 
   return (
-    <div className="mt-6">
+    <div>
       {cpfOpen ? (
         <form
           onSubmit={handleSubmit(onSubmit)}
           noValidate
-          className="flex max-w-md flex-col gap-4"
+          className="flex flex-col gap-4"
         >
-          <h2 className="text-xl font-semibold">{T.cpfHeading}</h2>
+          <h2 className="text-2xl">{T.cpfHeading}</h2>
           <p className="text-sm">{T.cpfExplanation}</p>
           <div className="flex flex-col gap-2">
             <Label htmlFor="cpf">{T.cpfLabel}</Label>
@@ -121,7 +121,11 @@ export default function BuyWithPix({ productId }: { productId: string }) {
               {failure}
             </p>
           )}
-          <Button type="submit" disabled={mutation.isPending}>
+          <Button
+            type="submit"
+            className="h-12 w-full text-base"
+            disabled={mutation.isPending}
+          >
             {mutation.isPending ? T.buying : T.generate}
           </Button>
         </form>
@@ -129,6 +133,7 @@ export default function BuyWithPix({ productId }: { productId: string }) {
         <>
           <Button
             type="button"
+            className="h-12 w-full text-base"
             disabled={mutation.isPending}
             onClick={() => send()}
           >

@@ -81,7 +81,10 @@ test("SEC-006/SEC-007: recuperar a senha encerra a sessão aberta, o link vale u
   await openLink(other, link);
   await submitNewPassword(other, newPassword);
   await expect(other.getByText(PASSWORD_CHANGED)).toBeVisible();
-  await expect(other.getByRole("link", { name: "Entrar" })).toBeVisible();
+  // the success message's own "Entrar" link (the signed-out header has one too since #186 stage 2)
+  await expect(
+    other.getByRole("main").getByRole("link", { name: "Entrar" }),
+  ).toBeVisible();
 
   // The old session is gone.
   const current = await page.request.get("/api/sessions/current");

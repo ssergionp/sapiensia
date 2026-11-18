@@ -1,7 +1,9 @@
+import { cn } from "cn";
+import { CircleCheck, Clock } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { formatCents } from "@/features/products/schemas";
 import { TOO_MANY_REQUESTS, TooManyRequestsError } from "@/lib/tooManyRequests";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
@@ -151,15 +153,15 @@ export default function OrderPage() {
   }
 
   const catalogLink = (
-    <Link to="/catalogo" className="underline">
+    <Link to="/catalogo" className="text-link">
       {T.backToCatalog}
     </Link>
   );
 
   if (notFound) {
     return (
-      <main className="p-8">
-        <h1 className="text-2xl font-bold">{T.notFoundHeading}</h1>
+      <main className="auth-panel">
+        <h1 className="text-3xl">{T.notFoundHeading}</h1>
         <p className="mt-4">{T.notFoundText}</p>
         <p className="mt-4">{catalogLink}</p>
       </main>
@@ -168,7 +170,7 @@ export default function OrderPage() {
 
   if (query.isError && !notLoggedIn) {
     return (
-      <main className="p-8">
+      <main className="auth-panel">
         <p>{catalogLink}</p>
         <p role="alert" className="mt-4 text-destructive">
           {query.error instanceof TooManyRequestsError
@@ -188,7 +190,7 @@ export default function OrderPage() {
 
   if (!order || notLoggedIn) {
     return (
-      <main className="p-8">
+      <main className="auth-panel">
         <p role="status">{T.loading}</p>
       </main>
     );
@@ -196,37 +198,45 @@ export default function OrderPage() {
 
   if (order.status === "PAID") {
     return (
-      <main className="mx-auto max-w-md p-8">
-        <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-bold">
+      <main className="auth-panel">
+        <CircleCheck
+          aria-hidden="true"
+          className="mb-4 size-10 text-[#114B3E] dark:text-[#6FB8A2]"
+        />
+        <h1 ref={headingRef} tabIndex={-1} className="text-3xl outline-none">
           {T.paidHeading}
         </h1>
         <p className="mt-4">{T.paidText}</p>
-        <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
-          <dt className="font-semibold">{T.productTerm}</dt>
+        <dl className="mt-6 grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-2 rounded-lg bg-muted p-4">
+          <dt className="text-sm text-muted-foreground">{T.productTerm}</dt>
           <dd className="[overflow-wrap:anywhere]">{order.productTitle}</dd>
-          <dt className="font-semibold">{T.valueTerm}</dt>
-          <dd>{formatCents(order.priceCents)}</dd>
+          <dt className="text-sm text-muted-foreground">{T.valueTerm}</dt>
+          <dd className="text-lg font-bold tabular-nums">
+            {formatCents(order.priceCents)}
+          </dd>
         </dl>
-        <p className="mt-4">
-          <Link to="/biblioteca" className="underline">
-            {T.goToLibrary}
-          </Link>
-        </p>
-        <p className="mt-4">{catalogLink}</p>
+        {/* the payoff: the Library is the one next step */}
+        <Link
+          to="/biblioteca"
+          className={cn(buttonVariants(), "mt-6 h-12 w-full text-base")}
+        >
+          {T.goToLibrary}
+        </Link>
+        <p className="mt-4 text-center">{catalogLink}</p>
       </main>
     );
   }
 
   if (order.status === "EXPIRED") {
     return (
-      <main className="mx-auto max-w-md p-8">
-        <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-bold">
+      <main className="auth-panel">
+        <h1 ref={headingRef} tabIndex={-1} className="text-3xl outline-none">
           {T.expiredHeading}
         </h1>
         <p className="mt-4">{T.expiredText}</p>
         <p className="mt-4">{T.expiredAlreadyPaid}</p>
         <p className="mt-4">
-          <Link to={`/catalogo/${order.productId}`} className="underline">
+          <Link to={`/catalogo/${order.productId}`} className="text-link">
             {T.backToProduct}
           </Link>
         </p>
@@ -236,13 +246,13 @@ export default function OrderPage() {
 
   if (order.status === "REFUNDED") {
     return (
-      <main className="mx-auto max-w-md p-8">
-        <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-bold">
+      <main className="auth-panel">
+        <h1 ref={headingRef} tabIndex={-1} className="text-3xl outline-none">
           {T.refundedHeading}
         </h1>
         <p className="mt-4">{T.refundedText}</p>
         <p className="mt-4">
-          <Link to={`/catalogo/${order.productId}`} className="underline">
+          <Link to={`/catalogo/${order.productId}`} className="text-link">
             {T.backToProduct}
           </Link>
         </p>
@@ -252,54 +262,69 @@ export default function OrderPage() {
 
   const code = order.pixCopyPaste ?? "";
   return (
-    <main className="mx-auto max-w-md p-8">
-      <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-bold">
+    <main className="auth-panel">
+      <h1 ref={headingRef} tabIndex={-1} className="text-3xl outline-none">
         {T.heading}
       </h1>
       <p className="mt-4">{T.instruction}</p>
-      <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
-        <dt className="font-semibold">{T.productTerm}</dt>
+      <dl className="mt-6 grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-2 rounded-lg bg-muted p-4">
+        <dt className="text-sm text-muted-foreground">{T.productTerm}</dt>
         <dd className="[overflow-wrap:anywhere]">{order.productTitle}</dd>
-        <dt className="font-semibold">{T.valueTerm}</dt>
-        <dd>{formatCents(order.priceCents)}</dd>
+        <dt className="text-sm text-muted-foreground">{T.valueTerm}</dt>
+        <dd className="text-lg font-bold tabular-nums">
+          {formatCents(order.priceCents)}
+        </dd>
       </dl>
-      <div className="mt-4 w-full max-w-64 rounded-md bg-white p-3">
-        <QRCodeSVG
-          value={code}
-          role="img"
-          aria-label={T.qrName}
-          style={{ width: "100%", height: "auto" }}
-        />
-      </div>
-      <div className="mt-4 flex flex-col gap-2">
-        <label htmlFor="pix-code" className="font-semibold">
-          {T.codeLabel}
-        </label>
-        <textarea
-          id="pix-code"
-          readOnly
-          rows={5}
-          value={code}
-          className="w-full rounded-md border bg-background p-2 font-mono text-sm [overflow-wrap:anywhere]"
-        />
-        <Button type="button" onClick={() => copyCode(code)}>
-          {T.copy}
-        </Button>
-        {copy === "done" && <p role="status">{T.copied}</p>}
-        {copy === "failed" && (
-          <p role="alert" className="text-destructive">
-            {T.copyFailed}
-          </p>
-        )}
-      </div>
-      <p role="timer" className="mt-4 font-semibold">
+      <p
+        role="timer"
+        className="mt-6 flex items-center gap-2 font-semibold tabular-nums"
+      >
+        <Clock aria-hidden="true" className="size-5 shrink-0 text-primary" />
         {T.countdown(mmss(remaining ?? order.secondsToExpire))}
       </p>
       <div aria-live="polite" className="sr-only">
         {announcement}
       </div>
-      <p className="mt-4">{T.afterPaying}</p>
-      <p className="mt-4">{catalogLink}</p>
+      <p className="mt-2 text-sm text-muted-foreground">{T.afterPaying}</p>
+      {/* the code and "Copiar código" come first at every width (a phone pays on the same screen),
+          and the HTML follows the same order for keyboard and screen readers */}
+      <div className="mt-6 flex flex-col gap-6">
+        <div className="flex flex-col gap-2">
+          <label htmlFor="pix-code" className="font-semibold">
+            {T.codeLabel}
+          </label>
+          <textarea
+            id="pix-code"
+            readOnly
+            rows={5}
+            value={code}
+            className="w-full rounded-md border bg-background p-2 font-mono text-sm [overflow-wrap:anywhere]"
+          />
+          <Button
+            type="button"
+            className="h-11 w-full text-base"
+            onClick={() => copyCode(code)}
+          >
+            {T.copy}
+          </Button>
+          {copy === "done" && <p role="status">{T.copied}</p>}
+          {copy === "failed" && (
+            <p role="alert" className="text-destructive">
+              {T.copyFailed}
+            </p>
+          )}
+        </div>
+        {/* always white, also in the dark theme: banking apps read the code on white */}
+        <div className="mx-auto w-full max-w-56 rounded-lg border bg-white p-3 sm:max-w-64">
+          <QRCodeSVG
+            value={code}
+            role="img"
+            aria-label={T.qrName}
+            style={{ width: "100%", height: "auto" }}
+          />
+        </div>
+      </div>
+      <p className="mt-6">{catalogLink}</p>
     </main>
   );
 }

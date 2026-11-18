@@ -1936,35 +1936,35 @@ test("NFR-005 FR-016 FR-019 FR-021 FR-024 FR-029 FR-033 FR-034: jornada completa
     const password = strongPassword();
     await buyer.goto("/cadastro");
     await expect(buyer.getByLabel("E-mail")).toBeVisible();
-    await expectNoA11yViolations(buyer, "cadastro");
+    await expectNoA11yViolations(buyer, "cadastro", { bothThemes: true });
     await registerAndConfirm(buyer, email, password);
 
     // 2. Login from the home page.
     await buyer.goto("/");
     await buyer.getByRole("link", { name: "Entrar", exact: true }).click();
     await expect(buyer.getByLabel("E-mail")).toBeVisible();
-    await expectNoA11yViolations(buyer, "entrar");
+    await expectNoA11yViolations(buyer, "entrar", { bothThemes: true });
     await buyer.getByLabel("E-mail").fill(email);
     await buyer.getByLabel("Senha").fill(password);
     await buyer.getByRole("button", { name: "Entrar" }).click();
     await expect(buyer.getByText(`Você entrou como ${email}.`)).toBeVisible();
-    await expectNoA11yViolations(buyer, "inicio");
+    await expectNoA11yViolations(buyer, "inicio", { bothThemes: true });
 
     // 3. Catálogo: from the home page to the Product page.
     await buyer.getByRole("link", { name: "Ver o Catálogo" }).click();
     await expect(buyer.getByRole("link", { name: title })).toBeVisible();
-    await expectNoA11yViolations(buyer, "catalogo");
+    await expectNoA11yViolations(buyer, "catalogo", { bothThemes: true });
     await buyer.getByRole("link", { name: title }).click();
     await expect(
       buyer.getByRole("heading", { level: 1, name: title }),
     ).toBeVisible();
     await expect(buyer.getByRole("main").getByText(/R\$\s29,90/)).toBeVisible();
-    await expectNoA11yViolations(buyer, "produto");
+    await expectNoA11yViolations(buyer, "produto", { bothThemes: true });
 
     // 4. Order: the CPF block, then the Pix.
     await buyer.getByRole("button", { name: "Comprar com Pix" }).click();
     await expect(buyer.getByLabel("CPF")).toBeVisible();
-    await expectNoA11yViolations(buyer, "comprar-pix");
+    await expectNoA11yViolations(buyer, "comprar-pix", { bothThemes: true });
     await buyer.getByLabel("CPF").fill(fictitiousCpf());
     await buyer.getByRole("button", { name: "Gerar Pix" }).click();
     await expect(buyer).toHaveURL(ORDER_PATH);
@@ -1976,7 +1976,9 @@ test("NFR-005 FR-016 FR-019 FR-021 FR-024 FR-029 FR-033 FR-034: jornada completa
     if (chargeId === undefined) {
       throw new Error("Could not read the charge id from the shown Pix code.");
     }
-    await expectNoA11yViolations(buyer, "pedido-pendente");
+    await expectNoA11yViolations(buyer, "pedido-pendente", {
+      bothThemes: true,
+    });
 
     // 5. Payment: the provider event arrives and the same page turns to paid, without a reload.
     await postPaymentEvent(
@@ -1991,7 +1993,7 @@ test("NFR-005 FR-016 FR-019 FR-021 FR-024 FR-029 FR-033 FR-034: jornada completa
       buyer.getByRole("heading", { name: PAID_HEADING }),
     ).toBeVisible({ timeout: 30_000 });
     await expect(buyer.getByText(PAID_TEXT)).toBeVisible();
-    await expectNoA11yViolations(buyer, "pedido-pago");
+    await expectNoA11yViolations(buyer, "pedido-pago", { bothThemes: true });
 
     // 6. My Orders: the Order is paid; the link goes to the Library.
     await buyer.goto("/");
@@ -1999,7 +2001,7 @@ test("NFR-005 FR-016 FR-019 FR-021 FR-024 FR-029 FR-033 FR-034: jornada completa
     const item = buyer.getByRole("listitem").filter({ hasText: title });
     await expect(item).toHaveCount(1);
     await expect(item.getByText("Pago", { exact: true })).toBeVisible();
-    await expectNoA11yViolations(buyer, "meus-pedidos");
+    await expectNoA11yViolations(buyer, "meus-pedidos", { bothThemes: true });
     await item.getByRole("link", { name: "Ir para a Biblioteca" }).click();
     await expect(buyer).toHaveURL(/\/biblioteca$/);
 
@@ -2010,7 +2012,7 @@ test("NFR-005 FR-016 FR-019 FR-021 FR-024 FR-029 FR-033 FR-034: jornada completa
         .filter({ hasText: title })
         .getByText(title, { exact: true }),
     ).toBeVisible();
-    await expectNoA11yViolations(buyer, "biblioteca");
+    await expectNoA11yViolations(buyer, "biblioteca", { bothThemes: true });
     const [download] = await Promise.all([
       buyer.waitForEvent("download", { timeout: 30_000 }),
       buyer.getByRole("button", { name: `Baixar ${title}` }).click(),

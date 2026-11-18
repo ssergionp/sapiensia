@@ -1,4 +1,9 @@
-import { type AxeResult, formatViolations, unresolved } from "./a11y";
+import {
+  type AxeResult,
+  formatViolations,
+  themedScreen,
+  unresolved,
+} from "./a11y";
 
 function violation(id: string, targets: string[] = ["#a"]): AxeResult {
   return {
@@ -38,6 +43,19 @@ describe("e2e a11y helper", () => {
     const text = formatViolations([violation("link-name")]);
     expect(text).not.toContain("cliente@example.com");
     expect(text).not.toContain("<a");
+  });
+
+  it("names the other-theme scan with the theme suffix", () => {
+    expect(themedScreen("catalogo", "dark")).toBe("catalogo-escuro");
+    expect(themedScreen("catalogo", "light")).toBe("catalogo-claro");
+  });
+
+  it("a known issue on a screen does not cover its other-theme scan", () => {
+    const known = [{ rule: "color-contrast", screen: "catalogo", issue: 1 }];
+    const v = violation("color-contrast");
+    expect(unresolved([v], themedScreen("catalogo", "dark"), known)).toEqual([
+      v,
+    ]);
   });
 
   it("ignores a known issue on the same screen", () => {

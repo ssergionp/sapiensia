@@ -27,4 +27,13 @@ export const CATALOG_TEXTS = {
   srCategory: "Categoria:",
   srPrice: "Preço:",
   coverAlt: (title: string) => `Capa de ${title}`,
+  seeDetails: "Ver detalhes →",
+  // Near the "Comprar com Pix" button (#186 stage 2); the refund link and the e-mail come from legalTexts
+  purchaseBenefits: [
+    "Pagamento por Pix, confirmado automaticamente.",
+    "Arquivo em PDF, sempre na versão mais recente.",
+    "Fica guardado na sua Biblioteca.",
+  ],
+  refundBefore: "Precisa de reembolso? Veja a",
+  supportBefore: "Dúvidas?",
 } as const;

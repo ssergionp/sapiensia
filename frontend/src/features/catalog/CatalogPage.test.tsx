@@ -83,6 +83,22 @@ describe("CatalogPage", () => {
     expect(screen.getByText("Carregando…")).toBeInTheDocument();
   });
 
+  test("cada cartão tem um único link para o produto; Ver detalhes é só visual", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(200, pageBody([item()])),
+    );
+    renderCatalog();
+
+    const row = await screen.findByRole("listitem");
+    const links = within(row).getAllByRole("link");
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAccessibleName("Guia");
+    expect(within(row).getByText("Ver detalhes →")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+  });
+
   test("FR-016 FR-018 lista título, resumo, categoria e preço em reais", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       jsonResponse(200, pageBody([item()])),
