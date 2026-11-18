@@ -6,6 +6,12 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  build: {
+    // The CSP has font-src 'self': a font inlined as a data: URI is blocked in production (#186), so fonts
+    // always ship as files; everything else keeps Vite's default inline limit.
+    assetsInlineLimit: (filePath) =>
+      /\.(woff2?|ttf|otf)$/.test(filePath) ? false : undefined,
+  },
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "./src"),

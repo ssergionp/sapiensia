@@ -34,3 +34,30 @@ for (const { link, url, screen } of PAGES) {
     await expectNoA11yViolations(page, screen);
   });
 }
+
+// #186: the axe scans above run in the light theme; this one covers the dark palette and the remembered choice.
+test("as páginas públicas passam no axe também no tema escuro, e a escolha de tema fica lembrada (NFR-005)", async ({
+  page,
+}) => {
+  const html = page.locator("html");
+  await page.emulateMedia({ colorScheme: "dark" });
+
+  await page.goto("/");
+  await expect(html).toHaveClass(/\bdark\b/);
+  await expect(page.getByRole("link", { name: "Entrar" })).toBeVisible();
+  await expectNoA11yViolations(page, "inicial-escuro");
+
+  await page.goto("/termos-de-uso");
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Termos de uso" }),
+  ).toBeVisible();
+  await expectNoA11yViolations(page, "termos-escuro");
+
+  await page.getByRole("button", { name: "Usar tema claro" }).click();
+  await expect(html).not.toHaveClass(/\bdark\b/);
+  await page.reload();
+  await expect(html).not.toHaveClass(/\bdark\b/);
+  await expect(
+    page.getByRole("button", { name: "Usar tema escuro" }),
+  ).toBeVisible();
+});
