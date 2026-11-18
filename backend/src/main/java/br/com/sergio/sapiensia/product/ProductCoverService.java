@@ -158,6 +158,16 @@ class ProductCoverService {
             }
             Optional<String> current = covers.currentKey(productId);
             current.ifPresent(key -> {
+                if (products.find(productId).map(ProductResponse::status).orElse(null) == ProductStatus.PUBLISHED) {
+                    // Independent of this transaction, which the exception rolls back.
+                    audit.recordIndependent(entry(
+                            AuditAction.ADMIN_PRODUCT_COVER_REMOVED,
+                            AuditResult.FAILURE,
+                            administratorId,
+                            productId,
+                            origin));
+                    throw new ProductCoverRequiredWhilePublishedException();
+                }
                 pending.add(key);
                 covers.delete(productId);
                 audit.recordInTransaction(entry(

@@ -104,4 +104,60 @@ class AdminProductPublicationConcurrencyTest {
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat((String) JsonPath.read(response.body(), "$.status")).isEqualTo("PUBLISHED");
     }
+
+    @Test
+    @DisplayName("FR-011: publicar e remover a Capa ao mesmo tempo nunca deixam um Produto publicado sem Capa")
+    void shouldNeverEndPublishedWithoutACover() throws Exception {
+        for (int round = 0; round < 10; round++) {
+            UUID id = AdminProductFixtures.insertProductWithFileAndCover(jdbc);
+            CompletableFuture<HttpResponse<String>> publishing;
+            CompletableFuture<HttpResponse<String>> removing;
+            try (Connection holder = dataSource.getConnection()) {
+                holder.setAutoCommit(false);
+                try (PreparedStatement lock =
+                        holder.prepareStatement("select id from products where id = ? for update")) {
+                    lock.setObject(1, id);
+                    lock.executeQuery().close();
+                    // both requests park on the row lock; they are released together by the commit below
+                    publishing = CompletableFuture.supplyAsync(
+                            () -> send(() -> admin.put(PRODUCTS + "/" + id + "/publication", "")));
+                    removing = CompletableFuture.supplyAsync(
+                            () -> send(() -> admin.delete(PRODUCTS + "/" + id + "/cover")));
+                    assertThatThrownBy(() -> publishing.get(500, TimeUnit.MILLISECONDS))
+                            .isInstanceOf(TimeoutException.class);
+                    assertThatThrownBy(() -> removing.get(500, TimeUnit.MILLISECONDS))
+                            .isInstanceOf(TimeoutException.class);
+                    holder.commit();
+                }
+            }
+
+            int published = publishing.get(10, TimeUnit.SECONDS).statusCode();
+            int removed = removing.get(10, TimeUnit.SECONDS).statusCode();
+
+            String status = jdbc.queryForObject("select status from products where id = ?", String.class, id);
+            long covers =
+                    jdbc.queryForObject("select count(*) from product_covers where product_id = ?", Long.class, id);
+            if ("PUBLISHED".equals(status)) {
+                assertThat(covers)
+                        .as("published without a Capa, round " + round)
+                        .isEqualTo(1);
+            }
+            // either the publication won (then the removal is refused) or the removal won (then publishing is refused)
+            assertThat(java.util.stream.Stream.of(published, removed).filter(code -> code == 409))
+                    .as("round %d: publish %d, remove %d", round, published, removed)
+                    .hasSize(1);
+        }
+    }
+
+    private static HttpResponse<String> send(ThrowingRequest request) {
+        try {
+            return request.run();
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private interface ThrowingRequest {
+        HttpResponse<String> run() throws Exception;
+    }
 }

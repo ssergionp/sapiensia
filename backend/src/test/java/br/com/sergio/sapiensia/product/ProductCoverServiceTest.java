@@ -351,6 +351,78 @@ class ProductCoverServiceTest {
         assertThat(storage.keys()).containsExactlyInAnyOrder(oldKey, newKey);
     }
 
+    private void publishWithCover() throws Exception {
+        upload(TestImages.png(10, 10));
+        jdbc.update("update products set status = 'PUBLISHED', first_published_at = now() where id = ?", productId);
+    }
+
+    private String statusOfProduct() {
+        return jdbc.queryForObject("select status from products where id = ?", String.class, productId);
+    }
+
+    @Test
+    @DisplayName("FR-011: a failed put on a PUBLISHED Product keeps the old Capa row and object")
+    void shouldKeepTheOldCoverWhenStoringTheNewOneFails() throws Exception {
+        publishWithCover();
+        String oldKey = coverKeys().get(0);
+        String oldVersion = jdbc.queryForObject("select version from product_covers", String.class);
+        storage.failPuts(true);
+
+        assertThatThrownBy(() -> upload(TestImages.png(12, 12))).isInstanceOf(ProductFileStorageException.class);
+
+        assertThat(coverKeys()).containsExactly(oldKey);
+        assertThat(jdbc.queryForObject("select version from product_covers", String.class))
+                .isEqualTo(oldVersion);
+        assertThat(storage.keys()).containsExactly(oldKey);
+        assertThat(pendingKeys()).isEmpty();
+        assertThat(statusOfProduct()).isEqualTo("PUBLISHED");
+    }
+
+    @Test
+    @DisplayName("FR-011: a failed swap transaction on a PUBLISHED Product keeps the old Capa and drops the new object")
+    void shouldKeepTheOldCoverWhenTheSwapTransactionFails() throws Exception {
+        publishWithCover();
+        String oldKey = coverKeys().get(0);
+        String oldVersion = jdbc.queryForObject("select version from product_covers", String.class);
+        ProductCoverService lossy = new ProductCoverService(
+                validator,
+                storage,
+                covers,
+                pending,
+                files,
+                products,
+                audit,
+                commitThenThrowOn(transactionManager, 2, false, () -> {}));
+
+        assertThatThrownBy(() -> lossy.upload(productId, image(TestImages.png(12, 12)), adminId, "127.0.0.1"))
+                .isInstanceOf(DataAccessResourceFailureException.class);
+
+        assertThat(coverKeys()).containsExactly(oldKey);
+        assertThat(jdbc.queryForObject("select version from product_covers", String.class))
+                .isEqualTo(oldVersion);
+        assertThat(storage.keys()).containsExactly(oldKey);
+        assertThat(pendingKeys()).isEmpty();
+        assertThat(statusOfProduct()).isEqualTo("PUBLISHED");
+    }
+
+    @Test
+    @DisplayName("FR-011: when the old object cannot be deleted, the new Capa is served and the old key is pending")
+    void shouldServeTheNewCoverWhenDeletingTheOldObjectFails() throws Exception {
+        publishWithCover();
+        String oldKey = coverKeys().get(0);
+        storage.failDeletes(true);
+
+        upload(TestImages.png(12, 12));
+
+        String newKey = coverKeys().get(0);
+        assertThat(newKey).isNotEqualTo(oldKey);
+        StoredCover served = service.publishedCover(productId).orElseThrow();
+        assertThat(served.objectKey()).isEqualTo(newKey);
+        assertThat(service.read(served)).isEqualTo(storage.get(newKey).orElseThrow());
+        assertThat(pendingKeys()).containsExactly(oldKey);
+        assertThat(statusOfProduct()).isEqualTo("PUBLISHED");
+    }
+
     @Test
     @DisplayName("SEC-050: the current key never appears in the pending list")
     void shouldNeverRegisterCurrentKey() throws Exception {

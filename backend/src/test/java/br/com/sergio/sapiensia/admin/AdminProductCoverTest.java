@@ -278,4 +278,63 @@ class AdminProductCoverTest {
                 .isEqualTo(version);
         assertThat(storage.keys()).hasSize(1);
     }
+
+    private long coverRemovalAudits(String result) {
+        return jdbc.queryForObject(
+                "select count(*) from audit_events where action = 'ADMIN_PRODUCT_COVER_REMOVED'"
+                        + " and object_id = ? and result = ?",
+                Long.class,
+                productId,
+                result);
+    }
+
+    @Test
+    @DisplayName("FR-011: a PUBLISHED Product keeps its Capa: removal is 409 COVER_REQUIRED_WHILE_PUBLISHED, audited")
+    void shouldRefuseRemovingTheCoverOfAPublishedProduct() throws Exception {
+        assertThat(upload(TestImages.png(30, 20)).statusCode()).isEqualTo(200);
+        AdminProductFixtures.publish(jdbc, productId);
+        String version = jdbc.queryForObject("select version from product_covers", String.class);
+
+        HttpResponse<String> response = admin.delete(path());
+
+        assertThat(response.statusCode()).as(response.body()).isEqualTo(409);
+        assertThat(response.body()).contains("\"errors\":{\"cover\":\"COVER_REQUIRED_WHILE_PUBLISHED\"}");
+        assertThat(response.body()).contains("\"title\":\"Invalid request\"");
+        assertThat(jdbc.queryForObject("select version from product_covers", String.class))
+                .isEqualTo(version);
+        assertThat(storage.keys()).hasSize(1);
+        assertThat(count("pending_object_deletions")).isZero();
+        assertThat(coverRemovalAudits("FAILURE")).isEqualTo(1);
+        assertThat(coverRemovalAudits("SUCCESS")).isZero();
+        assertThat(new AdminBrowser(port)
+                        .getBytes("/api/products/" + productId + "/cover")
+                        .statusCode())
+                .isEqualTo(200);
+    }
+
+    @Test
+    @DisplayName("FR-011: an UNPUBLISHED Product may lose its Capa")
+    void shouldRemoveTheCoverOfAnUnpublishedProduct() throws Exception {
+        assertThat(upload(TestImages.png(30, 20)).statusCode()).isEqualTo(200);
+        AdminProductFixtures.publish(jdbc, productId);
+        jdbc.update("update products set status = 'UNPUBLISHED' where id = ?", productId);
+
+        HttpResponse<String> response = admin.delete(path());
+
+        assertThat(response.statusCode()).isEqualTo(204);
+        assertThat(count("product_covers")).isZero();
+        assertThat(storage.keys()).isEmpty();
+        assertThat(coverRemovalAudits("SUCCESS")).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("FR-011: removing the Capa of a PUBLISHED Product that has none is still 204")
+    void shouldAnswerNoContentWhenAPublishedProductHasNoCover() throws Exception {
+        AdminProductFixtures.publish(jdbc, productId);
+
+        HttpResponse<String> response = admin.delete(path());
+
+        assertThat(response.statusCode()).isEqualTo(204);
+        assertThat(coverRemovalAudits("FAILURE")).isZero();
+    }
 }
