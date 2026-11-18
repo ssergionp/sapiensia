@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { jsonResponse, mockApi, product, renderProducts } from "./testing";
@@ -216,6 +216,34 @@ describe("ProductCoverSection", () => {
     await user.click(screen.getByRole("button", { name: "Cancelar" }));
     expect(coverCalls(spy)).toHaveLength(0);
     expect(screen.getByRole("button", { name: "Remover capa" })).toBeTruthy();
+  });
+
+  test("publicar com a confirmação aberta fecha a confirmação e deixa só o aviso", async () => {
+    let current = product({ cover: COVER });
+    mockApi((url) => {
+      if (url === PRODUCT_URL) return jsonResponse(200, current);
+    });
+    const { client } = renderProducts("/painel/produtos/p1");
+    await screen.findByRole("heading", { name: "Capa do produto" });
+    await setup().click(screen.getByRole("button", { name: "Remover capa" }));
+    expect(
+      screen.getByRole("button", { name: "Confirmar remoção" }),
+    ).toBeTruthy();
+    current = product({ status: "PUBLISHED", cover: COVER });
+    await act(() => client.invalidateQueries());
+    expect(
+      await screen.findByText(
+        "Para remover a capa, despublique o Produto. Para trocá-la, envie outra imagem.",
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Confirmar remoção" }),
+    ).toBeNull();
+    expect(
+      screen.queryByText(
+        "Remover a capa deste Produto? Sem capa, ele não pode ser publicado.",
+      ),
+    ).toBeNull();
   });
 
   test("Publicado com capa troca o botão Remover capa pelo aviso", async () => {

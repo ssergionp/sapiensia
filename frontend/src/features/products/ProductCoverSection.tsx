@@ -188,7 +188,7 @@ export default function ProductCoverSection({ product }: { product: Product }) {
             {cover ? T.removeBlocked : T.publishedWithoutCover}
           </p>
         )}
-        {confirming && (
+        {confirming && !published && (
           <div className="grid gap-4">
             <p ref={questionRef} tabIndex={-1}>
               {T.confirmQuestion}
