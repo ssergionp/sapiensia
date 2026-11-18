@@ -44,6 +44,19 @@ describe("ProductListPage", () => {
     expect(within(two).getByText("Despublicado")).toBeInTheDocument();
   });
 
+  test("the table region is named Produtos and keyboard-focusable (WCAG 2.1.1)", async () => {
+    mockApi((url) =>
+      url === LIST
+        ? jsonResponse(200, { items: [listItem()], page: 0, totalPages: 1 })
+        : undefined,
+    );
+    renderProducts("/painel/produtos");
+
+    const region = await screen.findByRole("region", { name: "Produtos" });
+    expect(region).toHaveAttribute("tabindex", "0");
+    expect(within(region).getByRole("table")).toBeInTheDocument();
+  });
+
   test("renders the table with headers, row values and an accessible edit link", async () => {
     mockApi((url) =>
       url === LIST

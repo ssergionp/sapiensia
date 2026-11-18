@@ -87,12 +87,15 @@ export default function ProductPublicationSection({
       : T.publish;
 
   return (
-    <section aria-labelledby="publication-heading">
+    <section
+      aria-labelledby="publication-heading"
+      className="rounded-xl border bg-card p-6 sm:p-8"
+    >
       <h2
         id="publication-heading"
         ref={headingRef}
         tabIndex={-1}
-        className="mb-4 text-lg font-semibold"
+        className="mb-4 text-xl font-bold"
       >
         {T.heading}
       </h2>

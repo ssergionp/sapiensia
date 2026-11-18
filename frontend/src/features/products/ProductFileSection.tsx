@@ -161,8 +161,11 @@ export default function ProductFileSection({ product }: { product: Product }) {
   );
 
   return (
-    <section aria-labelledby="file-heading">
-      <h2 id="file-heading" className="mb-4 text-lg font-semibold">
+    <section
+      aria-labelledby="file-heading"
+      className="rounded-xl border bg-card p-6 sm:p-8"
+    >
+      <h2 id="file-heading" className="mb-4 text-xl font-bold">
         Arquivo do produto
       </h2>
       <div className="grid gap-4">

@@ -99,8 +99,11 @@ export default function ProductCoverSection({ product }: { product: Product }) {
   const errorId = result?.kind === "alert" ? "cover-error" : undefined;
 
   return (
-    <section aria-labelledby="cover-heading">
-      <h2 id="cover-heading" className="mb-4 text-lg font-semibold">
+    <section
+      aria-labelledby="cover-heading"
+      className="rounded-xl border bg-card p-6 sm:p-8"
+    >
+      <h2 id="cover-heading" className="mb-4 text-xl font-bold">
         {T.title}
       </h2>
       <div className="grid gap-4">

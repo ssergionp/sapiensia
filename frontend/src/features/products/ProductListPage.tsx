@@ -1,8 +1,10 @@
+import { cn } from "cn";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import StatusBadge from "@/components/StatusBadge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import AdminGuard from "@/features/admin/AdminGuard";
+import { TABLE, TABLE_HEAD, TABLE_REGION } from "@/features/admin/tableStyles";
 import { ProductForbiddenError, ProductUnavailableError } from "./api";
 import { useProducts } from "./hooks";
 import {
@@ -13,6 +15,8 @@ import {
 } from "./messages";
 import { formatCents } from "./schemas";
 import { PRODUCT_STATUS_TONE } from "./statusTone";
+
+const HEADING_ID = "products-heading";
 
 const LOAD_ERROR =
   "Não foi possível carregar os Produtos agora. Tente novamente.";
@@ -57,23 +61,29 @@ function ProductList() {
     const { items, totalPages } = products.data;
     content = (
       <>
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
+        {/* Scrollable region: focusable so the keyboard can scroll it (WCAG 2.1.1). */}
+        <section
+          aria-labelledby={HEADING_ID}
+          // biome-ignore lint/a11y/noNoninteractiveTabindex: scrollable region must be keyboard-focusable
+          tabIndex={0}
+          className={TABLE_REGION}
+        >
+          <table className={TABLE}>
+            <thead className={TABLE_HEAD}>
               <tr>
-                <th scope="col" className="min-w-48 py-2 pr-4">
+                <th scope="col" className="min-w-48 px-4 py-3">
                   Título
                 </th>
-                <th scope="col" className="py-2 pr-4">
+                <th scope="col" className="px-4 py-3">
                   Categoria
                 </th>
-                <th scope="col" className="py-2 pr-4">
+                <th scope="col" className="px-4 py-3">
                   Preço
                 </th>
-                <th scope="col" className="py-2 pr-4">
+                <th scope="col" className="px-4 py-3">
                   Estado
                 </th>
-                <th scope="col" className="py-2">
+                <th scope="col" className="px-4 py-3">
                   Ações
                 </th>
               </tr>
@@ -81,14 +91,16 @@ function ProductList() {
             <tbody>
               {items.map((item) => (
                 <tr key={item.id} className="border-t">
-                  <td className="min-w-48 py-2 pr-4 [overflow-wrap:anywhere]">
+                  <td className="min-w-48 px-4 py-3 font-semibold [overflow-wrap:anywhere]">
                     {item.title}
                   </td>
-                  <td className="py-2 pr-4">
+                  <td className="px-4 py-3">
                     {CATEGORY_LABELS[item.category]}
                   </td>
-                  <td className="py-2 pr-4">{formatCents(item.priceCents)}</td>
-                  <td className="py-2 pr-4">
+                  <td className="px-4 py-3 whitespace-nowrap tabular-nums">
+                    {formatCents(item.priceCents)}
+                  </td>
+                  <td className="px-4 py-3">
                     <StatusBadge
                       status={item.status}
                       tone={PRODUCT_STATUS_TONE[item.status]}
@@ -96,11 +108,11 @@ function ProductList() {
                       {STATUS_LABELS[item.status]}
                     </StatusBadge>
                   </td>
-                  <td className="py-2">
+                  <td className="px-4 py-3">
                     <Link
                       to={`/painel/produtos/${item.id}`}
                       aria-label={`Editar ${item.title}`}
-                      className="underline"
+                      className="text-link"
                     >
                       Editar
                     </Link>
@@ -109,8 +121,11 @@ function ProductList() {
               ))}
             </tbody>
           </table>
-        </div>
-        <nav aria-label="Paginação" className="mt-4 flex items-center gap-4">
+        </section>
+        <nav
+          aria-label="Paginação"
+          className="mt-4 flex flex-wrap items-center gap-4"
+        >
           <Button
             variant="outline"
             disabled={page === 0}
@@ -118,7 +133,7 @@ function ProductList() {
           >
             Anterior
           </Button>
-          <span>
+          <span className="text-sm text-muted-foreground tabular-nums">
             Página {page + 1} de {Math.max(totalPages, 1)}
           </span>
           <Button
@@ -134,18 +149,23 @@ function ProductList() {
   }
 
   return (
-    <main className="p-8">
-      <h1 className="text-2xl font-bold">Produtos</h1>
-      <p className="mt-4 flex gap-4">
-        <Link to="/painel/produtos/novo" className="underline">
+    <main className="page-container">
+      <h1 id={HEADING_ID} className="text-3xl">
+        Produtos
+      </h1>
+      <p className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-3">
+        <Link
+          to="/painel/produtos/novo"
+          className={cn(buttonVariants(), "h-11 px-4 text-base")}
+        >
           Novo Produto
         </Link>
-        <Link to="/painel" className="underline">
+        <Link to="/painel" className="text-link">
           Voltar ao painel
         </Link>
       </p>
       {created && (
-        <p role="status" className="mt-4">
+        <p role="status" className="mt-4 rounded-lg bg-muted p-4 text-sm">
           Produto criado.
         </p>
       )}
