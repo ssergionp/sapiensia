@@ -36,7 +36,10 @@ class ProductPublicationController {
         this.clientIp = clientIp;
     }
 
-    /** 200 with the Product; 404; 409 {"errors":{"file":"FILE_REQUIRED","cover":"COVER_REQUIRED"}} (each key only when missing); 503 without a body. */
+    /**
+     * 200 with the Product; 404; 409 {"errors":{"file":"FILE_REQUIRED","cover":"COVER_REQUIRED"}} (each key only when
+     * missing); 503 without a body.
+     */
     @PutMapping
     ProductResponse publish(@PathVariable UUID id, Authentication authentication, HttpServletRequest request) {
         var administrator = (AdministratorPrincipal) authentication.getPrincipal();

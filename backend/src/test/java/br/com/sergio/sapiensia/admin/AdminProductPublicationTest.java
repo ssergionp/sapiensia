@@ -4,10 +4,12 @@ import static br.com.sergio.sapiensia.admin.AdminProductFixtures.PASSWORD;
 import static br.com.sergio.sapiensia.admin.AdminProductFixtures.PRODUCTS;
 import static br.com.sergio.sapiensia.admin.AdminProductFixtures.validUpdate;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
 import br.com.sergio.sapiensia.security.SecretCipher;
 import com.jayway.jsonpath.JsonPath;
+import com.jayway.jsonpath.PathNotFoundException;
 import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.Map;
@@ -110,8 +112,8 @@ class AdminProductPublicationTest {
 
         assertThat(response.statusCode()).isEqualTo(409);
         assertThat((String) JsonPath.read(response.body(), "$.errors.cover")).isEqualTo("COVER_REQUIRED");
-        assertThat((Map<String, Object>) JsonPath.read(response.body(), "$.errors"))
-                .doesNotContainKey("file");
+        assertThatThrownBy(() -> JsonPath.read(response.body(), "$.errors.file"))
+                .isInstanceOf(PathNotFoundException.class);
         assertThat(status(id)).isEqualTo("DRAFT");
         List<Map<String, Object>> rows = rowsOf(response);
         assertThat(rows).hasSize(1);
@@ -132,7 +134,9 @@ class AdminProductPublicationTest {
         assertThat((String) JsonPath.read(response.body(), "$.errors.file")).isEqualTo("FILE_REQUIRED");
         assertThat((String) JsonPath.read(response.body(), "$.errors.cover")).isEqualTo("COVER_REQUIRED");
         assertThat(status(id)).isEqualTo("DRAFT");
-        assertThat(rowsOf(response)).hasSize(1);
+        List<Map<String, Object>> rows = rowsOf(response);
+        assertThat(rows).hasSize(1);
+        assertThat(rows.getFirst()).containsEntry("result", "FAILURE");
     }
 
     @Test

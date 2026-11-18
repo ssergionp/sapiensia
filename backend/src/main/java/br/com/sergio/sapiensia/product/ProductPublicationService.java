@@ -12,8 +12,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Publishes and unpublishes Products. Publishing needs a file and a Capa. Both take the Product row lock that the file swap also takes, so the two are
- * queued: publishing always sees a file that is being saved, and a swap always sees a publication that just happened.
+ * Publishes and unpublishes Products. Publishing needs a file and a Capa. Publish and unpublish both take the Product
+ * row lock that the file swap also takes, so the two are queued: publishing always sees a file that is being saved,
+ * and a swap always sees a publication that just happened.
  * Asking for the state the Product already has is a no-op with no audit event. Nothing here logs file data.
  */
 @Service
@@ -31,7 +32,10 @@ class ProductPublicationService {
         this.audit = audit;
     }
 
-    /** Needs a file and a Capa: without either, the FAILURE event is written in its own transaction and the caller answers 409. */
+    /**
+     * Needs a file and a Capa: without either, the FAILURE event is written in its own transaction and the caller
+     * answers 409.
+     */
     @Transactional
     ProductResponse publish(UUID id, UUID administratorId, String origin) {
         lock(id);
