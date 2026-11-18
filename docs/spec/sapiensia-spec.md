@@ -835,6 +835,7 @@ global AAA antes de auditoria.
 | Fase 4 — Escala (ADIADA, backlog)         | WhatsApp, novos modelos comerciais e otimização                                                            | Métricas demonstram necessidade e sustentabilidade |
 
 > **Adiado (ADR-0008, Fases 2 e 4).** A Fase 2 (Fábrica de IA) e a Fase 4 (Escala: WhatsApp, novos modelos comerciais) ficam no backlog como evolutivas, para depois que o site estiver em produção e gerando renda. A Fase 3 continua no plano, depois do lançamento. A Fase 2 pode voltar como decisão nova.
+
 Não desenvolver todas as fases em paralelo. Priorizar compra e entrega
 confiáveis antes de ampliar automações e complexidade de IA.
 
