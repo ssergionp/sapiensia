@@ -27,7 +27,7 @@ class OrderRefundedEmail {
     static final String SUBJECT = "Seu Pedido na SapiensIA foi reembolsado";
 
     /** Same address as SUPPORT_EMAIL in frontend/src/features/legal/legalTexts.ts and docs/runbooks/suporte-cliente.md. */
-    static final String SUPPORT_EMAIL = "suporte@sapiensia.app.br";
+    static final String SUPPORT_EMAIL = "sapiensia.operacao@gmail.com";
 
     private static final Logger log = LoggerFactory.getLogger(OrderRefundedEmail.class);
 

@@ -57,7 +57,7 @@ test("o ano do rodapé acompanha o ano corrente", () => {
 test("o rodapé mostra o canal de atendimento como mailto", () => {
   renderFooter();
   const link = screen.getByRole("link", {
-    name: "Atendimento: suporte@sapiensia.app.br",
+    name: "Atendimento: sapiensia.operacao@gmail.com",
   });
-  expect(link).toHaveAttribute("href", "mailto:suporte@sapiensia.app.br");
+  expect(link).toHaveAttribute("href", "mailto:sapiensia.operacao@gmail.com");
 });
