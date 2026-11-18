@@ -63,18 +63,29 @@ export async function expectNoA11yViolations(
   if (!options.bothThemes) return;
 
   const html = page.locator("html");
+  const storedTheme = await page.evaluate(() =>
+    localStorage.getItem("sapiensia-theme"),
+  );
+  if (storedTheme !== null) {
+    throw new Error(
+      `bothThemes on "${screen}": the visitor chose a theme (${storedTheme}), so the page no longer follows the browser color scheme`,
+    );
+  }
   const wasDark = await html.evaluate((el) => el.classList.contains("dark"));
   const other = wasDark ? "light" : "dark";
-  await page.emulateMedia({ colorScheme: other });
-  if (other === "dark") await expect(html).toHaveClass(/\bdark\b/);
-  else await expect(html).not.toHaveClass(/\bdark\b/);
-  // buttons have color transitions: scanning mid-transition measures a color that is never at rest
-  await page.waitForFunction(() =>
-    document.getAnimations().every((a) => a.playState !== "running"),
-  );
-  await scan(page, themedScreen(screen, other));
-
-  await page.emulateMedia({ colorScheme: wasDark ? "dark" : "light" });
+  try {
+    await page.emulateMedia({ colorScheme: other });
+    if (other === "dark") await expect(html).toHaveClass(/\bdark\b/);
+    else await expect(html).not.toHaveClass(/\bdark\b/);
+    // buttons have color transitions: scanning mid-transition measures a color that is never at rest
+    await page.waitForFunction(() =>
+      document.getAnimations().every((a) => a.playState !== "running"),
+    );
+    await scan(page, themedScreen(screen, other));
+  } finally {
+    // back to the original theme even when the scan fails, so later steps on the same page are not affected
+    await page.emulateMedia({ colorScheme: wasDark ? "dark" : "light" });
+  }
   if (wasDark) await expect(html).toHaveClass(/\bdark\b/);
   else await expect(html).not.toHaveClass(/\bdark\b/);
 }

@@ -286,8 +286,8 @@ export default function OrderPage() {
         {announcement}
       </div>
       <p className="mt-2 text-sm text-muted-foreground">{T.afterPaying}</p>
-      {/* on a phone the customer pays on the same screen, so the code and "Copiar código" come before
-          the QR Code (also in the HTML, for screen readers); from 640px the QR Code moves first */}
+      {/* the code and "Copiar código" come first at every width (a phone pays on the same screen),
+          and the HTML follows the same order for keyboard and screen readers */}
       <div className="mt-6 flex flex-col gap-6">
         <div className="flex flex-col gap-2">
           <label htmlFor="pix-code" className="font-semibold">
@@ -315,7 +315,7 @@ export default function OrderPage() {
           )}
         </div>
         {/* always white, also in the dark theme: banking apps read the code on white */}
-        <div className="mx-auto w-full max-w-56 rounded-lg border bg-white p-3 sm:order-first sm:max-w-64">
+        <div className="mx-auto w-full max-w-56 rounded-lg border bg-white p-3 sm:max-w-64">
           <QRCodeSVG
             value={code}
             role="img"

@@ -190,6 +190,30 @@ describe("CatalogProductPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  test("Produto já na Biblioteca não mostra as vantagens da compra nem o reembolso", async () => {
+    mockProductAndLibrary(() =>
+      jsonResponse(200, {
+        items: [
+          {
+            productId: "p1",
+            title: "Guia",
+            grantedAt: "2026-01-01T00:00:00Z",
+            coverVersion: null,
+          },
+        ],
+      }),
+    );
+    renderProduct();
+
+    await screen.findByText("Você já tem Acesso a este Produto.");
+    expect(
+      screen.queryByText("Pagamento por Pix, confirmado automaticamente."),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Política de reembolso" }),
+    ).not.toBeInTheDocument();
+  });
+
   test("Biblioteca com outro Produto mantém o botão Comprar com Pix", async () => {
     mockProductAndLibrary(() =>
       jsonResponse(200, {

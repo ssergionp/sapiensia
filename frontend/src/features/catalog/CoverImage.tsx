@@ -64,7 +64,6 @@ export default function CoverImage({
       loading="lazy"
       decoding="async"
       onError={() => setFailedSrc(src)}
-      style={background ? { backgroundColor: background } : undefined}
       className={cn(
         "aspect-[2/3] w-full rounded-md bg-muted object-contain",
         className,

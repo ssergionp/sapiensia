@@ -19,7 +19,46 @@ function PurchaseArea({ productId }: { productId: string }) {
   const library = useLibrary();
   // Pending, error or no session: keep the button; the server answers 409 if the Customer owns it.
   const owned = library.data?.items.some((i) => i.productId === productId);
-  if (!owned) return <BuyWithPix productId={productId} />;
+  // the benefits, refund and support lines belong to the purchase: someone who owns it does not see them
+  if (!owned) {
+    return (
+      <>
+        <BuyWithPix productId={productId} />
+        <ul className="mt-6 space-y-2 text-sm">
+          {T.purchaseBenefits.map((benefit) => (
+            <li key={benefit} className="flex gap-2">
+              <Check
+                aria-hidden="true"
+                className="mt-0.5 size-4 shrink-0 text-primary"
+              />
+              <span>{benefit}</span>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-5 space-y-1 border-t pt-4 text-sm text-muted-foreground">
+          <p>
+            {T.refundBefore}{" "}
+            <Link
+              to={REFUND_POLICY.path}
+              className="font-semibold text-primary underline underline-offset-4"
+            >
+              {REFUND_POLICY.title}
+            </Link>
+            .
+          </p>
+          <p>
+            {T.supportBefore}{" "}
+            <a
+              href={`mailto:${SUPPORT_EMAIL}`}
+              className="font-semibold text-primary underline underline-offset-4 [overflow-wrap:anywhere]"
+            >
+              {SUPPORT_EMAIL}
+            </a>
+          </p>
+        </div>
+      </>
+    );
+  }
   return (
     <div>
       <p>{ORDER_TEXTS.alreadyOwned}</p>
@@ -120,38 +159,6 @@ export default function CatalogProductPage() {
           </dl>
           <section className="mt-8 rounded-xl border bg-card p-6">
             <PurchaseArea productId={product.id} />
-            <ul className="mt-6 space-y-2 text-sm">
-              {T.purchaseBenefits.map((benefit) => (
-                <li key={benefit} className="flex gap-2">
-                  <Check
-                    aria-hidden="true"
-                    className="mt-0.5 size-4 shrink-0 text-primary"
-                  />
-                  <span>{benefit}</span>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-5 space-y-1 border-t pt-4 text-sm text-muted-foreground">
-              <p>
-                {T.refundBefore}{" "}
-                <Link
-                  to={REFUND_POLICY.path}
-                  className="font-semibold text-primary underline underline-offset-4"
-                >
-                  {REFUND_POLICY.title}
-                </Link>
-                .
-              </p>
-              <p>
-                {T.supportBefore}{" "}
-                <a
-                  href={`mailto:${SUPPORT_EMAIL}`}
-                  className="font-semibold text-primary underline underline-offset-4 [overflow-wrap:anywhere]"
-                >
-                  {SUPPORT_EMAIL}
-                </a>
-              </p>
-            </div>
           </section>
           <p className="mt-8 max-w-prose whitespace-pre-line [overflow-wrap:anywhere]">
             {product.description}

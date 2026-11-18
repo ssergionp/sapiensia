@@ -51,6 +51,18 @@ describe("CoverImage", () => {
     expect(frame.dataset.title).toBe("Guia de finanças");
   });
 
+  test("a capa real não ganha a cor de reserva (sem faixas escuras em capa fora de 2:3)", () => {
+    render(
+      <CoverImage
+        src="/api/products/p1/cover?v=abc"
+        alt="Capa de Guia"
+        category="LAW"
+        title="Guia"
+      />,
+    );
+    expect(screen.getByRole("img").style.backgroundColor).toBe("");
+  });
+
   test("com falha ao carregar, troca pela cor da categoria", () => {
     const { container } = render(
       <CoverImage
