@@ -36,7 +36,7 @@ describe("CoverImage", () => {
     const frame = container.firstElementChild as HTMLElement;
     expect(frame.getAttribute("aria-hidden")).toBe("true");
     expect(frame.dataset.category).toBe("FINANCE");
-    expect(frame.style.backgroundColor).toBe("rgb(17, 75, 62)");
+    expect(frame.style.backgroundColor).toBe("var(--cover-finance)");
     // drawn by CSS from data-title, so screen readers and text queries never see a second title
     expect(frame.dataset.title).toBe("Guia de finanças");
     expect(frame.textContent).toBe("");
@@ -47,7 +47,7 @@ describe("CoverImage", () => {
       <CoverImage src={null} alt="" title="Guia de finanças" />,
     );
     const frame = container.firstElementChild as HTMLElement;
-    expect(frame.style.backgroundColor).toBe("rgb(24, 32, 38)");
+    expect(frame.style.backgroundColor).toBe("var(--cover-other)");
     expect(frame.dataset.title).toBe("Guia de finanças");
   });
 
@@ -74,7 +74,7 @@ describe("CoverImage", () => {
     );
     fireEvent.error(screen.getByRole("img"));
     const frame = container.firstElementChild as HTMLElement;
-    expect(frame.style.backgroundColor).toBe("rgb(140, 59, 32)");
+    expect(frame.style.backgroundColor).toBe("var(--cover-law)");
   });
 
   test("se a imagem falhar, troca pelo quadro neutro", () => {
@@ -118,5 +118,14 @@ describe("CoverImage", () => {
       expect(longest).toBeLessThan(short);
       expect(short).toBeLessThanOrEqual(10);
     });
+  });
+
+  test("o fundo e o texto da capa vêm de tokens, sem cor escrita no código", () => {
+    const { container } = render(
+      <CoverImage src={null} alt="" category="HEALTH" title="Guia" />,
+    );
+    const frame = container.firstElementChild as HTMLElement;
+    expect(frame.outerHTML).not.toMatch(/#[0-9a-f]{3,6}/i);
+    expect(frame.className).toContain("text-cover-foreground");
   });
 });
