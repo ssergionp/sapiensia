@@ -77,7 +77,7 @@ export default function RecoveryCodesSection() {
 
   if (codes) {
     return (
-      <section className="mt-8">
+      <section className="mt-6 rounded-xl border bg-card p-6 sm:p-8">
         <RecoveryCodesList
           title={RESULT_TITLE}
           warning={RESULT_WARNING}
@@ -94,7 +94,7 @@ export default function RecoveryCodesSection() {
   }
 
   return (
-    <section className="mt-8">
+    <section className="mt-6 rounded-xl border bg-card p-6 sm:p-8">
       <h2 className="text-xl font-bold">{TITLE}</h2>
       <p className="mt-2">{EXPLANATION}</p>
       {asking ? (

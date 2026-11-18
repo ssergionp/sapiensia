@@ -14,7 +14,7 @@ export default function SetAdminPasswordPage() {
       successContent={
         <>
           Senha definida. Entre no painel com a nova senha.{" "}
-          <Link to="/painel/entrar" className="underline">
+          <Link to="/painel/entrar" className="text-link">
             Entrar no painel
           </Link>
         </>

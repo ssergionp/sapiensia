@@ -7,6 +7,7 @@ import {
   useForm,
 } from "react-hook-form";
 import { Link, useNavigate, useParams } from "react-router";
+import StatusBadge from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,6 +34,7 @@ import {
   SAVE_ERRORS,
   SERVER_FIELD_MESSAGES,
   SERVER_FIELD_NAMES,
+  STATUS_LABELS,
   STATUS_NOTICES,
 } from "./messages";
 import ProductCoverSection from "./ProductCoverSection";
@@ -48,6 +50,7 @@ import {
   productDataSchema,
   productPriceSchema,
 } from "./schemas";
+import { PRODUCT_STATUS_TONE } from "./statusTone";
 
 type DataValues = { title: string; description: string; category: string };
 type PriceValues = { price: string };
@@ -169,7 +172,7 @@ function DataFields({ form }: { form: UseFormReturn<DataValues> }) {
           id="category"
           aria-invalid={errors.category ? true : undefined}
           aria-describedby={fieldDescribedBy("category")}
-          className="h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30"
+          className="h-11 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30"
           {...register("category")}
         >
           <option value="">Selecione uma categoria</option>
@@ -284,21 +287,27 @@ function CreateProduct() {
   }
 
   return (
-    <main className="p-8">
-      <h1 className="text-2xl font-bold">Novo Produto</h1>
-      <p className="mt-4">
+    <main className="page-container">
+      <h1 className="text-3xl">Novo Produto</h1>
+      <p className="mt-4 max-w-2xl text-muted-foreground">
         Este Produto começa como rascunho: os clientes ainda não conseguem vê-lo
         nem comprá-lo.
       </p>
-      <form onSubmit={submit} noValidate className="mt-6 grid max-w-xl gap-8">
-        <section aria-labelledby="data-heading">
-          <h2 id="data-heading" className="mb-4 text-lg font-semibold">
+      <form onSubmit={submit} noValidate className="mt-6 grid max-w-2xl gap-6">
+        <section
+          aria-labelledby="data-heading"
+          className="rounded-xl border bg-card p-6 sm:p-8"
+        >
+          <h2 id="data-heading" className="mb-4 text-xl font-bold">
             Dados do produto
           </h2>
           <DataFields form={dataForm} />
         </section>
-        <section aria-labelledby="price-heading">
-          <h2 id="price-heading" className="mb-4 text-lg font-semibold">
+        <section
+          aria-labelledby="price-heading"
+          className="rounded-xl border bg-card p-6 sm:p-8"
+        >
+          <h2 id="price-heading" className="mb-4 text-xl font-bold">
             Preço
           </h2>
           <PriceField form={priceForm} />
@@ -308,7 +317,7 @@ function CreateProduct() {
           <Button type="submit" disabled={create.isPending}>
             {create.isPending ? "Criando…" : "Criar Produto"}
           </Button>
-          <Link to="/painel/produtos" className="underline">
+          <Link to="/painel/produtos" className="text-link">
             Cancelar
           </Link>
         </div>
@@ -386,17 +395,28 @@ function EditForms({
   });
 
   return (
-    <main className="p-8">
-      <h1 className="text-2xl font-bold">Editar Produto</h1>
+    <main className="page-container">
+      <h1 className="text-3xl">Editar Produto</h1>
       <p className="mt-4">
-        <Link to="/painel/produtos" className="underline">
+        <Link to="/painel/produtos" className="text-link">
           Voltar para Produtos
         </Link>
       </p>
-      <p className="mt-4">{STATUS_NOTICES[product.status]}</p>
-      <div className="mt-6 grid max-w-xl gap-8">
-        <section aria-labelledby="data-heading">
-          <h2 id="data-heading" className="mb-4 text-lg font-semibold">
+      <div className="mt-6 flex max-w-2xl flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border bg-card px-4 py-3">
+        <StatusBadge
+          status={product.status}
+          tone={PRODUCT_STATUS_TONE[product.status]}
+        >
+          {STATUS_LABELS[product.status]}
+        </StatusBadge>
+        <p className="text-sm">{STATUS_NOTICES[product.status]}</p>
+      </div>
+      <div className="mt-6 grid max-w-2xl gap-6">
+        <section
+          aria-labelledby="data-heading"
+          className="rounded-xl border bg-card p-6 sm:p-8"
+        >
+          <h2 id="data-heading" className="mb-4 text-xl font-bold">
             Dados do produto
           </h2>
           <form
@@ -419,8 +439,11 @@ function EditForms({
             </div>
           </form>
         </section>
-        <section aria-labelledby="price-heading">
-          <h2 id="price-heading" className="mb-4 text-lg font-semibold">
+        <section
+          aria-labelledby="price-heading"
+          className="rounded-xl border bg-card p-6 sm:p-8"
+        >
+          <h2 id="price-heading" className="mb-4 text-xl font-bold">
             Preço
           </h2>
           {canChangePrice ? (
@@ -468,7 +491,7 @@ function EditProduct({
 
   if (product.isPending) {
     return (
-      <main className="p-8">
+      <main className="page-container">
         <p>Carregando…</p>
       </main>
     );
@@ -477,7 +500,7 @@ function EditProduct({
     const notFound = product.error instanceof ProductNotFoundError;
     const forbidden = product.error instanceof ProductForbiddenError;
     return (
-      <main className="p-8">
+      <main className="page-container">
         <p role="alert" className="text-destructive">
           {notFound
             ? PRODUCT_NOT_FOUND
@@ -486,7 +509,7 @@ function EditProduct({
               : "Não foi possível carregar o Produto agora. Tente novamente."}
         </p>
         <p className="mt-4">
-          <Link to="/painel/produtos" className="underline">
+          <Link to="/painel/produtos" className="text-link">
             Voltar para Produtos
           </Link>
         </p>

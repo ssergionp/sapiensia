@@ -12,6 +12,8 @@
   --font-sans: "Plus Jakarta Sans Variable", system-ui, sans-serif;
   --color-brand-mark: var(--brand-mark);
   --color-brand-decor: var(--brand-decor);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -75,6 +77,9 @@
   /* Terracota in light is decorative only (2.03:1 on Pedra): never text */
   --brand-mark: #f08a4b;
   --brand-decor: #f08a4b;
+  /* status badge fill (Pinho 12% on the card) and its text, also the paid icon */
+  --success: #dee1db;
+  --success-foreground: #114b3e;
   --chart-1: #114b3e;
   --chart-2: #f08a4b;
   --chart-3: #133b4d;
@@ -113,6 +118,9 @@
   --ring: #f08a4b;
   --brand-mark: #faf6f0;
   --brand-decor: #f08a4b;
+  /* status badge fill (#6fb8a2 15% on the card) and its text, also the paid icon */
+  --success: #202e2a;
+  --success-foreground: #6fb8a2;
   --chart-1: #f08a4b;
   --chart-2: #6fb8a2;
   --chart-3: #a9b0ac;

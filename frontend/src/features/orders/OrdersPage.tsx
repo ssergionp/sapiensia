@@ -1,6 +1,7 @@
 import { cn } from "cn";
 import { useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router";
+import StatusBadge from "@/components/StatusBadge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { formatCents } from "@/features/products/schemas";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
@@ -9,6 +10,7 @@ import { useOrders } from "./hooks";
 import { ORDER_TEXTS as T } from "./messages";
 import { rememberReturnTo } from "./returnTo";
 import type { OrderList } from "./schemas";
+import { ORDER_STATUS_TONE } from "./statusTone";
 
 const HEADING_ID = "orders-heading";
 
@@ -32,14 +34,6 @@ const STATUS_TEXT = {
   REFUNDED: T.statusRefunded,
 } as const;
 
-// Color plus the same words as before (never color alone); contrast ≥ 5.2:1 in both themes
-const STATUS_BADGE = {
-  PENDING: "bg-[#F08A4B]/20 text-foreground",
-  PAID: "bg-[#114B3E]/12 text-[#114B3E] dark:bg-[#6FB8A2]/15 dark:text-[#6FB8A2]",
-  EXPIRED: "bg-muted text-muted-foreground",
-  REFUNDED: "bg-muted text-foreground",
-} as const;
-
 function OrderItem({ order }: { order: OrderList["items"][number] }) {
   return (
     <li className="rounded-xl border bg-card p-5">
@@ -47,12 +41,12 @@ function OrderItem({ order }: { order: OrderList["items"][number] }) {
         <p className="min-w-0 font-semibold [overflow-wrap:anywhere]">
           {order.productTitle}
         </p>
-        <span
-          data-status={order.status}
-          className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${STATUS_BADGE[order.status]}`}
+        <StatusBadge
+          status={order.status}
+          tone={ORDER_STATUS_TONE[order.status]}
         >
           {STATUS_TEXT[order.status]}
-        </span>
+        </StatusBadge>
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
         <span className="font-semibold text-foreground tabular-nums">

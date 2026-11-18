@@ -1,6 +1,10 @@
 import { cn } from "cn";
 import { Link, NavLink, useLocation } from "react-router";
-import { BRAND_TEXTS, CHROME_FOCUS_RING } from "@/components/brand/brandTexts";
+import {
+  BRAND_TEXTS,
+  CHROME_FOCUS_RING,
+  NAV_LINK,
+} from "@/components/brand/brandTexts";
 import Logo from "@/components/brand/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -16,15 +20,6 @@ const NAV_TEXTS = {
   signOut: "Sair",
   signingOut: "Saindo…",
 } as const;
-
-// The current page gets aria-current from NavLink and a decorative Terracota bar (DESIGN.md: Terracota
-// only as decoration in the light theme).
-const NAV_LINK = cn(
-  "relative inline-flex min-h-11 items-center rounded-md px-3 text-sm font-semibold hover:text-primary",
-  "aria-[current=page]:after:absolute aria-[current=page]:after:inset-x-3 aria-[current=page]:after:bottom-1.5",
-  "aria-[current=page]:after:h-0.5 aria-[current=page]:after:rounded-full aria-[current=page]:after:bg-brand-decor",
-  CHROME_FOCUS_RING,
-);
 
 function isPanel(pathname: string) {
   return pathname === "/painel" || pathname.startsWith("/painel/");

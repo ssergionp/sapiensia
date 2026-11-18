@@ -1,7 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
+import StatusBadge from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import AdminGuard from "@/features/admin/AdminGuard";
+import {
+  SELECT,
+  TABLE,
+  TABLE_HEAD,
+  TABLE_REGION,
+} from "@/features/admin/tableStyles";
+import { ORDER_STATUS_TONE } from "@/features/orders/statusTone";
 import { formatCents } from "@/features/products/schemas";
 import { saoPauloDateAndTime } from "@/lib/saoPauloDate";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
@@ -33,7 +41,10 @@ function Pagination({
   onPage: (page: number) => void;
 }) {
   return (
-    <nav aria-label={T.pagination} className="mt-4 flex items-center gap-4">
+    <nav
+      aria-label={T.pagination}
+      className="mt-4 flex flex-wrap items-center gap-4"
+    >
       <Button
         variant="outline"
         disabled={page === 0}
@@ -41,7 +52,10 @@ function Pagination({
       >
         {T.previous}
       </Button>
-      <span aria-live="polite">
+      <span
+        aria-live="polite"
+        className="text-sm text-muted-foreground tabular-nums"
+      >
         {T.pageOf(page + 1, Math.max(totalPages, 1))}
       </span>
       <Button
@@ -119,13 +133,13 @@ function AdminOrders() {
           aria-labelledby={HEADING_ID}
           // biome-ignore lint/a11y/noNoninteractiveTabindex: scrollable region must be keyboard-focusable
           tabIndex={0}
-          className="mt-4 overflow-x-auto"
+          className={TABLE_REGION}
         >
-          <table className="w-full text-left text-sm">
-            <thead>
+          <table className={TABLE}>
+            <thead className={TABLE_HEAD}>
               <tr>
                 {Object.values(T.columns).map((name) => (
-                  <th key={name} scope="col" className="py-2 pr-4">
+                  <th key={name} scope="col" className="px-4 py-3">
                     {name}
                   </th>
                 ))}
@@ -134,21 +148,28 @@ function AdminOrders() {
             <tbody>
               {items.map((item) => (
                 <tr key={item.id} className="border-t">
-                  <td className="py-2 pr-4 font-mono">{item.id.slice(0, 8)}</td>
-                  <td className="min-w-48 py-2 pr-4 [overflow-wrap:anywhere]">
+                  <td className="px-4 py-3 font-mono">{item.id.slice(0, 8)}</td>
+                  <td className="min-w-48 px-4 py-3 font-semibold [overflow-wrap:anywhere]">
                     {item.productTitle}
                   </td>
-                  <td className="py-2 pr-4 whitespace-nowrap">
+                  <td className="px-4 py-3 whitespace-nowrap tabular-nums">
                     {formatCents(item.priceCents)}
                   </td>
-                  <td className="py-2 pr-4">{STATUS_TEXT[item.status]}</td>
-                  <td className="min-w-48 py-2 pr-4 [overflow-wrap:anywhere]">
+                  <td className="px-4 py-3">
+                    <StatusBadge
+                      status={item.status}
+                      tone={ORDER_STATUS_TONE[item.status]}
+                    >
+                      {STATUS_TEXT[item.status]}
+                    </StatusBadge>
+                  </td>
+                  <td className="min-w-48 px-4 py-3 [overflow-wrap:anywhere]">
                     {item.customerEmail}
                   </td>
-                  <td className="py-2 pr-4 whitespace-nowrap">
+                  <td className="px-4 py-3 whitespace-nowrap tabular-nums">
                     <DateCell iso={item.createdAt} />
                   </td>
-                  <td className="py-2 whitespace-nowrap">
+                  <td className="px-4 py-3 whitespace-nowrap tabular-nums">
                     <DateCell iso={item.paidAt} />
                   </td>
                 </tr>
@@ -162,27 +183,27 @@ function AdminOrders() {
   }
 
   return (
-    <main className="p-8">
+    <main className="page-container">
       <h1
         ref={heading}
         id={HEADING_ID}
         tabIndex={-1}
-        className="text-2xl font-bold [overflow-wrap:anywhere]"
+        className="text-3xl outline-none [overflow-wrap:anywhere]"
       >
         {T.heading}
       </h1>
       <p className="mt-4">
-        <Link to="/painel" className="underline">
+        <Link to="/painel" className="text-link">
           {T.backToPanel}
         </Link>
       </p>
-      <div className="mt-4">
-        <label htmlFor="admin-orders-status" className="mr-2 text-sm">
+      <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-2">
+        <label htmlFor="admin-orders-status" className="text-sm font-semibold">
           {T.filterLabel}
         </label>
         <select
           id="admin-orders-status"
-          className="rounded-md border bg-background px-2 py-1 text-sm"
+          className={SELECT}
           value={status ?? ""}
           onChange={(event) => {
             setStatus((event.target.value || null) as OrderStatus | null);

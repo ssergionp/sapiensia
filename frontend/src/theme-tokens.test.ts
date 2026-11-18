@@ -99,6 +99,19 @@ describe("tokens de cor do tema", () => {
     },
   );
 
+  it.each(themes)(
+    "selo de estado e ícone de pago têm contraste AA no tema %s",
+    (_, t) => {
+      // the badge text on the badge fill; the paid icon and the badge fill sit on the card
+      expect(
+        contrast(t["success-foreground"], t.success),
+      ).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(t["success-foreground"], t.card)).toBeGreaterThanOrEqual(
+        4.5,
+      );
+    },
+  );
+
   it.each(themes)("nenhum token do tema %s usa roxo", (_, t) => {
     const colors = Object.values(t).filter((v) => v.startsWith("#"));
     expect(colors.length).toBeGreaterThan(10);
