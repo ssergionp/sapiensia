@@ -16,8 +16,8 @@ import br.com.sergio.sapiensia.payment.OrderNotFoundException;
 import br.com.sergio.sapiensia.payment.PaymentProviderUnavailableException;
 import br.com.sergio.sapiensia.payment.ProductAlreadyOwnedException;
 import br.com.sergio.sapiensia.product.DownloadLimitReachedException;
-import br.com.sergio.sapiensia.product.ProductFileRequiredException;
 import br.com.sergio.sapiensia.product.ProductNotFoundException;
+import br.com.sergio.sapiensia.product.ProductNotPublishableException;
 import br.com.sergio.sapiensia.product.ProductVersionConflictException;
 import java.util.Map;
 import java.util.TreeMap;
@@ -114,10 +114,10 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).build();
     }
 
-    /** Publishing needs the Product file (FR-011): 409 with the code of the field, like the other refusals. */
-    @ExceptionHandler(ProductFileRequiredException.class)
-    ResponseEntity<ProblemDetail> handleProductFileRequired() {
-        ProblemDetail problem = problem(Map.of("file", "FILE_REQUIRED"));
+    /** Publishing needs the Product file and the Capa (FR-011): 409 with one code per missing item. */
+    @ExceptionHandler(ProductNotPublishableException.class)
+    ResponseEntity<ProblemDetail> handleProductNotPublishable(ProductNotPublishableException ex) {
+        ProblemDetail problem = problem(ex.errors());
         problem.setStatus(HttpStatus.CONFLICT);
         return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
     }

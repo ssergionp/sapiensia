@@ -83,7 +83,7 @@ class AdminProductPublicationAuthorizationTest {
                 "insert into customers (email, password_hash, email_confirmed_at) values (?, ?, now())",
                 customerEmail,
                 passwordEncoder.encode(PASSWORD));
-        existing = AdminProductFixtures.insertProductWithFile(jdbc);
+        existing = AdminProductFixtures.insertProductWithFileAndCover(jdbc);
     }
 
     @AfterEach
@@ -92,6 +92,7 @@ class AdminProductPublicationAuthorizationTest {
     }
 
     private void clearState() {
+        jdbc.update("delete from product_covers");
         jdbc.update("delete from product_files");
         jdbc.update("delete from products");
     }
@@ -203,7 +204,7 @@ class AdminProductPublicationAuthorizationTest {
     @Test
     @DisplayName("SEC-011: publicar o Produto A não toca o Produto B")
     void shouldNotTouchAnotherProduct() throws Exception {
-        UUID other = AdminProductFixtures.insertProductWithFile(jdbc);
+        UUID other = AdminProductFixtures.insertProductWithFileAndCover(jdbc);
         Map<String, Object> otherBefore = productRow(other);
         AdminBrowser admin = fullAdmin();
 

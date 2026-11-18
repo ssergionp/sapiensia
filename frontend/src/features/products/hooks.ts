@@ -10,6 +10,7 @@ import {
   createProduct,
   fetchProduct,
   fetchProducts,
+  ProductCoverRequiredWhilePublishedError,
   ProductSessionEndedError,
   publishProduct,
   removeProductCover,
@@ -125,7 +126,12 @@ export function useRemoveProductCover(id: string) {
       void queryClient.invalidateQueries({ queryKey: productQueryKey(id) });
       void queryClient.invalidateQueries({ queryKey: productsQueryKey });
     },
-    onError: endSessionOn401(queryClient),
+    // A refusal because the Product was published meanwhile means the screen is stale: reload it.
+    onError: (error: unknown) => {
+      endSessionOn401(queryClient)(error);
+      if (error instanceof ProductCoverRequiredWhilePublishedError)
+        void queryClient.invalidateQueries({ queryKey: productQueryKey(id) });
+    },
   });
 }
 

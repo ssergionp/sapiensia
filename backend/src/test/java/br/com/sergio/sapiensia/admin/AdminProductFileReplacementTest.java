@@ -119,6 +119,7 @@ class AdminProductFileReplacementTest {
             storage.delete(key);
         }
         jdbc.update("delete from pending_object_deletions");
+        jdbc.update("delete from product_covers");
         jdbc.update("delete from product_files");
         jdbc.update("delete from products");
         if (customerEmail != null) {
@@ -155,6 +156,7 @@ class AdminProductFileReplacementTest {
     /** A Product with its first file, published and (optionally) unpublished again, all through the #19 routes. */
     private UUID publishedProduct(AdminBrowser browser, boolean unpublish) throws Exception {
         UUID id = AdminProductFixtures.insertProduct(jdbc);
+        AdminProductFixtures.addCover(jdbc, id);
         assertThat(upload(browser, id).statusCode()).isEqualTo(200);
         assertThat(browser.put(PRODUCTS + "/" + id + "/publication", "").statusCode())
                 .isEqualTo(200);

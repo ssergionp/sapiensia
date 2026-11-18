@@ -127,7 +127,7 @@ class ProductCoverController {
         HttpStatus status = e.reason() == ProductCoverRejection.COVER_TOO_LARGE
                 ? HttpStatus.PAYLOAD_TOO_LARGE
                 : HttpStatus.BAD_REQUEST;
-        return ResponseEntity.status(status).body(problem(status, e.reason()));
+        return ResponseEntity.status(status).body(problem(status, e.reason().name()));
     }
 
     /** Tomcat stopped the body at the receive limit. */
@@ -142,6 +142,13 @@ class ProductCoverController {
         return rejected(new ProductCoverRejectedException(ProductCoverRejection.COVER_REQUIRED));
     }
 
+    /** A PUBLISHED Product cannot lose its Capa: 409 with the code. */
+    @ExceptionHandler(ProductCoverRequiredWhilePublishedException.class)
+    ResponseEntity<ProblemDetail> requiredWhilePublished(ProductCoverRequiredWhilePublishedException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(problem(HttpStatus.CONFLICT, "COVER_REQUIRED_WHILE_PUBLISHED"));
+    }
+
     /** Storage or database down: 503 without a body; only the class is logged. */
     @ExceptionHandler({ProductFileStorageException.class, DataAccessException.class, TransactionException.class})
     ResponseEntity<Void> unavailable(Exception e) {
@@ -149,10 +156,10 @@ class ProductCoverController {
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
     }
 
-    private static ProblemDetail problem(HttpStatus status, ProductCoverRejection reason) {
+    private static ProblemDetail problem(HttpStatus status, String code) {
         ProblemDetail problem = ProblemDetail.forStatus(status);
         problem.setTitle("Invalid request");
-        problem.setProperty("errors", Map.of("cover", reason.name()));
+        problem.setProperty("errors", Map.of("cover", code));
         return problem;
     }
 }

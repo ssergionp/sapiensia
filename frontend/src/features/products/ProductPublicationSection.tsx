@@ -14,20 +14,23 @@ import {
 } from "./messages";
 import type { Product } from "./schemas";
 
-type Result = { kind: "status" | "alert"; text: string };
+type Result = { kind: "status" | "alert"; lines: string[] };
 
-function describeError(error: unknown): string {
-  if (
-    error instanceof ProductValidationError &&
-    error.errors.file === "FILE_REQUIRED"
-  )
-    return PUBLICATION_ERRORS.fileRequired;
+function describeError(error: unknown): string[] {
+  if (error instanceof ProductValidationError) {
+    const lines: string[] = [];
+    if (error.errors.file === "FILE_REQUIRED")
+      lines.push(PUBLICATION_ERRORS.fileRequired);
+    if (error.errors.cover === "COVER_REQUIRED")
+      lines.push(PUBLICATION_ERRORS.coverRequired);
+    if (lines.length > 0) return lines;
+  }
   if (error instanceof ProductForbiddenError)
-    return PUBLICATION_ERRORS.forbidden;
-  if (error instanceof ProductNotFoundError) return PRODUCT_NOT_FOUND;
+    return [PUBLICATION_ERRORS.forbidden];
+  if (error instanceof ProductNotFoundError) return [PRODUCT_NOT_FOUND];
   if (error instanceof ProductUnavailableError)
-    return PUBLICATION_ERRORS.unavailable;
-  return PUBLICATION_ERRORS.unexpected;
+    return [PUBLICATION_ERRORS.unavailable];
+  return [PUBLICATION_ERRORS.unexpected];
 }
 
 export default function ProductPublicationSection({
@@ -46,6 +49,7 @@ export default function ProductPublicationSection({
   const cancelled = useRef(false);
   const pending = publish.isPending || unpublish.isPending;
   const hasFile = product.file !== null;
+  const hasCover = product.cover !== null;
 
   // The result message takes the focus, so a screen reader user hears what happened.
   useEffect(() => {
@@ -74,9 +78,9 @@ export default function ProductPublicationSection({
       onSuccess: () =>
         setResult({
           kind: "status",
-          text: action === "publish" ? T.published : T.unpublished,
+          lines: [action === "publish" ? T.published : T.unpublished],
         }),
-      onError: (e) => setResult({ kind: "alert", text: describeError(e) }),
+      onError: (e) => setResult({ kind: "alert", lines: describeError(e) }),
     });
   }
 
@@ -139,11 +143,14 @@ export default function ProductPublicationSection({
             {!hasFile && (
               <p className="text-sm text-muted-foreground">{T.needFile}</p>
             )}
+            {!hasCover && (
+              <p className="text-sm text-muted-foreground">{T.needCover}</p>
+            )}
             <div>
               <Button
                 ref={publishButtonRef}
                 type="button"
-                disabled={!hasFile || pending}
+                disabled={!hasFile || !hasCover || pending}
                 onClick={() =>
                   product.status === "DRAFT"
                     ? setConfirming(true)
@@ -164,7 +171,13 @@ export default function ProductPublicationSection({
               result.kind === "alert" ? "text-sm text-destructive" : "text-sm"
             }
           >
-            {result.text}
+            {result.lines.length === 1
+              ? result.lines[0]
+              : result.lines.map((line) => (
+                  <span key={line} className="block">
+                    {line}
+                  </span>
+                ))}
           </p>
         )}
       </div>

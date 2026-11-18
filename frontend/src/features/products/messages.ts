@@ -114,6 +114,7 @@ export const PUBLICATION_MESSAGES = {
   publishAgain: "Publicar de novo",
   unpublish: "Despublicar",
   needFile: "Envie o Arquivo do produto para poder publicar.",
+  needCover: "Envie a Capa do produto para poder publicar.",
   confirmQuestion:
     "Publicar este Produto? Ele vai aparecer no Catálogo. Depois da primeira publicação, trocar o arquivo vai exigir sua senha e o código do aplicativo autenticador.",
   confirm: "Confirmar publicação",
@@ -127,6 +128,7 @@ export const PUBLICATION_MESSAGES = {
 
 export const PUBLICATION_ERRORS = {
   fileRequired: "Envie o Arquivo do produto antes de publicar.",
+  coverRequired: "Envie a Capa do produto antes de publicar.",
   forbidden:
     "Você não tem permissão para publicar ou despublicar este Produto.",
   unavailable:
@@ -147,7 +149,11 @@ export const COVER_TEXTS = {
   sent: "Capa enviada.",
   remove: "Remover capa",
   confirmQuestion:
-    "Remover a capa deste Produto? O Catálogo passa a mostrar um quadro sem imagem.",
+    "Remover a capa deste Produto? Sem capa, ele não pode ser publicado.",
+  removeBlocked:
+    "Para remover a capa, despublique o Produto. Para trocá-la, envie outra imagem.",
+  publishedWithoutCover:
+    "Este Produto está publicado sem capa. Ele continua no Catálogo, mas, se for despublicado, só poderá ser publicado de novo depois que você enviar uma capa.",
   confirmRemove: "Confirmar remoção",
   removing: "Removendo capa…",
   cancel: "Cancelar",
@@ -171,6 +177,8 @@ export const COVER_MESSAGES: Record<ProductCoverRejectionCode, string> = {
 };
 
 export const COVER_ERRORS = {
+  requiredWhilePublished:
+    "Este Produto está publicado e precisa de capa. Para remover a capa, despublique o Produto.",
   forbidden: "Você não tem permissão para alterar a capa do Produto.",
   unavailable:
     "O sistema está indisponível no momento e a capa não foi alterada. Tente novamente em alguns instantes.",

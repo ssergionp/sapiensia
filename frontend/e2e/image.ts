@@ -1,4 +1,5 @@
 import { deflateSync } from "node:zlib";
+import { expect, type Page } from "@playwright/test";
 
 // Images built in memory for the e2e tests (no fixture files, no dependency).
 
@@ -86,4 +87,15 @@ export function buildWebpWithExif(): Buffer {
   header.write("RIFF", 0, "ascii");
   header.writeUInt32LE(body.length, 4);
   return Buffer.concat([header, body]);
+}
+
+// Uploads a small PNG as the Capa through the Product edit page (a Product needs a Capa to be published).
+export async function uploadCover(page: Page): Promise<void> {
+  await page.getByLabel("Imagem da capa").setInputFiles({
+    name: "capa.png",
+    mimeType: "image/png",
+    buffer: buildPng(8, 8),
+  });
+  await page.getByRole("button", { name: "Enviar capa" }).click();
+  await expect(page.getByText("Capa enviada.")).toBeVisible();
 }

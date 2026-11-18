@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import CoverImage from "@/features/catalog/CoverImage";
 import {
   ProductCoverRejectedError,
+  ProductCoverRequiredWhilePublishedError,
   ProductForbiddenError,
   ProductNotFoundError,
   ProductUnavailableError,
@@ -27,6 +28,8 @@ import {
 function describeError(error: unknown): string {
   if (error instanceof ProductCoverRejectedError)
     return COVER_MESSAGES[error.code];
+  if (error instanceof ProductCoverRequiredWhilePublishedError)
+    return COVER_ERRORS.requiredWhilePublished;
   if (error instanceof ProductForbiddenError) return COVER_ERRORS.forbidden;
   if (error instanceof ProductNotFoundError) return PRODUCT_NOT_FOUND;
   if (error instanceof ProductUnavailableError) return COVER_ERRORS.unavailable;
@@ -47,6 +50,7 @@ export default function ProductCoverSection({ product }: { product: Product }) {
   const [result, setResult] = useState<Result | null>(null);
   const [confirming, setConfirming] = useState(false);
   const cover = product.cover;
+  const published = product.status === "PUBLISHED";
   const busy = upload.isPending || remove.isPending;
 
   // The button that opened the confirmation disappears: focus goes to the question, and back on Cancelar.
@@ -166,7 +170,7 @@ export default function ProductCoverSection({ product }: { product: Product }) {
             <Button type="submit" disabled={busy}>
               {upload.isPending ? T.sending : T.send}
             </Button>
-            {cover && !confirming && (
+            {cover && !published && !confirming && (
               <Button
                 ref={removeButton}
                 type="button"
@@ -179,7 +183,12 @@ export default function ProductCoverSection({ product }: { product: Product }) {
             )}
           </div>
         </form>
-        {confirming && (
+        {published && (
+          <p className="text-sm text-muted-foreground">
+            {cover ? T.removeBlocked : T.publishedWithoutCover}
+          </p>
+        )}
+        {confirming && !published && (
           <div className="grid gap-4">
             <p ref={questionRef} tabIndex={-1}>
               {T.confirmQuestion}

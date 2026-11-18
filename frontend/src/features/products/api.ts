@@ -153,23 +153,50 @@ export async function uploadProductCover(
   return productSchema.parse(await response.json());
 }
 
+// 409 with errors.cover = COVER_REQUIRED_WHILE_PUBLISHED: a published Product keeps its cover.
+export class ProductCoverRequiredWhilePublishedError extends Error {}
+
 export async function removeProductCover(id: string): Promise<void> {
   const raw = await apiFetch(
     `/api/admin/products/${encodeURIComponent(id)}/cover`,
     { method: "DELETE" },
   );
+  if (
+    raw.status === 409 &&
+    (await readCoverErrorCode(raw)) === "COVER_REQUIRED_WHILE_PUBLISHED"
+  ) {
+    throw new ProductCoverRequiredWhilePublishedError();
+  }
   await check(raw, 204);
 }
 
-// 409 with errors.file: the Product cannot be published without a file. Any other 409 stays a conflict.
+// The known codes FILE_REQUIRED (errors.file) and COVER_REQUIRED (errors.cover) of a 409 body; any other field or value is dropped.
+async function readPublicationErrors(
+  raw: Response,
+): Promise<Record<string, string>> {
+  const body: unknown = await raw.json().catch(() => null);
+  const found: Record<string, string> = {};
+  if (typeof body !== "object" || body === null || !("errors" in body))
+    return found;
+  const errors = body.errors;
+  if (typeof errors !== "object" || errors === null) return found;
+  if ("file" in errors && errors.file === "FILE_REQUIRED")
+    found.file = errors.file;
+  if ("cover" in errors && errors.cover === "COVER_REQUIRED")
+    found.cover = errors.cover;
+  return found;
+}
+
+// 409 with errors.file and/or errors.cover: the Product cannot be published without them. Any other 409 stays a conflict.
 async function publication(id: string, method: "PUT" | "DELETE") {
   const raw = await apiFetch(
     `/api/admin/products/${encodeURIComponent(id)}/publication`,
     { method },
   );
   if (raw.status === 409) {
-    const code = await readFileErrorCode(raw);
-    if (code !== undefined) throw new ProductValidationError({ file: code });
+    const errors = await readPublicationErrors(raw);
+    if (Object.keys(errors).length > 0)
+      throw new ProductValidationError(errors);
     throw new ProductConflictError();
   }
   const response = await check(raw, 200);
