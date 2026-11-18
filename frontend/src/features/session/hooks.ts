@@ -49,14 +49,15 @@ export function useLogoutEverywhere() {
   });
 }
 
-// `onSignedOut` runs before the session is refreshed: the page the visitor leaves must be gone by then,
-// otherwise it would see "no session" first and send them to /entrar (remembering itself as return-to).
-export function useLogout(onSignedOut?: () => void) {
+// `onSignedOut` runs, and is awaited, before the session is refreshed: the page the visitor leaves must be
+// gone by then, otherwise it would see "no session" first and send them to /entrar (remembering itself as
+// return-to). A navigation is not applied synchronously, so the caller returns a promise for its arrival.
+export function useLogout(onSignedOut?: () => void | Promise<void>) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: logout,
-    onSuccess: () => {
-      onSignedOut?.();
+    onSuccess: async () => {
+      await onSignedOut?.();
       forgetPreviousAccount(queryClient);
       return queryClient.invalidateQueries({ queryKey: sessionQueryKey });
     },

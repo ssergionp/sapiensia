@@ -1,4 +1,5 @@
 import { cn } from "cn";
+import { useEffect, useRef } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router";
 import {
   BRAND_TEXTS,
@@ -53,7 +54,21 @@ export default function SiteHeader() {
 function CustomerNavigation({ pathname }: { pathname: string }) {
   const session = useSession();
   const navigate = useNavigate();
-  const logout = useLogout(() => navigate("/"));
+  // The session refresh waits until the home page is on screen (see useLogout).
+  const arrivedHome = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    if (pathname === "/") {
+      arrivedHome.current?.();
+      arrivedHome.current = null;
+    }
+  }, [pathname]);
+  const logout = useLogout(() => {
+    if (pathname === "/") return;
+    navigate("/");
+    return new Promise<void>((resolve) => {
+      arrivedHome.current = resolve;
+    });
+  });
   const signedIn = Boolean(session.data);
   // While the session loads nothing account-related shows, so the header never flashes the signed-out
   // state; if it fails to load, "Entrar" is the way out. On /entrar itself the link would only repeat the page.
