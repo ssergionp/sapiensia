@@ -37,4 +37,4 @@ Origem: #23. Os Termos de uso, a Política de privacidade e a Política de reemb
 12. Como avisar mudanças nos Termos e na Política, e com que antecedência.
 13. Prazos de atendimento: direitos do titular (proposta: declaração completa de acesso em até 15 dias, art. 19, II da LGPD), pedidos de Reembolso e atendimento em geral (proposta: primeira resposta em até 2 dias úteis), atendimento em geral, aviso de incidente.
 14. Prazos de guarda dos operadores (Asaas, Resend, Fly.io), ainda a conferir.
-15. Endereço do canal de atendimento (`suporte@sapiensia.app.br`; a caixa ainda não existe).
+15. Endereço do canal de atendimento (`sapiensia.operacao@gmail.com`; a caixa já existe).

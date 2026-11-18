@@ -2,7 +2,7 @@
 // All of it is a DRAFT for a lawyer to review (ADR-0007 launch gate). Open points are written inline as "[a definir: ...]".
 // Anything the personal-data inventory marks as "a confirmar" or "a conferir" is worded here as proposed or provisional.
 
-export const SUPPORT_EMAIL = "suporte@sapiensia.app.br";
+export const SUPPORT_EMAIL = "sapiensia.operacao@gmail.com";
 
 export const DRAFT_NOTICE =
   "RASCUNHO — revisar com advogado. Este texto ainda não é a versão final e pode mudar.";
