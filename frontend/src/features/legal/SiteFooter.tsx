@@ -13,7 +13,7 @@ export default function SiteFooter() {
       className="mt-16 border-t bg-card"
     >
       <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-10 sm:px-6 md:flex-row md:justify-between">
-        <div className="space-y-3">
+        <div className="space-y-3 md:shrink-0">
           <Logo size="sm" />
           <p className="text-sm text-muted-foreground">{BRAND_TEXTS.tagline}</p>
         </div>
@@ -24,12 +24,15 @@ export default function SiteFooter() {
                 {doc.title}
               </Link>
             ))}
-            <a
-              href={`mailto:${SUPPORT_EMAIL}`}
-              className={`${LINK} [overflow-wrap:anywhere]`}
-            >
-              {LEGAL_TEXTS.support}
-            </a>
+            {/* always on a line of its own, so the legal links never wrap around it by accident */}
+            <span className="basis-full">
+              <a
+                href={`mailto:${SUPPORT_EMAIL}`}
+                className={`${LINK} [overflow-wrap:anywhere]`}
+              >
+                {LEGAL_TEXTS.support}
+              </a>
+            </span>
           </nav>
           <p className="text-xs text-muted-foreground">
             {BRAND_TEXTS.copyright(new Date().getFullYear())}
