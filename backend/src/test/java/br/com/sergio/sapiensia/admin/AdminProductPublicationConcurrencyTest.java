@@ -13,9 +13,13 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Stream;
 import javax.sql.DataSource;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -55,9 +59,16 @@ class AdminProductPublicationConcurrencyTest {
     AdminMfaTestSupport.MutableClock clock;
 
     private AdminBrowser admin;
+    private ExecutorService executor;
+
+    @AfterEach
+    void tearDown() {
+        executor.shutdownNow();
+    }
 
     @BeforeEach
     void setUp() throws Exception {
+        executor = Executors.newFixedThreadPool(2);
         jdbc.update("delete from product_covers");
         jdbc.update("delete from product_files");
         jdbc.update("delete from products");
@@ -85,13 +96,15 @@ class AdminProductPublicationConcurrencyTest {
                 insert.setString(2, "products/" + id + "/" + UUID.randomUUID() + ".pdf");
                 insert.executeUpdate();
 
-                publishing = CompletableFuture.supplyAsync(() -> {
-                    try {
-                        return admin.put(PRODUCTS + "/" + id + "/publication", "");
-                    } catch (Exception e) {
-                        throw new IllegalStateException(e);
-                    }
-                });
+                publishing = CompletableFuture.supplyAsync(
+                        () -> {
+                            try {
+                                return admin.put(PRODUCTS + "/" + id + "/publication", "");
+                            } catch (Exception e) {
+                                throw new IllegalStateException(e);
+                            }
+                        },
+                        executor);
 
                 // the file is not committed yet: the request must be parked on the lock, not answering 409 or 500
                 assertThatThrownBy(() -> publishing.get(1500, TimeUnit.MILLISECONDS))
@@ -120,9 +133,9 @@ class AdminProductPublicationConcurrencyTest {
                     lock.executeQuery().close();
                     // both requests park on the row lock; they are released together by the commit below
                     publishing = CompletableFuture.supplyAsync(
-                            () -> send(() -> admin.put(PRODUCTS + "/" + id + "/publication", "")));
+                            () -> send(() -> admin.put(PRODUCTS + "/" + id + "/publication", "")), executor);
                     removing = CompletableFuture.supplyAsync(
-                            () -> send(() -> admin.delete(PRODUCTS + "/" + id + "/cover")));
+                            () -> send(() -> admin.delete(PRODUCTS + "/" + id + "/cover")), executor);
                     assertThatThrownBy(() -> publishing.get(500, TimeUnit.MILLISECONDS))
                             .isInstanceOf(TimeoutException.class);
                     assertThatThrownBy(() -> removing.get(500, TimeUnit.MILLISECONDS))
@@ -143,9 +156,13 @@ class AdminProductPublicationConcurrencyTest {
                         .isEqualTo(1);
             }
             // either the publication won (then the removal is refused) or the removal won (then publishing is refused)
-            assertThat(java.util.stream.Stream.of(published, removed).filter(code -> code == 409))
+            assertThat(Stream.of(published, removed).filter(code -> code == 409))
                     .as("round %d: publish %d, remove %d", round, published, removed)
                     .hasSize(1);
+            // the request that did not get the 409 must have succeeded, not failed with a 5xx
+            assertThat(published == 409 ? removed : published)
+                    .as("round %d: the winning request", round)
+                    .isEqualTo(published == 409 ? 204 : 200);
         }
     }
 
