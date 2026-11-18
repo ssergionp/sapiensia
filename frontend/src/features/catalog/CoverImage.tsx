@@ -27,7 +27,7 @@ const NEUTRAL_COVER = "var(--cover-other)";
 // The title is never cut: its size follows the frame width (cqw) and shrinks with the length, so the longest
 // title allowed (120 characters) still fits inside the frame. 10cqw is the size of short titles.
 function titleSize(title: string): string {
-  return `min(10cqw, ${(100 / Math.sqrt(Math.max(title.length, 1))).toFixed(1)}cqw)`;
+  return `min(10cqw, ${(75 / Math.sqrt(Math.max(title.length, 1))).toFixed(1)}cqw)`;
 }
 
 // 2:3 frame, the whole image is shown (nothing is cropped). Without a source, or when the image fails to
