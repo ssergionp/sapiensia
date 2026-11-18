@@ -85,6 +85,22 @@ class PaymentEventTasksTest {
     }
 
     @Test
+    @DisplayName("SEC-031: um IllegalArgumentException de dentro do GAVE_UP não remove a tarefa")
+    void shouldKeepTheTaskWhenTheGiveUpThrowsAnIllegalArgumentException() {
+        UUID id = UUID.randomUUID();
+        ExecutionComplete complete = failureAfter(id.toString(), 2);
+        doThrow(new IllegalArgumentException("unknown status"))
+                .when(confirmation)
+                .giveUp(id);
+
+        FailureHandler<Void> handler = task.getFailureHandler();
+        assertThatCode(() -> handler.onFailure(complete, ops)).doesNotThrowAnyException();
+
+        verify(ops).reschedule(complete, DONE.plus(RETRY_DELAY));
+        verify(ops, never()).remove();
+    }
+
+    @Test
     @DisplayName("SEC-031: antes da última tentativa só reagenda")
     void shouldRetryBeforeTheLastAttempt() {
         UUID id = UUID.randomUUID();

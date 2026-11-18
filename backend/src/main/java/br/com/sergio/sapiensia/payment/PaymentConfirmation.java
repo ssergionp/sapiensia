@@ -11,6 +11,7 @@ import com.github.kagkarlsson.scheduler.SchedulerClient;
 import com.github.kagkarlsson.scheduler.task.TaskInstance;
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -32,6 +33,9 @@ class PaymentConfirmation {
 
     private static final Logger log = LoggerFactory.getLogger(PaymentConfirmation.class);
     static final Pattern CHARGE_ID = Pattern.compile("[A-Za-z0-9_]{1,64}");
+
+    /** How long a deleted charge that still awaits payment is read again before it ends as NOT_PAID. */
+    static final Duration DELETED_CHARGE_GRACE = Duration.ofMinutes(10);
 
     /** The provider cannot tell yet; nothing was recorded and the task must try again. */
     static final class PaymentNotReadyException extends RuntimeException {
@@ -118,7 +122,7 @@ class PaymentConfirmation {
                     order.id());
             throw new PaymentNotReadyException();
         }
-        PaymentResult refusal = check(order, chargeId, charge);
+        PaymentResult refusal = check(order, chargeId, charge, ref.receivedAt());
         if (refusal != null) {
             return finish(paymentEventId, ref, refusal, order.id(), chargeId);
         }
@@ -161,7 +165,7 @@ class PaymentConfirmation {
     }
 
     /** The first requirement the charge fails, in the order of the plan; null when it can pay the Order. */
-    private PaymentResult check(Orders.Row order, String chargeId, PixCharge charge) {
+    private PaymentResult check(Orders.Row order, String chargeId, PixCharge charge, Instant receivedAt) {
         if (!chargeId.equals(charge.id())) {
             return PaymentResult.CHARGE_ID_MISMATCH;
         }
@@ -174,7 +178,9 @@ class PaymentConfirmation {
         if (charge.value() == null || charge.value().compareTo(BigDecimal.valueOf(order.priceCents(), 2)) != 0) {
             return PaymentResult.AMOUNT_MISMATCH;
         }
-        if (charge.isAwaitingPayment() && !charge.deleted()) {
+        if (charge.isAwaitingPayment()
+                && (!charge.deleted() || clock.instant().isBefore(receivedAt.plus(DELETED_CHARGE_GRACE)))) {
+            // a deleted charge may still turn paid: the provider's read can lag behind the webhook
             throw new PaymentNotReadyException();
         }
         if (!charge.isPaid()) {

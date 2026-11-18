@@ -1,5 +1,6 @@
 package br.com.sergio.sapiensia.payment;
 
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
@@ -12,9 +13,9 @@ class PaymentEvents {
 
     /**
      * The event without its body. chargeId is payment.id of the payload or, for a balance block, balanceData.paymentId;
-     * balanceType is balanceData.type; each may be null.
+     * balanceType is balanceData.type; each may be null. receivedAt is when the event was stored.
      */
-    record Ref(String providerEventId, String eventType, String chargeId, String balanceType) {}
+    record Ref(String providerEventId, String eventType, String chargeId, String balanceType, Instant receivedAt) {}
 
     private final JdbcClient jdbc;
 
@@ -53,14 +54,15 @@ class PaymentEvents {
                         + " and jsonb_typeof(payload->'balanceData'->'paymentId') = 'string'"
                         + " then payload->'balanceData'->>'paymentId' end) as charge_id,"
                         + " case when jsonb_typeof(payload->'balanceData'->'type') = 'string'"
-                        + " then payload->'balanceData'->>'type' end as balance_type"
+                        + " then payload->'balanceData'->>'type' end as balance_type, received_at"
                         + " from payment_events where id = :id")
                 .param("id", id)
                 .query((rs, n) -> new Ref(
                         rs.getString("provider_event_id"),
                         rs.getString("event_type"),
                         rs.getString("charge_id"),
-                        rs.getString("balance_type")))
+                        rs.getString("balance_type"),
+                        rs.getObject("received_at", OffsetDateTime.class).toInstant()))
                 .optional();
     }
 }

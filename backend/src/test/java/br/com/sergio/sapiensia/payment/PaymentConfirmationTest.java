@@ -140,7 +140,9 @@ class PaymentConfirmationTest {
 
     private Fixture eventFor(UUID customer, UUID product, UUID orderId, String chargeId, String payloadJson) {
         String evt = "evt_" + UUID.randomUUID().toString().replace("-", "");
-        UUID eventId = events.insertIfAbsent(evt, "PAYMENT_RECEIVED", payloadJson, OffsetDateTime.now())
+        // received on the test clock, which other tests move by days: the deleted-charge grace counts from it
+        UUID eventId = events.insertIfAbsent(
+                        evt, "PAYMENT_RECEIVED", payloadJson, OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC))
                 .orElseThrow();
         return new Fixture(customer, product, orderId, chargeId, eventId, evt);
     }
@@ -477,7 +479,46 @@ class PaymentConfirmationTest {
                         f.orderId().toString(),
                         true));
 
+        // the provider's read may lag behind the webhook: retried while the event is younger than ten minutes
+        assertThatThrownBy(() -> confirmation.process(f.eventId()))
+                .isInstanceOf(PaymentConfirmation.PaymentNotReadyException.class);
+        assertThat(storedResults(f.eventId())).isZero();
+
+        clock.advance(Duration.ofMinutes(10));
+
         assertRefused(f, PaymentResult.NOT_PAID, output);
+    }
+
+    @Test
+    @DisplayName("SEC-031, ADR-0003: shouldPayADeletedChargeThatTurnsPaidDuringTheGrace")
+    void shouldPayADeletedChargeThatTurnsPaidDuringTheGrace() {
+        Fixture f = fixture();
+        provider(
+                f,
+                new PixCharge(
+                        f.chargeId(),
+                        "PENDING",
+                        new BigDecimal("29.90"),
+                        "PIX",
+                        f.orderId().toString(),
+                        true));
+
+        assertThatThrownBy(() -> confirmation.process(f.eventId()))
+                .isInstanceOf(PaymentConfirmation.PaymentNotReadyException.class);
+
+        provider(
+                f,
+                new PixCharge(
+                        f.chargeId(),
+                        "RECEIVED",
+                        new BigDecimal("29.90"),
+                        "PIX",
+                        f.orderId().toString(),
+                        true));
+
+        assertThat(confirmation.process(f.eventId())).isEqualTo(PaymentResult.PAID);
+        assertThat(statusOf(f.orderId())).isEqualTo("PAID");
+        assertThat(accesses(f)).isEqualTo(1);
     }
 
     @ParameterizedTest
@@ -689,6 +730,10 @@ class PaymentConfirmationTest {
 
         assertThat(statusOf(first.orderId())).isEqualTo("PAID");
         assertThat(statusOf(second.orderId())).isEqualTo("EXPIRED");
+        // cancelled before its deadline: the runbook query for a cancelled sibling relies on it
+        assertThat(jdbc.queryForObject(
+                        "select expired_at < expires_at from orders where id = ?", Boolean.class, second.orderId()))
+                .isTrue();
         assertThat(gateway.cancelledCharges()).contains(second.chargeId()).doesNotContain(first.chargeId());
         assertThat(accesses(first)).isEqualTo(1);
     }
@@ -709,6 +754,7 @@ class PaymentConfirmationTest {
         assertThat(storedResult(first.eventId())).isEqualTo("PAID");
         assertThat(statusOf(second.orderId())).isEqualTo("PENDING");
         assertThat(output.getAll()).contains("orderId=" + second.orderId());
+        assertThat(output.getAll()).contains("Pending sibling order stays payable until it expires");
     }
 
     @Test
@@ -719,6 +765,7 @@ class PaymentConfirmationTest {
         Fixture second = pair[1];
         provider(first, paid(first));
         // makes marking this one Order as expired fail in the database, after the charge was cancelled
+        // (DDL is the only way to reach that catch: the Expirer swallows every gateway failure)
         jdbc.execute(
                 "alter table orders add constraint test_sibling_cannot_expire check (status <> 'EXPIRED' or id <> '"
                         + second.orderId() + "')");
@@ -733,6 +780,7 @@ class PaymentConfirmationTest {
         assertThat(storedResult(first.eventId())).isEqualTo("PAID");
         assertThat(statusOf(second.orderId())).isEqualTo("PENDING");
         assertThat(output.getAll()).contains("paidOrderId=" + first.orderId()).doesNotContain("test_sibling");
+        assertThat(output.getAll()).contains("Pending sibling order check failed");
     }
 
     @Test

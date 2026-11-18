@@ -178,7 +178,16 @@ order by r.processed_at desc;
 
 Lista os Pedidos marcados como compra duplicada, com o evento que os marcou.
 
-Ao pagar um Pedido, o app cancela sozinho o outro Pedido pendente do mesmo Cliente e Produto (o Pedido irmão), então a compra duplicada só acontece em dois casos: os dois Pedidos foram pagos quase juntos, ou o Asaas estava fora na hora de cancelar o irmão (o log mostra `Pending sibling order stays payable until it expires` com o id do irmão, e ele continua pagável até expirar). Cada compra duplicada também fica na auditoria:
+Ao pagar um Pedido, o app cancela sozinho o outro Pedido pendente do mesmo Cliente e Produto (o Pedido irmão). O cancelamento é tentado uma vez só, logo depois do pagamento, então a compra duplicada ainda pode acontecer, por exemplo:
+
+- os dois Pedidos foram pagos quase juntos;
+- o Asaas estava fora na hora de cancelar o irmão (o log mostra `Pending sibling order stays payable until it expires` com o id do irmão, e ele continua pagável até expirar);
+- a conferência do irmão falhou no banco (o log mostra `Pending sibling order check failed` com o id do Pedido pago);
+- o sistema parou entre confirmar o pagamento e cancelar o irmão (nenhum log);
+- o Cliente criou o Pedido novo no mesmo instante em que o antigo foi confirmado;
+- o Pedido antigo, já expirado, foi pago depois que o novo já estava pago (em nenhum dos dois pagamentos havia um irmão pendente).
+
+Cada compra duplicada também fica na auditoria:
 
 ```sql
 select object_id, occurred_at
@@ -213,6 +222,7 @@ A documentação do Asaas não responde a estes pontos e os testes usam um Asaas
 5. **Aviso de estorno de uma cobrança que não foi estornada**, se o sandbox deixar reenviar um evento: a tarefa repete enquanto a cobrança estiver paga e termina em `GAVE_UP`, sem mudança no Pedido.
 6. **Valores de uma cobrança paga.** Numa cobrança Pix paga, anote o `value`, o `netValue` e o `originalValue` que o Asaas devolve (em `GET /v3/payments/{id}`). Esperado: `value` igual ao preço do Pedido, `netValue` menor (desconta a tarifa) e `originalValue` vazio. Se o `value` vier diferente do preço numa compra normal, registre como problema.
 7. **Cancelar uma cobrança no instante em que ela é paga.** Crie dois Pedidos irmãos (deixe o primeiro expirar, crie o segundo e pague o primeiro) ou peça o cancelamento de uma cobrança logo depois de confirmar o pagamento dela. Anote se o Asaas aceita cancelar uma cobrança já paga ou recusa, e o estado final da cobrança.
+8. **Pagar a cobrança de um Pedido expirado.** Deixe um Pedido expirar (a cobrança dele já foi cancelada) e pague essa cobrança no sandbox. Anote se, quando o webhook chega, `GET /v3/payments/{id}` já mostra `RECEIVED` com `deleted: true`, ou se mostra `PENDING` por algum tempo (e por quanto). O app lê de novo por 10 minutos uma cobrança excluída que ainda aparece como não paga; se o Asaas demorar mais que isso, o evento termina em `NOT_PAID`.
 
 ## Reenviar o e-mail de pagamento confirmado
 
@@ -258,6 +268,8 @@ Roteiro da homologação (o sandbox é a única prova do que o Asaas de verdade 
    ```
 
    Cada linha é um caso para revisão humana (por exemplo `DUPLICATE_PURCHASE` pede devolução do dinheiro no painel do Asaas). O log traz o mesmo aviso em `WARN`: `Payment event needs review`. Adicione `'REFUNDED', 'ALREADY_REFUNDED'` à lista de exclusão para não ver os estornos que deram certo. A seção "Reembolso e MED" acima diz o que fazer com cada resultado de estorno.
+
+   **Ação manual para `NOT_PAID`.** O evento disse que a cobrança foi paga, mas o Asaas a mostra como não paga (numa cobrança excluída, depois de 10 minutos de novas leituras). **[RESPONSÁVEL]** Abra a cobrança no painel do Asaas. Se ela não estiver paga, não há nada a fazer. Se estiver paga, rode a conciliação na hora (veja "Rodar agora" na seção "A conciliação não terminou" do `docs/runbooks/conciliacao-asaas.md`) e confira, com a consulta 2 da seção "Conferir o que ela fez" do mesmo arquivo, se o Pedido virou pago. Se não virou, o Cliente pagou e está sem o Acesso: siga o `docs/runbooks/incidente.md`.
 
 6. **[RESPONSÁVEL]** Eventos de pagamento que ainda não têm resultado (a tarefa está repetindo, por exemplo com o Asaas fora do ar):
 

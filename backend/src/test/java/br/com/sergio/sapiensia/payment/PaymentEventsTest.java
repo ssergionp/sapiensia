@@ -85,8 +85,10 @@ class PaymentEventsTest {
         UUID b = events.insertIfAbsent(without, "PAYMENT_RECEIVED", "{\"payment\":{}}", NOW)
                 .orElseThrow();
 
-        assertThat(events.findRef(a)).contains(new PaymentEvents.Ref(withCharge, "PAYMENT_RECEIVED", "pay_123", null));
-        assertThat(events.findRef(b)).contains(new PaymentEvents.Ref(without, "PAYMENT_RECEIVED", null, null));
+        assertThat(events.findRef(a))
+                .contains(new PaymentEvents.Ref(withCharge, "PAYMENT_RECEIVED", "pay_123", null, NOW.toInstant()));
+        assertThat(events.findRef(b))
+                .contains(new PaymentEvents.Ref(without, "PAYMENT_RECEIVED", null, null, NOW.toInstant()));
         assertThat(events.findRef(UUID.randomUUID())).isEmpty();
     }
 
@@ -109,9 +111,11 @@ class PaymentEventsTest {
                 .orElseThrow();
 
         assertThat(events.findRef(a))
-                .contains(new PaymentEvents.Ref(withCharge, "BALANCE_VALUE_BLOCKED", "pay_456", "PIX_INFRACTION"));
+                .contains(new PaymentEvents.Ref(
+                        withCharge, "BALANCE_VALUE_BLOCKED", "pay_456", "PIX_INFRACTION", NOW.toInstant()));
         assertThat(events.findRef(b))
-                .contains(new PaymentEvents.Ref(without, "BALANCE_VALUE_BLOCKED", null, "PIX_INFRACTION"));
+                .contains(new PaymentEvents.Ref(
+                        without, "BALANCE_VALUE_BLOCKED", null, "PIX_INFRACTION", NOW.toInstant()));
     }
 
     @Test
@@ -126,7 +130,8 @@ class PaymentEventsTest {
                             NOW)
                     .orElseThrow();
 
-            assertThat(events.findRef(id)).contains(new PaymentEvents.Ref(eventId, type, null, "PIX_INFRACTION"));
+            assertThat(events.findRef(id))
+                    .contains(new PaymentEvents.Ref(eventId, type, null, "PIX_INFRACTION", NOW.toInstant()));
         }
     }
 }
