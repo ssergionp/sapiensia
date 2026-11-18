@@ -15,7 +15,9 @@ import org.springframework.transaction.annotation.Transactional;
  * Publishes and unpublishes Products. Publishing needs a file and a Capa. Publish and unpublish both take the Product
  * row lock that the file swap also takes, so the two are queued: publishing always sees a file that is being saved,
  * and a swap always sees a publication that just happened.
- * Asking for the state the Product already has is a no-op with no audit event. Nothing here logs file data.
+ * Asking for the state the Product already has is a no-op with no audit event, but only when the requirements are met:
+ * publishing again without a Capa is refused (COVER_REQUIRED, with a FAILURE audit event) even when the Product is
+ * already PUBLISHED. Nothing here logs file data.
  */
 @Service
 class ProductPublicationService {
