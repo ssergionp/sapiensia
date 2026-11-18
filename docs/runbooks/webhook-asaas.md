@@ -178,6 +178,28 @@ order by r.processed_at desc;
 
 Lista os Pedidos marcados como compra duplicada, com o evento que os marcou.
 
+Ao pagar um Pedido, o app cancela sozinho o outro Pedido pendente do mesmo Cliente e Produto (o Pedido irmão), então a compra duplicada só acontece em dois casos: os dois Pedidos foram pagos quase juntos, ou o Asaas estava fora na hora de cancelar o irmão (o log mostra `Pending sibling order stays payable until it expires` com o id do irmão, e ele continua pagável até expirar). Cada compra duplicada também fica na auditoria:
+
+```sql
+select object_id, occurred_at
+from audit_events
+where action = 'DUPLICATE_PURCHASE'
+order by occurred_at desc;
+```
+
+Mostra o id de cada Pedido marcado como compra duplicada e quando isso aconteceu.
+
+Para reconhecer um Pedido irmão que o app cancelou (e não um que expirou no prazo), compare as duas datas:
+
+```sql
+select id, status, expires_at, expired_at
+from orders
+where status = 'EXPIRED' and expired_at < expires_at
+order by expired_at desc;
+```
+
+Lista os Pedidos expirados antes do prazo: são os irmãos cancelados quando outro Pedido do mesmo Cliente e Produto foi pago.
+
 **Limites.** O cancelamento não invalida um link de Download já emitido (vale 60 s) nem o arquivo já baixado. Depois do cancelamento o Cliente pode comprar de novo, e o novo Pedido pago cria um Acesso novo.
 
 ### Roteiro de sandbox: o que o Asaas de verdade faz
@@ -189,6 +211,8 @@ A documentação do Asaas não responde a estes pontos e os testes usam um Asaas
 3. **`PAYMENT_REFUND_IN_PROGRESS`.** Anote se esse evento acontece num estorno de Pix e se o `PAYMENT_REFUNDED` vem depois (o app só grava o primeiro e espera o segundo).
 4. **MED.** Se o sandbox permitir simular um MED: anote o estado da cobrança durante o bloqueio (esperado: o app responde `MED_BLOCKED`, ou `MED_WITHOUT_CHARGE` se o `paymentId` vier vazio); depois, se um MED aceito gera `PAYMENT_REFUNDED` ou muda a cobrança para `REFUNDED`, ou se a cobrança continua `RECEIVED`. Se o sandbox não simular o MED, registre isso e deixe o ponto em aberto para a produção.
 5. **Aviso de estorno de uma cobrança que não foi estornada**, se o sandbox deixar reenviar um evento: a tarefa repete enquanto a cobrança estiver paga e termina em `GAVE_UP`, sem mudança no Pedido.
+6. **Valores de uma cobrança paga.** Numa cobrança Pix paga, anote o `value`, o `netValue` e o `originalValue` que o Asaas devolve (em `GET /v3/payments/{id}`). Esperado: `value` igual ao preço do Pedido, `netValue` menor (desconta a tarifa) e `originalValue` vazio. Se o `value` vier diferente do preço numa compra normal, registre como problema.
+7. **Cancelar uma cobrança no instante em que ela é paga.** Crie dois Pedidos irmãos (deixe o primeiro expirar, crie o segundo e pague o primeiro) ou peça o cancelamento de uma cobrança logo depois de confirmar o pagamento dela. Anote se o Asaas aceita cancelar uma cobrança já paga ou recusa, e o estado final da cobrança.
 
 ## Reenviar o e-mail de pagamento confirmado
 

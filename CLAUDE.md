@@ -48,7 +48,7 @@ Glossário e convenções das skills: veja docs/agents/ (o domain.md diz onde fi
 - backend/.../customer/ClientIpResolver.java: o único jeito de obter o IP do cliente (Fly-Client-IP em prod; X-Forwarded-For nunca). Usado pelo limite de login e pelo webhook do Asaas.
 - backend/.../payment/PixGateway.java: a única porta para o Asaas (cliente, cobrança, código copia e cola, cancelamento); adaptador `AsaasPixGateway` em prod e `FakePixGateway` no local e nos testes, escolhidos por `app.pix.provider`.
 - backend/.../customer/CurrentCustomer.java: o jeito de obter o Cliente da sessão num controller.
-- backend/.../payment/PaymentConfirmation.java: o único lugar que marca um Pedido como pago e concede o Acesso.
+- backend/.../payment/PaymentConfirmation.java: o único lugar que marca um Pedido como pago e concede o Acesso, e cancela o Pedido pendente irmão depois do commit.
 - backend/.../payment/RefundConfirmation.java: o único lugar que marca um Pedido como reembolsado e cancela o Acesso dele, só depois de o GET na cobrança no Asaas confirmar o id, a referência externa e o estado REFUNDED.
 - backend/.../product/ProductDownloadService.java: o único lugar que emite o link de Download (URL assinada de 60 s no Supabase, `/api/local-downloads/<token>` no local) e grava o Registro de download; nunca devolve nem guarda o endereço do objeto.
 - backend/.../payment/Reconciliation.java: o único lugar que compara Pedidos com cobranças do Asaas (toda noite); nunca paga nem reembolsa sozinho: grava um evento marcado em `payment_events` e agenda `process-payment-event`; as divergências vão uma vez para `reconciliation_divergences` e para o `AdminAlerts`. Runbook: docs/runbooks/conciliacao-asaas.md.

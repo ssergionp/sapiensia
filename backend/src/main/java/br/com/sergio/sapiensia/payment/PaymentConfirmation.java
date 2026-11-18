@@ -50,6 +50,7 @@ class PaymentConfirmation {
     private final Clock clock;
     private final SchedulerClient scheduler;
     private final AdminAlerts alerts;
+    private final OrderExpiration.Expirer expirer;
     private final TransactionTemplate transaction;
 
     PaymentConfirmation(
@@ -63,6 +64,7 @@ class PaymentConfirmation {
             Clock clock,
             @Lazy SchedulerClient scheduler,
             AdminAlerts alerts,
+            OrderExpiration.Expirer expirer,
             PlatformTransactionManager transactionManager) {
         this.events = events;
         this.results = results;
@@ -74,6 +76,7 @@ class PaymentConfirmation {
         this.clock = clock;
         this.scheduler = scheduler;
         this.alerts = alerts;
+        this.expirer = expirer;
         this.transaction = new TransactionTemplate(transactionManager);
     }
 
@@ -125,7 +128,36 @@ class PaymentConfirmation {
             return finish(paymentEventId, ref, result, order.id(), chargeId);
         }
         outcome.logResult(ref, result, order.id(), chargeId);
+        if (result == PaymentResult.PAID) {
+            // after the commit, outside the payment transaction: the sibling never changes the payment result
+            cancelPendingSibling(order);
+        }
         return result;
+    }
+
+    /**
+     * Cancels the other pending Order of the same Customer and Product (ADR-0003): its charge at the provider and the
+     * Order itself. When the provider is unavailable, it stays pending until it expires.
+     */
+    private void cancelPendingSibling(Orders.Row paid) {
+        try {
+            orders.findPending(paid.customerId(), paid.productId()).ifPresent(sibling -> {
+                if (expirer.expire(sibling)) {
+                    log.info("Pending sibling order cancelled: orderId={} paidOrderId={}", sibling.id(), paid.id());
+                } else {
+                    log.warn(
+                            "Pending sibling order stays payable until it expires: orderId={} paidOrderId={}",
+                            sibling.id(),
+                            paid.id());
+                }
+            });
+        } catch (RuntimeException e) {
+            // the payment is committed: nothing here may change its result
+            log.warn(
+                    "Pending sibling order check failed: paidOrderId={} error={}",
+                    paid.id(),
+                    e.getClass().getSimpleName());
+        }
     }
 
     /** The first requirement the charge fails, in the order of the plan; null when it can pay the Order. */
@@ -166,6 +198,10 @@ class PaymentConfirmation {
                     new TaskInstance<Void>(OrderPaidEmailTasks.SEND, order.id().toString()), now);
             audit.recordInTransaction(new AuditEntry(
                     AuditAction.ACCESS_GRANTED, AuditResult.SUCCESS, null, AuditObject.ORDER, order.id(), null));
+        } else {
+            // the Customer already has the Access: this money goes back by a manual refund (ADR-0003)
+            audit.recordInTransaction(new AuditEntry(
+                    AuditAction.DUPLICATE_PURCHASE, AuditResult.SUCCESS, null, AuditObject.ORDER, order.id(), null));
         }
         PaymentResult result = granted ? PaymentResult.PAID : PaymentResult.DUPLICATE_PURCHASE;
         results.record(paymentEventId, result, order.id(), now);
