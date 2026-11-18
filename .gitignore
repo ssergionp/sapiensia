@@ -35,3 +35,6 @@ backend/src/main/resources/static/
 .impeccable/critique/*
 !.impeccable/critique/ignore.md
 .impeccable/config.local.json
+.impeccable/live/server.json
+# the live server writes here when started from frontend/ by mistake
+frontend/.impeccable/
