@@ -8,7 +8,7 @@ import {
 import Logo from "@/components/brand/Logo";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { useLogout, useSession } from "@/features/session/hooks";
+import { useLogoutToHome, useSession } from "@/features/session/hooks";
 import { LOGOUT_ERROR } from "@/features/session/messages";
 
 const NAV_TEXTS = {
@@ -52,11 +52,14 @@ export default function SiteHeader() {
 
 function CustomerNavigation({ pathname }: { pathname: string }) {
   const session = useSession();
-  const logout = useLogout();
+  const logout = useLogoutToHome();
   const signedIn = Boolean(session.data);
-  // While the session loads (or fails) nothing account-related shows, so the header never flashes the
-  // signed-out state; on /entrar itself the link would only repeat the page.
-  const showSignIn = session.data === null && pathname !== "/entrar";
+  // While the session loads nothing account-related shows, so the header never flashes the signed-out
+  // state; if it fails to load, "Entrar" is the way out. On /entrar itself the link would only repeat the page.
+  const showSignIn =
+    (session.data === null ||
+      (session.isError && session.data === undefined)) &&
+    pathname !== "/entrar";
 
   return (
     <>

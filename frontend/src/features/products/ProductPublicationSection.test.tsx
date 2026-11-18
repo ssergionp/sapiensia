@@ -93,6 +93,9 @@ describe("ProductPublicationSection", () => {
     expect(screen.getByRole("button", { name: "Publicar" })).toBeDisabled();
     expect(screen.getByText(NEED_COVER)).toBeInTheDocument();
     expect(screen.queryByText(NEED_FILE)).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Publicar" }),
+    ).toHaveAccessibleDescription(NEED_COVER);
     expect(publicationCalls(spy)).toHaveLength(0);
   });
 
@@ -102,6 +105,9 @@ describe("ProductPublicationSection", () => {
     expect(screen.getByRole("button", { name: "Publicar" })).toBeDisabled();
     expect(screen.getByText(NEED_FILE)).toBeInTheDocument();
     expect(screen.getByText(NEED_COVER)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Publicar" }),
+    ).toHaveAccessibleDescription(`${NEED_FILE} ${NEED_COVER}`);
   });
 
   test("unpublished without a cover: Publicar de novo is disabled with the cover hint", async () => {
