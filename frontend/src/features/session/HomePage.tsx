@@ -95,7 +95,7 @@ export default function HomePage() {
         {TAGLINE_START}
         <em className="whitespace-nowrap text-primary">{TAGLINE_END}</em>
       </h1>
-      <p className="mt-6 max-w-xl text-lg text-muted-foreground">
+      <p className="mt-6 max-w-2xl text-lg text-pretty text-muted-foreground">
         {HERO_SUPPORT}
       </p>
       <div className="mt-10">{content}</div>

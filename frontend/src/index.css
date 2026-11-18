@@ -128,6 +128,17 @@
   --sidebar-ring: #f08a4b;
 }
 
+/* Page width and gutters aligned with the site header and footer (DESIGN.md, Layout) */
+@utility page-container {
+  margin-inline: auto;
+  width: 100%;
+  max-width: var(--container-6xl);
+  padding: --spacing(8) --spacing(4);
+  @variant sm {
+    padding: --spacing(12) --spacing(6);
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
