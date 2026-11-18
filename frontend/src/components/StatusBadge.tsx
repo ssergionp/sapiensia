@@ -1,4 +1,4 @@
-﻿import { cn } from "cn";
+import { cn } from "cn";
 import type { ReactNode } from "react";
 
 // Color plus the status words (never color alone); every pair is checked in theme-tokens.test.ts or uses
