@@ -1,4 +1,5 @@
 import { Route, Routes } from "react-router";
+import SiteHeader from "@/components/SiteHeader";
 import AdminHomePage from "@/features/admin/AdminHomePage";
 import AdminLoginPage from "@/features/admin/AdminLoginPage";
 import AdminMfaPage from "@/features/admin/AdminMfaPage";
@@ -28,6 +29,7 @@ import LoginPage from "@/features/session/LoginPage";
 export default function App() {
   return (
     <>
+      <SiteHeader />
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/entrar" element={<LoginPage />} />

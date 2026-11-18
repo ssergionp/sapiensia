@@ -32,6 +32,15 @@ test("o rodapé tem os três links para os textos legais", () => {
   ).toHaveAttribute("href", "/reembolso");
 });
 
+test("o rodapé mostra a frase da marca e o ano", () => {
+  renderFooter();
+  const footer = screen.getByRole("contentinfo", {
+    name: "Informações legais",
+  });
+  expect(footer).toHaveTextContent("Conhecimento pronto para usar.");
+  expect(footer).toHaveTextContent("© 2026 SapiensIA");
+});
+
 test("o rodapé mostra o canal de atendimento como mailto", () => {
   renderFooter();
   const link = screen.getByRole("link", {

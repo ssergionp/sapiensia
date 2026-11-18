@@ -1,8 +1,9 @@
+/// <reference types="node" />
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-// vitest runs from frontend/, and import.meta.url is not a file URL under jsdom
+// vitest hands CSS imports (even ?raw) back empty and runs from frontend/: read the file itself
 const css = readFileSync(resolve("src/index.css"), "utf8");
 
 function tokens(selector: ":root" | ".dark"): Record<string, string> {

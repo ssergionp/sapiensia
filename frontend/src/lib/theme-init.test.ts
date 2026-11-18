@@ -1,10 +1,8 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mockSystemTheme, resetTheme } from "@/test/systemTheme";
-
 // public/theme-init.js runs in <head> before React (a file of its own because the CSP has script-src 'self')
-const source = readFileSync(resolve("public/theme-init.js"), "utf8");
+import source from "../../public/theme-init.js?raw";
+
 const runThemeInit = new Function(source) as () => void;
 
 const isDark = () => document.documentElement.classList.contains("dark");

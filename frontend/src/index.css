@@ -142,6 +142,16 @@
   html.dark {
     color-scheme: dark;
   }
+  /* browser surfaces take the palette too */
+  html {
+    caret-color: var(--primary);
+  }
+  ::selection {
+    background-color: color-mix(in oklab, var(--primary) 25%, transparent);
+  }
+  a {
+    text-underline-offset: 0.2em;
+  }
   h1,
   h2,
   h3 {
