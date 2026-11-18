@@ -118,7 +118,8 @@ class SessionController {
     private void rememberDevice(
             UUID customerId, int sessionVersion, HttpServletRequest request, HttpServletResponse response) {
         try {
-            // the first cookie of that name: a later one (e.g. from a sibling path) cannot override it
+            // browsers send the longest path first, so keeping the first cookie ignores one with a broader path
+            // (e.g. Path=/ planted from a sibling subdomain)
             Cookie cookie = WebUtils.getCookie(request, DEVICE_COOKIE);
             String cookieToken = cookie == null ? null : cookie.getValue();
             customerService

@@ -16,6 +16,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -170,9 +171,10 @@ class PasswordResetTokensTest {
         CountDownLatch loginRegistered = new CountDownLatch(1);
         CountDownLatch releaseLogin = new CountDownLatch(1);
         try (ExecutorService pool = Executors.newFixedThreadPool(2)) {
+            AtomicReference<KnownDevices.DeviceCheck> loginOutcome = new AtomicReference<>();
             Future<?> login =
                     pool.submit(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-                        knownDevices.recognize(customerId, 0, null);
+                        loginOutcome.set(knownDevices.recognize(customerId, 0, null));
                         loginRegistered.countDown();
                         await(releaseLogin);
                     }));
@@ -185,6 +187,7 @@ class PasswordResetTokensTest {
             }
             login.get(10, TimeUnit.SECONDS);
             assertThat(change.get(10, TimeUnit.SECONDS)).contains(customerId);
+            assertThat(loginOutcome.get()).isNotNull().isNotEqualTo(KnownDevices.DeviceCheck.NOT_REGISTERED);
         }
 
         assertThat(jdbc.queryForObject("select session_version from customers where id = ?", Integer.class, customerId))
@@ -234,9 +237,9 @@ class PasswordResetTokensTest {
                     try {
                         result.get(10, TimeUnit.SECONDS);
                     } catch (ExecutionException e) {
-                        assertThat(isDeadlock(e))
-                                .as("round %d ended in a deadlock: %s", round, e.getCause())
-                                .isFalse();
+                        throw new AssertionError(
+                                "round " + round + (isDeadlock(e) ? " ended in a deadlock" : " failed unexpectedly"),
+                                e);
                     }
                 }
             }
