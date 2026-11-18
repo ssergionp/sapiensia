@@ -70,8 +70,13 @@ Glossário e convenções das skills: veja docs/agents/ (o domain.md diz onde fi
 - Nunca grave em log senha, token, segredo ou dado pessoal completo.
 - Se docs/spec/ tiver requisitos com IDs (FR-, SEC-, NFR-), cite os IDs no plano, no título dos testes que os cobrem e na PR.
 
+## Fluxo de ticket
+Dois níveis. Na dúvida entre os dois, use o COMPLETO.
+- **COMPLETO** (dinheiro, pagamento, segurança, dados pessoais, autenticação, migrations): plano para aprovação, subagent-driven-development, revisões por tarefa, verificar-entrega e /code-review.
+- **LEVE** (o resto: telas, textos, ajustes, testes, docs, pendências pequenas): plano curto, implementação direta sem subagentes, testes focados, um /code-review no fim, verificar-entrega. Pendências pequenas da mesma área podem ir juntas numa PR só.
+
 ## Regras deste projeto
-- (exemplo: toda rota nova exige autorização por papel)
+- Comandos git e de shell: prefira um comando por vez, simples, sem encadear com `;` ou `&&`, e confira a saída antes do próximo.
 
 ## Armadilhas conhecidas
 - Testcontainers precisa do Docker Desktop aberto; sem ele, `just test` falha.
