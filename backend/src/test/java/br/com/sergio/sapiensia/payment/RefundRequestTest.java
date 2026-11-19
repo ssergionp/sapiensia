@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import br.com.sergio.sapiensia.RecordingEmailSender;
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
+import br.com.sergio.sapiensia.customer.CustomerAnonymization;
 import br.com.sergio.sapiensia.email.EmailMessage;
 import br.com.sergio.sapiensia.product.LocalDownloadFixtures;
 import java.math.BigDecimal;
@@ -82,6 +83,9 @@ class RefundRequestTest {
 
     @Autowired
     RecordingEmailSender sender;
+
+    @Autowired
+    CustomerAnonymization anonymization;
 
     @BeforeEach
     void setUp() {
@@ -507,6 +511,54 @@ class RefundRequestTest {
         assertThat(jdbc.queryForObject(
                         "select count(*) from admin_alerts where order_id = ?", Integer.class, placed.orderId()))
                 .isZero();
+    }
+
+    @Test
+    @DisplayName(
+            "FR-036, FR-023: conta anonimizada com solicitação aberta — o comentário some, a linha fica e o estorno ainda conclui")
+    void shouldFinishTheRefundAfterTheAccountIsAnonymizedWithAnOpenRequest() throws Exception {
+        Placed placed = placePaidOrder();
+        assertThat(request(placed, "DEFECTIVE_FILE", "O arquivo não abre").statusCode())
+                .isEqualTo(201);
+        Map<String, Object> before =
+                jdbc.queryForMap("select * from refund_requests where order_id = ?", placed.orderId());
+        assertThat(before.get("details")).isEqualTo("O arquivo não abre");
+
+        assertThat(anonymization.anonymize(placed.customer().email, UUID.randomUUID(), LOOPBACK))
+                .contains(placed.customer().id);
+
+        Map<String, Object> after =
+                jdbc.queryForMap("select * from refund_requests where order_id = ?", placed.orderId());
+        assertThat(after.get("details")).isNull();
+        assertThat(after.get("reason")).isEqualTo("DEFECTIVE_FILE");
+        assertThat(after.get("requested_at")).isEqualTo(before.get("requested_at"));
+        assertThat(after.get("id")).isEqualTo(before.get("id"));
+
+        gateway.answerCharge(
+                placed.chargeId(),
+                new PixCharge(
+                        placed.chargeId(),
+                        "REFUNDED",
+                        new BigDecimal("29.90"),
+                        "PIX",
+                        placed.orderId().toString(),
+                        false));
+        assertThat(AsaasWebhookTestSupport.post(
+                                port,
+                                LOOPBACK,
+                                Map.of(AsaasWebhookAccess.TOKEN_HEADER, TOKEN),
+                                paymentEvent(uniqueId(), "PAYMENT_REFUNDED", placed.chargeId()),
+                                "application/json")
+                        .statusCode())
+                .isEqualTo(200);
+
+        await("the REFUNDED Order", () -> "REFUNDED".equals(status(placed.orderId())));
+        assertThat(jdbc.queryForObject(
+                        "select cancelled_at is not null from accesses where order_id = ?",
+                        Boolean.class,
+                        placed.orderId()))
+                .isTrue();
+        assertThat(requestRows(placed.orderId())).isEqualTo(1);
     }
 
     @Test
