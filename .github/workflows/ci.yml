@@ -102,11 +102,23 @@ jobs:
             -e APP_ASAAS_API_KEY=ci-fake-asaas-key-not-real \
             -e DB_URL=jdbc:postgresql://localhost:5432/app -e DB_USER=app -e DB_PASSWORD=app \
             -e SERVER_SERVLET_SESSION_COOKIE_SECURE=false app:ci
+          started=false
           for i in $(seq 1 60); do
-            curl -fsS http://localhost:8080/api/system/health && exit 0
+            if curl -fsS http://localhost:8080/api/system/health; then
+              started=true
+              break
+            fi
             sleep 2
           done
           docker logs app > app.log 2>&1
+          if [ "$started" = true ]; then
+            # Guard against the Spring default user coming back (the log line holds a generated password).
+            if grep -qi 'generated security password' app.log; then
+              .github/ci-report.sh "The startup log has the Spring generated password" false
+              exit 1
+            fi
+            exit 0
+          fi
           .github/ci-report.sh "The system did not start" tail -n 80 app.log
           exit 1
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
