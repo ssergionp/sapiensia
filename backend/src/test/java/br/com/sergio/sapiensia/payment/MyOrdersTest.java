@@ -56,6 +56,7 @@ class MyOrdersTest {
 
     @AfterEach
     void cleanUp() {
+        jdbc.update("delete from refund_requests where customer_id in (?, ?)", customer.id, other.id);
         OrderTestSupport.deleteOrdersOf(jdbc, customer.id, paidProduct, expiredProduct, pendingProduct);
         OrderTestSupport.deleteOrdersOf(jdbc, other.id, paidProduct, expiredProduct, pendingProduct);
     }
@@ -126,6 +127,71 @@ class MyOrdersTest {
         Map<String, Object> row = jdbc.queryForMap("select status, expired_at from orders where id = ?", id);
         assertThat(row.get("status")).isEqualTo("PENDING");
         assertThat(row.get("expired_at")).isNull();
+    }
+
+    private void requestRefund(UUID customerId, UUID orderId) {
+        jdbc.update(
+                "insert into refund_requests (id, order_id, customer_id, reason, details, requested_at)"
+                        + " values (?, ?, ?, 'OTHER', null, now())",
+                UUID.randomUUID(),
+                orderId,
+                customerId);
+    }
+
+    @Test
+    @DisplayName("FR-020: Pedido pago dentro do prazo traz refundableUntil")
+    void shouldShowTheLastRefundDayOfAPaidOrderInsideTheWindow() throws Exception {
+        UUID paid = insertOrder(customer.id, paidProduct, 2990, "PAID", -300, -270);
+        String expected = jdbc.queryForObject(
+                "select to_char((paid_at at time zone 'America/Sao_Paulo')::date + 7, 'YYYY-MM-DD')"
+                        + " from orders where id = ?",
+                String.class,
+                paid);
+
+        HttpResponse<String> answer = list(customer);
+
+        assertThat(OrderHttp.json(answer, "$.items[0].refundableUntil")).isEqualTo(expected);
+        assertThat(answer.body()).contains("\"refundableUntil\":\"" + expected + "\"");
+        assertThat(OrderHttp.json(answer, "$.items[0].refundRequestedAt")).isNull();
+    }
+
+    @Test
+    @DisplayName("FR-020: Pedido pago fora do prazo traz refundableUntil nulo")
+    void shouldShowNoRefundDayWhenTheWindowIsClosed() throws Exception {
+        UUID paid = insertOrder(customer.id, paidProduct, 2990, "PAID", -300, -270);
+        jdbc.update("update orders set paid_at = now() - interval '10 days' where id = ?", paid);
+
+        HttpResponse<String> answer = list(customer);
+
+        assertThat(OrderHttp.json(answer, "$.items[0].status")).isEqualTo("PAID");
+        assertThat(OrderHttp.json(answer, "$.items[0].refundableUntil")).isNull();
+        assertThat(OrderHttp.json(answer, "$.items[0].refundRequestedAt")).isNull();
+    }
+
+    @Test
+    @DisplayName("FR-020: Pedido pago com solicitação traz refundRequestedAt e refundableUntil nulo")
+    void shouldShowTheRequestDateAndNoRefundDayWhenRequested() throws Exception {
+        UUID paid = insertOrder(customer.id, paidProduct, 2990, "PAID", -300, -270);
+        requestRefund(customer.id, paid);
+
+        HttpResponse<String> answer = list(customer);
+
+        assertThat(OrderHttp.json(answer, "$.items[0].refundableUntil")).isNull();
+        assertThat(OrderHttp.json(answer, "$.items[0].refundRequestedAt")).isNotBlank();
+    }
+
+    @Test
+    @DisplayName("FR-020: Pedido reembolsado traz os dois campos nulos")
+    void shouldShowNeitherFieldOnARefundedOrder() throws Exception {
+        UUID paid = insertOrder(customer.id, paidProduct, 2990, "PAID", -300, -270);
+        requestRefund(customer.id, paid);
+        jdbc.update("update orders set status = 'REFUNDED', refunded_at = now() where id = ?", paid);
+
+        HttpResponse<String> answer = list(customer);
+
+        assertThat(OrderHttp.json(answer, "$.items[0].status")).isEqualTo("REFUNDED");
+        assertThat(OrderHttp.json(answer, "$.items[0].refundableUntil")).isNull();
+        assertThat(OrderHttp.json(answer, "$.items[0].refundRequestedAt")).isNull();
     }
 
     @Test
@@ -199,8 +265,15 @@ class MyOrdersTest {
 
         Map<String, Object> item = JsonPath.read(answer.body(), "$.items[0]");
         assertThat(item.keySet())
-                .containsExactlyInAnyOrderElementsOf(
-                        List.of("id", "productTitle", "priceCents", "status", "createdAt", "expiresAt"));
+                .containsExactlyInAnyOrderElementsOf(List.of(
+                        "id",
+                        "productTitle",
+                        "priceCents",
+                        "status",
+                        "createdAt",
+                        "expiresAt",
+                        "refundableUntil",
+                        "refundRequestedAt"));
         assertThat(answer.body()).doesNotContain("pay_");
     }
 }

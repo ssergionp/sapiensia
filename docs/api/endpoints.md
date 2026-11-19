@@ -53,4 +53,5 @@ Toda rota de `/api` que não está nesta tabela é negada (`denyAll`), com uma e
 | PUT | `/api/admin/products/{id}/publication` | Painel: `PRODUCTS_PUBLISH` | — |
 | DELETE | `/api/admin/products/{id}/publication` | Painel: `PRODUCTS_PUBLISH` | — |
 | GET | `/api/admin/orders` | Painel: `ORDERS_VIEW` | — |
+| GET | `/api/admin/refund-requests` | Painel: `REFUNDS_VIEW` | — |
 | POST | `/api/admin/customer-anonymizations` | Painel: `CUSTOMERS_ANONYMIZE` e autenticação recente | — |

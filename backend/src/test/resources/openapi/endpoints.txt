@@ -3,6 +3,7 @@ DELETE /api/admin/products/{id}/publication
 DELETE /api/sessions
 GET /api/admin/orders
 GET /api/admin/products
+GET /api/admin/refund-requests
 GET /api/admin/products/{id}
 GET /api/admin/products/{id}/cover
 GET /api/admin/sessions/current

@@ -10,12 +10,14 @@ import br.com.sergio.sapiensia.audit.AuditResult;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -43,6 +45,7 @@ class RefundRequestService {
     private final AdminAlerts alerts;
     private final Clock clock;
     private final TransactionTemplate transaction;
+    private final TransactionTemplate snapshot;
 
     RefundRequestService(
             Orders orders,
@@ -59,6 +62,9 @@ class RefundRequestService {
         this.alerts = alerts;
         this.clock = clock;
         this.transaction = new TransactionTemplate(transactionManager);
+        this.snapshot = new TransactionTemplate(transactionManager);
+        this.snapshot.setReadOnly(true);
+        this.snapshot.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
     }
 
     Requested request(UUID customerId, UUID orderId, RefundReason reason, String details) {
@@ -72,6 +78,19 @@ class RefundRequestService {
             log.info("Refund requested: orderId={} reason={}", orderId, reason);
         }
         return requested;
+    }
+
+    /**
+     * One page of the Administrator's list (FR-023). The page and the count are read in one read-only REPEATABLE READ
+     * transaction, so they come from one database snapshot. Nothing is changed and no provider is called.
+     */
+    AdminRefundRequestPage listForAdministrator(int page, RefundRequestFilter filter) {
+        return snapshot.execute(status -> {
+            List<AdminRefundRequestItem> items = requests.pageForAdministrator(filter, page);
+            long total = requests.countForAdministrator(filter);
+            return new AdminRefundRequestPage(
+                    items, page, (int) ((total + RefundRequests.ADMIN_PAGE_SIZE - 1) / RefundRequests.ADMIN_PAGE_SIZE));
+        });
     }
 
     private Requested requestInTransaction(UUID customerId, UUID orderId, RefundReason reason, String comment) {

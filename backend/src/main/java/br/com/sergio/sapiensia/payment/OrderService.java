@@ -229,6 +229,19 @@ class OrderService {
         return row.status();
     }
 
+    /** The last day a Refund may be requested: only a PAID Order with no request yet, still inside the window. */
+    private static LocalDate refundableUntil(Orders.Row row, Instant now) {
+        if (row.status() != OrderStatus.PAID || row.refundRequestedAt() != null || row.paidAt() == null) {
+            return null;
+        }
+        return now.isBefore(RefundWindow.closesAt(row.paidAt())) ? RefundWindow.lastDay(row.paidAt()) : null;
+    }
+
+    /** The date of the request, shown while the Order is PAID; once it is refunded the Customer no longer needs it. */
+    private static Instant refundRequestedAt(Orders.Row row) {
+        return row.status() == OrderStatus.PAID ? row.refundRequestedAt() : null;
+    }
+
     /** The state of the Order, for the page's polling. Only the database is read, never the provider. */
     OrderStatus status(UUID customerId, UUID orderId) {
         Orders.Row row = orders.findForCustomer(orderId, customerId).orElseThrow(OrderNotFoundException::new);
@@ -245,7 +258,9 @@ class OrderService {
                         row.priceCents(),
                         shownStatus(row, now),
                         row.createdAt(),
-                        row.expiresAt()))
+                        row.expiresAt(),
+                        refundableUntil(row, now),
+                        refundRequestedAt(row)))
                 .toList());
     }
 
@@ -281,7 +296,15 @@ class OrderService {
         if (shown != OrderStatus.PENDING) {
             // PAID or EXPIRED: nothing to pay, so the provider is not called and there is no Pix code
             return new OrderResponse(
-                    row.id(), row.productId(), row.productTitle(), row.priceCents(), shown, row.expiresAt(), 0, null);
+                    row.id(),
+                    row.productId(),
+                    row.productTitle(),
+                    row.priceCents(),
+                    shown,
+                    row.expiresAt(),
+                    0,
+                    null,
+                    refundRequestedAt(row));
         }
         String code;
         try {
@@ -298,6 +321,7 @@ class OrderService {
                 OrderStatus.PENDING,
                 row.expiresAt(),
                 Duration.between(now, row.expiresAt()).toSeconds(),
-                code);
+                code,
+                null);
     }
 }

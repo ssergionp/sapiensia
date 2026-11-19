@@ -64,7 +64,8 @@ class OrderRefundedEmailTextTest {
                         "pay_x",
                         Instant.now(),
                         Instant.now(),
-                        Instant.now())));
+                        Instant.now(),
+                        null)));
         when(customers.findEmail(customerId)).thenReturn(Optional.empty());
         OrderRefundedEmail email = new OrderRefundedEmail(
                 orders, customers, sender, mock(AdminAlerts.class), mock(PlatformTransactionManager.class));

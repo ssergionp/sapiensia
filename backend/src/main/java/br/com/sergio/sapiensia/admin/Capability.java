@@ -25,6 +25,11 @@ public enum Capability {
     /** Read the list of Orders (#37): apart from the Product ones, so a future profile can run the catalog without seeing who bought. */
     ORDERS_VIEW,
     /**
+     * Read the list of Refund requests (#213, SEC-029): apart from ORDERS_VIEW, because a request carries the
+     * Customer's reason and comment.
+     */
+    REFUNDS_VIEW,
+    /**
      * Anonymize a Customer's account (#41, FR-036, SEC-038): irreversible, so it has its own lock and the route also
      * asks for a recent authentication.
      */
