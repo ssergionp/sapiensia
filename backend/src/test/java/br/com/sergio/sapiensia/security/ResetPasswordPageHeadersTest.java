@@ -22,7 +22,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
-/** SEC-007: the page that carries the reset token in its URL fragment must not leak it through the Referer. */
+/**
+ * SEC-007: the page that carries the reset token in its URL fragment must not leak it through the Referer; the
+ * header is site-wide (#61), so this class also covers it on the other pages.
+ */
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
 class ResetPasswordPageHeadersTest {
