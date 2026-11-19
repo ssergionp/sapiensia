@@ -706,6 +706,8 @@ class AsaasPixGatewayWireTest {
                 Arguments.of(409, "{\"errors\":[]}", READ),
                 Arguments.of(200, "{not json", READ),
                 Arguments.of(200, "{\"id\":\"pay_1\",\"value\":10,\"billingType\":\"PIX\"}", READ),
+                Arguments.of(200, "{\"status\":\"RECEIVED\",\"value\":10,\"billingType\":\"PIX\"}", READ),
+                Arguments.of(200, "{\"id\":\"pay_1\",\"status\":\"RECEIVED\",\"value\":10}", READ),
                 Arguments.of(
                         200,
                         "{\"id\":\"pay_1\",\"status\":\"RECEIVED\",\"value\":\"10\",\"billingType\":\"PIX\"}",

@@ -6,6 +6,7 @@ import java.net.http.HttpClient;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -202,7 +203,8 @@ class AsaasPixGateway implements PixGateway {
                                 offset,
                                 limit),
                 false,
-                MAX_LIST_BODY);
+                MAX_LIST_BODY,
+                true);
         JsonNode data = root.get("data");
         JsonNode hasMore = root.get("hasMore");
         if (data == null || !data.isArray() || hasMore == null || !hasMore.isBoolean()) {
@@ -243,11 +245,17 @@ class AsaasPixGateway implements PixGateway {
 
     /** Sends the request and returns the parsed JSON answer, or null when {@code lenient} and the answer is 2xx or 404. */
     private JsonNode call(String step, String chargeId, RestClient.RequestHeadersSpec<?> request, boolean lenient) {
-        return call(step, chargeId, request, lenient, MAX_BODY);
+        return call(step, chargeId, request, lenient, MAX_BODY, false);
     }
 
+    /** An answer above {@code maxBody} is refused when {@code refuseOversized}, otherwise read only up to the limit. */
     private JsonNode call(
-            String step, String chargeId, RestClient.RequestHeadersSpec<?> request, boolean lenient, int maxBody) {
+            String step,
+            String chargeId,
+            RestClient.RequestHeadersSpec<?> request,
+            boolean lenient,
+            int maxBody,
+            boolean refuseOversized) {
         try {
             return request.exchange((req, response) -> {
                 int status = response.getStatusCode().value();
@@ -257,10 +265,10 @@ class AsaasPixGateway implements PixGateway {
                 try {
                     body = response.getBody().readNBytes(maxBody + 1);
                     if (body.length > maxBody) {
-                        if (maxBody == MAX_LIST_BODY) {
+                        if (refuseOversized) {
                             throw unavailable(step, "HTTP " + status + " answer too large", chargeId);
                         }
-                        body = java.util.Arrays.copyOf(body, maxBody);
+                        body = Arrays.copyOf(body, maxBody);
                     }
                 } catch (IOException e) {
                     throw unavailable(step, e.getClass().getSimpleName(), chargeId);
