@@ -15,6 +15,10 @@ import br.com.sergio.sapiensia.payment.OrderInProgressException;
 import br.com.sergio.sapiensia.payment.OrderNotFoundException;
 import br.com.sergio.sapiensia.payment.PaymentProviderUnavailableException;
 import br.com.sergio.sapiensia.payment.ProductAlreadyOwnedException;
+import br.com.sergio.sapiensia.payment.RefundDetailsTooLongException;
+import br.com.sergio.sapiensia.payment.RefundInProgressException;
+import br.com.sergio.sapiensia.payment.RefundNotAvailableException;
+import br.com.sergio.sapiensia.payment.RefundWindowClosedException;
 import br.com.sergio.sapiensia.product.DownloadLimitReachedException;
 import br.com.sergio.sapiensia.product.ProductNotFoundException;
 import br.com.sergio.sapiensia.product.ProductNotPublishableException;
@@ -164,6 +168,28 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(ProductAlreadyOwnedException.class)
     ResponseEntity<ProblemDetail> handleProductAlreadyOwned() {
         return refusal(HttpStatus.CONFLICT, Map.of("order", "ALREADY_OWNED"));
+    }
+
+    /** Same answer as a Bean Validation error, but the refused comment never reaches an exception message (SEC-036). */
+    @ExceptionHandler(RefundDetailsTooLongException.class)
+    ResponseEntity<ProblemDetail> handleRefundDetailsTooLong() {
+        return ResponseEntity.badRequest().body(problem(Map.of("details", "DETAILS_TOO_LONG")));
+    }
+
+    /** A Refund request suspended the Access to this Product (FR-019, FR-025). */
+    @ExceptionHandler(RefundInProgressException.class)
+    ResponseEntity<ProblemDetail> handleRefundInProgress() {
+        return refusal(HttpStatus.CONFLICT, Map.of("order", "REFUND_IN_PROGRESS"));
+    }
+
+    @ExceptionHandler(RefundWindowClosedException.class)
+    ResponseEntity<ProblemDetail> handleRefundWindowClosed() {
+        return refusal(HttpStatus.CONFLICT, Map.of("refund", "WINDOW_CLOSED"));
+    }
+
+    @ExceptionHandler(RefundNotAvailableException.class)
+    ResponseEntity<ProblemDetail> handleRefundNotAvailable() {
+        return refusal(HttpStatus.CONFLICT, Map.of("refund", "NOT_AVAILABLE"));
     }
 
     @ExceptionHandler(PaymentProviderUnavailableException.class)

@@ -18,7 +18,7 @@ class RateLimitPropertiesValidationTest {
             Validation.buildDefaultValidatorFactory().getValidator();
 
     private static RateLimitProperties with(int floor, RateLimitProperties.Limit orderCreate) {
-        return new RateLimitProperties(floor, orderCreate, OK, OK, OK, OK, OK, OK, OK, OK);
+        return new RateLimitProperties(floor, orderCreate, OK, OK, OK, OK, OK, OK, OK, OK, OK);
     }
 
     @Test

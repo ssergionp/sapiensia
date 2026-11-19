@@ -63,6 +63,7 @@ class OrderRefundedEmailTextTest {
                         OrderStatus.REFUNDED,
                         "pay_x",
                         Instant.now(),
+                        Instant.now(),
                         Instant.now())));
         when(customers.findEmail(customerId)).thenReturn(Optional.empty());
         OrderRefundedEmail email = new OrderRefundedEmail(

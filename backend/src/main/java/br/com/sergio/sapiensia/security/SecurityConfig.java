@@ -310,6 +310,10 @@ public class SecurityConfig {
                         .hasRole("CUSTOMER")
                         .requestMatchers(HttpMethod.GET, "/api/orders/*/status")
                         .hasRole("CUSTOMER")
+                        // Refund request (#213): the logged-in Customer only; the Order is filtered by its owner in
+                        // the SQL (SEC-011)
+                        .requestMatchers(HttpMethod.POST, "/api/orders/*/refund-request")
+                        .hasRole("CUSTOMER")
                         // Library (#32): the logged-in Customer only
                         .requestMatchers(HttpMethod.GET, "/api/library")
                         .hasRole("CUSTOMER")

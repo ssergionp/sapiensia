@@ -31,7 +31,7 @@ class RateLimitInterceptorTest {
     private static RequestRateLimiter limiter() {
         RateLimitProperties.Limit both = new RateLimitProperties.Limit(2, TEN_MINUTES, 5, TEN_MINUTES);
         RateLimitProperties properties =
-                new RateLimitProperties(0, both, both, both, both, both, both, both, both, both);
+                new RateLimitProperties(0, both, both, both, both, both, both, both, both, both, both);
         return new RequestRateLimiter(properties, Clock.systemUTC());
     }
 

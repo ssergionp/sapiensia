@@ -101,6 +101,26 @@ class OrderRouteAccessTest {
     }
 
     @Test
+    @DisplayName("SEC-010: o pedido de Reembolso recusa o visitante anônimo (401) e o Administrador (403)")
+    void shouldRefuseTheRefundRequestToAnAnonymousVisitorAndToAnAdministrator() throws Exception {
+        String refund = ORDERS + "/" + UUID.randomUUID() + "/refund-request";
+        String body = "{\"reason\":\"OTHER\"}";
+
+        mvc.perform(post(refund)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)
+                        .with(csrf()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().string(""));
+        mvc.perform(post(refund)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)
+                        .with(user("admin@example.com").roles("ADMIN"))
+                        .with(csrf()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     @DisplayName("SEC-010: shouldRefuseTheListToAnAnonymousVisitor")
     void shouldRefuseTheListToAnAnonymousVisitor() throws Exception {
         mvc.perform(get(ORDERS)).andExpect(status().isUnauthorized());

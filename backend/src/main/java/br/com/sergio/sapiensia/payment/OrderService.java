@@ -131,6 +131,10 @@ class OrderService {
             throw new CustomerAccountClosedException();
         }
         CatalogProduct product = catalog.get(request.productId());
+        // a Refund request suspended the Access: the Product is bought again only once the Refund is decided
+        if (accesses.suspended(customerId, product.id())) {
+            throw new RefundInProgressException();
+        }
         if (accesses.exists(customerId, product.id())) {
             throw new ProductAlreadyOwnedException();
         }

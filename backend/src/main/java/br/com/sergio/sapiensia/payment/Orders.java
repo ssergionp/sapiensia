@@ -24,10 +24,11 @@ class Orders {
             OrderStatus status,
             String providerPaymentId,
             Instant createdAt,
-            Instant expiresAt) {}
+            Instant expiresAt,
+            Instant paidAt) {}
 
     private static final String SELECT = "select o.id, o.customer_id, o.product_id, p.title, o.price_cents, o.status,"
-            + " o.provider_payment_id, o.created_at, o.expires_at"
+            + " o.provider_payment_id, o.created_at, o.expires_at, o.paid_at"
             + " from orders o join products p on p.id = o.product_id";
 
     static final int ADMIN_PAGE_SIZE = 20;
@@ -100,6 +101,7 @@ class Orders {
     }
 
     private static Row map(ResultSet rs, int rowNum) throws SQLException {
+        OffsetDateTime paidAt = rs.getObject("paid_at", OffsetDateTime.class);
         return new Row(
                 rs.getObject("id", UUID.class),
                 rs.getObject("customer_id", UUID.class),
@@ -109,7 +111,8 @@ class Orders {
                 OrderStatus.valueOf(rs.getString("status")),
                 rs.getString("provider_payment_id"),
                 rs.getObject("created_at", java.time.OffsetDateTime.class).toInstant(),
-                rs.getObject("expires_at", java.time.OffsetDateTime.class).toInstant());
+                rs.getObject("expires_at", java.time.OffsetDateTime.class).toInstant(),
+                paidAt == null ? null : paidAt.toInstant());
     }
 
     void insert(
