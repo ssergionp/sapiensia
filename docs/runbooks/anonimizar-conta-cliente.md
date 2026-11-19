@@ -17,7 +17,7 @@ Depois disso o painel de Pedidos mostra o e-mail como `a***@anonimizado.invalid`
 
 ## O que fica, e por quê
 
-- Pedidos, Acessos, eventos de pagamento (com o `payload` como chegou), resultados e Registros de download ficam por **5 anos depois do Pedido**. O prazo é **provisório, a confirmar com o contador**. São registro financeiro e prova de entrega; sem eles não há como responder a um reembolso ou a uma cobrança.
+- Pedidos, Acessos, eventos de pagamento (com o `payload` como chegou), resultados e Registros de download ficam por **5 anos depois do Pedido**. O prazo está decidido (19/11/2026, art. 27 do CDC). São registro financeiro e prova de entrega; sem eles não há como responder a um reembolso ou a uma cobrança.
 - Eles não têm e-mail nem nome do Cliente; ficam ligados ao `id` da linha anonimizada.
 - Ainda não há limpeza automática desses registros.
 
@@ -61,7 +61,7 @@ Depois disso o painel de Pedidos mostra o e-mail como `a***@anonimizado.invalid`
    | `400` | O e-mail está vazio ou malformado. |
 
 6. **Confira** em Pedidos no painel: se a pessoa tinha Pedidos, o e-mail aparece como `a***@anonimizado.invalid`.
-7. **Responda ao Cliente** por e-mail: a conta foi anonimizada, os dados de acesso foram removidos e os registros de compra ficam pelo prazo legal (só cite o prazo de 5 anos depois que o contador o confirmar).
+7. **Responda ao Cliente** por e-mail: a conta foi anonimizada, os dados de acesso foram removidos e os registros de compra ficam pelo prazo legal (pode citar o prazo de 5 anos depois do Pedido).
 8. **Decida sobre o Asaas.** O sistema não chama o Asaas. Ele guarda o e-mail como nome do cliente e o CPF da cobrança, como registro financeiro dele. Pergunte ao contador se vale pedir a remoção lá (**a conferir**) e, se sim, faça pelo painel do Asaas.
 9. **Resend.** O histórico de e-mails enviados fica com o Resend, pela regra dele (**a conferir**). Se for preciso apagar, peça pelo painel do Resend.
 

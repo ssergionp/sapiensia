@@ -93,5 +93,5 @@ Diferença entre um Pedido e a cobrança dele no Asaas que a Conciliação encon
 _Avoid_: Erro, inconsistência
 
 **Anonimização**:
-O jeito de atender um pedido de exclusão de conta: a linha do Cliente continua, mas o e-mail vira um marcador `anonimizado-<UUID>@anonimizado.invalid`, a senha deixa de existir, as sessões caem e tokens, aparelhos e o vínculo com o Asaas são apagados. Pedidos, Acessos, eventos de pagamento e Registros de download ficam, como registro financeiro, pelo prazo que o contador definir (provisório: 5 anos). Só o Administrador a faz, pelo runbook.
+O jeito de atender um pedido de exclusão de conta: a linha do Cliente continua, mas o e-mail vira um marcador `anonimizado-<UUID>@anonimizado.invalid`, a senha deixa de existir, as sessões caem e tokens, aparelhos e o vínculo com o Asaas são apagados. Pedidos, Acessos, eventos de pagamento e Registros de download ficam, como registro financeiro, por 5 anos depois do Pedido (prazo do art. 27 do CDC). Só o Administrador a faz, pelo runbook.
 _Avoid_: Exclusão da conta, apagar o Cliente
