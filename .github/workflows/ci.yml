@@ -157,9 +157,10 @@ jobs:
           E2E_ADMIN_EMAIL: admin-e2e@example.com
           E2E_ASAAS_STUB_URL: http://127.0.0.1:54322
         run: ../.github/ci-report.sh "End-to-end tests" pnpm exec playwright test
+      # The Spring generated password line is filtered out so a password never reaches the CI log.
       - name: Logs of the system
         if: failure()
-        run: docker logs app
+        run: docker logs app 2>&1 | grep -vi 'generated security password' || true
       - name: Report of the end-to-end tests
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
