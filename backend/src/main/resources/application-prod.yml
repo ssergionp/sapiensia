@@ -1,6 +1,7 @@
 # Production and staging (the Docker image starts with this profile). Secrets come from the platform, never from here.
 server:
-  # behind the platform's HTTPS proxy: trust X-Forwarded-* to know the request was HTTPS
+  # behind the platform's HTTPS proxy: trust X-Forwarded-Proto/-Port/-Ssl to know the request was HTTPS;
+  # Forwarded, X-Forwarded-Host and X-Forwarded-Prefix come from the client and are hidden (TrustedForwardedHeaderFilter)
   forward-headers-strategy: framework
   servlet:
     session:
