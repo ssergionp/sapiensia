@@ -85,16 +85,21 @@ class PasswordResetTokens {
     /**
      * Replaces the customer's unused links with a new one and returns it in plain text. The customer row is locked
      * first, so parallel requests for the same account run one after the other and leave a single valid link. The
-     * caller sends the e-mail after this returns, so the lock is never held during the send.
+     * caller sends the e-mail after this returns, so the lock is never held during the send. An anonymized or deleted
+     * account gets no link and loses none: the result is empty and nothing is written.
      */
     @Transactional
-    String reissue(UUID customerId) {
-        jdbc.sql("select id from customers where id = :customerId for update")
+    Optional<String> reissue(UUID customerId) {
+        Optional<UUID> locked = jdbc.sql(
+                        "select id from customers where id = :customerId and anonymized_at is null for update")
                 .param("customerId", customerId)
                 .query(UUID.class)
                 .optional();
+        if (locked.isEmpty()) {
+            return Optional.empty();
+        }
         revokeUnused(customerId);
-        return issue(customerId);
+        return Optional.of(issue(customerId));
     }
 
     /** Deletes the customer's links that were not used yet, so a new request leaves only the latest one valid. */

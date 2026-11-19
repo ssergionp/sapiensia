@@ -313,7 +313,7 @@ class PasswordResetTokensTest {
         int threads = 8;
         CountDownLatch start = new CountDownLatch(1);
         try (ExecutorService pool = Executors.newFixedThreadPool(threads)) {
-            List<Future<String>> results = new ArrayList<>();
+            List<Future<Optional<String>>> results = new ArrayList<>();
             for (int i = 0; i < threads; i++) {
                 results.add(pool.submit(() -> {
                     start.await();
@@ -321,12 +321,29 @@ class PasswordResetTokensTest {
                 }));
             }
             start.countDown();
-            for (Future<String> result : results) {
-                assertThat(result.get(30, TimeUnit.SECONDS)).matches("[A-Za-z0-9_-]{43}");
+            for (Future<Optional<String>> result : results) {
+                assertThat(result.get(30, TimeUnit.SECONDS)).get().asString().matches("[A-Za-z0-9_-]{43}");
             }
         }
 
         assertThat(rows()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("FR-036 SEC-038: conta anonimizada não recebe link novo nem perde os links que tinha")
+    void shouldIssueNoLinkForAnAnonymizedAccount() {
+        tokens.issue(customerId);
+        jdbc.update("update customers set anonymized_at = now() where id = ?", customerId);
+
+        assertThat(tokens.reissue(customerId)).isEmpty();
+
+        assertThat(rows()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("FR-036 SEC-038: conta apagada não recebe link e não dá erro")
+    void shouldIssueNoLinkForADeletedAccount() {
+        assertThat(tokens.reissue(UUID.randomUUID())).isEmpty();
     }
 
     @Test
