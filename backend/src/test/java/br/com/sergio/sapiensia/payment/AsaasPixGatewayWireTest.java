@@ -190,6 +190,39 @@ class AsaasPixGatewayWireTest {
         assertThat(body.get("externalReference").asString()).isEqualTo(orderId.toString());
     }
 
+    static Stream<String> chargeIdsOutsideThePattern() {
+        return Stream.of("pay 1", "pay-1", "pay_1\nINFO forged", "a".repeat(65));
+    }
+
+    @ParameterizedTest
+    @MethodSource("chargeIdsOutsideThePattern")
+    @DisplayName("SEC-026: shouldRefuseACreatedChargeWhoseIdIsOutsideThePattern")
+    void shouldRefuseACreatedChargeWhoseIdIsOutsideThePattern(String chargeId, CapturedOutput output) {
+        replyWith(200, JSON.createObjectNode().put("id", chargeId).toString());
+
+        UUID orderId = UUID.randomUUID();
+
+        assertKind(
+                () -> gateway().createCharge("cus_123", orderId, 2990, LocalDate.of(2026, 11, 14), "d"),
+                PixGatewayException.Kind.UNAVAILABLE);
+
+        assertThat(output.getAll())
+                .contains("reason=charge id outside the expected format")
+                .contains("orderId=" + orderId)
+                .doesNotContain("forged")
+                .doesNotContain(chargeId);
+    }
+
+    @Test
+    @DisplayName("SEC-026: shouldAcceptACreatedChargeIdOf64Characters")
+    void shouldAcceptACreatedChargeIdOf64Characters() {
+        String chargeId = "p".repeat(64);
+        replyWith(200, JSON.createObjectNode().put("id", chargeId).toString());
+
+        assertThat(gateway().createCharge("cus_123", UUID.randomUUID(), 2990, LocalDate.of(2026, 11, 14), "d"))
+                .isEqualTo(chargeId);
+    }
+
     @Test
     @DisplayName("ADR-0003: shouldReadTheCopyPasteCodeOnEveryCall")
     void shouldReadTheCopyPasteCodeOnEveryCall() {
@@ -241,6 +274,82 @@ class AsaasPixGatewayWireTest {
         assertKind(
                 () -> gateway().createCharge("cus_1", UUID.randomUUID(), 100, LocalDate.now(), "d"),
                 PixGatewayException.Kind.REFUSED);
+    }
+
+    private static String errorsBody(int count, int documentIndex) {
+        List<String> errors = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            String code = i == documentIndex ? "invalid_cpfCnpj" : "code_" + i;
+            errors.add("{\"code\":\"" + code + "\",\"description\":\"x\"}");
+        }
+        return "{\"errors\":[" + String.join(",", errors) + "]}";
+    }
+
+    @Test
+    @DisplayName("SEC-018: shouldLogAtMostTenErrorCodes")
+    void shouldLogAtMostTenErrorCodes(CapturedOutput output) {
+        replyWith(400, errorsBody(50, -1));
+
+        assertKind(
+                () -> gateway().createCharge("cus_1", UUID.randomUUID(), 100, LocalDate.now(), "d"),
+                PixGatewayException.Kind.REFUSED);
+        assertThat(output.getAll())
+                .contains("codes=[code_0, code_1, code_2, code_3, code_4, code_5, code_6, code_7, code_8, code_9]");
+    }
+
+    @Test
+    @DisplayName("SEC-018: shouldCountEntriesWithoutACodeTowardsTheLimit")
+    void shouldCountEntriesWithoutACodeTowardsTheLimit(CapturedOutput output) {
+        List<String> errors = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            errors.add("{\"description\":\"x\"}");
+        }
+        errors.add("{\"code\":\"code_x\",\"description\":\"x\"}");
+        replyWith(400, "{\"errors\":[" + String.join(",", errors) + "]}");
+
+        assertKind(
+                () -> gateway().createCharge("cus_1", UUID.randomUUID(), 100, LocalDate.now(), "d"),
+                PixGatewayException.Kind.REFUSED);
+        assertThat(output.getAll()).doesNotContain("code_x");
+    }
+
+    @Test
+    @DisplayName("SEC-033: shouldIgnoreARejectedDocumentCodeAfterTheTenthEntry")
+    void shouldIgnoreARejectedDocumentCodeAfterTheTenthEntry() {
+        replyWith(400, errorsBody(11, 10));
+
+        assertKind(
+                () -> gateway().createCustomer(UUID.randomUUID(), "ana@example.com", CPF),
+                PixGatewayException.Kind.REFUSED);
+    }
+
+    @Test
+    @DisplayName("SEC-033: shouldStillRecognizeARejectedDocumentAmongTheFirstTenCodes")
+    void shouldStillRecognizeARejectedDocumentAmongTheFirstTenCodes() {
+        replyWith(400, errorsBody(50, 9));
+
+        assertKind(
+                () -> gateway().createCustomer(UUID.randomUUID(), "ana@example.com", CPF),
+                PixGatewayException.Kind.DOCUMENT_REJECTED);
+    }
+
+    @Test
+    @DisplayName("SEC-018: shouldReportAnUnexpectedClientFailureAsUnavailable")
+    void shouldReportAnUnexpectedClientFailureAsUnavailable(CapturedOutput output) {
+        AsaasPixGateway failing = new AsaasPixGateway(
+                RestClient.builder().requestInterceptor((request, body, execution) -> {
+                    throw new IllegalStateException(MARKER);
+                }),
+                baseUrl(),
+                KEY,
+                CONNECT,
+                READ);
+
+        assertThatThrownBy(() -> failing.readCharge("pay_abc")).isInstanceOfSatisfying(PixGatewayException.class, e -> {
+            assertThat(e.kind()).isEqualTo(PixGatewayException.Kind.UNAVAILABLE);
+            assertThat(e.getMessage()).doesNotContain(MARKER);
+        });
+        assertThat(output.getAll()).doesNotContain(MARKER);
     }
 
     static Stream<Arguments> unavailableAnswers() {
@@ -630,6 +739,8 @@ class AsaasPixGatewayWireTest {
                 Arguments.of(409, "{\"errors\":[]}", READ),
                 Arguments.of(200, "{not json", READ),
                 Arguments.of(200, "{\"id\":\"pay_1\",\"value\":10,\"billingType\":\"PIX\"}", READ),
+                Arguments.of(200, "{\"status\":\"RECEIVED\",\"value\":10,\"billingType\":\"PIX\"}", READ),
+                Arguments.of(200, "{\"id\":\"pay_1\",\"status\":\"RECEIVED\",\"value\":10}", READ),
                 Arguments.of(
                         200,
                         "{\"id\":\"pay_1\",\"status\":\"RECEIVED\",\"value\":\"10\",\"billingType\":\"PIX\"}",

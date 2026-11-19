@@ -6,6 +6,7 @@ import java.net.http.HttpClient;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -20,7 +21,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientException;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -45,6 +45,8 @@ class AsaasPixGateway implements PixGateway {
     private static final int MAX_BODY = 64 * 1024;
     // a page of 100 charges does not fit in MAX_BODY; an answer above this is refused, never read in part
     private static final int MAX_LIST_BODY = 2 * 1024 * 1024;
+    // an error answer may list many errors; only this many codes are read (for the log and the refused-CPF check)
+    private static final int MAX_ERROR_CODES = 10;
 
     private static final String FIND_CUSTOMER = "FIND_CUSTOMER";
     private static final String CREATE_CUSTOMER = "CREATE_CUSTOMER";
@@ -166,7 +168,14 @@ class AsaasPixGateway implements PixGateway {
                                 description,
                                 orderId.toString())),
                 false);
-        return requiredText(CREATE_CHARGE, root, "id", null);
+        String chargeId = requiredText(CREATE_CHARGE, root, "id", null);
+        if (!PaymentConfirmation.CHARGE_ID.matcher(chargeId).matches()) {
+            // the refused value is never logged; the Order id is ours and tells which charge was left at Asaas
+            String reason = "charge id outside the expected format";
+            log.warn("Asaas call failed: step={} reason={} orderId={}", CREATE_CHARGE, reason, orderId);
+            throw new PixGatewayException(PixGatewayException.Kind.UNAVAILABLE, CREATE_CHARGE, reason);
+        }
+        return chargeId;
     }
 
     @Override
@@ -196,7 +205,7 @@ class AsaasPixGateway implements PixGateway {
                                 offset,
                                 limit),
                 false,
-                MAX_LIST_BODY);
+                true);
         JsonNode data = root.get("data");
         JsonNode hasMore = root.get("hasMore");
         if (data == null || !data.isArray() || hasMore == null || !hasMore.isBoolean()) {
@@ -237,11 +246,20 @@ class AsaasPixGateway implements PixGateway {
 
     /** Sends the request and returns the parsed JSON answer, or null when {@code lenient} and the answer is 2xx or 404. */
     private JsonNode call(String step, String chargeId, RestClient.RequestHeadersSpec<?> request, boolean lenient) {
-        return call(step, chargeId, request, lenient, MAX_BODY);
+        return call(step, chargeId, request, lenient, false);
     }
 
+    /**
+     * With {@code refuseOversized} the limit is {@code MAX_LIST_BODY} and a larger answer is refused; without it the
+     * limit is {@code MAX_BODY} and a larger answer is read only up to the limit.
+     */
     private JsonNode call(
-            String step, String chargeId, RestClient.RequestHeadersSpec<?> request, boolean lenient, int maxBody) {
+            String step,
+            String chargeId,
+            RestClient.RequestHeadersSpec<?> request,
+            boolean lenient,
+            boolean refuseOversized) {
+        int maxBody = refuseOversized ? MAX_LIST_BODY : MAX_BODY;
         try {
             return request.exchange((req, response) -> {
                 int status = response.getStatusCode().value();
@@ -251,10 +269,10 @@ class AsaasPixGateway implements PixGateway {
                 try {
                     body = response.getBody().readNBytes(maxBody + 1);
                     if (body.length > maxBody) {
-                        if (maxBody == MAX_LIST_BODY) {
+                        if (refuseOversized) {
                             throw unavailable(step, "HTTP " + status + " answer too large", chargeId);
                         }
-                        body = java.util.Arrays.copyOf(body, maxBody);
+                        body = Arrays.copyOf(body, maxBody);
                     }
                 } catch (IOException e) {
                     throw unavailable(step, e.getClass().getSimpleName(), chargeId);
@@ -270,8 +288,11 @@ class AsaasPixGateway implements PixGateway {
                 }
                 throw failure(step, chargeId, status, body);
             });
-        } catch (RestClientException e) {
-            // timeout or network error: only the class name is reported
+        } catch (PixGatewayException e) {
+            // already classified inside the exchange: keep its kind
+            throw e;
+        } catch (RuntimeException e) {
+            // timeout, network error or any unexpected client failure: only the class name is reported
             throw unavailable(step, e.getClass().getSimpleName(), chargeId);
         }
     }
@@ -327,7 +348,10 @@ class AsaasPixGateway implements PixGateway {
         try {
             JsonNode errors = JSON.readTree(body).get("errors");
             if (errors != null && errors.isArray()) {
-                for (JsonNode error : errors) {
+                // only the first MAX_ERROR_CODES entries are inspected, whatever they contain
+                int limit = Math.min(errors.size(), MAX_ERROR_CODES);
+                for (int i = 0; i < limit; i++) {
+                    JsonNode error = errors.get(i);
                     JsonNode code = error.get("code");
                     if (code != null && code.isValueNode()) {
                         String clean = CODE_CHARS.matcher(code.asString()).replaceAll("");
