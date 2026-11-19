@@ -119,6 +119,10 @@ public class CustomerAnonymization {
                     .param("id", customerId)
                     .update();
         }
+        // the free-text comment of a refund request is personal data; the row, reason and date stay (financial record)
+        jdbc.sql("update refund_requests set details = null where customer_id = :id")
+                .param("id", customerId)
+                .update();
         auditLog.recordInTransaction(new AuditEntry(
                 AuditAction.ADMIN_CUSTOMER_ANONYMIZED,
                 AuditResult.SUCCESS,
