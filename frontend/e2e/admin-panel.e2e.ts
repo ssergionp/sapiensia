@@ -2227,3 +2227,206 @@ test("FR-023: estorno — o Produto some da Biblioteca e o Pedido aparece como R
     await first.close();
   }
 });
+
+// Optional screenshots of the real system for the delivery check: off unless E2E_EVIDENCE_DIR is set.
+// Only Customer and Refund screens are captured, never a screen with a secret.
+async function saveEvidence(target: Page, name: string) {
+  const dir = process.env.E2E_EVIDENCE_DIR;
+  if (dir === undefined || dir === "") return;
+  await target.screenshot({
+    path: resolve(dir, `${name}.png`),
+    fullPage: true,
+  });
+}
+
+test("FR-023: Reembolso pedido pelo site — Acesso suspenso na hora, painel com o motivo, estorno conclui", async ({
+  page,
+  browser,
+  baseURL,
+  request,
+}) => {
+  test.setTimeout(300_000);
+  const host = new URL(baseURL ?? "").hostname;
+  if (host !== "localhost" && host !== "127.0.0.1") {
+    throw new Error(
+      "Refusing to run the administrator e2e outside localhost/127.0.0.1",
+    );
+  }
+  const token = process.env.E2E_ASAAS_WEBHOOK_TOKEN ?? LOCAL_WEBHOOK_TOKEN;
+  const title = `E2E Pedido de Reembolso ${Date.now()}`;
+  const comment = "O PDF abre com as páginas em branco.";
+
+  // The Administrator publishes a Product.
+  await loginWithStoredCredentials(page);
+  await page.goto("/painel/produtos");
+  await page.getByRole("link", { name: "Novo Produto" }).click();
+  await page.getByLabel("Título").fill(title);
+  await page.getByLabel("Descrição").fill("Produto de teste do Reembolso.");
+  await page.getByLabel("Categoria").selectOption({ label: "Tecnologia" });
+  await page.getByLabel("Valor (R$)").fill("29,90");
+  await page.getByRole("button", { name: "Criar Produto" }).click();
+  await expect(page.getByText("Produto criado.")).toBeVisible();
+  await page.getByRole("link", { name: `Editar ${title}` }).click();
+  await expect(
+    page.getByRole("heading", { name: "Editar Produto", exact: true }),
+  ).toBeVisible();
+  const productId = PRODUCT_EDIT_PATH.exec(page.url())?.[1];
+  if (productId === undefined) {
+    throw new Error("Could not read the Product id from the edit page URL.");
+  }
+  await page.getByLabel("Arquivo PDF").setInputFiles({
+    name: "produto.pdf",
+    mimeType: "application/pdf",
+    buffer: buildPdf("pedido-reembolso"),
+  });
+  await page.getByRole("button", { name: "Enviar arquivo" }).click();
+  await expect(page.getByText("Arquivo enviado.")).toBeVisible();
+  await uploadCover(page);
+  await page.getByRole("button", { name: "Publicar", exact: true }).click();
+  await page.getByRole("button", { name: "Confirmar publicação" }).click();
+  await expect(page.getByText("Produto publicado.")).toBeVisible();
+
+  const first = await browser.newContext({ baseURL: baseURL ?? undefined });
+  try {
+    // A new Customer buys with Pix, the payment is confirmed and the file is downloaded once.
+    const buyer = await first.newPage();
+    const { chargeId, email } = await buyProductWithPix(buyer, productId);
+    await postPaymentEvent(
+      request,
+      token,
+      chargeId,
+      `evt_e2e_${randomBytes(8).toString("hex")}`,
+      "PAYMENT_RECEIVED",
+      "RECEIVED",
+    );
+    await expect(
+      buyer.getByRole("heading", { name: PAID_HEADING }),
+    ).toBeVisible({ timeout: 30_000 });
+    await buyer.goto("/biblioteca");
+    await Promise.all([
+      buyer.waitForEvent("download", { timeout: 30_000 }),
+      buyer.getByRole("button", { name: `Baixar ${title}` }).click(),
+    ]);
+
+    // My Orders offers the Refund; the form asks for the reason.
+    await buyer.goto("/pedidos");
+    const item = buyer.getByRole("listitem").filter({ hasText: title });
+    await expect(
+      item.getByText(/^Você pode pedir o Reembolso até \d{2}\/\d{2}\/\d{4}\.$/),
+    ).toBeVisible();
+    await item
+      .getByRole("link", { name: `Pedir Reembolso de ${title}` })
+      .click();
+    await expect(
+      buyer.getByRole("heading", { name: "Pedir Reembolso" }),
+    ).toBeVisible();
+    await expect(buyer).toHaveTitle("Pedir Reembolso | SapiensIA");
+    await expectNoA11yViolations(buyer, "pedir-reembolso", {
+      bothThemes: true,
+    });
+    const reasons = buyer.getByRole("group", { name: "Qual é o motivo?" });
+    await reasons.getByRole("radio", { name: "Arquivo com defeito" }).check();
+    await buyer.getByLabel("Quer contar mais? (opcional)").fill(comment);
+    await saveEvidence(buyer, "1-formulario-preenchido");
+    await buyer.getByRole("button", { name: "Enviar solicitação" }).click();
+
+    // The confirmation; the Access is suspended at once.
+    await expect(
+      buyer.getByRole("heading", { name: "Reembolso solicitado" }),
+    ).toBeVisible();
+    await expect(buyer).toHaveTitle("Reembolso solicitado | SapiensIA");
+    await expectNoA11yViolations(buyer, "reembolso-solicitado", {
+      bothThemes: true,
+    });
+    await saveEvidence(buyer, "2-reembolso-solicitado");
+    await buyer.goto("/biblioteca");
+    await expect(
+      buyer.getByText("Você ainda não tem Produtos na Biblioteca."),
+    ).toBeVisible();
+    await expect(buyer.getByText(title)).toHaveCount(0);
+    const xsrf = (await first.cookies()).find((c) => c.name === "XSRF-TOKEN");
+    if (xsrf === undefined) {
+      throw new Error("The XSRF-TOKEN cookie is missing.");
+    }
+    const denied = await buyer.request.post(
+      `/api/library/${productId}/download`,
+      { headers: { "X-XSRF-TOKEN": decodeURIComponent(xsrf.value) } },
+    );
+    expect(denied.status()).toBe(404);
+    await buyer.goto("/pedidos");
+    await expect(
+      item.getByText("Reembolso solicitado", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      item.getByRole("link", { name: `Pedir Reembolso de ${title}` }),
+    ).toHaveCount(0);
+    await saveEvidence(buyer, "3-meus-pedidos-selo");
+
+    // The Administrator sees the request with the reason, the comment and the masked e-mail.
+    await page.goto("/painel");
+    await page
+      .getByRole("navigation", { name: "Navegação do painel" })
+      .getByRole("link", { name: "Reembolsos" })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "Reembolsos solicitados" }),
+    ).toBeVisible();
+    await expect(page.getByLabel("Filtrar por situação")).toHaveValue("OPEN");
+    const row = page.getByRole("row").filter({ hasText: title });
+    await expect(row).toHaveCount(1);
+    const headers = (
+      await page.getByRole("columnheader").allTextContents()
+    ).map((text) => text.trim());
+    const cell = (column: string) => {
+      const index = headers.indexOf(column);
+      expect(index, `column ${column}`).toBeGreaterThanOrEqual(0);
+      return row.getByRole("cell").nth(index);
+    };
+    const masked = `${email.slice(0, 1)}***${email.slice(email.indexOf("@"))}`;
+    await expect(cell("Cliente")).toHaveText(masked);
+    await expect(cell("Motivo")).toContainText("Arquivo com defeito");
+    await expect(cell("Motivo")).toContainText(
+      `Comentário do Cliente: ${comment}`,
+    );
+    await expect(cell("Downloads do Produto")).toHaveText("1");
+    await expect(cell("Outros Reembolsos em 12 meses")).toHaveText("0");
+    await expect(cell("Cobrança no Asaas")).toHaveText(chargeId);
+    await expect(cell("Situação")).toHaveText("Aguardando devolução");
+    await expectNoA11yViolations(page, "painel-reembolsos", {
+      bothThemes: true,
+    });
+    await saveEvidence(page, "4-painel-aguardando-devolucao");
+
+    // The provider refunds the Pix and tells the system: the Order is refunded.
+    await markChargeRefunded(request, token, chargeId);
+    await postPaymentEvent(
+      request,
+      token,
+      chargeId,
+      `evt_e2e_${randomBytes(8).toString("hex")}`,
+      "PAYMENT_REFUNDED",
+      "REFUNDED",
+    );
+    // The webhook is processed in the background, so reload until the status changes.
+    await expect(async () => {
+      await buyer.goto("/pedidos");
+      await expect(item.getByText("Reembolsado", { exact: true })).toBeVisible({
+        timeout: 2_000,
+      });
+    }).toPass({ timeout: 30_000 });
+    await saveEvidence(buyer, "5-meus-pedidos-reembolsado");
+
+    // The panel lists the request among the refunded ones.
+    await page.reload();
+    await page
+      .getByLabel("Filtrar por situação")
+      .selectOption({ label: "Devolvidos" });
+    await expect(row).toHaveCount(1);
+    await expect(cell("Situação")).toHaveText(
+      /^Devolvido em \d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/,
+    );
+    await saveEvidence(page, "6-painel-devolvido");
+  } finally {
+    await first.close();
+  }
+});
