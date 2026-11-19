@@ -19,4 +19,11 @@ record AdminRefundRequestItem(
         long downloads,
         int otherRefunds,
         String chargeId,
-        Instant refundedAt) {}
+        Instant refundedAt) {
+
+    // never the comment or the e-mail: a logged item or page must not carry personal data (SEC-036)
+    @Override
+    public String toString() {
+        return "AdminRefundRequestItem[orderId=" + orderId + ", reason=" + reason + "]";
+    }
+}

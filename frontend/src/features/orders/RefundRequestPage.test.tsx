@@ -236,6 +236,59 @@ describe("RefundRequestPage", () => {
     ).toBeNull();
   });
 
+  test("uma recarga da lista que falha não apaga o formulário já preenchido", async () => {
+    let listCalls = 0;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      listCalls += 1;
+      return listCalls === 1
+        ? jsonResponse(200, { items: [item()] })
+        : jsonResponse(500);
+    });
+    const { client } = renderPage();
+
+    await chooseReason("Arquivo com defeito");
+    await userEvent.click(
+      screen.getByLabelText("Quer contar mais? (opcional)"),
+    );
+    await userEvent.paste("não abre no celular");
+
+    await client.refetchQueries({ queryKey: ["orders"] });
+    await waitFor(() => expect(listCalls).toBe(2));
+
+    expect(
+      screen.queryByText(
+        "Não foi possível carregar os seus Pedidos. Tente novamente.",
+      ),
+    ).toBeNull();
+    expect(
+      screen.getByRole("radio", { name: "Arquivo com defeito" }),
+    ).toBeChecked();
+    expect(screen.getByLabelText("Quer contar mais? (opcional)")).toHaveValue(
+      "não abre no celular",
+    );
+  });
+
+  test("300 emojis contam 300 caracteres: sem erro, e a solicitação é enviada", async () => {
+    setCsrfCookie("t");
+    const spy = mockApi(
+      [item()],
+      jsonResponse(201, { requestedAt: "2026-11-19T18:00:00Z" }),
+    );
+    renderPage();
+    const emojis = "😀".repeat(300);
+
+    await chooseReason("Outro");
+    await userEvent.click(
+      screen.getByLabelText("Quer contar mais? (opcional)"),
+    );
+    await userEvent.paste(emojis);
+    await submit();
+
+    await screen.findByRole("heading", { name: "Reembolso solicitado" });
+    expect(JSON.parse(String(postCalls(spy)[0][1]?.body)).details).toBe(emojis);
+    expect(screen.queryByText("Use até 500 caracteres.")).toBeNull();
+  });
+
   test("envia o comentário quando escrito", async () => {
     setCsrfCookie("t");
     const spy = mockApi(

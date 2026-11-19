@@ -70,7 +70,8 @@ class RefundRequestService {
     Requested request(UUID customerId, UUID orderId, RefundReason reason, String rawDetails) {
         // PostgreSQL text refuses U+0000, and a NUL carries no text: drop it before any check
         String details = rawDetails == null ? null : rawDetails.replace("\u0000", "");
-        if (details != null && details.length() > MAX_DETAILS) {
+        // characters, not UTF-16 units: the same count as the form and the database check (char_length)
+        if (details != null && details.codePointCount(0, details.length()) > MAX_DETAILS) {
             throw new RefundDetailsTooLongException();
         }
         String comment = details == null || details.isBlank() ? null : details.strip();

@@ -380,6 +380,25 @@ class RefundRequestTest {
     }
 
     @Test
+    @DisplayName("SEC-012: o limite do comentário conta caracteres — 500 emojis passam, 501 não")
+    void shouldCountCharactersNotUtf16UnitsInTheDetailsLimit() throws Exception {
+        Placed placed = placePaidOrder();
+        String emoji = Character.toString(0x1F600);
+
+        HttpResponse<String> tooLong = request(placed, "OTHER", emoji.repeat(501));
+        assertThat(tooLong.statusCode()).isEqualTo(400);
+        assertThat(OrderHttp.json(tooLong, "$.errors.details")).isEqualTo("DETAILS_TOO_LONG");
+        assertThat(requestRows(placed.orderId())).isZero();
+
+        assertThat(request(placed, "OTHER", emoji.repeat(500)).statusCode()).isEqualTo(201);
+        assertThat(jdbc.queryForObject(
+                        "select char_length(details) from refund_requests where order_id = ?",
+                        Integer.class,
+                        placed.orderId()))
+                .isEqualTo(500);
+    }
+
+    @Test
     @DisplayName(
             "SEC-012: comentário com HTML, quebra de linha e emoji — gravado como texto, sem os espaços das pontas")
     void shouldStoreTheDetailsAsPlainText() throws Exception {

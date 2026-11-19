@@ -61,7 +61,7 @@ export const REFUND_REASONS = [
 
 export type RefundReason = (typeof REFUND_REASONS)[number];
 
-// The 500 limit mirrors RefundRequestService in the backend (it validates there, so no OpenAPI maxLength).
+// The 500 limit mirrors RefundRequestService in the backend (it validates there, so no OpenAPI maxLength). Zod 4 counts code points, like the backend and the database.
 export const refundFormSchema = z.object({
   reason: z.enum(REFUND_REASONS, { error: T.reasonRequired }),
   details: z.string().max(500, T.detailsTooLong),

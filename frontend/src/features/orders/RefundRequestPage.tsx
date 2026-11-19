@@ -184,8 +184,9 @@ export default function RefundRequestPage() {
   const order = orders.data?.items.find((item) => item.id === id);
   let view: "loading" | "error" | "notFound" | "form" | "requested" | "closed";
   if (sentPriceCents !== null) view = "requested";
-  else if (orders.isPending || notLoggedIn) view = "loading";
-  else if (orders.isError) view = "error";
+  else if (orders.isPending || notLoggedIn)
+    view = "loading"; // a 401 on a refetch also ends here: the session is over
+  else if (orders.isError && orders.data === undefined) view = "error";
   else if (!order) view = "notFound";
   else if (order.refundRequestedAt) view = "requested";
   else if (order.refundableUntil) view = "form";
