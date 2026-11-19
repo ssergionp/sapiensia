@@ -64,6 +64,9 @@ class CustomerAnonymizationTest {
     private JdbcTemplate jdbc;
 
     @Autowired
+    private CustomerRepository customerRepository;
+
+    @Autowired
     private PlatformTransactionManager transactionManager;
 
     @Autowired
@@ -181,6 +184,16 @@ class CustomerAnonymizationTest {
                 .isEqualTo(1);
         assertThat(jdbc.queryForObject("select id from customers where email = ?", UUID.class, email))
                 .isNotEqualTo(customerId);
+    }
+
+    @Test
+    @DisplayName("FR-036 SEC-038: a linha anonimizada some do login e da redefinição de senha")
+    void shouldHideTheAnonymizedRowFromLoginAndPasswordReset() {
+        anonymization.anonymize(email, administratorId, ORIGIN);
+        String substitute = jdbc.queryForObject("select email from customers where id = ?", String.class, customerId);
+
+        assertThat(customerRepository.findCredentialsByEmail(substitute)).isEmpty();
+        assertThat(customerRepository.findConfirmedIdByEmail(substitute)).isEmpty();
     }
 
     @Test

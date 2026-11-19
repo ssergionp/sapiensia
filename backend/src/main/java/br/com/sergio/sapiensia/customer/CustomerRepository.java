@@ -50,7 +50,7 @@ interface CustomerRepository extends JpaRepository<Customer, UUID> {
 
     @Query("select new br.com.sergio.sapiensia.customer.CustomerCredentials("
             + "c.id, c.email, c.passwordHash, c.emailConfirmedAt, c.sessionVersion)"
-            + " from Customer c where c.email = :email")
+            + " from Customer c where c.email = :email and c.anonymizedAt is null")
     Optional<CustomerCredentials> findCredentialsByEmail(String email);
 
     /** The current session version of the account, or empty if the account no longer exists. */
@@ -64,21 +64,18 @@ interface CustomerRepository extends JpaRepository<Customer, UUID> {
     int incrementSessionVersion(UUID id);
 
     /** The e-mail of the account, never of an anonymized one: a queued e-mail for it ends without sending (FR-036). */
-    @Query(value = "select email from customers where id = :id and anonymized_at is null", nativeQuery = true)
+    @Query("select c.email from Customer c where c.id = :id and c.anonymizedAt is null")
     Optional<String> findEmailById(UUID id);
 
-    @Query("select c.id from Customer c where c.email = :email and c.emailConfirmedAt is not null")
+    @Query("select c.id from Customer c where c.email = :email and c.emailConfirmedAt is not null"
+            + " and c.anonymizedAt is null")
     Optional<UUID> findConfirmedIdByEmail(String email);
 
-    @Query(
-            value =
-                    "select email from customers where id = :id and email_confirmed_at is not null and anonymized_at is null",
-            nativeQuery = true)
+    @Query("select c.email from Customer c where c.id = :id and c.emailConfirmedAt is not null"
+            + " and c.anonymizedAt is null")
     Optional<String> findConfirmedEmailById(UUID id);
 
-    @Query(
-            value =
-                    "select email from customers where id = :id and email_confirmed_at is null and anonymized_at is null",
-            nativeQuery = true)
+    @Query("select c.email from Customer c where c.id = :id and c.emailConfirmedAt is null"
+            + " and c.anonymizedAt is null")
     Optional<String> findUnconfirmedEmailById(UUID id);
 }
