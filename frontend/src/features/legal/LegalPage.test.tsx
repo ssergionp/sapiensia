@@ -97,10 +97,14 @@ test("a Política de privacidade nomeia os operadores e os cookies essenciais", 
 
 test("a Política de privacidade guarda os registros por 5 anos sem chamar o prazo de provisório nem citar o contador", () => {
   renderPage(PRIVACY_POLICY);
-  const text = document.body.textContent ?? "";
-  expect(text).toContain("5 anos depois do Pedido");
-  expect(text).not.toContain("provisório");
-  expect(text).not.toContain("contador");
+  const heading = screen.getByRole("heading", {
+    level: 2,
+    name: "Por quanto tempo guardamos",
+  });
+  const section = heading.closest("section")?.textContent ?? "";
+  expect(section).toContain("5 anos depois do Pedido");
+  expect(section).not.toContain("provisório");
+  expect(section).not.toContain("contador");
 });
 
 test("Termos e Privacidade não pedem mais nome, CPF e endereço do responsável", () => {
