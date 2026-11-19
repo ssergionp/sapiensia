@@ -145,3 +145,37 @@ test("os Termos de uso citam Pix de 30 minutos, Download de 60 segundos e limite
   expect(text).toContain("limite de 10 Downloads por dia");
   expect(text).toContain("30 minutos");
 });
+
+test("FR-023, FR-025: a Política de reembolso descreve o pedido pelo site, o prazo de devolução e a suspensão do Acesso", () => {
+  renderPage(REFUND_POLICY);
+  const text = document.body.textContent ?? "";
+  for (const phrase of [
+    "7 dias depois do pagamento",
+    "Meus Pedidos",
+    "Por defeito no arquivo, mesmo depois dos 7 dias",
+    "suspenso na hora",
+    "2 dias úteis",
+    "Acesso é cancelado em definitivo",
+    "Reembolsos repetidos",
+  ]) {
+    expect(text).toContain(phrase);
+  }
+  expect(text).not.toContain("Por ora não há botão de reembolso");
+  expect(text).not.toContain(
+    "[a definir: o advogado confirma se e como o arrependimento",
+  );
+});
+
+test("FR-025: os Termos de uso dizem que o Acesso fica suspenso até a devolução e citam Reembolsos repetidos", () => {
+  renderPage(TERMS_OF_USE);
+  const text = document.body.textContent ?? "";
+  expect(text).toContain("fica suspenso até a devolução do valor");
+  expect(text).toContain("Reembolsos repetidos");
+});
+
+test("SEC-036: a Política de privacidade lista as Solicitações de Reembolso e o e-mail de reembolso", () => {
+  renderPage(PRIVACY_POLICY);
+  const text = document.body.textContent ?? "";
+  expect(text).toContain("Solicitações de Reembolso");
+  expect(text).toContain("pagamento confirmado, reembolso");
+});

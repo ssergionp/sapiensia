@@ -29,12 +29,15 @@ Origem: #23. Os Termos de uso, a Política de privacidade e a Política de reemb
 4. A expressão "Acesso vitalício" (ADR-0007) e a alternativa "enquanto a SapiensIA estiver em operação".
 5. Transferência internacional de dados: **decidido em 19/11/2026 (#212)**: o texto diz que o Resend (e-mails) e o Cloudflare R2 (cópia de segurança do banco) tratam dados fora do Brasil e que isso é necessário para executar o contrato (LGPD, art. 33, IX, com o art. 7º, V), sem citar países (a região da conta do Resend não está registrada; o bucket de homologação do R2 está na América do Norte Leste). O advogado confirma a base legal. O Have I Been Pwned (`api.pwnedpasswords.com`) fica fora da frase: recebe só os 5 primeiros caracteres do hash SHA-1 da senha, sem e-mail nem conta (ADR-0004). Supabase e Fly.io ficam em São Paulo.
 6. Encarregado de dados, ou dispensa para agente de tratamento de pequeno porte.
-7. Prazo do Reembolso e direito de arrependimento (CDC art. 49) para produto digital já baixado.
+7. Prazo do Reembolso e direito de arrependimento (CDC art. 49) para produto digital já baixado: **decidido em 19/11/2026 (#213)**: Reembolso pelo site em até 7 dias depois do pagamento (até o fim do 7º dia), sempre concedido dentro do prazo, mesmo com o arquivo já baixado; por defeito no arquivo, por e-mail, sem o limite de 7 dias. O advogado confirma.
 8. Foro e lei aplicável.
 9. Cláusula de uso pessoal e proibição de redistribuição, e suas consequências.
 10. Cookies: se os cookies essenciais (JSESSIONID, XSRF-TOKEN, SAPIENSIA_DEVICE) exigem aviso.
 11. Idade mínima e tratamento de menores.
 12. Como avisar mudanças nos Termos e na Política, e com que antecedência.
 13. Prazos de atendimento: direitos do titular (proposta: declaração completa de acesso em até 15 dias, art. 19, II da LGPD), pedidos de Reembolso e atendimento em geral (proposta: primeira resposta em até 2 dias úteis), atendimento em geral, aviso de incidente.
+    - Devolução do Reembolso: **decidido em 19/11/2026 (#213)**: em até 2 dias úteis depois do pedido. O prazo de resposta aos pedidos feitos por e-mail continua em aberto (o texto da Política mantém o `[a definir]`).
 14. Prazos de guarda dos operadores (Asaas, Resend, Fly.io), ainda a conferir.
 15. Endereço do canal de atendimento (`sapiensia.operacao@gmail.com`; a caixa já existe).
+
+A redação final dos três textos (Termos de uso, Política de privacidade e Política de reembolso) alterados pela #213 aguarda o OK do Sérgio na PR da #213 e a revisão do advogado; os textos continuam rascunho.
