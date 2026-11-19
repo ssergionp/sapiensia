@@ -7,7 +7,7 @@ export const SUPPORT_EMAIL = "sapiensia.operacao@gmail.com";
 export const DRAFT_NOTICE =
   "RASCUNHO — revisar com advogado. Este texto ainda não é a versão final e pode mudar.";
 
-export const DRAFT_VERSION = "Versão de rascunho de 16/11/2026.";
+export const DRAFT_VERSION = "Versão de rascunho de 19/11/2026.";
 
 export const LEGAL_TEXTS = {
   footerLabel: "Informações legais",
@@ -35,7 +35,7 @@ export const TERMS_OF_USE: LegalDocument = {
       heading: "Quem somos",
       paragraphs: [
         "A SapiensIA é uma loja de conteúdos digitais em PDF (e-books, cartilhas, tutoriais e checklists). Estes Termos valem para quem cria uma conta e compra ou baixa um Produto.",
-        "Responsável pelo site: [a definir: nome ou razão social, CPF ou CNPJ e endereço do responsável, pessoa física ou jurídica].",
+        `Responsável pelo site: uma pessoa física. Contato e reclamações: ${SUPPORT_EMAIL}.`,
       ],
     },
     {
@@ -109,7 +109,7 @@ export const PRIVACY_POLICY: LegalDocument = {
     {
       heading: "Quem é o responsável pelos dados",
       paragraphs: [
-        "Responsável pelo tratamento dos dados pessoais (controlador): [a definir: nome ou razão social, CPF ou CNPJ e endereço; pessoa física ou jurídica].",
+        "Responsável pelo tratamento dos dados pessoais (controlador): o responsável pelo site, uma pessoa física.",
         `Canal para falar sobre os seus dados: ${SUPPORT_EMAIL}.`,
       ],
     },
@@ -153,7 +153,7 @@ export const PRIVACY_POLICY: LegalDocument = {
     {
       heading: "Transferência internacional",
       paragraphs: [
-        "Alguns desses serviços podem tratar dados fora do Brasil. [a definir: quais serviços transferem dados para o exterior, para quais países e com qual garantia legal].",
+        "Dois desses serviços tratam dados fora do Brasil: o Resend, que envia os e-mails, e o Cloudflare R2, onde fica a cópia de segurança do banco. Essa transferência é necessária para executar o contrato com você (Lei 13.709/2018, art. 33, IX, com o art. 7º, V).",
       ],
     },
     {
@@ -161,7 +161,7 @@ export const PRIVACY_POLICY: LegalDocument = {
       items: [
         "Conta: enquanto ela existir. Conta que nunca foi confirmada é apagada em 7 dias.",
         "Códigos de confirmação de e-mail: 24 horas. Códigos de nova senha: 30 minutos.",
-        "Pedidos, Acessos, eventos de pagamento e Registros de download: 5 anos depois do Pedido. Este prazo é provisório e será confirmado com o contador.",
+        "Pedidos, Acessos, eventos de pagamento e Registros de download: 5 anos depois do Pedido.",
         "Trilha de auditoria: 365 dias.",
         "O prazo de guarda de cada serviço de fora (Asaas, Resend, Fly.io) ainda está a conferir: [a definir: prazos de cada operador].",
       ],

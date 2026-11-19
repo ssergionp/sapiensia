@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { expect, test } from "vitest";
 import LegalPage from "./LegalPage";
@@ -39,7 +39,7 @@ test.each(DOCS)(
       "RASCUNHO — revisar com advogado. Este texto ainda não é a versão final e pode mudar.",
     );
     expect(
-      screen.getByText("Versão de rascunho de 16/11/2026."),
+      screen.getByText("Versão de rascunho de 19/11/2026."),
     ).toBeInTheDocument();
     expect(
       screen.getAllByText(new RegExp(SUPPORT_EMAIL)).length,
@@ -93,7 +93,48 @@ test("a Política de privacidade nomeia os operadores e os cookies essenciais", 
   ]) {
     expect(text).toContain(name);
   }
-  expect(text).toContain("provisório");
+});
+
+test("a Política de privacidade guarda os registros por 5 anos sem chamar o prazo de provisório nem citar o contador", () => {
+  renderPage(PRIVACY_POLICY);
+  const heading = screen.getByRole("heading", {
+    level: 2,
+    name: "Por quanto tempo guardamos",
+  });
+  const section = heading.closest("section")?.textContent ?? "";
+  expect(section).toContain("5 anos depois do Pedido");
+  expect(section).not.toContain("provisório");
+  expect(section).not.toContain("contador");
+});
+
+test("Termos e Privacidade não pedem mais nome, CPF e endereço do responsável", () => {
+  renderPage(TERMS_OF_USE);
+  const terms = document.body.textContent ?? "";
+  expect(terms).not.toContain("[a definir: nome ou razão social");
+  expect(terms).toContain("Responsável pelo site: uma pessoa física.");
+  expect(terms).toContain(`Contato e reclamações: ${SUPPORT_EMAIL}.`);
+  cleanup();
+
+  renderPage(PRIVACY_POLICY);
+  const privacy = document.body.textContent ?? "";
+  expect(privacy).not.toContain("[a definir: nome ou razão social");
+  expect(privacy).toContain(
+    "(controlador): o responsável pelo site, uma pessoa física.",
+  );
+});
+
+test("a seção Transferência internacional cita Resend, Cloudflare R2 e o art. 33, IX", () => {
+  renderPage(PRIVACY_POLICY);
+  const heading = screen.getByRole("heading", {
+    level: 2,
+    name: "Transferência internacional",
+  });
+  const section = heading.closest("section")?.textContent ?? "";
+  expect(section).toContain("Resend");
+  expect(section).toContain("Cloudflare R2");
+  expect(section).toContain("art. 33, IX");
+  expect(section).toContain("art. 7º, V");
+  expect(section).not.toContain("[a definir: quais serviços");
 });
 
 test("os Termos de uso citam Pix de 30 minutos, Download de 60 segundos e limite de 10 por dia", () => {
