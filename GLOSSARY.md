@@ -37,7 +37,7 @@ O PDF pronto, enviado pelo administrador, que o cliente baixa depois de comprar 
 _Avoid_: Conteúdo, e-book (quando falar do arquivo)
 
 **Administrador**:
-A pessoa que opera o painel: cadastra Produtos, envia Arquivos do produto e devolve o dinheiro dos Reembolsos no painel do Asaas. Na Fase 1 é um só perfil, sempre com MFA; cada operação do painel exige uma capacidade própria, para permitir novos perfis no futuro.
+A pessoa que opera o painel: cadastra Produtos, envia Arquivos do produto, vê as Solicitações de reembolso na tela Reembolsos (só leitura) e devolve o dinheiro no painel do Asaas. Na Fase 1 é um só perfil, sempre com MFA; cada operação do painel exige uma capacidade própria, para permitir novos perfis no futuro.
 _Avoid_: Admin, editor, usuário interno
 
 **Cliente**:
@@ -49,7 +49,7 @@ Qualquer pessoa que abre o site, com ou sem conta. Vê o Catálogo e a página d
 _Avoid_: Usuário anônimo, lead
 
 **Acesso**:
-O direito de um Cliente baixar o Arquivo do produto de um Produto que comprou. Nasce quando o Pedido é pago e vale para sempre; só é cancelado quando o Pedido é reembolsado. Despublicar o Produto não o cancela. Um Acesso cancelado deixa de aparecer na Biblioteca e de baixar, mas a linha fica como histórico. Depois do cancelamento o Cliente pode comprar de novo, e o novo Pedido pago cria um Acesso novo: só há um Acesso ativo por Cliente e Produto.
+O direito de um Cliente baixar o Arquivo do produto de um Produto que comprou. Nasce quando o Pedido é pago e vale para sempre; só é cancelado quando o Pedido é reembolsado. Despublicar o Produto não o cancela. Quando o Cliente faz uma Solicitação de reembolso, o Acesso daquele Pedido fica suspenso na hora (sai da Biblioteca e não baixa), e só o estorno o cancela de vez; o link de Download já emitido vale pelos seus 60 segundos. Um Acesso cancelado deixa de aparecer na Biblioteca e de baixar, mas a linha fica como histórico. Depois do cancelamento o Cliente pode comprar de novo, e o novo Pedido pago cria um Acesso novo: só há um Acesso ativo por Cliente e Produto.
 _Avoid_: Licença, permissão, entitlement
 
 **Download**:
@@ -73,12 +73,16 @@ O aviso que o Asaas envia ao sistema (webhook) sobre uma cobrança ou o saldo, i
 _Avoid_: Notificação, callback
 
 **Alerta**:
-O aviso por e-mail ao Administrador de que algo no pagamento precisa dele: webhook recusado, Evento de pagamento que desistiu ou que terminou com resultado para revisar, e-mail de pagamento que desistiu, e-mail de reembolso que desistiu, tarefa em segundo plano descartada, tarefa recorrente que falha seguidas vezes (repetido na 3ª, 6ª, 12ª... falha), Divergência da Conciliação ou Conciliação que não terminou. Alertas iguais viram um só com contagem, e o e-mail sai agrupado por tipo, no máximo um a cada 15 minutos. Traz só tipo, ids, hora e contagem, nunca dado pessoal.
+O aviso por e-mail ao Administrador de que algo no pagamento precisa dele: webhook recusado, Evento de pagamento que desistiu ou que terminou com resultado para revisar, e-mail de pagamento que desistiu, e-mail de reembolso que desistiu, Reembolso solicitado pelo Cliente, Cliente com 3 ou mais Reembolsos em 12 meses, tarefa em segundo plano descartada, tarefa recorrente que falha seguidas vezes (repetido na 3ª, 6ª, 12ª... falha), Divergência da Conciliação ou Conciliação que não terminou. Alertas iguais viram um só com contagem, e o e-mail sai agrupado por tipo, no máximo um a cada 15 minutos. Traz só tipo, ids, hora e contagem, nunca dado pessoal.
 _Avoid_: Notificação, aviso (quando for ao Cliente)
 
 **Reembolso**:
-Devolução do valor de um Pedido pago, aceita em até 7 dias após a compra (arrependimento) ou por defeito no Arquivo do produto. O Administrador devolve o dinheiro no painel do Asaas; o sistema não tem botão de reembolso: o sistema cancela o Acesso quando o Asaas mostra a cobrança como estornada; a abertura de um MED, que é um bloqueio de saldo, só fica registrada para revisão. Um estorno parcial também só fica registrado: quem quer cancelar o Acesso devolve o valor total.
+Devolução do valor de um Pedido pago. O Cliente pede pelo site (Solicitação de reembolso) até o fim do 7º dia depois do dia do pagamento (horário de São Paulo), e dentro desse prazo o Reembolso é sempre concedido, qualquer que seja o motivo; depois dele, só por defeito no Arquivo do produto, pedido por e-mail. O Administrador devolve o dinheiro no painel do Asaas (o sistema não tem botão de reembolso) e o sistema cancela o Acesso quando o Asaas mostra a cobrança como estornada; a abertura de um MED, que é um bloqueio de saldo, só fica registrada para revisão. Um estorno parcial também só fica registrado: quem quer cancelar o Acesso devolve o valor total. Reembolsos não bloqueiam novas compras.
 _Avoid_: Estorno (é do cartão), chargeback
+
+**Solicitação de reembolso**:
+O pedido de Reembolso que o Cliente faz pelo site, em Meus Pedidos, para um Pedido pago dentro do prazo, com um motivo (lista fechada) e um comentário opcional. Há no máximo uma por Pedido e não dá para desistir dela. Ao ser enviada, suspende na hora o Acesso daquele Pedido e avisa o Administrador por Alerta; o Pedido continua pago até o Asaas mostrar a cobrança estornada. Enquanto está aberta, o Cliente não compra o mesmo Produto de novo. A Anonimização apaga o comentário e mantém a linha.
+_Avoid_: Pedido de reembolso, ticket
 
 **Venda avulsa**:
 Compra de um único Produto, paga uma só vez, sem cupom, pacote, presente nem renovação. É o único modelo de venda da Fase 1.
