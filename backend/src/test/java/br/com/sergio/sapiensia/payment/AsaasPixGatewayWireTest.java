@@ -190,6 +190,33 @@ class AsaasPixGatewayWireTest {
         assertThat(body.get("externalReference").asString()).isEqualTo(orderId.toString());
     }
 
+    static Stream<String> chargeIdsOutsideThePattern() {
+        return Stream.of("pay 1", "pay-1", "pay_1\nINFO forged", "a".repeat(65));
+    }
+
+    @ParameterizedTest
+    @MethodSource("chargeIdsOutsideThePattern")
+    @DisplayName("SEC-026: shouldRefuseACreatedChargeWhoseIdIsOutsideThePattern")
+    void shouldRefuseACreatedChargeWhoseIdIsOutsideThePattern(String chargeId, CapturedOutput output) {
+        replyWith(200, JSON.createObjectNode().put("id", chargeId).toString());
+
+        assertKind(
+                () -> gateway().createCharge("cus_123", UUID.randomUUID(), 2990, LocalDate.of(2026, 11, 14), "d"),
+                PixGatewayException.Kind.UNAVAILABLE);
+
+        assertThat(output.getAll()).doesNotContain("forged").doesNotContain(chargeId);
+    }
+
+    @Test
+    @DisplayName("SEC-026: shouldAcceptACreatedChargeIdOf64Characters")
+    void shouldAcceptACreatedChargeIdOf64Characters() {
+        String chargeId = "p".repeat(64);
+        replyWith(200, JSON.createObjectNode().put("id", chargeId).toString());
+
+        assertThat(gateway().createCharge("cus_123", UUID.randomUUID(), 2990, LocalDate.of(2026, 11, 14), "d"))
+                .isEqualTo(chargeId);
+    }
+
     @Test
     @DisplayName("ADR-0003: shouldReadTheCopyPasteCodeOnEveryCall")
     void shouldReadTheCopyPasteCodeOnEveryCall() {

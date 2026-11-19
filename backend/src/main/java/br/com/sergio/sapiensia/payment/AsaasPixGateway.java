@@ -166,7 +166,12 @@ class AsaasPixGateway implements PixGateway {
                                 description,
                                 orderId.toString())),
                 false);
-        return requiredText(CREATE_CHARGE, root, "id", null);
+        String chargeId = requiredText(CREATE_CHARGE, root, "id", null);
+        if (!PaymentConfirmation.CHARGE_ID.matcher(chargeId).matches()) {
+            // the refused value is never logged
+            throw unavailable(CREATE_CHARGE, "unexpected answer", null);
+        }
+        return chargeId;
     }
 
     @Override
