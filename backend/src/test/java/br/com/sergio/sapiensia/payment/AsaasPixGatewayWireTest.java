@@ -270,6 +270,55 @@ class AsaasPixGatewayWireTest {
                 PixGatewayException.Kind.REFUSED);
     }
 
+    private static String errorsBody(int count, int documentIndex) {
+        List<String> errors = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            String code = i == documentIndex ? "invalid_cpfCnpj" : "code_" + i;
+            errors.add("{\"code\":\"" + code + "\",\"description\":\"x\"}");
+        }
+        return "{\"errors\":[" + String.join(",", errors) + "]}";
+    }
+
+    @Test
+    @DisplayName("SEC-018: shouldLogAtMostTenErrorCodes")
+    void shouldLogAtMostTenErrorCodes(CapturedOutput output) {
+        replyWith(400, errorsBody(50, -1));
+
+        assertKind(
+                () -> gateway().createCharge("cus_1", UUID.randomUUID(), 100, LocalDate.now(), "d"),
+                PixGatewayException.Kind.REFUSED);
+        assertThat(output.getAll()).contains("code_9").doesNotContain("code_10");
+    }
+
+    @Test
+    @DisplayName("SEC-033: shouldStillRecognizeARejectedDocumentAmongTheFirstTenCodes")
+    void shouldStillRecognizeARejectedDocumentAmongTheFirstTenCodes() {
+        replyWith(400, errorsBody(50, 9));
+
+        assertKind(
+                () -> gateway().createCustomer(UUID.randomUUID(), "ana@example.com", CPF),
+                PixGatewayException.Kind.DOCUMENT_REJECTED);
+    }
+
+    @Test
+    @DisplayName("SEC-018: shouldReportAnUnexpectedClientFailureAsUnavailable")
+    void shouldReportAnUnexpectedClientFailureAsUnavailable(CapturedOutput output) {
+        AsaasPixGateway failing = new AsaasPixGateway(
+                RestClient.builder().requestInterceptor((request, body, execution) -> {
+                    throw new IllegalStateException(MARKER);
+                }),
+                baseUrl(),
+                KEY,
+                CONNECT,
+                READ);
+
+        assertThatThrownBy(() -> failing.readCharge("pay_abc")).isInstanceOfSatisfying(PixGatewayException.class, e -> {
+            assertThat(e.kind()).isEqualTo(PixGatewayException.Kind.UNAVAILABLE);
+            assertThat(e.getMessage()).doesNotContain(MARKER);
+        });
+        assertThat(output.getAll()).doesNotContain(MARKER);
+    }
+
     static Stream<Arguments> unavailableAnswers() {
         return Stream.of(
                 Arguments.of(500, "{\"errors\":[]}"),

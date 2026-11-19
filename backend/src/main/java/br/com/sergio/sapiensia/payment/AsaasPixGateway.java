@@ -20,7 +20,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientException;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -45,6 +44,8 @@ class AsaasPixGateway implements PixGateway {
     private static final int MAX_BODY = 64 * 1024;
     // a page of 100 charges does not fit in MAX_BODY; an answer above this is refused, never read in part
     private static final int MAX_LIST_BODY = 2 * 1024 * 1024;
+    // an error answer may list many errors; only this many codes are read (for the log and the refused-CPF check)
+    private static final int MAX_ERROR_CODES = 10;
 
     private static final String FIND_CUSTOMER = "FIND_CUSTOMER";
     private static final String CREATE_CUSTOMER = "CREATE_CUSTOMER";
@@ -275,8 +276,11 @@ class AsaasPixGateway implements PixGateway {
                 }
                 throw failure(step, chargeId, status, body);
             });
-        } catch (RestClientException e) {
-            // timeout or network error: only the class name is reported
+        } catch (PixGatewayException e) {
+            // already classified inside the exchange: keep its kind
+            throw e;
+        } catch (RuntimeException e) {
+            // timeout, network error or any unexpected client failure: only the class name is reported
             throw unavailable(step, e.getClass().getSimpleName(), chargeId);
         }
     }
@@ -333,6 +337,9 @@ class AsaasPixGateway implements PixGateway {
             JsonNode errors = JSON.readTree(body).get("errors");
             if (errors != null && errors.isArray()) {
                 for (JsonNode error : errors) {
+                    if (codes.size() >= MAX_ERROR_CODES) {
+                        break;
+                    }
                     JsonNode code = error.get("code");
                     if (code != null && code.isValueNode()) {
                         String clean = CODE_CHARS.matcher(code.asString()).replaceAll("");
