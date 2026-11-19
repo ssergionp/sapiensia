@@ -12,6 +12,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /** The approved pt-BR texts of the alert e-mails (plan #38, section 4), letter for letter. */
@@ -48,6 +49,20 @@ class AdminAlertEmailTextTest {
                                 + " que o sistema não corrige sozinho.",
                         "veja o que cada código quer dizer e como achar a cobrança no runbook conciliacao-asaas.md,"
                                 + " seção \"Divergências\". Cada divergência é avisada uma vez só."),
+                Arguments.of(
+                        AdminAlertType.REFUND_REQUESTED,
+                        "Reembolso solicitado",
+                        "Um Cliente pediu o Reembolso de um Pedido pelo site. O Acesso daquele Pedido já está"
+                                + " suspenso.",
+                        "veja o motivo no painel, em Reembolsos, e devolva o valor inteiro no painel do Asaas, pelo"
+                                + " runbook suporte-cliente.md, seção \"Reembolso\"."),
+                Arguments.of(
+                        AdminAlertType.REFUND_REQUESTS_REPEATED,
+                        "Cliente com 3 ou mais Reembolsos em 12 meses",
+                        "Um Cliente pediu um Reembolso e, com ele, soma 3 ou mais em 12 meses.",
+                        "o Reembolso dentro do prazo continua devido e novas compras não são bloqueadas. Veja o"
+                                + " histórico no painel, em Reembolsos, e siga o runbook suporte-cliente.md, seção"
+                                + " \"Reembolsos repetidos\"."),
                 Arguments.of(
                         AdminAlertType.RECONCILIATION_FAILED,
                         "conciliação com o Asaas não terminou",
@@ -145,6 +160,20 @@ class AdminAlertEmailTextTest {
                         + "\n\nO que fazer: a próxima noite tenta de novo sozinha. Para rodar agora, ou se este aviso"
                         + " se repetir, siga o runbook conciliacao-asaas.md, seção \"A conciliação não terminou\"."
                         + "\n\n" + FOOTER);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(
+            value = AdminAlertType.class,
+            names = {"REFUND_REQUESTED", "REFUND_REQUESTS_REPEATED"})
+    @DisplayName("NFR-009: a linha do alerta de reembolso traz o Pedido e nenhum e-mail")
+    void shouldListTheOrderOnTheRefundAlertLine(AdminAlertType type) {
+        List<Line> lines = List.of(new Line(WHEN, null, null, ORDER, 1), new Line(WHEN, null, null, null, 1));
+
+        assertThat(AdminAlertEmail.body(type, 2, lines, 0, WINDOW))
+                .contains("\n- 15/11/2026 14:32 · Pedido " + ORDER + "\n")
+                .contains("\n- 15/11/2026 14:32\n\nO que fazer: ")
+                .doesNotContain("@", "Pedido não identificado");
     }
 
     @Test
