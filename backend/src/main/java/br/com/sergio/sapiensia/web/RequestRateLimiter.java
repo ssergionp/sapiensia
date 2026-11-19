@@ -1,6 +1,7 @@
 package br.com.sergio.sapiensia.web;
 
 import br.com.sergio.sapiensia.customer.Emails;
+import br.com.sergio.sapiensia.customer.IpLimitKey;
 import io.github.bucket4j.Bucket;
 import io.github.bucket4j.ConsumptionProbe;
 import io.github.bucket4j.TimeMeter;
@@ -103,7 +104,7 @@ public class RequestRateLimiter {
     public Optional<Duration> tryConsume(RateLimitedOperation operation, String ipKey, Optional<String> accountKey) {
         purgeIfDue();
         RateLimitProperties.Limit limit = properties.limit(operation);
-        String ipBucketKey = operation + "|ip|" + (ipKey == null ? "" : ipKey);
+        String ipBucketKey = operation + "|ip|" + IpLimitKey.of(ipKey);
         boolean hasAccount = limit.accountCapacity() != null && accountKey.isPresent();
         String accountBucketKey = hasAccount ? operation + "|account|" + accountKey.get() : null;
 

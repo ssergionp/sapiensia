@@ -65,6 +65,34 @@ class RequestRateLimiterTest {
     }
 
     @Test
+    @DisplayName("SEC-014: shouldShareTheIpLimitBetweenIpv6AddressesOfTheSame64")
+    void shouldShareTheIpLimitBetweenIpv6AddressesOfTheSame64() {
+        RequestRateLimiter limiter = limiter(0);
+        for (int i = 1; i <= 3; i++) {
+            assertThat(limiter.tryConsume(IP_ONLY, "2001:db8:1:2::" + i, Optional.empty()))
+                    .isEmpty();
+        }
+        assertThat(limiter.tryConsume(IP_ONLY, "2001:db8:1:2:aaaa:bbbb:cccc:dddd", Optional.empty()))
+                .isPresent();
+        assertThat(limiter.tryConsume(IP_ONLY, "2001:db8:1:3::1", Optional.empty()))
+                .isEmpty();
+        assertThat(limiter.trackedKeys()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("SEC-014: shouldCountIpv6WithEmbeddedIpv4AsTheIpv4")
+    void shouldCountIpv6WithEmbeddedIpv4AsTheIpv4() {
+        RequestRateLimiter limiter = limiter(0);
+        for (int i = 0; i < 3; i++) {
+            assertThat(limiter.tryConsume(IP_ONLY, "203.0.113.7", Optional.empty()))
+                    .isEmpty();
+        }
+        assertThat(limiter.tryConsume(IP_ONLY, "::ffff:203.0.113.7", Optional.empty()))
+                .isPresent();
+        assertThat(limiter.tryConsume(IP_ONLY, "203.0.113.8", Optional.empty())).isEmpty();
+    }
+
+    @Test
     @DisplayName("SEC-014: pedido recusado pelo IP não cria chave de conta")
     void shouldNotCreateAnAccountKeyForARequestRefusedByTheIp() {
         RequestRateLimiter limiter = limiter(0);
