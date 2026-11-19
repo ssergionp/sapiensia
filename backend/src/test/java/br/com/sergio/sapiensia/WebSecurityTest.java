@@ -25,6 +25,7 @@ import org.springframework.security.web.header.HeaderWriterFilter;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
+import org.springframework.web.filter.FormContentFilter;
 
 /** The security baseline and the SPA routing that every project inherits from the template. */
 @Import(TestcontainersConfiguration.class)
@@ -62,6 +63,12 @@ class WebSecurityTest {
         assertThat(bodyLimit).isGreaterThan(headers);
         assertThat(sessionVersion).isGreaterThan(bodyLimit);
         assertThat(csrf).isGreaterThan(sessionVersion);
+    }
+
+    @Test
+    @DisplayName("SEC-015: nenhum filtro lê o corpo de formulário de PUT, PATCH ou DELETE antes do limite")
+    void shouldNotRegisterTheFormContentFilterThatReadsBodiesAheadOfTheLimit() {
+        assertThat(context.getBeansOfType(FormContentFilter.class)).isEmpty();
     }
 
     @Test

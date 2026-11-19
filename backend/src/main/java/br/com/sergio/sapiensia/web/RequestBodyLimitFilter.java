@@ -22,8 +22,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 /**
  * Refuses a body above 64 KiB on {@code /api/**} with 413 (SEC-015). It counts the bytes as the controller reads them,
  * so a chunked body without Content-Length is refused too and nothing is ever buffered; a declared Content-Length
- * above the limit is refused before the first byte. It runs ahead of Spring Security (only after the correlation ID)
- * so an oversized body is dropped before any work is done for it; it never reads the body itself. Multipart uploads
+ * above the limit is refused before the first byte. It never reads the body itself. Multipart uploads
  * (their own 50 MB limit) and the Asaas webhook (its own limit, {@code app.asaas.webhook.max-body-bytes}) are skipped.
  *
  * <p>Runs inside the Spring Security chain, right after the {@code HeaderWriterFilter} (see SecurityConfig): the 413

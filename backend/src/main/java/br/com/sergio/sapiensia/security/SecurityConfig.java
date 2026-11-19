@@ -123,7 +123,7 @@ public class SecurityConfig {
         return registration;
     }
 
-    /** Same as above: the body limit runs only inside the security chain, after the header writer. */
+    /** The body limit filter runs only inside the security chain, right after the header writer, never as a servlet filter. */
     @Bean
     FilterRegistrationBean<RequestBodyLimitFilter> requestBodyLimitFilterRegistration(RequestBodyLimitFilter filter) {
         FilterRegistrationBean<RequestBodyLimitFilter> registration = new FilterRegistrationBean<>(filter);
