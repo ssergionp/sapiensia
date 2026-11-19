@@ -182,8 +182,8 @@ export const PRIVACY_POLICY: LegalDocument = {
     {
       heading: "Seus direitos",
       paragraphs: [
-        `Você pode pedir, pelo e-mail ${SUPPORT_EMAIL}, o acesso aos seus dados, a correção de dados errados, a exportação (cópia) dos seus dados e a exclusão da sua conta. Hoje esses pedidos são atendidos à mão, por e-mail. [a definir: prazo de resposta; proposta provisória: declaração completa de acesso em até 15 dias, Lei 13.709/2018, art. 19, II]. O comentário que você escreveu numa solicitação de Reembolso é apagado.`,
-        "A exclusão da conta é feita por anonimização: o e-mail e a senha são substituídos e as sessões encerradas. Os registros financeiros (Pedidos, Acessos, eventos de pagamento e Registros de download) ficam pelo prazo de guarda, sem o seu e-mail nem o seu nome.",
+        `Você pode pedir, pelo e-mail ${SUPPORT_EMAIL}, o acesso aos seus dados, a correção de dados errados, a exportação (cópia) dos seus dados e a exclusão da sua conta. Hoje esses pedidos são atendidos à mão, por e-mail. [a definir: prazo de resposta; proposta provisória: declaração completa de acesso em até 15 dias, Lei 13.709/2018, art. 19, II].`,
+        "A exclusão da conta é feita por anonimização: o e-mail e a senha são substituídos e as sessões encerradas. Os registros financeiros (Pedidos, Acessos, eventos de pagamento, solicitações de Reembolso e Registros de download) ficam pelo prazo de guarda, sem o seu e-mail nem o seu nome. O comentário que você escreveu numa solicitação de Reembolso é apagado quando a conta é anonimizada.",
         "O Asaas guarda o e-mail e o CPF da cobrança por regra própria; a anonimização não apaga esses dados lá.",
       ],
     },

@@ -47,7 +47,7 @@ Só o defeito no arquivo é atendido depois do prazo do site (sem limite de dias
 
 ### Cliente com dois Pedidos pagos do mesmo Produto (compra duplicada)
 
-**conferir** (regra proposta na revisão do #213, aguardando a sua confirmação). Antes de estornar, veja no painel (Pedidos) se o Cliente tem outro Pedido pago do mesmo Produto. Se tiver, estorne **os dois**: o duplicado (como já pede [webhook-asaas.md](webhook-asaas.md), seção "Reembolso e MED") e o da Solicitação de reembolso. Nunca estorne só o duplicado quando a solicitação é do outro Pedido: o Acesso do Pedido solicitado ficaria suspenso para sempre. Depois dos dois estornos, o Cliente pode comprar o Produto de novo.
+Regra confirmada pelo Sérgio em 19/11/2026 (PR #219). Antes de estornar, veja no painel (Pedidos) se o Cliente tem outro Pedido pago do mesmo Produto. Se tiver, estorne **os dois**: o duplicado (como já pede [webhook-asaas.md](webhook-asaas.md), seção "Reembolso e MED") e o da Solicitação de reembolso. Nunca estorne só o duplicado quando a solicitação é do outro Pedido: o Acesso do Pedido solicitado ficaria suspenso para sempre. Depois dos dois estornos, o Cliente pode comprar o Produto de novo.
 
 Outros casos do estorno (MED, compra duplicada): [webhook-asaas.md](webhook-asaas.md), seção "Reembolso e MED".
 

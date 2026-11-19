@@ -40,4 +40,4 @@ Origem: #23. Os Termos de uso, a Política de privacidade e a Política de reemb
 14. Prazos de guarda dos operadores (Asaas, Resend, Fly.io), ainda a conferir.
 15. Endereço do canal de atendimento (`sapiensia.operacao@gmail.com`; a caixa já existe).
 
-A redação final dos três textos (Termos de uso, Política de privacidade e Política de reembolso) alterados pela #213 aguarda o OK do Sérgio na PR da #213 e a revisão do advogado; os textos continuam rascunho.
+A redação dos três textos (Termos de uso, Política de privacidade e Política de reembolso) alterados pela #213 foi aprovada pelo Sérgio em 19/11/2026, na PR #219, e ainda aguarda a revisão do advogado; os textos continuam rascunho.

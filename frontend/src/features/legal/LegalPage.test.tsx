@@ -179,3 +179,20 @@ test("SEC-036: a Política de privacidade lista as Solicitações de Reembolso e
   expect(text).toContain("Solicitações de Reembolso");
   expect(text).toContain("pagamento confirmado, reembolso");
 });
+
+test("FR-036: o parágrafo da exclusão diz que o comentário da solicitação de Reembolso é apagado na anonimização e que a solicitação fica", () => {
+  const rights = PRIVACY_POLICY.sections.find(
+    (section) => section.heading === "Seus direitos",
+  );
+  const [requests, deletion] = rights?.paragraphs ?? [];
+  // the comment sentence belongs to the paragraph about deleting the account, not to the one about asking by e-mail
+  expect(requests).not.toContain("solicitação de Reembolso");
+  expect(deletion).toContain(
+    "Os registros financeiros (Pedidos, Acessos, eventos de pagamento, solicitações de Reembolso e Registros de download) ficam pelo prazo de guarda",
+  );
+  expect(
+    deletion?.endsWith(
+      "O comentário que você escreveu numa solicitação de Reembolso é apagado quando a conta é anonimizada.",
+    ),
+  ).toBe(true);
+});

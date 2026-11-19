@@ -150,7 +150,9 @@ O e-mail "Seu Pedido na SapiensIA foi reembolsado" não muda. Não há e-mail no
 - "Quais dados tratamos", item novo depois de "Pedidos e Acessos": `Solicitações de Reembolso: o motivo escolhido, o comentário que você escrever (opcional) e a data.`
 - "Com quem compartilhamos": `Resend: envio dos e-mails (confirmação, nova senha, aparelho novo, pagamento confirmado, reembolso).`
 - "Por quanto tempo guardamos": `Pedidos, Acessos, eventos de pagamento, solicitações de Reembolso e Registros de download: 5 anos depois do Pedido.`
-- "Seus direitos", 2º parágrafo, frase a mais no fim: `O comentário que você escreveu numa solicitação de Reembolso é apagado.`
+- "Seus direitos", parágrafo da exclusão da conta (ajuste aprovado pelo Sérgio na PR #219): a lista vira `Os registros financeiros (Pedidos, Acessos, eventos de pagamento, solicitações de Reembolso e Registros de download) ficam pelo prazo de guarda, sem o seu e-mail nem o seu nome.` e o parágrafo termina com `O comentário que você escreveu numa solicitação de Reembolso é apagado quando a conta é anonimizada.`
+
+**OK final dos textos legais:** dado pelo Sérgio em 19/11/2026, na PR #219, com o ajuste acima. Na mesma data ele aceitou a regra "devolva os dois Pedidos" do runbook de suporte para a compra duplicada.
 
 `DRAFT_VERSION` continua `Versão de rascunho de 19/11/2026.`
 
