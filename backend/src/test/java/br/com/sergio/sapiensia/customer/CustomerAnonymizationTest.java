@@ -197,7 +197,7 @@ class CustomerAnonymizationTest {
     }
 
     @Test
-    @DisplayName("FR-036: e-mail desconhecido não muda nada")
+    @DisplayName("FR-036: e-mail desconhecido não muda a conta e deixa só uma linha de falha na auditoria")
     void shouldChangeNothingForAnUnknownEmail() {
         Long customers = jdbc.queryForObject("select count(*) from customers", Long.class);
         Long audit = jdbc.queryForObject("select count(*) from audit_events", Long.class);
@@ -266,7 +266,8 @@ class CustomerAnonymizationTest {
     }
 
     @Test
-    @DisplayName("FR-036, SEC-038: conta com Pedido pendente não é anonimizada e nada muda")
+    @DisplayName(
+            "FR-036, SEC-038: conta com Pedido pendente não é anonimizada e só a auditoria ganha uma linha de falha")
     void shouldRefuseAnAccountWithAPendingOrderAndChangeNothing() {
         insertTokensDevicesAndAsaasLink();
         insertPendingOrder("now() + interval '20 minutes'");
