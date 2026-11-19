@@ -45,6 +45,10 @@ O sistema registra `PARTIAL_REFUND` e **não** cancela o Acesso: a solicitação
 
 Só o defeito no arquivo é atendido depois do prazo do site (sem limite de dias). Se for mais simples para o Cliente, ofereça primeiro o arquivo corrigido. Se ele preferir o Reembolso, faça o mesmo estorno do valor inteiro no painel do Asaas: não há solicitação no site, então a tela Reembolsos não mostra esse caso, mas o sistema cancela o Acesso quando o Asaas mostra a cobrança estornada. Fora do caso de defeito, use o modelo "Reembolso fora da regra".
 
+### Cliente com dois Pedidos pagos do mesmo Produto (compra duplicada)
+
+**conferir** (regra proposta na revisão do #213, aguardando a sua confirmação). Antes de estornar, veja no painel (Pedidos) se o Cliente tem outro Pedido pago do mesmo Produto. Se tiver, estorne **os dois**: o duplicado (como já pede [webhook-asaas.md](webhook-asaas.md), seção "Reembolso e MED") e o da Solicitação de reembolso. Nunca estorne só o duplicado quando a solicitação é do outro Pedido: o Acesso do Pedido solicitado ficaria suspenso para sempre. Depois dos dois estornos, o Cliente pode comprar o Produto de novo.
+
 Outros casos do estorno (MED, compra duplicada): [webhook-asaas.md](webhook-asaas.md), seção "Reembolso e MED".
 
 ## Reembolsos repetidos
@@ -54,6 +58,7 @@ O Alerta `REFUND_REQUESTS_REPEATED` ("Cliente com 3 ou mais Reembolsos em 12 mes
 - O Reembolso dentro do prazo continua devido: devolva o valor pelo passo a passo da seção "Reembolso".
 - Novas compras do Cliente não são bloqueadas (CDC, art. 39, II).
 - Veja o histórico dele na tela Reembolsos (coluna "Outros Reembolsos em 12 meses") e avalie se há indício de abuso, por exemplo baixar o arquivo e pedir o dinheiro de volta várias vezes.
+- A contagem inclui todo Pedido reembolsado do Cliente no período, também os que ele não pediu pelo site (compra duplicada devolvida por você, Reembolso pedido por e-mail): olhe a lista antes de concluir que há abuso.
 - Limitar ou suspender a conta por abuso é uma decisão manual sua, sob a seção "Suspensão por abuso" dos Termos de uso, cujos critérios e aviso prévio ainda estão por definir (**conferir com o advogado**, como o resto dos textos legais). Sem essa confirmação, não suspenda a conta.
 
 ## Direitos da LGPD
