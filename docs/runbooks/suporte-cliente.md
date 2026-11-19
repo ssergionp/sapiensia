@@ -24,10 +24,10 @@ Passo a passo:
 2. Entre no painel da SapiensIA e abra **Reembolsos** (a tela vem filtrada em "Aguardando devolução").
 3. Na linha do Pedido, leia o **Motivo** (e o "Comentário do Cliente", se houver), os **Downloads do Produto** e os **Outros Reembolsos em 12 meses**. O motivo não muda nada: dentro do prazo o Reembolso é devido.
 4. Copie o id da coluna **Cobrança no Asaas** (começa com `pay_`).
-5. No painel do Asaas, ache essa cobrança. O jeito de achar a cobrança de um Pedido está em [webhook-asaas.md](webhook-asaas.md), seção "Conferir um pagamento".
+5. No painel do Asaas, ache a cobrança pelo id que você copiou (`pay_...`, coluna "Cobrança no Asaas"). **conferir** (a busca por esse id no painel de verdade ainda não foi verificada). A seção "Conferir um pagamento" de [webhook-asaas.md](webhook-asaas.md) mostra essa mesma conferência feita no sandbox.
 6. Estorne o valor **inteiro** da cobrança. Um estorno parcial não cancela o Acesso (veja abaixo).
 7. Espere o Asaas confirmar. Na tela Reembolsos a Situação muda de "Aguardando devolução" para "Devolvido em ..."; nesse momento o Pedido vira Reembolsado, o Acesso é cancelado em definitivo e o Cliente recebe o e-mail "Seu Pedido na SapiensIA foi reembolsado". Se a Situação não mudar em alguns minutos, siga as seções "Reembolso e MED" e "Reprocessar um evento de pagamento" de [webhook-asaas.md](webhook-asaas.md).
-8. Registre o atendimento (seção "Como registrar o atendimento"). Não é preciso responder ao Cliente: o e-mail do sistema já o avisa.
+8. Registre o atendimento (seção "Como registrar o atendimento"). Não é preciso responder: o site já confirma a solicitação ao Cliente e o e-mail do sistema avisa quando o valor é devolvido.
 
 ### O Cliente pediu por engano
 
@@ -35,7 +35,7 @@ Não há como desistir da solicitação pelo site. Devolva o valor normalmente: 
 
 ### Falta saldo na conta do Asaas
 
-O estorno falha no Asaas e a solicitação continua em "Aguardando devolução". Ponha saldo na conta e repita o estorno. O Acesso do Cliente fica suspenso até lá, por isso aja dentro do prazo prometido de 2 dias úteis.
+Pela documentação da API do Asaas, o estorno é recusado (resposta 400) quando o saldo não cobre o valor; a solicitação continua em "Aguardando devolução". **conferir** (vem da documentação, não de um teste no painel). Ponha saldo na conta e repita o estorno. O Acesso do Cliente fica suspenso até lá, por isso aja dentro do prazo prometido de 2 dias úteis.
 
 ### Estorno parcial feito sem querer
 
