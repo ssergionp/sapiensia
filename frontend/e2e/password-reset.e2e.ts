@@ -49,12 +49,13 @@ async function openLink(page: Page, link: string) {
   await expect(page).not.toHaveURL(/#/);
 }
 
-// Done after the new password is saved: once the token left the history entry, going back
-// and forward shows the page without a token, so the link cannot be used any more.
+// Last use of the page in a journey: once the token left the history entry, going back and
+// forward returns to /redefinir-senha without a token, which shows the invalid-link state.
 async function expectTokenOutOfHistory(page: Page) {
   await page.goBack();
   await page.goForward();
-  await expect(page).not.toHaveURL(/#/);
+  await expect(page).toHaveURL(//redefinir-senha$/);
+  await expect(page.getByText(DEAD_LINK)).toBeVisible();
 }
 
 async function submitNewPassword(page: Page, password: string) {
@@ -91,7 +92,6 @@ test("SEC-006/SEC-007: recuperar a senha encerra a sessão aberta, o link vale u
   await openLink(other, link);
   await submitNewPassword(other, newPassword);
   await expect(other.getByText(PASSWORD_CHANGED)).toBeVisible();
-  await expectTokenOutOfHistory(other);
   // the success message's own "Entrar" link (the signed-out header has one too since #186 stage 2)
   await expect(
     other.getByRole("main").getByRole("link", { name: "Entrar" }),
@@ -113,6 +113,7 @@ test("SEC-006/SEC-007: recuperar a senha encerra a sessão aberta, o link vale u
   await openLink(other, link);
   await submitNewPassword(other, strongPassword());
   await expect(other.getByText(DEAD_LINK)).toBeVisible();
+  await expectTokenOutOfHistory(other);
 
   // The owner is told, and the notice carries neither password nor token.
   const notice = await waitForMessage(email, NOTICE_SUBJECT);
