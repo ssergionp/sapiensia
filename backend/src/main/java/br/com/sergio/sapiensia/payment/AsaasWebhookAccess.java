@@ -3,6 +3,7 @@ package br.com.sergio.sapiensia.payment;
 import br.com.sergio.sapiensia.alert.AdminAlertType;
 import br.com.sergio.sapiensia.alert.AdminAlerts;
 import br.com.sergio.sapiensia.customer.ClientIpResolver;
+import br.com.sergio.sapiensia.web.RefusalLogThrottle;
 import jakarta.servlet.http.HttpServletRequest;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -35,8 +36,14 @@ public class AsaasWebhookAccess implements AuthorizationManager<RequestAuthoriza
     private final Set<String> allowedIps;
     private final byte[] expectedSha256;
     private final AdminAlerts alerts;
+    private final RefusalLogThrottle refusalLog;
 
-    AsaasWebhookAccess(ClientIpResolver clientIpResolver, AsaasWebhookProperties properties, AdminAlerts alerts) {
+    AsaasWebhookAccess(
+            ClientIpResolver clientIpResolver,
+            AsaasWebhookProperties properties,
+            AdminAlerts alerts,
+            RefusalLogThrottle refusalLog) {
+        this.refusalLog = refusalLog;
         this.clientIpResolver = clientIpResolver;
         this.alerts = alerts;
         this.allowedIps = properties.canonicalAllowedIps();
@@ -56,7 +63,12 @@ public class AsaasWebhookAccess implements AuthorizationManager<RequestAuthoriza
             String reason = !ipAllowed && !tokenValid
                     ? "IP_NOT_ALLOWED_AND_TOKEN_INVALID"
                     : !ipAllowed ? "IP_NOT_ALLOWED" : "TOKEN_INVALID";
-            log.warn("Asaas webhook refused: ip={} reason={}", ip, reason);
+            // sampled per reason: anyone can repeat the both-wrong refusal in a loop (IP_NOT_ALLOWED needs the valid
+            // token and TOKEN_INVALID needs an Asaas address); the decision and the alert are not sampled
+            refusalLog
+                    .pass("asaas-webhook:" + reason)
+                    .ifPresent(
+                            held -> log.warn("Asaas webhook refused: ip={} reason={} suppressed={}", ip, reason, held));
             if (ipAllowed != tokenValid) {
                 // exactly one credential matches: a swapped token or a new Asaas address. Both wrong is just noise.
                 alerts.recordSafely(AdminAlertType.WEBHOOK_REJECTED, ipAllowed ? "TOKEN_INVALID" : "IP_NOT_ALLOWED");

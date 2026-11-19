@@ -4,7 +4,7 @@ Lista revisada de todos os endpoints, conferida contra a `SecurityConfig` (SEC-0
 
 Toda rota de `/api` que não está nesta tabela é negada (`denyAll`), com uma exceção: `/api/system/health` (health check) é aberta e fica fora do OpenAPI. Os caminhos fora de `/api` servem o app React e os arquivos estáticos. O logout (`DELETE /api/sessions/current`) é tratado pelo filtro de logout, por isso não aparece no OpenAPI; exige Cliente logado.
 
-"Painel" significa Administrador com a capacidade indicada e os dois fatores (senha e código TOTP). Limites: janela de 10 min salvo indicação; "login: limite próprio (ADR-0004)" é o `LoginAttemptLimiter`, usado pelo login do Cliente e do painel, pelas etapas do código (verificação, código de recuperação, confirmação do cadastro do código), pela geração de novos códigos de recuperação e pela reautenticação; `GET /api/admin/sessions/mfa` e `POST /api/admin/sessions/mfa/enrollment` não passam por ele.
+"Painel" significa Administrador com a capacidade indicada e os dois fatores (senha e código TOTP). Limites: janela de 10 min salvo indicação; "por IP" significa por endereço IPv4 ou por prefixo /64 do IPv6; "login: limite próprio (ADR-0004)" é o `LoginAttemptLimiter`, usado pelo login do Cliente e do painel, pelas etapas do código (verificação, código de recuperação, confirmação do cadastro do código), pela geração de novos códigos de recuperação e pela reautenticação; `GET /api/admin/sessions/mfa` e `POST /api/admin/sessions/mfa/enrollment` não passam por ele.
 
 | Método | Caminho | Quem pode chamar | Limite |
 |---|---|---|---|

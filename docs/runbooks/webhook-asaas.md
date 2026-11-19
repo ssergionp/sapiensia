@@ -317,7 +317,7 @@ Quando algo no pagamento precisa de você, o sistema manda um e-mail ao Administ
 O alerta só nasce quando exatamente uma das duas credenciais confere. IP e token errados juntos (qualquer robô da internet) ficam só no log, sem e-mail.
 
 - `TOKEN_INVALID`: a chamada veio de IP do Asaas, mas o token está errado. Token trocado ou mal configurado: os pagamentos estão parados. Veja "Se der problema" e "Rotação do token".
-- `IP_NOT_ALLOWED`: o token está certo, mas o IP não está na lista. Pode ser um IP novo do Asaas (acrescente-o em `APP_ASAAS_WEBHOOK_ALLOWED_IPS`) ou o token vazado (gire o token). O IP aparece só no log da aplicação (`Asaas webhook refused: ip=... reason=...`).
+- `IP_NOT_ALLOWED`: o token está certo, mas o IP não está na lista. Pode ser um IP novo do Asaas (acrescente-o em `APP_ASAAS_WEBHOOK_ALLOWED_IPS`) ou o token vazado (gire o token). O IP aparece só no log da aplicação (`Asaas webhook refused: ip=... reason=... suppressed=<n>`). Essa linha sai no máximo uma vez por minuto por motivo e mostra o IP de uma só recusa (a primeira daquele minuto); `suppressed=<n>` diz quantas linhas desse motivo foram seguradas desde a anterior.
 - `BODY_INVALID`: o corpo não é um JSON válido (resposta 400).
 - `BODY_TOO_LARGE`: o corpo passa do limite de tamanho (resposta 413).
 
@@ -346,9 +346,9 @@ Responde `401` e, em até 1 minuto, aparece um arquivo `.txt` em `.tmp/demo/outb
 
 ## Se der problema
 
-- **O log mostra `Asaas webhook refused: ip=<x> reason=IP_NOT_ALLOWED`**: o sandbox usa um IP fora da lista oficial de produção (a documentação do Asaas avisa). **[AGENTE]** acrescenta no `fly.homolog.toml`, em `[env]`, `APP_ASAAS_WEBHOOK_ALLOWED_IPS = "52.67.12.206,18.230.8.159,54.94.136.112,54.94.183.101,<x>"` (só na homologação, nunca no `prod` de verdade), faz o deploy e, no Asaas, em `Integrações > Webhooks`, reativa a fila se ela pausou. Esse valor é uma lista de IPs, não um segredo.
+- **O log mostra `Asaas webhook refused: ip=<x> reason=IP_NOT_ALLOWED suppressed=<n>`** (no máximo uma linha por minuto por motivo, com o IP da primeira recusa do minuto): o sandbox usa um IP fora da lista oficial de produção (a documentação do Asaas avisa). **[AGENTE]** acrescenta no `fly.homolog.toml`, em `[env]`, `APP_ASAAS_WEBHOOK_ALLOWED_IPS = "52.67.12.206,18.230.8.159,54.94.136.112,54.94.183.101,<x>"` (só na homologação, nunca no `prod` de verdade), faz o deploy e, no Asaas, em `Integrações > Webhooks`, reativa a fila se ela pausou. Esse valor é uma lista de IPs, não um segredo.
 - **O log mostra `reason=TOKEN_INVALID`**: o token do Asaas e o do Fly diferem. Repita os passos 1 a 4 e edite o webhook no Asaas com o mesmo valor.
-- **O log mostra `reason=IP_NOT_ALLOWED_AND_TOKEN_INVALID`**: os dois problemas acima ao mesmo tempo; resolva um de cada vez.
+- **O log mostra `reason=IP_NOT_ALLOWED_AND_TOKEN_INVALID`**: os dois problemas acima ao mesmo tempo; resolva um de cada vez. Corrija o token primeiro e só então leia o IP na linha `reason=IP_NOT_ALLOWED`: só quem tem o token certo produz essa linha, e a linha dos dois erros pode mostrar o IP de um scanner.
 - As recusas ficam só no log (nível WARN), não na tabela de auditoria.
 
 ## Produção (quando chegar)

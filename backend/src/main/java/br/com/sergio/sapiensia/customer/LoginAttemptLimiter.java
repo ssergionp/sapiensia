@@ -1,19 +1,18 @@
 package br.com.sergio.sapiensia.customer;
 
+import br.com.sergio.sapiensia.web.RefusalLogThrottle;
 import io.github.bucket4j.Bucket;
 import io.github.bucket4j.ConsumptionProbe;
 import io.github.bucket4j.TimeMeter;
-import java.net.Inet4Address;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -42,6 +41,7 @@ public class LoginAttemptLimiter {
         return "customer:" + Emails.normalize(email);
     }
 
+    private static final Logger log = LoggerFactory.getLogger(LoginAttemptLimiter.class);
     private static final Duration PURGE_INTERVAL = Duration.ofMinutes(1);
     private static final int DEFAULT_MAX_TRACKED_KEYS = 100_000;
 
@@ -57,6 +57,7 @@ public class LoginAttemptLimiter {
 
     private final LoginLimitProperties properties;
     private final Clock clock;
+    private final RefusalLogThrottle refusalLog;
     private final int maxTrackedKeys;
     private final TimeMeter timeMeter;
     private final ConcurrentHashMap<String, AccountState> accounts = new ConcurrentHashMap<>();
@@ -64,12 +65,22 @@ public class LoginAttemptLimiter {
     private final AtomicReference<Instant> lastPurge;
 
     @Autowired
+    LoginAttemptLimiter(LoginLimitProperties properties, Clock clock, RefusalLogThrottle refusalLog) {
+        this(properties, clock, DEFAULT_MAX_TRACKED_KEYS, refusalLog);
+    }
+
     LoginAttemptLimiter(LoginLimitProperties properties, Clock clock) {
         this(properties, clock, DEFAULT_MAX_TRACKED_KEYS);
     }
 
     LoginAttemptLimiter(LoginLimitProperties properties, Clock clock, int maxTrackedKeys) {
+        this(properties, clock, maxTrackedKeys, new RefusalLogThrottle(Duration.ZERO, clock));
+    }
+
+    LoginAttemptLimiter(
+            LoginLimitProperties properties, Clock clock, int maxTrackedKeys, RefusalLogThrottle refusalLog) {
         this.properties = properties;
+        this.refusalLog = refusalLog;
         this.clock = clock;
         this.maxTrackedKeys = maxTrackedKeys;
         this.lastPurge = new AtomicReference<>(clock.instant());
@@ -96,11 +107,18 @@ public class LoginAttemptLimiter {
         purgeIfDue();
         Instant now = clock.instant();
         String accountKey = key(email);
-        String ipKey = ipKey(clientIp);
+        String ipKey = IpLimitKey.of(clientIp);
 
         boolean accountsFull = !accounts.containsKey(accountKey) && accounts.size() >= maxTrackedKeys;
         boolean ipsFull = !ips.containsKey(ipKey) && ips.size() >= maxTrackedKeys;
         if (accountsFull || ipsFull) {
+            // one line per full table, never with the e-mail or the IP
+            if (accountsFull) {
+                logTableFull("accounts");
+            }
+            if (ipsFull) {
+                logTableFull("ips");
+            }
             return refused(PURGE_INTERVAL);
         }
 
@@ -177,6 +195,12 @@ public class LoginAttemptLimiter {
         return ips.size();
     }
 
+    private void logTableFull(String table) {
+        refusalLog
+                .pass("login-full:" + table)
+                .ifPresent(held -> log.warn("Login limit table full: table={} suppressed={}", table, held));
+    }
+
     private static Admission refused(Duration wait) {
         long seconds = (wait.toNanos() + 999_999_999L) / 1_000_000_000L;
         return new Admission(Duration.ofSeconds(Math.max(1, seconds)), null);
@@ -195,32 +219,6 @@ public class LoginAttemptLimiter {
         return state.failures().stream()
                 .filter(failure -> failure.plus(properties.accountWindow()).isAfter(now))
                 .toList();
-    }
-
-    /**
-     * The per-IP counting key (SEC-014): IPv4 by address, IPv6 by its /64 prefix, because one subscriber usually gets a
-     * whole /64 and could otherwise rotate through billions of addresses. An IPv6 that embeds an IPv4 counts as that
-     * IPv4. Text that is not a valid literal is used as it is, so an attempt is always counted. No DNS lookup happens:
-     * {@code ofLiteral} only parses.
-     */
-    private static String ipKey(String clientIp) {
-        if (clientIp == null || clientIp.isEmpty()) {
-            return "";
-        }
-        if (clientIp.indexOf(':') < 0) {
-            return clientIp;
-        }
-        try {
-            InetAddress address = InetAddress.ofLiteral(clientIp);
-            if (address instanceof Inet4Address) {
-                return address.getHostAddress();
-            }
-            byte[] bytes = address.getAddress();
-            Arrays.fill(bytes, 8, bytes.length, (byte) 0);
-            return InetAddress.getByAddress(bytes).getHostAddress() + "/64";
-        } catch (IllegalArgumentException | UnknownHostException e) {
-            return clientIp;
-        }
     }
 
     private static String key(String email) {

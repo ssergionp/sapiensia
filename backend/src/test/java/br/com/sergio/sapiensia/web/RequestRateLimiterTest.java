@@ -1,6 +1,7 @@
 package br.com.sergio.sapiensia.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -10,7 +11,11 @@ import java.time.ZoneOffset;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
+@ExtendWith(OutputCaptureExtension.class)
 class RequestRateLimiterTest {
 
     private static final Duration TEN_MINUTES = Duration.ofMinutes(10);
@@ -28,6 +33,86 @@ class RequestRateLimiterTest {
 
     private RequestRateLimiter limiter(int floor) {
         return new RequestRateLimiter(properties(floor), clock);
+    }
+
+    private RequestRateLimiter limiterWithLog() {
+        return new RequestRateLimiter(properties(0), clock, 3, new RefusalLogThrottle(Duration.ofMinutes(1), clock));
+    }
+
+    private static void refuse(RequestRateLimiter limiter, RateLimitedOperation operation, String ip) {
+        assertThatThrownBy(() -> limiter.require(operation, ip, Optional.empty()))
+                .isInstanceOf(RateLimitedException.class);
+    }
+
+    private static long lines(CapturedOutput output, String text) {
+        return output.getAll().lines().filter(l -> l.contains(text)).count();
+    }
+
+    @Test
+    @DisplayName("SEC-014: shouldLogOneRefusalLinePerOperationPerMinute")
+    void shouldLogOneRefusalLinePerOperationPerMinute(CapturedOutput output) {
+        RequestRateLimiter limiter = limiterWithLog();
+        for (int i = 0; i < 3; i++) {
+            limiter.require(IP_ONLY, "192.0.2.1", Optional.empty());
+        }
+        for (int i = 0; i < 50; i++) {
+            refuse(limiter, IP_ONLY, "192.0.2.1");
+        }
+        assertThat(lines(output, "Request limit reached for COVER")).isEqualTo(1);
+        assertThat(output.getAll()).contains("Request limit reached for COVER: suppressed=0");
+
+        // another operation in the same minute has its own line
+        for (int i = 0; i < 3; i++) {
+            limiter.require(RateLimitedOperation.PASSWORD_RESET_CONFIRM, "192.0.2.1", Optional.empty());
+        }
+        refuse(limiter, RateLimitedOperation.PASSWORD_RESET_CONFIRM, "192.0.2.1");
+        assertThat(lines(output, "Request limit reached for PASSWORD_RESET_CONFIRM"))
+                .isEqualTo(1);
+
+        clock.advance(Duration.ofMinutes(1));
+        refuse(limiter, IP_ONLY, "192.0.2.1");
+        assertThat(output.getAll()).contains("Request limit reached for COVER: suppressed=49");
+        assertThat(output.getAll()).doesNotContain("192.0.2.");
+    }
+
+    @Test
+    @DisplayName("SEC-014: shouldLogAFullTableApartFromAnOrdinaryRefusal")
+    void shouldLogAFullTableApartFromAnOrdinaryRefusal(CapturedOutput output) {
+        RequestRateLimiter limiter = limiterWithLog();
+        for (int i = 1; i <= 3; i++) {
+            limiter.require(IP_ONLY, "192.0.2." + i, Optional.empty());
+        }
+        for (int i = 0; i < 20; i++) {
+            refuse(limiter, IP_ONLY, "198.51.100." + i);
+        }
+        assertThat(lines(output, "Request limit table full for COVER: suppressed=0"))
+                .isEqualTo(1);
+        assertThat(output.getAll())
+                .doesNotContain("Request limit reached for COVER")
+                .doesNotContain("198.51.100.");
+    }
+
+    @Test
+    @DisplayName("SEC-014: shouldLogAFullTableWhenTheAccountKeyDoesNotFit")
+    void shouldLogAFullTableWhenTheAccountKeyDoesNotFit(CapturedOutput output) {
+        RequestRateLimiter limiter =
+                new RequestRateLimiter(properties(0), clock, 2, new RefusalLogThrottle(Duration.ofMinutes(1), clock));
+        // the IP key and the account key fill the table of the operation
+        limiter.require(WITH_ACCOUNT, "192.0.2.1", account("ana@example.com"));
+
+        for (int i = 0; i < 4; i++) {
+            String email = "new-" + i + "@example.com";
+            assertThatThrownBy(() -> limiter.require(WITH_ACCOUNT, "192.0.2.1", account(email)))
+                    .isInstanceOf(RateLimitedException.class);
+        }
+
+        assertThat(lines(output, "Request limit table full for SIGN_UP: suppressed=0"))
+                .isEqualTo(1);
+        assertThat(output.getAll())
+                .doesNotContain("Request limit reached for SIGN_UP")
+                .doesNotContain("192.0.2.")
+                .doesNotContain("@example.com")
+                .doesNotContain(RequestRateLimiter.emailKey("new-0@example.com"));
     }
 
     private static Optional<String> account(String email) {
@@ -62,6 +147,34 @@ class RequestRateLimiterTest {
                 .isPresent();
         assertThat(limiter.tryConsume(WITH_ACCOUNT, "192.0.2.2", account("new@example.com")))
                 .isEmpty();
+    }
+
+    @Test
+    @DisplayName("SEC-014: shouldShareTheIpLimitBetweenIpv6AddressesOfTheSame64")
+    void shouldShareTheIpLimitBetweenIpv6AddressesOfTheSame64() {
+        RequestRateLimiter limiter = limiter(0);
+        for (int i = 1; i <= 3; i++) {
+            assertThat(limiter.tryConsume(IP_ONLY, "2001:db8:1:2::" + i, Optional.empty()))
+                    .isEmpty();
+        }
+        assertThat(limiter.tryConsume(IP_ONLY, "2001:db8:1:2:aaaa:bbbb:cccc:dddd", Optional.empty()))
+                .isPresent();
+        assertThat(limiter.tryConsume(IP_ONLY, "2001:db8:1:3::1", Optional.empty()))
+                .isEmpty();
+        assertThat(limiter.trackedKeys()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("SEC-014: shouldCountIpv6WithEmbeddedIpv4AsTheIpv4")
+    void shouldCountIpv6WithEmbeddedIpv4AsTheIpv4() {
+        RequestRateLimiter limiter = limiter(0);
+        for (int i = 0; i < 3; i++) {
+            assertThat(limiter.tryConsume(IP_ONLY, "203.0.113.7", Optional.empty()))
+                    .isEmpty();
+        }
+        assertThat(limiter.tryConsume(IP_ONLY, "::ffff:203.0.113.7", Optional.empty()))
+                .isPresent();
+        assertThat(limiter.tryConsume(IP_ONLY, "203.0.113.8", Optional.empty())).isEmpty();
     }
 
     @Test
@@ -227,6 +340,40 @@ class RequestRateLimiterTest {
         assertThat(limiter.tryConsume(IP_ONLY, "192.0.2.1", Optional.empty())).isPresent();
         assertThat(limiter.tryConsume(RateLimitedOperation.EMAIL_CONFIRMATION, "192.0.2.1", Optional.empty()))
                 .isEmpty();
+    }
+
+    @Test
+    @DisplayName("SEC-014: shouldKeepOtherOperationsOpenWhenOneOperationIsFull")
+    void shouldKeepOtherOperationsOpenWhenOneOperationIsFull() {
+        RequestRateLimiter small = new RequestRateLimiter(properties(0), clock, 3);
+        for (int i = 1; i <= 3; i++) {
+            assertThat(small.tryConsume(IP_ONLY, "192.0.2." + i, Optional.empty()))
+                    .isEmpty();
+        }
+        assertThat(small.tryConsume(IP_ONLY, "198.51.100.1", Optional.empty())).isPresent();
+
+        assertThat(small.tryConsume(WITH_ACCOUNT, "198.51.100.1", account("ana@example.com")))
+                .isEmpty();
+        assertThat(small.tryConsume(RateLimitedOperation.ORDER_CREATE, "198.51.100.1", Optional.of("customer-1")))
+                .isEmpty();
+        assertThat(small.trackedKeys()).isEqualTo(7);
+    }
+
+    @Test
+    @DisplayName("SEC-014: shouldGiveTheIpTokenBackWhenTheAccountKeyDoesNotFit")
+    void shouldGiveTheIpTokenBackWhenTheAccountKeyDoesNotFit() {
+        // WITH_ACCOUNT: 5 per IP. The table of the operation holds 2 keys: one IP and one account.
+        RequestRateLimiter small = new RequestRateLimiter(properties(0), clock, 2);
+        assertThat(small.tryConsume(WITH_ACCOUNT, "192.0.2.1", account("ana@example.com")))
+                .isEmpty();
+        for (int i = 0; i < 10; i++) {
+            assertThat(small.tryConsume(WITH_ACCOUNT, "192.0.2.1", account("new-" + i + "@example.com")))
+                    .isPresent();
+        }
+        // the 10 refusals spent nothing: the IP still has 4 of its 5 tokens, but the account allows only one more
+        assertThat(small.tryConsume(WITH_ACCOUNT, "192.0.2.1", account("ana@example.com")))
+                .isEmpty();
+        assertThat(small.trackedKeys()).isEqualTo(2);
     }
 
     @Test
