@@ -492,6 +492,24 @@ class RefundRequestTest {
     }
 
     @Test
+    @DisplayName("FR-036: conta anonimizada não registra solicitação de Reembolso")
+    void shouldRefuseTheRequestOfAnAnonymizedAccount() throws Exception {
+        Placed placed = placePaidOrder();
+        // straight in the database, so the HTTP session stays valid: the window of the race with the anonymization
+        jdbc.update("update customers set anonymized_at = now() where id = ?", placed.customer().id);
+
+        HttpResponse<String> response = request(placed, "DEFECTIVE_FILE", "O arquivo não abre");
+
+        assertThat(response.statusCode()).isEqualTo(401);
+        assertThat(requestRows(placed.orderId())).isZero();
+        assertThat(suspended(placed.orderId())).isFalse();
+        assertThat(audits(placed.orderId())).isZero();
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from admin_alerts where order_id = ?", Integer.class, placed.orderId()))
+                .isZero();
+    }
+
+    @Test
     @DisplayName("FR-019: comprar o mesmo Produto com a solicitação aberta — 409 REFUND_IN_PROGRESS")
     void shouldRefuseToBuyTheSameProductWhileTheRefundIsInProgress() throws Exception {
         Placed placed = placePaidOrder();

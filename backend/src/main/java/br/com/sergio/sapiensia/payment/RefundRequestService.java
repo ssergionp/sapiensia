@@ -77,6 +77,10 @@ class RefundRequestService {
     private Requested requestInTransaction(UUID customerId, UUID orderId, RefundReason reason, String comment) {
         // the same lock as the purchase and the anonymization: one change at a time per Customer
         orders.lockCustomer(customerId);
+        // The anonymization holds this lock until its commit, so a read here already sees anonymized_at.
+        if (!orders.customerIsActive(customerId)) {
+            throw new CustomerAccountClosedException();
+        }
         Orders.Row order = orders.findForCustomer(orderId, customerId).orElseThrow(OrderNotFoundException::new);
         Optional<Instant> existing = requests.requestedAt(orderId);
         if (existing.isPresent()) {
