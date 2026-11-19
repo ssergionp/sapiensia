@@ -18,6 +18,7 @@ import {
 } from "./api";
 import { useOrders, useRequestRefund } from "./hooks";
 import { ORDER_TEXTS as T } from "./messages";
+import { dayFromIsoDate } from "./refundDate";
 import { rememberReturnTo } from "./returnTo";
 import {
   type OrderList,
@@ -27,12 +28,6 @@ import {
 } from "./schemas";
 
 type OrderSummary = OrderList["items"][number];
-
-// "2026-11-26" -> "26/11/2026", from the string itself: a calendar day has no time zone.
-function dayFromIsoDate(isoDate: string): string {
-  const [year, month, day] = isoDate.split("-");
-  return `${day}/${month}/${year}`;
-}
 
 function failureMessage(error: Error): string {
   if (error instanceof TooManyRequestsError) return TOO_MANY_REQUESTS;
@@ -118,6 +113,8 @@ function RefundFields({
             <input
               type="radio"
               value={reason}
+              aria-invalid={reasonError ? true : undefined}
+              aria-describedby={reasonError ? "reason-error" : undefined}
               className="size-5 accent-primary"
               {...register("reason")}
             />
@@ -180,15 +177,17 @@ export default function RefundRequestPage() {
   const navigate = useNavigate();
   const orders = useOrders();
   const heading = useRef<HTMLHeadingElement>(null);
-  const [sent, setSent] = useState(false);
+  // The price captured at submit time: once the POST went through, the confirmation wins over every list state.
+  const [sentPriceCents, setSentPriceCents] = useState<number | null>(null);
   const notLoggedIn = orders.error instanceof NotLoggedInError;
 
   const order = orders.data?.items.find((item) => item.id === id);
   let view: "loading" | "error" | "notFound" | "form" | "requested" | "closed";
-  if (orders.isPending || notLoggedIn) view = "loading";
+  if (sentPriceCents !== null) view = "requested";
+  else if (orders.isPending || notLoggedIn) view = "loading";
   else if (orders.isError) view = "error";
   else if (!order) view = "notFound";
-  else if (sent || order.refundRequestedAt) view = "requested";
+  else if (order.refundRequestedAt) view = "requested";
   else if (order.refundableUntil) view = "form";
   else view = "closed";
 
@@ -243,24 +242,23 @@ export default function RefundRequestPage() {
     </h1>
   );
 
+  if (view === "requested") {
+    const priceCents = sentPriceCents ?? order?.priceCents ?? 0;
+    return (
+      <main className="auth-panel">
+        {h1(T.refundRequestedHeading)}
+        <p className="mt-4">{T.refundRequestedText(formatCents(priceCents))}</p>
+        <p className="mt-6">{backLink}</p>
+      </main>
+    );
+  }
+
   if (!order) {
     return (
       <main className="auth-panel">
         {h1(T.notFoundHeading)}
         <p className="mt-4">{T.notFoundText}</p>
         <p className="mt-4">{backLink}</p>
-      </main>
-    );
-  }
-
-  if (view === "requested") {
-    return (
-      <main className="auth-panel">
-        {h1(T.refundRequestedHeading)}
-        <p className="mt-4">
-          {T.refundRequestedText(formatCents(order.priceCents))}
-        </p>
-        <p className="mt-6">{backLink}</p>
       </main>
     );
   }
@@ -290,7 +288,10 @@ export default function RefundRequestPage() {
         {T.refundDeadlineNotice(dayFromIsoDate(order.refundableUntil))}
       </p>
       <p className="mt-2">{T.refundAccessWarning}</p>
-      <RefundFields order={order} onSent={() => setSent(true)} />
+      <RefundFields
+        order={order}
+        onSent={() => setSentPriceCents(order.priceCents)}
+      />
       <p className="mt-6">{backLink}</p>
     </main>
   );

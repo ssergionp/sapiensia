@@ -145,6 +145,10 @@ describe("RefundRequestPage", () => {
       "Escolha um motivo.",
     );
     expect(postCalls(spy)).toHaveLength(0);
+    for (const radio of screen.getAllByRole("radio")) {
+      expect(radio).toBeInvalid();
+      expect(radio).toHaveAccessibleDescription("Escolha um motivo.");
+    }
   });
 
   test("comentário com 501 caracteres mostra o erro e não chama a API", async () => {
@@ -200,6 +204,36 @@ describe("RefundRequestPage", () => {
     const keys = invalidate.mock.calls.map(([filter]) => filter?.queryKey);
     expect(keys).toContainEqual(["orders"]);
     expect(keys).toContainEqual(["library"]);
+  });
+
+  test("a confirmação continua quando a lista falha ao recarregar depois do envio", async () => {
+    setCsrfCookie("t");
+    let listCalls = 0;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input) === "/api/orders") {
+        listCalls += 1;
+        return listCalls === 1
+          ? jsonResponse(200, { items: [item()] })
+          : jsonResponse(500);
+      }
+      return jsonResponse(201, { requestedAt: "2026-11-19T18:00:00Z" });
+    });
+    renderPage();
+
+    await chooseReason("Outro");
+    await submit();
+
+    await screen.findByRole("heading", { name: "Reembolso solicitado" });
+    await waitFor(() => expect(listCalls).toBeGreaterThan(1));
+    expect(
+      screen.getByRole("heading", { name: "Reembolso solicitado" }),
+    ).toBeVisible();
+    expect(screen.getByText(/R\$\s29,90/)).toBeVisible();
+    expect(
+      screen.queryByText(
+        "Não foi possível carregar os seus Pedidos. Tente novamente.",
+      ),
+    ).toBeNull();
   });
 
   test("envia o comentário quando escrito", async () => {

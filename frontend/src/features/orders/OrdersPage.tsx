@@ -8,6 +8,7 @@ import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { NotLoggedInError } from "./api";
 import { useOrders } from "./hooks";
 import { ORDER_TEXTS as T } from "./messages";
+import { dayFromIsoDate } from "./refundDate";
 import { rememberReturnTo } from "./returnTo";
 import type { OrderList } from "./schemas";
 import { ORDER_STATUS_TONE } from "./statusTone";
@@ -34,21 +35,16 @@ const STATUS_TEXT = {
   REFUNDED: T.statusRefunded,
 } as const;
 
-// "2026-11-26" -> "26/11/2026", from the string itself: a calendar day has no time zone.
-function dayFromIsoDate(isoDate: string): string {
-  const [year, month, day] = isoDate.split("-");
-  return `${day}/${month}/${year}`;
-}
-
 function OrderItem({ order }: { order: OrderList["items"][number] }) {
-  const refundRequested = order.status === "PAID" && order.refundRequestedAt;
+  const refundRequestedAt =
+    order.status === "PAID" ? order.refundRequestedAt : null;
   return (
     <li className="rounded-xl border bg-card p-5">
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <p className="min-w-0 font-semibold [overflow-wrap:anywhere]">
           {order.productTitle}
         </p>
-        {refundRequested ? (
+        {refundRequestedAt ? (
           <StatusBadge status="REFUND_REQUESTED" tone="pending">
             {T.refundRequestedBadge}
           </StatusBadge>
@@ -86,14 +82,14 @@ function OrderItem({ order }: { order: OrderList["items"][number] }) {
           </Link>
         </div>
       )}
-      {refundRequested && (
+      {refundRequestedAt && (
         <p className="mt-3 text-sm">
           {T.refundRequestedLine(
-            dateFormat.format(new Date(order.refundRequestedAt as string)),
+            dateFormat.format(new Date(refundRequestedAt)),
           )}
         </p>
       )}
-      {order.status === "PAID" && !refundRequested && (
+      {order.status === "PAID" && !refundRequestedAt && (
         <div className="mt-3 flex flex-col gap-2">
           <Link to="/biblioteca" className="text-link inline-block text-sm">
             {T.goToLibrary}
