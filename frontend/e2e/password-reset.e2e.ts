@@ -54,7 +54,7 @@ async function openLink(page: Page, link: string) {
 async function expectTokenOutOfHistory(page: Page) {
   await page.goBack();
   await page.goForward();
-  await expect(page).toHaveURL(//redefinir-senha$/);
+  await expect(page).toHaveURL(/\/redefinir-senha$/);
   await expect(page.getByText(DEAD_LINK)).toBeVisible();
 }
 
