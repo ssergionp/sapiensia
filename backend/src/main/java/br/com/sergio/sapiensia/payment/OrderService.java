@@ -126,6 +126,10 @@ class OrderService {
         if (!orders.tryLockCustomer(customerId)) {
             throw new OrderInProgressException();
         }
+        // The anonymization holds this lock until its commit, so a read here already sees anonymized_at.
+        if (!orders.customerIsActive(customerId)) {
+            throw new CustomerAccountClosedException();
+        }
         CatalogProduct product = catalog.get(request.productId());
         if (accesses.exists(customerId, product.id())) {
             throw new ProductAlreadyOwnedException();
