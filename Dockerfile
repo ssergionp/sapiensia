@@ -19,6 +19,8 @@ RUN chmod +x mvnw && ./mvnw -q -B dependency:go-offline
 COPY backend/src src
 COPY --from=frontend /app/frontend/dist src/main/resources/static
 RUN ./mvnw -q -B -DskipTests package && cp target/*.jar /app/app.jar
+# NFR-012: the fictitious seed is for the local profile only and must not ship in the image
+RUN if jar tf /app/app.jar | grep -q 'db/seed/'; then echo 'db/seed must not ship in the image' >&2; exit 1; fi
 
 # 3. Runtime: JRE only, no build tools, a user without privileges
 FROM eclipse-temurin:25-jre
