@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -64,6 +65,12 @@ class AdminRefundRequestListTest {
         assertThat(admin.loginAdminFully(account.email(), AdminProductFixtures.PASSWORD, account.secret(), clock)
                         .statusCode())
                 .isEqualTo(204);
+    }
+
+    /** Siblings of this context run "delete from orders", which a leftover request would block. */
+    @AfterEach
+    void deleteRequests() {
+        jdbc.update("delete from refund_requests");
     }
 
     private HttpResponse<String> list(String query) throws Exception {
