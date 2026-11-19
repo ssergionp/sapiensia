@@ -46,12 +46,21 @@ public class RequestRateLimiter {
 
     /**
      * Charges one request or throws {@link RateLimitedException} (429). The log says only the operation: never the
-     * IP, the account or the e-mail.
+     * IP, the account or the e-mail. It is sampled, one line per operation per minute with the count of the held ones,
+     * and a full table has its own line; the refusal itself is never sampled.
      */
     public void require(RateLimitedOperation operation, String ipKey, Optional<String> accountKey) {
-        tryConsume(operation, ipKey, accountKey).ifPresent(wait -> {
-            log.warn("Request limit reached for {}", operation);
-            throw new RateLimitedException(wait);
+        refusal(operation, ipKey, accountKey).ifPresent(refusal -> {
+            if (refusal.tableFull()) {
+                refusalLog
+                        .pass("rate-limit-full:" + operation)
+                        .ifPresent(held -> log.warn("Request limit table full for {}: suppressed={}", operation, held));
+            } else {
+                refusalLog
+                        .pass("rate-limit:" + operation)
+                        .ifPresent(held -> log.warn("Request limit reached for {}: suppressed={}", operation, held));
+            }
+            throw new RateLimitedException(refusal.retryAfter());
         });
     }
 
@@ -66,11 +75,15 @@ public class RequestRateLimiter {
         }
     }
 
+    /** A refusal: how long to wait, and whether it is because the table of the operation is full. */
+    private record Refusal(Duration retryAfter, boolean tableFull) {}
+
     /** A bucket and its capacity, to tell an idle (full) one when purging. */
     private record Tracked(Bucket bucket, long capacity) {}
 
     private final RateLimitProperties properties;
     private final Clock clock;
+    private final RefusalLogThrottle refusalLog;
     private final int maxTrackedKeysPerOperation;
     private final TimeMeter timeMeter;
     private final Map<RateLimitedOperation, ConcurrentHashMap<String, Tracked>> tables =
@@ -78,12 +91,25 @@ public class RequestRateLimiter {
     private final AtomicReference<Instant> lastPurge;
 
     @Autowired
+    RequestRateLimiter(RateLimitProperties properties, Clock clock, RefusalLogThrottle refusalLog) {
+        this(properties, clock, DEFAULT_MAX_TRACKED_KEYS_PER_OPERATION, refusalLog);
+    }
+
     RequestRateLimiter(RateLimitProperties properties, Clock clock) {
         this(properties, clock, DEFAULT_MAX_TRACKED_KEYS_PER_OPERATION);
     }
 
     RequestRateLimiter(RateLimitProperties properties, Clock clock, int maxTrackedKeysPerOperation) {
+        this(properties, clock, maxTrackedKeysPerOperation, new RefusalLogThrottle(Duration.ZERO, clock));
+    }
+
+    RequestRateLimiter(
+            RateLimitProperties properties,
+            Clock clock,
+            int maxTrackedKeysPerOperation,
+            RefusalLogThrottle refusalLog) {
         this.properties = properties;
+        this.refusalLog = refusalLog;
         this.clock = clock;
         this.maxTrackedKeysPerOperation = maxTrackedKeysPerOperation;
         for (RateLimitedOperation operation : RateLimitedOperation.values()) {
@@ -109,6 +135,10 @@ public class RequestRateLimiter {
      * bucket, in whole seconds rounded up and never below one second.
      */
     public Optional<Duration> tryConsume(RateLimitedOperation operation, String ipKey, Optional<String> accountKey) {
+        return refusal(operation, ipKey, accountKey).map(Refusal::retryAfter);
+    }
+
+    private Optional<Refusal> refusal(RateLimitedOperation operation, String ipKey, Optional<String> accountKey) {
         purgeIfDue();
         RateLimitProperties.Limit limit = properties.limit(operation);
         ConcurrentHashMap<String, Tracked> table = tables.get(operation);
@@ -118,7 +148,7 @@ public class RequestRateLimiter {
 
         // IP first: a request the IP refuses must never create an account key (else one IP could fill the table)
         if (isNew(table, ipBucketKey) && table.size() + 1 > maxTrackedKeysPerOperation) {
-            return Optional.of(roundUp(PURGE_INTERVAL));
+            return Optional.of(new Refusal(roundUp(PURGE_INTERVAL), true));
         }
         int ipCapacity = Math.max(limit.ipCapacity(), properties.ipCapacityFloor());
         Bucket ipBucket = bucket(table, ipBucketKey, ipCapacity, limit.ipWindow());
@@ -132,14 +162,14 @@ public class RequestRateLimiter {
                 nanos = Math.max(
                         nanos, existing.bucket().estimateAbilityToConsume(1).getNanosToWaitForRefill());
             }
-            return Optional.of(roundUp(Duration.ofNanos(nanos)));
+            return Optional.of(new Refusal(roundUp(Duration.ofNanos(nanos)), false));
         }
         if (!hasAccount) {
             return Optional.empty();
         }
         if (isNew(table, accountBucketKey) && table.size() + 1 > maxTrackedKeysPerOperation) {
             ipBucket.addTokens(1);
-            return Optional.of(roundUp(PURGE_INTERVAL));
+            return Optional.of(new Refusal(roundUp(PURGE_INTERVAL), true));
         }
         Bucket accountBucket = bucket(table, accountBucketKey, limit.accountCapacity(), limit.accountWindow());
         ConsumptionProbe account = accountBucket.tryConsumeAndReturnRemaining(1);
@@ -148,7 +178,7 @@ public class RequestRateLimiter {
         }
         // a refusal in the account bucket must not spend the IP's token
         ipBucket.addTokens(1);
-        return Optional.of(roundUp(Duration.ofNanos(account.getNanosToWaitForRefill())));
+        return Optional.of(new Refusal(roundUp(Duration.ofNanos(account.getNanosToWaitForRefill())), false));
     }
 
     int trackedKeys() {

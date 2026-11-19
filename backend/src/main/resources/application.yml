@@ -128,6 +128,10 @@ app:
     ip-window: PT15M
     # request header carrying the client IP; blank uses the socket address (set only a header the platform overwrites)
     client-ip-header:
+  refusal-log:
+    # one warning per key (operation, webhook reason, full table) per interval, with the count of the held ones;
+    # PT0S never holds a line (the tests use it)
+    interval: PT1M
   rate-limit:
     # Fixed windows per operation (the login has its own limits above). account-* is per account (Customer or e-mail
     # hash); omit it for an operation with no account limit. ip-capacity-floor raises every ip-capacity to at least

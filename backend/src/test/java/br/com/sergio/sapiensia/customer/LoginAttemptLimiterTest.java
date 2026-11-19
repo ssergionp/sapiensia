@@ -2,6 +2,7 @@ package br.com.sergio.sapiensia.customer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import br.com.sergio.sapiensia.web.RefusalLogThrottle;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -9,7 +10,11 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
+@ExtendWith(OutputCaptureExtension.class)
 class LoginAttemptLimiterTest {
 
     private static final String EMAIL = "ana@example.com";
@@ -326,6 +331,27 @@ class LoginAttemptLimiterTest {
         clock.advance(Duration.ofMinutes(16));
         small.recordSuccess("nobody@example.com");
         assertThat(small.admit("flood0@example.com", IP).allowed()).isTrue();
+    }
+
+    @Test
+    @DisplayName("SEC-002: shouldLogOnceWhenTheTableIsFull")
+    void shouldLogOnceWhenTheTableIsFull(CapturedOutput output) {
+        LoginAttemptLimiter small =
+                new LoginAttemptLimiter(PROPERTIES, clock, 3, new RefusalLogThrottle(Duration.ofMinutes(1), clock));
+        for (String email : new String[] {EMAIL, "b@example.com", "c@example.com"}) {
+            assertThat(small.admit(email, IP).allowed()).isTrue();
+        }
+
+        for (int i = 0; i < 20; i++) {
+            assertThat(small.admit("flood" + i + "@example.com", IP).allowed()).isFalse();
+        }
+
+        assertThat(output.getAll()
+                        .lines()
+                        .filter(l -> l.contains("Login limit table full: table=accounts"))
+                        .count())
+                .isEqualTo(1);
+        assertThat(output.getAll()).doesNotContain("@example.com").doesNotContain("203.0.113.");
     }
 
     @Test
