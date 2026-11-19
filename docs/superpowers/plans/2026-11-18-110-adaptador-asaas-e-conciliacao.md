@@ -26,7 +26,9 @@
 
 Fora deste plano, continuam no #110: e-mail em log TRACE, cancelamento dentro da transação da compra, cobrança apagada à mão no Asaas, fila de expiração, os itens de tela e os demais testes.
 
-## Decisões para o Sérgio
+## Decisões aprovadas (18/11/2026)
+
+Aprovadas pelo Sérgio como recomendadas: D1 e D2 valem para o código; D3 a D6 fecham como decididos os itens 1, 2, 3, 5 e 7 do #137 (nenhuma task nova).
 
 | # | Decisão | Recomendação |
 |---|---|---|
@@ -36,8 +38,6 @@ Fora deste plano, continuam no #110: e-mail em log TRACE, cancelamento dentro da
 | D4 | #137 item 5: estado desconhecido do Asaas num Pedido pago vira `ORDER_PAID_CHARGE_NOT_PAID` | **Manter.** É um alerta a mais, do lado seguro; uma lista explícita de "não pago" esconderia estados novos. Fechar como decidido. |
 | D5 | #137 itens 1 e 2: id da cobrança no e-mail; divergência avisada uma vez só | **Manter** (decisões D3 e D5 do plano do #39). Reabrir se o uso real pedir. |
 | D6 | #137 item 7: segunda passada lê cobrança por cobrança | **Manter.** Um `429` para a execução com o alerta `RECONCILIATION_FAILED` e a noite seguinte tenta de novo; o caso real fica para o item "429 de verdade" do roteiro de sandbox. |
-
-Se alguma de D3 a D6 virar "mudar", ela entra como task nova neste plano antes de começar.
 
 ## Textos que o usuário vê
 
