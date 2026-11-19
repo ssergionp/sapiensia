@@ -11,7 +11,9 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.EnumMap;
 import java.util.HexFormat;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -29,15 +31,16 @@ import org.springframework.stereotype.Component;
  * given its token back. Two requests racing for the last token of a shared bucket therefore cannot both pass; the worst
  * case is a request refused while another refused request still holds a token it is about to return.
  *
- * <p>An operation with no account limit (no {@code account-*} properties) ignores the account key. The map is capped
- * like the login limiter's: when it is full, a request that needs a key not tracked yet is refused (never evicting,
- * which would reset a counter). Keys hold an IP or an e-mail hash and are never logged.
+ * <p>An operation with no account limit (no {@code account-*} properties) ignores the account key. Each operation has
+ * its own table of tracked keys, capped at 20 000: a full table refuses only requests of that operation that need a
+ * key not tracked yet (never evicting, which would reset a counter), so an attack on one operation cannot lock the
+ * others out. Keys hold an IP or an e-mail hash and are never logged.
  */
 @Component
 public class RequestRateLimiter {
 
     private static final Duration PURGE_INTERVAL = Duration.ofMinutes(1);
-    private static final int DEFAULT_MAX_TRACKED_KEYS = 100_000;
+    private static final int DEFAULT_MAX_TRACKED_KEYS_PER_OPERATION = 20_000;
 
     private static final Logger log = LoggerFactory.getLogger(RequestRateLimiter.class);
 
@@ -68,20 +71,24 @@ public class RequestRateLimiter {
 
     private final RateLimitProperties properties;
     private final Clock clock;
-    private final int maxTrackedKeys;
+    private final int maxTrackedKeysPerOperation;
     private final TimeMeter timeMeter;
-    private final ConcurrentHashMap<String, Tracked> buckets = new ConcurrentHashMap<>();
+    private final Map<RateLimitedOperation, ConcurrentHashMap<String, Tracked>> tables =
+            new EnumMap<>(RateLimitedOperation.class);
     private final AtomicReference<Instant> lastPurge;
 
     @Autowired
     RequestRateLimiter(RateLimitProperties properties, Clock clock) {
-        this(properties, clock, DEFAULT_MAX_TRACKED_KEYS);
+        this(properties, clock, DEFAULT_MAX_TRACKED_KEYS_PER_OPERATION);
     }
 
-    RequestRateLimiter(RateLimitProperties properties, Clock clock, int maxTrackedKeys) {
+    RequestRateLimiter(RateLimitProperties properties, Clock clock, int maxTrackedKeysPerOperation) {
         this.properties = properties;
         this.clock = clock;
-        this.maxTrackedKeys = maxTrackedKeys;
+        this.maxTrackedKeysPerOperation = maxTrackedKeysPerOperation;
+        for (RateLimitedOperation operation : RateLimitedOperation.values()) {
+            tables.put(operation, new ConcurrentHashMap<>());
+        }
         this.lastPurge = new AtomicReference<>(clock.instant());
         this.timeMeter = new TimeMeter() {
             @Override
@@ -104,20 +111,21 @@ public class RequestRateLimiter {
     public Optional<Duration> tryConsume(RateLimitedOperation operation, String ipKey, Optional<String> accountKey) {
         purgeIfDue();
         RateLimitProperties.Limit limit = properties.limit(operation);
+        ConcurrentHashMap<String, Tracked> table = tables.get(operation);
         String ipBucketKey = operation + "|ip|" + IpLimitKey.of(ipKey);
         boolean hasAccount = limit.accountCapacity() != null && accountKey.isPresent();
         String accountBucketKey = hasAccount ? operation + "|account|" + accountKey.get() : null;
 
         // IP first: a request the IP refuses must never create an account key (else one IP could fill the table)
-        if (isNew(ipBucketKey) && buckets.size() + 1 > maxTrackedKeys) {
+        if (isNew(table, ipBucketKey) && table.size() + 1 > maxTrackedKeysPerOperation) {
             return Optional.of(roundUp(PURGE_INTERVAL));
         }
         int ipCapacity = Math.max(limit.ipCapacity(), properties.ipCapacityFloor());
-        Bucket ipBucket = bucket(ipBucketKey, ipCapacity, limit.ipWindow());
+        Bucket ipBucket = bucket(table, ipBucketKey, ipCapacity, limit.ipWindow());
         ConsumptionProbe ip = ipBucket.tryConsumeAndReturnRemaining(1);
         if (!ip.isConsumed()) {
             long nanos = ip.getNanosToWaitForRefill();
-            Tracked existing = hasAccount ? buckets.get(accountBucketKey) : null;
+            Tracked existing = hasAccount ? table.get(accountBucketKey) : null;
             if (existing != null) {
                 // an account that is already tracked may need longer: tell the longer wait (nothing is created or
                 // spent)
@@ -129,11 +137,11 @@ public class RequestRateLimiter {
         if (!hasAccount) {
             return Optional.empty();
         }
-        if (isNew(accountBucketKey) && buckets.size() + 1 > maxTrackedKeys) {
+        if (isNew(table, accountBucketKey) && table.size() + 1 > maxTrackedKeysPerOperation) {
             ipBucket.addTokens(1);
             return Optional.of(roundUp(PURGE_INTERVAL));
         }
-        Bucket accountBucket = bucket(accountBucketKey, limit.accountCapacity(), limit.accountWindow());
+        Bucket accountBucket = bucket(table, accountBucketKey, limit.accountCapacity(), limit.accountWindow());
         ConsumptionProbe account = accountBucket.tryConsumeAndReturnRemaining(1);
         if (account.isConsumed()) {
             return Optional.empty();
@@ -144,11 +152,11 @@ public class RequestRateLimiter {
     }
 
     int trackedKeys() {
-        return buckets.size();
+        return tables.values().stream().mapToInt(ConcurrentHashMap::size).sum();
     }
 
-    private boolean isNew(String key) {
-        return !buckets.containsKey(key);
+    private static boolean isNew(ConcurrentHashMap<String, Tracked> table, String key) {
+        return !table.containsKey(key);
     }
 
     private static Duration roundUp(Duration wait) {
@@ -156,8 +164,8 @@ public class RequestRateLimiter {
         return Duration.ofSeconds(Math.max(1, seconds));
     }
 
-    private Bucket bucket(String key, int capacity, Duration window) {
-        return buckets.computeIfAbsent(
+    private Bucket bucket(ConcurrentHashMap<String, Tracked> table, String key, int capacity, Duration window) {
+        return table.computeIfAbsent(
                         key,
                         k -> new Tracked(
                                 Bucket.builder()
@@ -178,9 +186,12 @@ public class RequestRateLimiter {
             return;
         }
         // Benign race: a bucket may be removed right after computeIfAbsent returned it; at most one token is lost.
-        for (String key : buckets.keySet()) {
-            buckets.computeIfPresent(
-                    key, (k, tracked) -> tracked.bucket().getAvailableTokens() >= tracked.capacity() ? null : tracked);
+        for (ConcurrentHashMap<String, Tracked> table : tables.values()) {
+            for (String key : table.keySet()) {
+                table.computeIfPresent(
+                        key,
+                        (k, tracked) -> tracked.bucket().getAvailableTokens() >= tracked.capacity() ? null : tracked);
+            }
         }
     }
 }

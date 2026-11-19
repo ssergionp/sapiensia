@@ -258,6 +258,40 @@ class RequestRateLimiterTest {
     }
 
     @Test
+    @DisplayName("SEC-014: shouldKeepOtherOperationsOpenWhenOneOperationIsFull")
+    void shouldKeepOtherOperationsOpenWhenOneOperationIsFull() {
+        RequestRateLimiter small = new RequestRateLimiter(properties(0), clock, 3);
+        for (int i = 1; i <= 3; i++) {
+            assertThat(small.tryConsume(IP_ONLY, "192.0.2." + i, Optional.empty()))
+                    .isEmpty();
+        }
+        assertThat(small.tryConsume(IP_ONLY, "198.51.100.1", Optional.empty())).isPresent();
+
+        assertThat(small.tryConsume(WITH_ACCOUNT, "198.51.100.1", account("ana@example.com")))
+                .isEmpty();
+        assertThat(small.tryConsume(RateLimitedOperation.ORDER_CREATE, "198.51.100.1", Optional.of("customer-1")))
+                .isEmpty();
+        assertThat(small.trackedKeys()).isEqualTo(7);
+    }
+
+    @Test
+    @DisplayName("SEC-014: shouldGiveTheIpTokenBackWhenTheAccountKeyDoesNotFit")
+    void shouldGiveTheIpTokenBackWhenTheAccountKeyDoesNotFit() {
+        // WITH_ACCOUNT: 5 per IP. The table of the operation holds 2 keys: one IP and one account.
+        RequestRateLimiter small = new RequestRateLimiter(properties(0), clock, 2);
+        assertThat(small.tryConsume(WITH_ACCOUNT, "192.0.2.1", account("ana@example.com")))
+                .isEmpty();
+        for (int i = 0; i < 10; i++) {
+            assertThat(small.tryConsume(WITH_ACCOUNT, "192.0.2.1", account("new-" + i + "@example.com")))
+                    .isPresent();
+        }
+        // the 10 refusals spent nothing: the IP still has 4 of its 5 tokens, but the account allows only one more
+        assertThat(small.tryConsume(WITH_ACCOUNT, "192.0.2.1", account("ana@example.com")))
+                .isEmpty();
+        assertThat(small.trackedKeys()).isEqualTo(2);
+    }
+
+    @Test
     @DisplayName("SEC-014: shouldRefuseNewKeysWhenFullAndNeverEvictATrackedOne")
     void shouldRefuseNewKeysWhenFullAndNeverEvictATrackedOne() {
         RequestRateLimiter small = new RequestRateLimiter(properties(0), clock, 3);
