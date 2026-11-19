@@ -4,6 +4,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -48,5 +49,19 @@ class UnreadableBodyHandlerTest {
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.detail").value("Failed to read request"));
+    }
+
+    @Test
+    @DisplayName("SEC-015: shouldCloseTheConnectionOnA413AnsweredByTheControllerLayer")
+    void shouldCloseTheConnectionOnA413AnsweredByTheControllerLayer() throws Exception {
+        // the counting stream marks the request when a chunked body crosses the limit mid-read
+        mvc.perform(post("/api/sessions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\": ")
+                        .requestAttr(RequestBodyLimitFilter.class.getName() + ".EXCEEDED", Boolean.TRUE)
+                        .with(csrf()))
+                .andExpect(status().isPayloadTooLarge())
+                .andExpect(header().string("Connection", "close"))
+                .andExpect(jsonPath("$.code").value("PAYLOAD_TOO_LARGE"));
     }
 }
