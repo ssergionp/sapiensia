@@ -16,7 +16,8 @@ import org.springframework.stereotype.Component;
  * never sampled.
  *
  * <p>The count of held lines is reported only by the next line that passes for the same key: after a burst ends, the
- * count appears on the next refusal of that key, however much later that is (and never, if none comes).
+ * count appears on the next refusal of that key, however much later that is (and never, if none comes). A clock that
+ * goes back does not silence the log: a line that arrives before the last one that passed passes at once.
  */
 @Component
 public class RefusalLogThrottle {
@@ -48,6 +49,7 @@ public class RefusalLogThrottle {
         entries.compute(key, (k, entry) -> {
             if (entry == null
                     || interval.isZero()
+                    || now.isBefore(entry.lastPassed())
                     || !now.isBefore(entry.lastPassed().plus(interval))) {
                 held.set(entry == null ? 0 : entry.held());
                 return new Entry(now, 0);

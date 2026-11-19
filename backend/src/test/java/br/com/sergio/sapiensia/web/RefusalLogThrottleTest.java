@@ -51,6 +51,21 @@ class RefusalLogThrottleTest {
     }
 
     @Test
+    @DisplayName("SEC-014: shouldNotGoSilentWhenTheClockGoesBack")
+    void shouldNotGoSilentWhenTheClockGoesBack() {
+        RefusalLogThrottle throttle = new RefusalLogThrottle(Duration.ofMinutes(1), clock);
+        assertThat(throttle.pass("a")).hasValue(0);
+        assertThat(throttle.pass("a")).isEmpty();
+        // the clock steps back 10 minutes: the next line passes and reports the one that was held
+        clock.advance(Duration.ofMinutes(-10));
+        assertThat(throttle.pass("a")).hasValue(1);
+        // from there the interval counts again from the new instant
+        assertThat(throttle.pass("a")).isEmpty();
+        clock.advance(Duration.ofMinutes(1));
+        assertThat(throttle.pass("a")).hasValue(1);
+    }
+
+    @Test
     @DisplayName("SEC-014: shouldLoseNoCountUnderConcurrency")
     void shouldLoseNoCountUnderConcurrency() throws Exception {
         // 8 threads x 1000 calls on one key inside one interval: exactly one passes, then the next interval reports
