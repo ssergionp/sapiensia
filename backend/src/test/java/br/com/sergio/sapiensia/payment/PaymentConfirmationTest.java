@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
@@ -53,7 +54,9 @@ class PaymentConfirmationTest {
     /** A clock the test moves by hand. */
     static final class MutableClock extends Clock {
 
-        private final AtomicReference<Instant> now = new AtomicReference<>(Instant.now());
+        // whole microseconds, like the database: a stored instant never rounds past the clock
+        private final AtomicReference<Instant> now =
+                new AtomicReference<>(Instant.now().truncatedTo(ChronoUnit.MICROS));
 
         void advance(Duration duration) {
             now.updateAndGet(t -> t.plus(duration));
@@ -140,7 +143,9 @@ class PaymentConfirmationTest {
 
     private Fixture eventFor(UUID customer, UUID product, UUID orderId, String chargeId, String payloadJson) {
         String evt = "evt_" + UUID.randomUUID().toString().replace("-", "");
-        UUID eventId = events.insertIfAbsent(evt, "PAYMENT_RECEIVED", payloadJson, OffsetDateTime.now())
+        // received on the test clock, which other tests move by days: the deleted-charge grace counts from it
+        UUID eventId = events.insertIfAbsent(
+                        evt, "PAYMENT_RECEIVED", payloadJson, OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC))
                 .orElseThrow();
         return new Fixture(customer, product, orderId, chargeId, eventId, evt);
     }
@@ -463,6 +468,63 @@ class PaymentConfirmationTest {
     }
 
     @ParameterizedTest
+    @ValueSource(strings = {"PENDING", "OVERDUE"})
+    @DisplayName("SEC-031, ADR-0003: shouldRecordNotPaidForADeletedChargeThatWasNeverPaid")
+    void shouldRecordNotPaidForADeletedChargeThatWasNeverPaid(String status, CapturedOutput output) {
+        Fixture f = fixture();
+        provider(
+                f,
+                new PixCharge(
+                        f.chargeId(),
+                        status,
+                        new BigDecimal("29.90"),
+                        "PIX",
+                        f.orderId().toString(),
+                        true));
+
+        // the provider's read may lag behind the webhook: retried while the event is younger than ten minutes
+        assertThatThrownBy(() -> confirmation.process(f.eventId()))
+                .isInstanceOf(PaymentConfirmation.PaymentNotReadyException.class);
+        assertThat(storedResults(f.eventId())).isZero();
+
+        clock.advance(Duration.ofMinutes(10));
+
+        assertRefused(f, PaymentResult.NOT_PAID, output);
+    }
+
+    @Test
+    @DisplayName("SEC-031, ADR-0003: shouldPayADeletedChargeThatTurnsPaidDuringTheGrace")
+    void shouldPayADeletedChargeThatTurnsPaidDuringTheGrace() {
+        Fixture f = fixture();
+        provider(
+                f,
+                new PixCharge(
+                        f.chargeId(),
+                        "PENDING",
+                        new BigDecimal("29.90"),
+                        "PIX",
+                        f.orderId().toString(),
+                        true));
+
+        assertThatThrownBy(() -> confirmation.process(f.eventId()))
+                .isInstanceOf(PaymentConfirmation.PaymentNotReadyException.class);
+
+        provider(
+                f,
+                new PixCharge(
+                        f.chargeId(),
+                        "RECEIVED",
+                        new BigDecimal("29.90"),
+                        "PIX",
+                        f.orderId().toString(),
+                        true));
+
+        assertThat(confirmation.process(f.eventId())).isEqualTo(PaymentResult.PAID);
+        assertThat(statusOf(f.orderId())).isEqualTo("PAID");
+        assertThat(accesses(f)).isEqualTo(1);
+    }
+
+    @ParameterizedTest
     @ValueSource(
             strings = {
                 "{\"event\":\"PAYMENT_RECEIVED\"}",
@@ -526,6 +588,8 @@ class PaymentConfirmationTest {
         assertThat(grantedAudits(second.orderId())).isZero();
         assertThat(storedResult(second.eventId())).isEqualTo("DUPLICATE_PURCHASE");
         assertThat(output.getAll()).contains("Payment event needs review").contains(second.evt());
+        assertThat(duplicateAudits(second.orderId())).isEqualTo(1);
+        assertThat(duplicateAudits(first.orderId())).isZero();
     }
 
     @Test
@@ -640,5 +704,143 @@ class PaymentConfirmationTest {
         assertThat(confirmation.process(second.eventId())).isEqualTo(PaymentResult.DUPLICATE_PURCHASE);
 
         assertThat(emailTasks(second.orderId())).isZero();
+    }
+
+    private long duplicateAudits(UUID orderId) {
+        return jdbc.queryForObject(
+                "select count(*) from audit_events where action = 'DUPLICATE_PURCHASE' and object_id = ?",
+                Long.class,
+                orderId);
+    }
+
+    /** Order 1 expired and the Customer created Order 2 for the same Product: the only way a sibling exists. */
+    private Fixture[] siblings() {
+        Fixture first = fixture();
+        assertThat(orders.markExpired(first.orderId(), clock.instant())).isTrue();
+        Fixture second = fixtureFor(first.customerId(), first.productId());
+        return new Fixture[] {first, second};
+    }
+
+    @Test
+    @DisplayName("FR-024, ADR-0003: shouldCancelThePendingSiblingWhenAnExpiredOrderIsPaid")
+    void shouldCancelThePendingSiblingWhenAnExpiredOrderIsPaid() {
+        Fixture[] pair = siblings();
+        Fixture first = pair[0];
+        Fixture second = pair[1];
+        provider(first, paid(first));
+
+        assertThat(confirmation.process(first.eventId())).isEqualTo(PaymentResult.PAID);
+
+        assertThat(statusOf(first.orderId())).isEqualTo("PAID");
+        assertThat(statusOf(second.orderId())).isEqualTo("EXPIRED");
+        // cancelled before its deadline: the runbook query for a cancelled sibling relies on it
+        assertThat(jdbc.queryForObject(
+                        "select expired_at < expires_at from orders where id = ?", Boolean.class, second.orderId()))
+                .isTrue();
+        assertThat(gateway.cancelledCharges()).contains(second.chargeId()).doesNotContain(first.chargeId());
+        assertThat(accesses(first)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("FR-024, ADR-0003: shouldKeepThePaymentWhenTheSiblingCannotBeCancelledNow")
+    void shouldKeepThePaymentWhenTheSiblingCannotBeCancelledNow(CapturedOutput output) {
+        Fixture[] pair = siblings();
+        Fixture first = pair[0];
+        Fixture second = pair[1];
+        provider(first, paid(first));
+        gateway.failCancel(PixGatewayException.Kind.UNAVAILABLE);
+
+        assertThat(confirmation.process(first.eventId())).isEqualTo(PaymentResult.PAID);
+
+        assertThat(statusOf(first.orderId())).isEqualTo("PAID");
+        assertThat(accesses(first)).isEqualTo(1);
+        assertThat(storedResult(first.eventId())).isEqualTo("PAID");
+        assertThat(statusOf(second.orderId())).isEqualTo("PENDING");
+        assertThat(output.getAll()).contains("orderId=" + second.orderId());
+        assertThat(output.getAll()).contains("Pending sibling order stays payable until it expires");
+    }
+
+    @Test
+    @DisplayName("FR-024, ADR-0003: shouldKeepThePaymentWhenTheSiblingCheckFails")
+    void shouldKeepThePaymentWhenTheSiblingCheckFails(CapturedOutput output) {
+        Fixture[] pair = siblings();
+        Fixture first = pair[0];
+        Fixture second = pair[1];
+        provider(first, paid(first));
+        // makes marking this one Order as expired fail in the database, after the charge was cancelled
+        // (DDL is the only way to reach that catch: the Expirer swallows every gateway failure)
+        jdbc.execute(
+                "alter table orders add constraint test_sibling_cannot_expire check (status <> 'EXPIRED' or id <> '"
+                        + second.orderId() + "')");
+        try {
+            assertThat(confirmation.process(first.eventId())).isEqualTo(PaymentResult.PAID);
+        } finally {
+            jdbc.execute("alter table orders drop constraint test_sibling_cannot_expire");
+        }
+
+        assertThat(statusOf(first.orderId())).isEqualTo("PAID");
+        assertThat(accesses(first)).isEqualTo(1);
+        assertThat(storedResult(first.eventId())).isEqualTo("PAID");
+        assertThat(statusOf(second.orderId())).isEqualTo("PENDING");
+        assertThat(output.getAll()).contains("paidOrderId=" + first.orderId()).doesNotContain("test_sibling");
+        assertThat(output.getAll()).contains("Pending sibling order check failed");
+    }
+
+    @Test
+    @DisplayName("FR-024, ADR-0003: shouldNotCancelPendingOrdersOfAnotherProductOrAnotherCustomer")
+    void shouldNotCancelPendingOrdersOfAnotherProductOrAnotherCustomer() {
+        Fixture paidOrder = fixture();
+        UUID otherProduct = OrderTestSupport.insertPublishedProduct(jdbc, "Checklist de Mudança", PRICE);
+        Fixture sameCustomerOtherProduct = fixtureFor(paidOrder.customerId(), otherProduct);
+        UUID otherCustomer = OrderTestSupport.insertCustomer(jdbc);
+        Fixture otherCustomerSameProduct = fixtureFor(otherCustomer, paidOrder.productId());
+        provider(paidOrder, paid(paidOrder));
+
+        assertThat(confirmation.process(paidOrder.eventId())).isEqualTo(PaymentResult.PAID);
+
+        assertThat(statusOf(sameCustomerOtherProduct.orderId())).isEqualTo("PENDING");
+        assertThat(statusOf(otherCustomerSameProduct.orderId())).isEqualTo("PENDING");
+        assertThat(gateway.cancelledCharges()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("FR-024, SEC-025: shouldNotCancelAgainWhenTheSameEventIsProcessedTwice")
+    void shouldNotCancelAgainWhenTheSameEventIsProcessedTwice() {
+        Fixture[] pair = siblings();
+        Fixture first = pair[0];
+        Fixture second = pair[1];
+        provider(first, paid(first));
+        // the first cancellation fails, so the sibling is still pending when the payment is told again
+        gateway.failCancel(PixGatewayException.Kind.UNAVAILABLE);
+        assertThat(confirmation.process(first.eventId())).isEqualTo(PaymentResult.PAID);
+        gateway.failCancel((PixGatewayException.Kind) null);
+        long cancels = gateway.count("CANCEL_CHARGE");
+
+        assertThat(confirmation.process(first.eventId())).isEqualTo(PaymentResult.PAID);
+        assertThat(confirmation.process(secondEventOf(first).eventId())).isEqualTo(PaymentResult.ALREADY_PAID);
+
+        assertThat(gateway.count("CANCEL_CHARGE")).isEqualTo(cancels);
+        assertThat(statusOf(second.orderId())).isEqualTo("PENDING");
+    }
+
+    @Test
+    @DisplayName("FR-024, ADR-0003: shouldRecordADuplicatePurchaseInTheAuditTrailWhenBothSiblingsArePaid")
+    void shouldRecordADuplicatePurchaseInTheAuditTrailWhenBothSiblingsArePaid() {
+        Fixture[] pair = siblings();
+        Fixture first = pair[0];
+        Fixture second = pair[1];
+        provider(first, paid(first));
+        provider(second, paid(second));
+        // Asaas does not cancel a charge that was already paid
+        gateway.failCancel(PixGatewayException.Kind.REFUSED);
+        assertThat(confirmation.process(first.eventId())).isEqualTo(PaymentResult.PAID);
+        assertThat(statusOf(second.orderId())).isEqualTo("EXPIRED");
+
+        assertThat(confirmation.process(second.eventId())).isEqualTo(PaymentResult.DUPLICATE_PURCHASE);
+
+        assertThat(statusOf(second.orderId())).isEqualTo("PAID");
+        assertThat(accesses(first)).isEqualTo(1);
+        assertThat(duplicateAudits(second.orderId())).isEqualTo(1);
+        assertThat(duplicateAudits(first.orderId())).isZero();
     }
 }
