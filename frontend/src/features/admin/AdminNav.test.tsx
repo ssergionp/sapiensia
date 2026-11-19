@@ -65,6 +65,20 @@ describe("AdminNav", () => {
     expect(within(nav).getByRole("link", { name: "Produtos" })).toBeVisible();
   });
 
+  test("shows Reembolsos only with REFUNDS_VIEW", () => {
+    const withIt = renderNav(["PANEL_ACCESS", "REFUNDS_VIEW"]);
+    expect(
+      within(withIt).getByRole("link", { name: "Reembolsos" }),
+    ).toHaveAttribute("href", "/painel/reembolsos");
+  });
+
+  test("without REFUNDS_VIEW hides Reembolsos", () => {
+    const nav = renderNav(["PANEL_ACCESS", "ORDERS_VIEW"]);
+    expect(
+      within(nav).queryByRole("link", { name: "Reembolsos" }),
+    ).not.toBeInTheDocument();
+  });
+
   test("without PRODUCTS_EDIT hides Produtos", () => {
     const nav = renderNav(["PANEL_ACCESS", "ORDERS_VIEW"]);
 

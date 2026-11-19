@@ -5,6 +5,7 @@ import AdminLoginPage from "@/features/admin/AdminLoginPage";
 import AdminMfaPage from "@/features/admin/AdminMfaPage";
 import SetAdminPasswordPage from "@/features/admin/SetAdminPasswordPage";
 import AdminOrdersPage from "@/features/admin-orders/AdminOrdersPage";
+import AdminRefundsPage from "@/features/admin-refunds/AdminRefundsPage";
 import CatalogPage from "@/features/catalog/CatalogPage";
 import CatalogProductPage from "@/features/catalog/CatalogProductPage";
 import ConfirmEmailPage from "@/features/customer/ConfirmEmailPage";
@@ -63,6 +64,7 @@ export default function App() {
             element={<SetAdminPasswordPage />}
           />
           <Route path="/painel/pedidos" element={<AdminOrdersPage />} />
+          <Route path="/painel/reembolsos" element={<AdminRefundsPage />} />
           <Route path="/painel/produtos" element={<ProductListPage />} />
           <Route path="/painel/produtos/novo" element={<ProductFormPage />} />
           <Route path="/painel/produtos/:id" element={<ProductFormPage />} />
