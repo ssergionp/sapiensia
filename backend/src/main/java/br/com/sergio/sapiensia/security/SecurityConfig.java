@@ -8,6 +8,7 @@ import br.com.sergio.sapiensia.customer.CustomerAnonymizationAccess;
 import br.com.sergio.sapiensia.customer.SessionVersionFilter;
 import br.com.sergio.sapiensia.payment.AsaasWebhookAccess;
 import br.com.sergio.sapiensia.product.ProductFileReplacementAccess;
+import br.com.sergio.sapiensia.web.RequestBodyLimitFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
@@ -34,11 +35,11 @@ import org.springframework.security.web.access.AccessDeniedHandlerImpl;
 import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
-import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfException;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
+import org.springframework.security.web.header.HeaderWriterFilter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.AndRequestMatcher;
@@ -59,7 +60,7 @@ import org.springframework.security.web.util.matcher.RequestMatcher;
 @Configuration
 public class SecurityConfig {
 
-    static final String CONTENT_SECURITY_POLICY = "default-src 'self'; script-src 'self'; "
+    public static final String CONTENT_SECURITY_POLICY = "default-src 'self'; script-src 'self'; "
             + "style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; "
             + "connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; "
             + "frame-ancestors 'none'";
@@ -118,6 +119,14 @@ public class SecurityConfig {
     @Bean
     FilterRegistrationBean<SessionVersionFilter> sessionVersionFilterRegistration(SessionVersionFilter filter) {
         FilterRegistrationBean<SessionVersionFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
+    }
+
+    /** Same as above: the body limit runs only inside the security chain, after the header writer. */
+    @Bean
+    FilterRegistrationBean<RequestBodyLimitFilter> requestBodyLimitFilterRegistration(RequestBodyLimitFilter filter) {
+        FilterRegistrationBean<RequestBodyLimitFilter> registration = new FilterRegistrationBean<>(filter);
         registration.setEnabled(false);
         return registration;
     }
@@ -181,6 +190,7 @@ public class SecurityConfig {
     SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             CsrfTokenRepository csrfTokenRepository,
+            RequestBodyLimitFilter requestBodyLimitFilter,
             SessionVersionFilter sessionVersionFilter,
             AdminMfaAccess adminMfaAccess,
             ProductFileReplacementAccess productFileReplacementAccess,
@@ -192,8 +202,11 @@ public class SecurityConfig {
         RequestMatcher demoRefund = new AndRequestMatcher(
                 request -> "fake".equals(pixProvider),
                 PathPatternRequestMatcher.pathPattern(HttpMethod.POST, "/api/local-demo/charges/*/refund"));
-        // right after the context is loaded from the session: ends sessions opened before a password change (SEC-006)
-        http.addFilterAfter(sessionVersionFilter, SecurityContextHolderFilter.class);
+        // both answer early, so they sit right after the header writer and their 413 and 503 carry the security
+        // headers: the body limit first (before CSRF and any database query), then the session check, which ends
+        // sessions opened before a password change (SEC-006) and needs the context loaded earlier in the chain
+        http.addFilterAfter(requestBodyLimitFilter, HeaderWriterFilter.class);
+        http.addFilterAfter(sessionVersionFilter, RequestBodyLimitFilter.class);
         http.authorizeHttpRequests(auth -> auth.requestMatchers("/api/system/health", "/api/system/health/**")
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/sessions")

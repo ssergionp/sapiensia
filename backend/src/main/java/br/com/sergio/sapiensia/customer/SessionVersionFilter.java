@@ -28,8 +28,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * session version read at login; a password change increments it in the database, so an older session no longer
  * matches. Such a session is invalidated and the request goes on as anonymous, so protected routes answer 401.
  *
- * <p>Runs inside the Spring Security chain, right after the context is loaded from the session (see SecurityConfig);
- * it is public only so SecurityConfig can register it.
+ * <p>Runs inside the Spring Security chain, after the {@code HeaderWriterFilter} and the request body limit and before
+ * the CSRF check (see SecurityConfig), so its 503 leaves with the security headers; it needs the security context, which
+ * the chain loads before it. It is public only so SecurityConfig can register it.
  */
 @Component
 public class SessionVersionFilter extends OncePerRequestFilter {

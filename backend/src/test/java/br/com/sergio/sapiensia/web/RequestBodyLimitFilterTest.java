@@ -3,6 +3,7 @@ package br.com.sergio.sapiensia.web;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import br.com.sergio.sapiensia.TestcontainersConfiguration;
+import br.com.sergio.sapiensia.security.SecurityConfig;
 import com.jayway.jsonpath.JsonPath;
 import java.io.ByteArrayInputStream;
 import java.net.CookieManager;
@@ -85,6 +86,19 @@ class RequestBodyLimitFilterTest {
     @DisplayName("SEC-015, SEC-013: shouldRefuseAJsonBodyAbove64KiBThatDeclaresItsSize")
     void shouldRefuseAJsonBodyAbove64KiBThatDeclaresItsSize() throws Exception {
         assertPayloadTooLarge(postJson(HttpRequest.BodyPublishers.ofString(bigJson(OVER_THE_LIMIT))));
+    }
+
+    @Test
+    @DisplayName("SEC-015 SEC-017: o 413 do Content-Length grande sai com os cabeçalhos de segurança")
+    void shouldAnswerTheEarly413WithTheSecurityHeaders() throws Exception {
+        HttpResponse<String> response = postJson(HttpRequest.BodyPublishers.ofString(bigJson(OVER_THE_LIMIT)));
+
+        assertThat(response.statusCode()).isEqualTo(413);
+        assertThat(response.headers().firstValue("X-Content-Type-Options")).hasValue("nosniff");
+        assertThat(response.headers().firstValue("X-Frame-Options")).hasValue("DENY");
+        assertThat(response.headers().firstValue("Content-Security-Policy"))
+                .hasValue(SecurityConfig.CONTENT_SECURITY_POLICY);
+        assertThat(response.headers().firstValue("Referrer-Policy")).hasValue("no-referrer");
     }
 
     @Test

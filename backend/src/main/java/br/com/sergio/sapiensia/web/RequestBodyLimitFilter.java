@@ -13,8 +13,6 @@ import java.io.InputStreamReader;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.regex.Pattern;
-import org.springframework.core.Ordered;
-import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestAttributes;
@@ -27,10 +25,13 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * above the limit is refused before the first byte. It runs ahead of Spring Security (only after the correlation ID)
  * so an oversized body is dropped before any work is done for it; it never reads the body itself. Multipart uploads
  * (their own 50 MB limit) and the Asaas webhook (its own limit, {@code app.asaas.webhook.max-body-bytes}) are skipped.
+ *
+ * <p>Runs inside the Spring Security chain, right after the {@code HeaderWriterFilter} (see SecurityConfig): the 413
+ * leaves with the security headers, yet still before the CSRF check, the session check's database query and any
+ * controller. It is public only so SecurityConfig can register it.
  */
 @Component
-@Order(Ordered.HIGHEST_PRECEDENCE + 10)
-class RequestBodyLimitFilter extends OncePerRequestFilter {
+public class RequestBodyLimitFilter extends OncePerRequestFilter {
 
     static final long MAX_BODY_BYTES = 64 * 1024;
     private static final String EXCEEDED_ATTRIBUTE = RequestBodyLimitFilter.class.getName() + ".EXCEEDED";
