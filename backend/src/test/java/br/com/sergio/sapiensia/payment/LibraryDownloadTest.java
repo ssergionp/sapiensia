@@ -64,6 +64,9 @@ class LibraryDownloadTest {
     ApplicationContext context;
 
     @Autowired
+    Accesses accesses;
+
+    @Autowired
     SwitchableProductFileStorage storage;
 
     private static final List<String> LOGGERS = List.of(
@@ -192,6 +195,21 @@ class LibraryDownloadTest {
 
         assertEmpty404(download(other, product));
         assertThat(records(other, product)).isZero();
+    }
+
+    @Test
+    @DisplayName("FR-025: Acesso suspenso não baixa")
+    void shouldNotDownloadWithASuspendedAccess() throws Exception {
+        grant(customer, product);
+        UUID orderId = jdbc.queryForObject(
+                "select order_id from accesses where customer_id = ? and product_id = ?",
+                UUID.class,
+                customer.id,
+                product);
+        assertThat(accesses.suspendByOrder(orderId, java.time.Instant.now())).isTrue();
+
+        assertEmpty404(download(customer, product));
+        assertThat(records(customer, product)).isZero();
     }
 
     @Test

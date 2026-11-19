@@ -21,7 +21,7 @@ class LibraryItems {
                         + " from accesses a"
                         + " join products p on p.id = a.product_id"
                         + " left join product_covers c on c.product_id = a.product_id"
-                        + " where a.customer_id = :customerId and a.cancelled_at is null"
+                        + " where a.customer_id = :customerId and a.cancelled_at is null and a.suspended_at is null"
                         + " order by a.granted_at desc, p.title")
                 .param("customerId", customerId)
                 .query((rs, row) -> new LibraryItem(

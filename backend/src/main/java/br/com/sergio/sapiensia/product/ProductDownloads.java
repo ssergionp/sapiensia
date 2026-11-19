@@ -40,7 +40,7 @@ class ProductDownloads {
                         + " join product_files f on f.product_id = a.product_id"
                         + " join products p on p.id = a.product_id"
                         + " where a.customer_id = :customerId and a.product_id = :productId"
-                        + " and a.cancelled_at is null"
+                        + " and a.cancelled_at is null and a.suspended_at is null"
                         + " for update of a")
                 .param("customerId", customerId)
                 .param("productId", productId)
