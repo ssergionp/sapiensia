@@ -385,20 +385,39 @@ describe("RefundRequestPage", () => {
     expect(document.activeElement).toBe(heading);
   });
 
-  test("Pedido sem prazo e sem solicitação não pode ser reembolsado pelo site", async () => {
+  test("Pedido pago com o prazo encerrado mostra o texto do prazo terminado", async () => {
     mockApi([item({ refundableUntil: null })]);
     renderPage();
 
     expect(
       await screen.findByText(
-        `Este Pedido não pode ser reembolsado pelo site. Se precisar de ajuda, escreva para ${SUPPORT}.`,
+        `O prazo para pedir o Reembolso pelo site terminou. Se o arquivo tiver defeito, escreva para ${SUPPORT}.`,
       ),
     ).toBeVisible();
+    expect(screen.queryByText(/não pode ser reembolsado pelo site/)).toBeNull();
     expect(screen.queryByRole("group")).toBeNull();
     expect(
       screen.getByRole("link", { name: "Voltar a Meus Pedidos" }),
     ).toBeVisible();
   });
+
+  test.each(["PENDING", "EXPIRED", "REFUNDED"])(
+    "Pedido %s não pode ser reembolsado pelo site",
+    async (status) => {
+      mockApi([item({ status, refundableUntil: null })]);
+      renderPage();
+
+      expect(
+        await screen.findByText(
+          `Este Pedido não pode ser reembolsado pelo site. Se precisar de ajuda, escreva para ${SUPPORT}.`,
+        ),
+      ).toBeVisible();
+      expect(screen.queryByRole("group")).toBeNull();
+      expect(
+        screen.getByRole("link", { name: "Voltar a Meus Pedidos" }),
+      ).toBeVisible();
+    },
+  );
 
   test("Pedido fora da lista mostra Pedido não encontrado", async () => {
     mockApi([item({ id: OTHER_ID })]);

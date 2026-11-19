@@ -534,6 +534,21 @@ class RefundRequestTest {
         assertThat(suspended(first.orderId())).isTrue();
         assertThat(libraryItems(first.customer())).isEqualTo("0");
     }
+
+    @Test
+    @DisplayName("SEC-012: comentário com caractere nulo não derruba a solicitação")
+    void shouldStoreTheDetailsWithoutTheNullCharacter() throws Exception {
+        Placed placed = placePaidOrder();
+
+        HttpResponse<String> response =
+                request(placed.customer(), placed.orderId(), "{\"reason\":\"OTHER\",\"details\":\"a\\u0000b\"}");
+
+        assertThat(response.statusCode()).isEqualTo(201);
+        assertThat(jdbc.queryForObject(
+                        "select details from refund_requests where order_id = ?", String.class, placed.orderId()))
+                .isEqualTo("ab");
+    }
+
     @Test
     @DisplayName(
             "FR-023: 3ª solicitação em 12 meses — Alerta REFUND_REQUESTS_REPEATED; a 2ª não gera; um Reembolso de 13 meses atrás não conta")

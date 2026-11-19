@@ -267,7 +267,12 @@ export default function RefundRequestPage() {
     return (
       <main className="auth-panel">
         {h1(T.refundHeading)}
-        <p className="mt-4">{T.refundNotAvailable}</p>
+        <p className="mt-4">
+          {/* a paid Order with no request and no deadline can only be past its window */}
+          {order.status === "PAID"
+            ? T.refundWindowClosed
+            : T.refundNotAvailable}
+        </p>
         <p className="mt-4">{backLink}</p>
       </main>
     );

@@ -23,6 +23,8 @@ export function useAdminRefunds(page: number, status: RefundFilter | null) {
       }
     },
     placeholderData: keepPreviousData,
+    // gcTime 0: the masked e-mails and the Customers' comments must not stay cached after leaving the screen.
+    gcTime: 0,
     retry: false,
   });
 }

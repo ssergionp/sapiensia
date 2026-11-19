@@ -67,7 +67,9 @@ class RefundRequestService {
         this.snapshot.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
     }
 
-    Requested request(UUID customerId, UUID orderId, RefundReason reason, String details) {
+    Requested request(UUID customerId, UUID orderId, RefundReason reason, String rawDetails) {
+        // PostgreSQL text refuses U+0000, and a NUL carries no text: drop it before any check
+        String details = rawDetails == null ? null : rawDetails.replace("\u0000", "");
         if (details != null && details.length() > MAX_DETAILS) {
             throw new RefundDetailsTooLongException();
         }
