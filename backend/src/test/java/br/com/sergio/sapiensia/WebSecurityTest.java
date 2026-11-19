@@ -1,5 +1,6 @@
 package br.com.sergio.sapiensia;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -9,15 +10,22 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import br.com.sergio.sapiensia.customer.SessionVersionFilter;
+import br.com.sergio.sapiensia.web.RequestBodyLimitFilter;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.csrf.CsrfFilter;
+import org.springframework.security.web.header.HeaderWriterFilter;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
+import org.springframework.web.filter.FormContentFilter;
 
 /** The security baseline and the SPA routing that every project inherits from the template. */
 @Import(TestcontainersConfiguration.class)
@@ -27,6 +35,9 @@ class WebSecurityTest {
     @Autowired
     WebApplicationContext context;
 
+    @Autowired
+    SecurityFilterChain chain;
+
     MockMvc mvc;
 
     @BeforeEach
@@ -34,6 +45,30 @@ class WebSecurityTest {
         mvc = MockMvcBuilders.webAppContextSetup(context)
                 .apply(springSecurity())
                 .build();
+    }
+
+    @Test
+    @DisplayName(
+            "SEC-006 SEC-017: o limite de corpo e a conferência da sessão rodam depois dos cabeçalhos e antes do CSRF")
+    void shouldRunTheBodyLimitAndTheSessionCheckAfterTheHeadersAndBeforeCsrf() {
+        List<Class<?>> order =
+                chain.getFilters().stream().<Class<?>>map(Object::getClass).toList();
+
+        int headers = order.indexOf(HeaderWriterFilter.class);
+        int bodyLimit = order.indexOf(RequestBodyLimitFilter.class);
+        int sessionVersion = order.indexOf(SessionVersionFilter.class);
+        int csrf = order.indexOf(CsrfFilter.class);
+
+        assertThat(headers).isNotNegative();
+        assertThat(bodyLimit).isGreaterThan(headers);
+        assertThat(sessionVersion).isGreaterThan(bodyLimit);
+        assertThat(csrf).isGreaterThan(sessionVersion);
+    }
+
+    @Test
+    @DisplayName("SEC-015: nenhum filtro lê o corpo de formulário de PUT, PATCH ou DELETE antes do limite")
+    void shouldNotRegisterTheFormContentFilterThatReadsBodiesAheadOfTheLimit() {
+        assertThat(context.getBeansOfType(FormContentFilter.class)).isEmpty();
     }
 
     @Test

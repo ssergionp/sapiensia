@@ -13,6 +13,7 @@ import {
   confirmEmailMessages,
   confirmEmailSchema,
 } from "./schemas";
+import { useLinkToken } from "./useLinkToken";
 
 const INVALID_LINK =
   "Este link venceu ou já foi usado. Se o seu e-mail ainda não foi confirmado, faça o cadastro de novo para receber outro link.";
@@ -20,8 +21,12 @@ const UNEXPECTED_ERROR =
   "Não foi possível confirmar agora. Tente novamente em instantes.";
 
 export default function ConfirmEmailPage() {
-  // The token travels in the URL fragment so it is never sent to servers or logs.
-  const [token] = useState(() => window.location.hash.replace(/^#/, ""));
+  // The key resets the form and its flags when a newer link opens in the same tab.
+  const token = useLinkToken();
+  return <ConfirmEmailContent key={token} token={token} />;
+}
+
+function ConfirmEmailContent({ token }: { token: string }) {
   const [tokenRejected, setTokenRejected] = useState(false);
   const [tokenLocked, setTokenLocked] = useState(false);
   const [showUnexpected, setShowUnexpected] = useState(false);

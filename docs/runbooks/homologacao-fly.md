@@ -324,7 +324,7 @@ Faça antes o "Passo zero". O padrão para cada segredo: copie o valor do Bitwar
     curl.exe -sS -D - -o NUL https://sapiensia-homolog.fly.dev/redefinir-senha
     ```
 
-    Mostra os cabeçalhos de uma requisição GET (o `-I` faz HEAD, e o `Referrer-Policy` só vem no GET). Espera a linha `Referrer-Policy: no-referrer`. Repita em `/painel/definir-senha`; em `/entrar` o cabeçalho não deve aparecer.
+    Mostra os cabeçalhos de uma requisição GET (o `-I` faz HEAD, e o `Referrer-Policy` só vem no GET). Espera a linha `Referrer-Policy: no-referrer`, que vem em todas as páginas do site. Repita em `/entrar` e em `/confirmar-email`.
 
 23. **[RESPONSÁVEL]** Confira um Download real (#33). O CI não tem Supabase, então a URL assinada só é provada aqui.
 

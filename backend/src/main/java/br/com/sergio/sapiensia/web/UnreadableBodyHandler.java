@@ -2,6 +2,7 @@ package br.com.sergio.sapiensia.web;
 
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -33,6 +34,9 @@ class UnreadableBodyHandler {
         ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.PAYLOAD_TOO_LARGE);
         problem.setTitle("Payload too large");
         problem.setProperty("code", "PAYLOAD_TOO_LARGE");
-        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(problem);
+        // the body was not fully read, so the connection cannot be reused
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .header(HttpHeaders.CONNECTION, "close")
+                .body(problem);
     }
 }

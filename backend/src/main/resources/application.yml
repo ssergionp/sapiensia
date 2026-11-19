@@ -20,6 +20,11 @@ server:
       cookie:
         http-only: true
 spring:
+  mvc:
+    formcontent:
+      filter:
+        # the body limit runs inside the security chain; this filter would read PUT/PATCH/DELETE form bodies before it
+        enabled: false
   servlet:
     multipart:
       # 50 MB per file (52,428,800 bytes) and 51 MB per request: Tomcat cuts the body while receiving (SEC-043).

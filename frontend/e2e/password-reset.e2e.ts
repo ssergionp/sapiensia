@@ -45,6 +45,17 @@ async function expectAnonymousHome(page: Page) {
 async function openLink(page: Page, link: string) {
   await page.goto("/esqueci-senha");
   await page.goto(link);
+  // The page has read the token, so it must be out of the address bar.
+  await expect(page).not.toHaveURL(/#/);
+}
+
+// Last use of the page in a journey: once the token left the history entry, going back and
+// forward returns to /redefinir-senha without a token, which shows the invalid-link state.
+async function expectTokenOutOfHistory(page: Page) {
+  await page.goBack();
+  await page.goForward();
+  await expect(page).toHaveURL(/\/redefinir-senha$/);
+  await expect(page.getByText(DEAD_LINK)).toBeVisible();
 }
 
 async function submitNewPassword(page: Page, password: string) {
@@ -102,6 +113,7 @@ test("SEC-006/SEC-007: recuperar a senha encerra a sessão aberta, o link vale u
   await openLink(other, link);
   await submitNewPassword(other, strongPassword());
   await expect(other.getByText(DEAD_LINK)).toBeVisible();
+  await expectTokenOutOfHistory(other);
 
   // The owner is told, and the notice carries neither password nor token.
   const notice = await waitForMessage(email, NOTICE_SUBJECT);
