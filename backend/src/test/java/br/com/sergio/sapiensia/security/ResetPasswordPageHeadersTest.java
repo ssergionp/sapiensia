@@ -4,6 +4,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -11,9 +12,12 @@ import br.com.sergio.sapiensia.TestcontainersConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpMethod;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
@@ -51,10 +55,18 @@ class ResetPasswordPageHeadersTest {
                 .andExpect(header().string("Referrer-Policy", "no-referrer"));
     }
 
-    @Test
-    @DisplayName("SEC-007: other app routes do not get the Referrer-Policy header")
-    void otherRoutesAreUnchanged() throws Exception {
-        mvc.perform(get("/entrar")).andExpect(status().isOk()).andExpect(header().doesNotExist("Referrer-Policy"));
+    @ParameterizedTest(name = "{0} {1}")
+    @CsvSource({
+        "GET, /entrar",
+        "GET, /confirmar-email",
+        "GET, /redefinir-senha/",
+        "HEAD, /redefinir-senha",
+        "GET, /api/system/health"
+    })
+    @DisplayName("SEC-007: every response is sent with Referrer-Policy no-referrer")
+    void everyRouteHasNoReferrerPolicy(String method, String path) throws Exception {
+        mvc.perform(request(HttpMethod.valueOf(method), path))
+                .andExpect(header().string("Referrer-Policy", "no-referrer"));
     }
 
     @Test

@@ -39,7 +39,6 @@ import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfException;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
-import org.springframework.security.web.header.writers.DelegatingRequestMatcherHeaderWriter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.AndRequestMatcher;
@@ -338,13 +337,9 @@ public class SecurityConfig {
                         .deleteCookies("JSESSIONID"))
                 .headers(headers -> headers.contentSecurityPolicy(csp -> csp.policyDirectives(CONTENT_SECURITY_POLICY))
                         .frameOptions(frame -> frame.deny())
-                        // the reset link carries its token in the URL fragment: never let it reach another site
+                        // site-wide: the link tokens travel in the URL, so no response may leak a URL to another site
                         // (SEC-007)
-                        .addHeaderWriter(new DelegatingRequestMatcherHeaderWriter(
-                                new OrRequestMatcher(
-                                        PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/redefinir-senha"),
-                                        PathPatternRequestMatcher.pathPattern(HttpMethod.GET, "/painel/definir-senha")),
-                                new ReferrerPolicyHeaderWriter(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER))))
+                        .referrerPolicy(r -> r.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER)))
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable);
         return http.build();
