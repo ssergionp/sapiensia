@@ -25,6 +25,7 @@ function order(overrides: Record<string, unknown> = {}) {
     expiresAt: "2026-11-13T12:30:00Z",
     secondsToExpire: 1800,
     pixCopyPaste: PIX_CODE,
+    refundRequestedAt: null,
     ...overrides,
   };
 }
@@ -416,6 +417,33 @@ describe("OrderPage", () => {
     expect(screen.queryByRole("img", { name: "QR Code do Pix" })).toBeNull();
     expect(screen.queryByLabelText("Pix copia e cola")).toBeNull();
     expect(screen.queryByRole("timer")).toBeNull();
+  });
+
+  test("Pedido pago com solicitação mostra Reembolso solicitado e não leva à Biblioteca", async () => {
+    mockFetch(
+      jsonResponse(
+        200,
+        order({ ...PAID, refundRequestedAt: "2026-11-19T18:00:00Z" }),
+      ),
+    );
+    renderOrder();
+
+    const heading = await screen.findByRole("heading", {
+      name: "Reembolso solicitado",
+    });
+    expect(
+      screen.getByText(
+        "Você pediu o Reembolso deste Pedido. O Acesso ao Produto está suspenso e o valor será devolvido pelo Pix.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Voltar a Meus Pedidos" }),
+    ).toHaveAttribute("href", "/pedidos");
+    expect(document.title).toBe("Reembolso solicitado | SapiensIA");
+    expect(document.activeElement).toBe(heading);
+    expect(
+      screen.queryByRole("link", { name: "Ir para a Biblioteca" }),
+    ).toBeNull();
   });
 
   test("FR-029: o Pedido pago leva à Biblioteca; o pendente não", async () => {

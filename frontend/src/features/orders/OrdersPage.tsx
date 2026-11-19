@@ -34,19 +34,32 @@ const STATUS_TEXT = {
   REFUNDED: T.statusRefunded,
 } as const;
 
+// "2026-11-26" -> "26/11/2026", from the string itself: a calendar day has no time zone.
+function dayFromIsoDate(isoDate: string): string {
+  const [year, month, day] = isoDate.split("-");
+  return `${day}/${month}/${year}`;
+}
+
 function OrderItem({ order }: { order: OrderList["items"][number] }) {
+  const refundRequested = order.status === "PAID" && order.refundRequestedAt;
   return (
     <li className="rounded-xl border bg-card p-5">
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <p className="min-w-0 font-semibold [overflow-wrap:anywhere]">
           {order.productTitle}
         </p>
-        <StatusBadge
-          status={order.status}
-          tone={ORDER_STATUS_TONE[order.status]}
-        >
-          {STATUS_TEXT[order.status]}
-        </StatusBadge>
+        {refundRequested ? (
+          <StatusBadge status="REFUND_REQUESTED" tone="pending">
+            {T.refundRequestedBadge}
+          </StatusBadge>
+        ) : (
+          <StatusBadge
+            status={order.status}
+            tone={ORDER_STATUS_TONE[order.status]}
+          >
+            {STATUS_TEXT[order.status]}
+          </StatusBadge>
+        )}
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
         <span className="font-semibold text-foreground tabular-nums">
@@ -73,10 +86,33 @@ function OrderItem({ order }: { order: OrderList["items"][number] }) {
           </Link>
         </div>
       )}
-      {order.status === "PAID" && (
-        <Link to="/biblioteca" className="text-link mt-3 inline-block text-sm">
-          {T.goToLibrary}
-        </Link>
+      {refundRequested && (
+        <p className="mt-3 text-sm">
+          {T.refundRequestedLine(
+            dateFormat.format(new Date(order.refundRequestedAt as string)),
+          )}
+        </p>
+      )}
+      {order.status === "PAID" && !refundRequested && (
+        <div className="mt-3 flex flex-col gap-2">
+          <Link to="/biblioteca" className="text-link inline-block text-sm">
+            {T.goToLibrary}
+          </Link>
+          {order.refundableUntil && (
+            <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+              <span>
+                {T.refundUntilLine(dayFromIsoDate(order.refundableUntil))}
+              </span>
+              <Link
+                to={`/pedidos/${order.id}/reembolso`}
+                aria-label={T.refundLinkLabel(order.productTitle)}
+                className="text-link"
+              >
+                {T.refundLink}
+              </Link>
+            </p>
+          )}
+        </div>
       )}
     </li>
   );

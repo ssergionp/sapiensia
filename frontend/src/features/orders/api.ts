@@ -6,6 +6,8 @@ import {
   orderListSchema,
   orderSchema,
   orderStatusSchema,
+  type RefundReason,
+  refundRequestedSchema,
 } from "./schemas";
 
 export class NotLoggedInError extends Error {}
@@ -16,6 +18,11 @@ export class ProductUnavailableError extends Error {}
 export class PaymentUnavailableError extends Error {}
 export class OrderNotFoundError extends Error {}
 export class AlreadyOwnedError extends Error {}
+export class RefundInProgressError extends Error {}
+export class RefundWindowClosedError extends Error {}
+export class RefundNotAvailableError extends Error {}
+export class RefundDetailsTooLongError extends Error {}
+export class RefundReasonRequiredError extends Error {}
 
 async function errorsOf(response: Response): Promise<Record<string, unknown>> {
   const body: unknown = await response.json().catch(() => null);
@@ -57,6 +64,7 @@ export async function createOrder(input: {
     const code = (await errorsOf(response)).order;
     if (code === "ORDER_IN_PROGRESS") throw new OrderInProgressError();
     if (code === "ALREADY_OWNED") throw new AlreadyOwnedError();
+    if (code === "REFUND_IN_PROGRESS") throw new RefundInProgressError();
   }
   if (response.status === 400) {
     const errors = await errorsOf(response);
@@ -99,5 +107,42 @@ export async function fetchOrderStatus(id: string): Promise<Order["status"]> {
     throw new OrderNotFoundError();
   }
   if (response.status === 401) throw new NotLoggedInError();
+  throw new Error(`Unexpected status ${response.status}`);
+}
+
+export async function requestRefund(input: {
+  orderId: string;
+  reason: RefundReason;
+  details?: string;
+}): Promise<{ requestedAt: string }> {
+  const { orderId, ...body } = input;
+  const response = await apiFetch(
+    `/api/orders/${encodeURIComponent(orderId)}/refund-request`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
+  if (response.status === 200 || response.status === 201) {
+    return refundRequestedSchema.parse(await response.json());
+  }
+  if (response.status === 401) throw new NotLoggedInError();
+  if (response.status === 404) throw new OrderNotFoundError();
+  if (response.status === 429) throw new TooManyRequestsError();
+  if (response.status === 409) {
+    const code = (await errorsOf(response)).refund;
+    if (code === "WINDOW_CLOSED") throw new RefundWindowClosedError();
+    if (code === "NOT_AVAILABLE") throw new RefundNotAvailableError();
+  }
+  if (response.status === 400) {
+    const errors = await errorsOf(response);
+    if (errors.details === "DETAILS_TOO_LONG") {
+      throw new RefundDetailsTooLongError();
+    }
+    if (errors.reason === "REASON_REQUIRED") {
+      throw new RefundReasonRequiredError();
+    }
+  }
   throw new Error(`Unexpected status ${response.status}`);
 }

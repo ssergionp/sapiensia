@@ -14,6 +14,7 @@ import {
   OrderInProgressError,
   PaymentUnavailableError,
   ProductUnavailableError,
+  RefundInProgressError,
 } from "./api";
 import { normalizeCpf } from "./cpf";
 import { useCreateOrder } from "./hooks";
@@ -27,6 +28,7 @@ function failureMessage(error: Error): string {
   if (error instanceof OrderInProgressError) return T.inProgress;
   if (error instanceof ProductUnavailableError) return T.productUnavailable;
   if (error instanceof AlreadyOwnedError) return T.alreadyOwned;
+  if (error instanceof RefundInProgressError) return T.refundInProgress;
   return T.unexpected;
 }
 
