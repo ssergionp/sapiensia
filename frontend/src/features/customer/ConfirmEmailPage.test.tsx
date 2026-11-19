@@ -1,7 +1,12 @@
 ﻿import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, useLocation } from "react-router";
+import {
+  MemoryRouter,
+  type NavigateFunction,
+  useLocation,
+  useNavigate,
+} from "react-router";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import ConfirmEmailPage from "./ConfirmEmailPage";
 
@@ -14,7 +19,10 @@ function confirmCalls(spy: { mock: { calls: unknown[][] } }) {
 }
 const SUCCESS = "E-mail confirmado. Agora você já pode entrar na sua conta.";
 
+let navigate: NavigateFunction;
+
 function HashProbe() {
+  navigate = useNavigate();
   return <output data-testid="hash">{useLocation().hash}</output>;
 }
 
@@ -160,6 +168,37 @@ describe("ConfirmEmailPage", () => {
 
     expect(await screen.findByText(INVALID_LINK)).toBeInTheDocument();
     expect(screen.queryByLabelText("Senha")).not.toBeInTheDocument();
+  });
+
+  test("SEC-007: um link novo na mesma aba reinicia a página de confirmação", async () => {
+    // The first confirmation is refused; a CSRF priming GET may come before it.
+    let confirmations = 0;
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (url) => {
+        if (url !== CONFIRM_URL) return jsonResponse(204);
+        confirmations += 1;
+        return confirmations === 1
+          ? jsonResponse(400, { errors: { token: "TOKEN_INVALID" } })
+          : jsonResponse(204);
+      });
+    renderPage("#tok-1");
+    await submit("qualquer");
+    expect(await screen.findByText(INVALID_LINK)).toBeInTheDocument();
+
+    act(() => {
+      navigate("/confirmar-email#tok-2");
+    });
+
+    expect(await screen.findByLabelText("Senha")).toBeInTheDocument();
+    expect(screen.queryByText(INVALID_LINK)).not.toBeInTheDocument();
+    await submit("uma senha bem longa 123");
+    await screen.findByText(SUCCESS);
+    const [, init] = confirmCalls(fetchSpy)[1] as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({
+      token: "tok-2",
+      password: "uma senha bem longa 123",
+    });
   });
 
   test("#42: 429 mostra o aviso de muitas tentativas e não o erro genérico", async () => {
