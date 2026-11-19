@@ -170,8 +170,10 @@ class AsaasPixGateway implements PixGateway {
                 false);
         String chargeId = requiredText(CREATE_CHARGE, root, "id", null);
         if (!PaymentConfirmation.CHARGE_ID.matcher(chargeId).matches()) {
-            // the refused value is never logged
-            throw unavailable(CREATE_CHARGE, "unexpected answer", null);
+            // the refused value is never logged; the Order id is ours and tells which charge was left at Asaas
+            String reason = "charge id outside the expected format";
+            log.warn("Asaas call failed: step={} reason={} orderId={}", CREATE_CHARGE, reason, orderId);
+            throw new PixGatewayException(PixGatewayException.Kind.UNAVAILABLE, CREATE_CHARGE, reason);
         }
         return chargeId;
     }
@@ -203,7 +205,6 @@ class AsaasPixGateway implements PixGateway {
                                 offset,
                                 limit),
                 false,
-                MAX_LIST_BODY,
                 true);
         JsonNode data = root.get("data");
         JsonNode hasMore = root.get("hasMore");
@@ -245,17 +246,20 @@ class AsaasPixGateway implements PixGateway {
 
     /** Sends the request and returns the parsed JSON answer, or null when {@code lenient} and the answer is 2xx or 404. */
     private JsonNode call(String step, String chargeId, RestClient.RequestHeadersSpec<?> request, boolean lenient) {
-        return call(step, chargeId, request, lenient, MAX_BODY, false);
+        return call(step, chargeId, request, lenient, false);
     }
 
-    /** An answer above {@code maxBody} is refused when {@code refuseOversized}, otherwise read only up to the limit. */
+    /**
+     * With {@code refuseOversized} the limit is {@code MAX_LIST_BODY} and a larger answer is refused; without it the
+     * limit is {@code MAX_BODY} and a larger answer is read only up to the limit.
+     */
     private JsonNode call(
             String step,
             String chargeId,
             RestClient.RequestHeadersSpec<?> request,
             boolean lenient,
-            int maxBody,
             boolean refuseOversized) {
+        int maxBody = refuseOversized ? MAX_LIST_BODY : MAX_BODY;
         try {
             return request.exchange((req, response) -> {
                 int status = response.getStatusCode().value();
@@ -344,10 +348,10 @@ class AsaasPixGateway implements PixGateway {
         try {
             JsonNode errors = JSON.readTree(body).get("errors");
             if (errors != null && errors.isArray()) {
-                for (JsonNode error : errors) {
-                    if (codes.size() >= MAX_ERROR_CODES) {
-                        break;
-                    }
+                // only the first MAX_ERROR_CODES entries are inspected, whatever they contain
+                int limit = Math.min(errors.size(), MAX_ERROR_CODES);
+                for (int i = 0; i < limit; i++) {
+                    JsonNode error = errors.get(i);
                     JsonNode code = error.get("code");
                     if (code != null && code.isValueNode()) {
                         String clean = CODE_CHARS.matcher(code.asString()).replaceAll("");

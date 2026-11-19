@@ -200,11 +200,17 @@ class AsaasPixGatewayWireTest {
     void shouldRefuseACreatedChargeWhoseIdIsOutsideThePattern(String chargeId, CapturedOutput output) {
         replyWith(200, JSON.createObjectNode().put("id", chargeId).toString());
 
+        UUID orderId = UUID.randomUUID();
+
         assertKind(
-                () -> gateway().createCharge("cus_123", UUID.randomUUID(), 2990, LocalDate.of(2026, 11, 14), "d"),
+                () -> gateway().createCharge("cus_123", orderId, 2990, LocalDate.of(2026, 11, 14), "d"),
                 PixGatewayException.Kind.UNAVAILABLE);
 
-        assertThat(output.getAll()).doesNotContain("forged").doesNotContain(chargeId);
+        assertThat(output.getAll())
+                .contains("reason=charge id outside the expected format")
+                .contains("orderId=" + orderId)
+                .doesNotContain("forged")
+                .doesNotContain(chargeId);
     }
 
     @Test
@@ -287,7 +293,34 @@ class AsaasPixGatewayWireTest {
         assertKind(
                 () -> gateway().createCharge("cus_1", UUID.randomUUID(), 100, LocalDate.now(), "d"),
                 PixGatewayException.Kind.REFUSED);
-        assertThat(output.getAll()).contains("code_9").doesNotContain("code_10");
+        assertThat(output.getAll())
+                .contains("codes=[code_0, code_1, code_2, code_3, code_4, code_5, code_6, code_7, code_8, code_9]");
+    }
+
+    @Test
+    @DisplayName("SEC-018: shouldCountEntriesWithoutACodeTowardsTheLimit")
+    void shouldCountEntriesWithoutACodeTowardsTheLimit(CapturedOutput output) {
+        List<String> errors = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            errors.add("{\"description\":\"x\"}");
+        }
+        errors.add("{\"code\":\"code_x\",\"description\":\"x\"}");
+        replyWith(400, "{\"errors\":[" + String.join(",", errors) + "]}");
+
+        assertKind(
+                () -> gateway().createCharge("cus_1", UUID.randomUUID(), 100, LocalDate.now(), "d"),
+                PixGatewayException.Kind.REFUSED);
+        assertThat(output.getAll()).doesNotContain("code_x");
+    }
+
+    @Test
+    @DisplayName("SEC-033: shouldIgnoreARejectedDocumentCodeAfterTheTenthEntry")
+    void shouldIgnoreARejectedDocumentCodeAfterTheTenthEntry() {
+        replyWith(400, errorsBody(11, 10));
+
+        assertKind(
+                () -> gateway().createCustomer(UUID.randomUUID(), "ana@example.com", CPF),
+                PixGatewayException.Kind.REFUSED);
     }
 
     @Test
