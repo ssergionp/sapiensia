@@ -65,7 +65,7 @@ class CustomerEmailServiceTest {
     @DisplayName("SEC-007: o link de redefinição vai por e-mail, numa linha só")
     void shouldBuildThePasswordResetLink() {
         when(customers.findConfirmedEmailById(id)).thenReturn(Optional.of("a@example.com"));
-        when(resetTokens.reissue(id)).thenReturn("tok");
+        when(resetTokens.reissue(id)).thenReturn(Optional.of("tok"));
 
         new CustomerEmailService(customers, tokens, resetTokens, sender, "http://localhost:5173/")
                 .sendPasswordReset(id);
@@ -111,5 +111,17 @@ class CustomerEmailServiceTest {
 
         verify(sender, never()).send(any());
         verify(resetTokens, never()).reissue(any());
+    }
+
+    @Test
+    @DisplayName(
+            "FR-036 SEC-038: sendPasswordReset não envia nada quando a conta foi anonimizada ou apagada depois da fila")
+    void shouldSendNothingWhenNoLinkIsIssued() {
+        when(customers.findConfirmedEmailById(id)).thenReturn(Optional.of("a@example.com"));
+        when(resetTokens.reissue(id)).thenReturn(Optional.empty());
+
+        new CustomerEmailService(customers, tokens, resetTokens, sender, "http://localhost:5173").sendPasswordReset(id);
+
+        verify(sender, never()).send(any());
     }
 }

@@ -109,12 +109,15 @@ class CustomerEmailService {
 
     /**
      * Replaces the customer's unused reset links with a new one and sends it, unless the customer does not exist or
-     * is not confirmed (then nothing is stored and nothing is sent).
+     * is not confirmed, or was anonymized or deleted after the task was queued (then nothing is stored and nothing is
+     * sent).
      */
     void sendPasswordReset(UUID customerId) {
         customers.findConfirmedEmailById(customerId).ifPresent(email -> {
-            String link = publicBaseUrl + "/redefinir-senha#" + passwordResetTokens.reissue(customerId);
-            sender.send(new EmailMessage(email, PASSWORD_RESET_SUBJECT, PASSWORD_RESET_TEXT.formatted(link)));
+            passwordResetTokens.reissue(customerId).ifPresent(token -> {
+                String link = publicBaseUrl + "/redefinir-senha#" + token;
+                sender.send(new EmailMessage(email, PASSWORD_RESET_SUBJECT, PASSWORD_RESET_TEXT.formatted(link)));
+            });
         });
     }
 

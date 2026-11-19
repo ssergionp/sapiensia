@@ -5,6 +5,7 @@ import br.com.sergio.sapiensia.audit.AuditEntry;
 import br.com.sergio.sapiensia.audit.AuditLog;
 import br.com.sergio.sapiensia.audit.AuditObject;
 import br.com.sergio.sapiensia.audit.AuditResult;
+import br.com.sergio.sapiensia.payment.CustomerHasPendingOrderException;
 import br.com.sergio.sapiensia.payment.CustomerPaymentRelease;
 import java.security.SecureRandom;
 import java.util.Base64;
@@ -60,7 +61,29 @@ public class CustomerAnonymization {
         byte[] secret = new byte[32];
         RANDOM.nextBytes(secret);
         String unusableHash = passwordEncoder.encode(Base64.getEncoder().encodeToString(secret));
-        return transaction.execute(status -> anonymizeInTransaction(email, unusableHash, administratorId, origin));
+        Optional<UUID> anonymized;
+        try {
+            anonymized =
+                    transaction.execute(status -> anonymizeInTransaction(email, unusableHash, administratorId, origin));
+        } catch (CustomerHasPendingOrderException refused) {
+            recordFailure(administratorId, refused.customerId(), origin);
+            throw refused;
+        }
+        if (anonymized.isEmpty()) {
+            recordFailure(administratorId, null, origin);
+        }
+        return anonymized;
+    }
+
+    /** Written outside the transaction (already rolled back or finished), so the refusal stays on the trail. */
+    private void recordFailure(UUID administratorId, UUID customerId, String origin) {
+        auditLog.recordIndependent(new AuditEntry(
+                AuditAction.ADMIN_CUSTOMER_ANONYMIZED,
+                AuditResult.FAILURE,
+                administratorId,
+                AuditObject.CUSTOMER,
+                customerId,
+                origin));
     }
 
     private Optional<UUID> anonymizeInTransaction(

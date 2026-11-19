@@ -64,6 +64,9 @@ class CustomerAnonymizationTest {
     private JdbcTemplate jdbc;
 
     @Autowired
+    private CustomerRepository customerRepository;
+
+    @Autowired
     private PlatformTransactionManager transactionManager;
 
     @Autowired
@@ -184,7 +187,17 @@ class CustomerAnonymizationTest {
     }
 
     @Test
-    @DisplayName("FR-036: e-mail desconhecido não muda nada")
+    @DisplayName("FR-036 SEC-038: a linha anonimizada some do login e da redefinição de senha")
+    void shouldHideTheAnonymizedRowFromLoginAndPasswordReset() {
+        anonymization.anonymize(email, administratorId, ORIGIN);
+        String substitute = jdbc.queryForObject("select email from customers where id = ?", String.class, customerId);
+
+        assertThat(customerRepository.findCredentialsByEmail(substitute)).isEmpty();
+        assertThat(customerRepository.findConfirmedIdByEmail(substitute)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("FR-036: e-mail desconhecido não muda a conta e deixa só uma linha de falha na auditoria")
     void shouldChangeNothingForAnUnknownEmail() {
         Long customers = jdbc.queryForObject("select count(*) from customers", Long.class);
         Long audit = jdbc.queryForObject("select count(*) from audit_events", Long.class);
@@ -196,10 +209,45 @@ class CustomerAnonymizationTest {
         assertThat(jdbc.queryForObject("select count(*) from customers", Long.class))
                 .isEqualTo(customers);
         assertThat(jdbc.queryForObject("select count(*) from audit_events", Long.class))
-                .isEqualTo(audit);
+                .isEqualTo(audit + 1);
         assertThat(jdbc.queryForObject(
                         "select anonymized_at is null from customers where id = ?", Boolean.class, customerId))
                 .isTrue();
+    }
+
+    @Test
+    @DisplayName("FR-036 SEC-038: e-mail desconhecido grava uma falha na auditoria, sem Cliente e sem o e-mail")
+    void shouldAuditAFailureWithoutObjectForAnUnknownEmail() {
+        String unknown = "ninguem-" + UUID.randomUUID() + "@example.com";
+
+        anonymization.anonymize(unknown, administratorId, ORIGIN);
+
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "select result, actor_id, object_id, row_to_json(a)::text as dump from audit_events a"
+                        + " where action = 'ADMIN_CUSTOMER_ANONYMIZED' and actor_id = ?",
+                administratorId);
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).get("result")).isEqualTo("FAILURE");
+        assertThat(rows.get(0).get("object_id")).isNull();
+        assertThat((String) rows.get(0).get("dump")).doesNotContain(unknown);
+    }
+
+    @Test
+    @DisplayName("FR-036 SEC-038: Pedido pendente grava uma falha na auditoria com o Cliente, sem o e-mail")
+    void shouldAuditAFailureWithTheCustomerWhenAPendingOrderRefuses() {
+        insertPendingOrder("now() + interval '20 minutes'");
+
+        assertThatThrownBy(() -> anonymization.anonymize(email, administratorId, ORIGIN))
+                .isInstanceOf(CustomerHasPendingOrderException.class);
+
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "select result, actor_id, object_id, row_to_json(a)::text as dump from audit_events a"
+                        + " where action = 'ADMIN_CUSTOMER_ANONYMIZED' and actor_id = ?",
+                administratorId);
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).get("result")).isEqualTo("FAILURE");
+        assertThat(rows.get(0).get("object_id")).isEqualTo(customerId);
+        assertThat((String) rows.get(0).get("dump")).doesNotContain(email);
     }
 
     private void insertPendingOrder(String expiresAtSql) {
@@ -218,7 +266,8 @@ class CustomerAnonymizationTest {
     }
 
     @Test
-    @DisplayName("FR-036, SEC-038: conta com Pedido pendente não é anonimizada e nada muda")
+    @DisplayName(
+            "FR-036, SEC-038: conta com Pedido pendente não é anonimizada e só a auditoria ganha uma linha de falha")
     void shouldRefuseAnAccountWithAPendingOrderAndChangeNothing() {
         insertTokensDevicesAndAsaasLink();
         insertPendingOrder("now() + interval '20 minutes'");
@@ -234,7 +283,7 @@ class CustomerAnonymizationTest {
             assertThat(countOfCustomer(table)).as(table).isEqualTo(1);
         }
         assertThat(jdbc.queryForObject("select count(*) from audit_events", Long.class))
-                .isEqualTo(audit);
+                .isEqualTo(audit + 1);
     }
 
     @Test

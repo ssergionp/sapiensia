@@ -35,6 +35,12 @@ class OrdersTest {
     private PaymentCustomers paymentCustomers;
 
     @Autowired
+    private OrderService orderService;
+
+    @Autowired
+    private PixGateway gateway;
+
+    @Autowired
     private JdbcTemplate jdbc;
 
     @Autowired
@@ -238,5 +244,22 @@ class OrdersTest {
         paymentCustomers.save(customerId, "cus_second");
 
         assertThat(paymentCustomers.find(customerId)).contains("cus_first");
+    }
+
+    @Test
+    @DisplayName("FR-036 SEC-038: a compra de um Cliente anonimizado é recusada antes de falar com o Asaas")
+    void shouldRefuseAPurchaseOfAnAnonymizedCustomer() {
+        jdbc.update("update customers set anonymized_at = now() where id = ?", customerId);
+
+        assertThatThrownBy(() -> orderService.create(
+                        customerId, "old@example.com", new CreateOrderRequest(productId, "52998224725")))
+                .isInstanceOf(CustomerAccountClosedException.class)
+                .hasMessage("Customer account is closed");
+
+        assertThat(OrderTestSupport.countOrdersOf(jdbc, customerId)).isZero();
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from payment_customers where customer_id = ?", Long.class, customerId))
+                .isZero();
+        assertThat(gateway.findCustomerCode(customerId)).isEmpty();
     }
 }

@@ -290,6 +290,15 @@ class Orders {
                 .single());
     }
 
+    /** False once the Customer's account was anonymized (FR-036). */
+    boolean customerIsActive(UUID customerId) {
+        return Boolean.TRUE.equals(
+                jdbc.sql("select exists (select 1 from customers where id = :customerId and anonymized_at is null)")
+                        .param("customerId", customerId)
+                        .query(Boolean.class)
+                        .single());
+    }
+
     /** Same lock as {@link #tryLockCustomer}, but waits for it; must be called inside a transaction. */
     void lockCustomer(UUID customerId) {
         jdbc.sql("select pg_advisory_xact_lock(hashtextextended(:key, 0))")

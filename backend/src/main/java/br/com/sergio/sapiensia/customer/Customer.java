@@ -31,6 +31,10 @@ class Customer {
     @Column(name = "session_version", insertable = false, updatable = false)
     private int sessionVersion;
 
+    // set only by the anonymization SQL
+    @Column(name = "anonymized_at", insertable = false, updatable = false)
+    private Instant anonymizedAt;
+
     // filled by the database default
     @Generated(event = EventType.INSERT)
     @Column(name = "created_at", insertable = false, updatable = false)

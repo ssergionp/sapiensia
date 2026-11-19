@@ -49,6 +49,7 @@ class OrderServiceStoreFailureTest {
         when(manager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
 
         when(orders.tryLockCustomer(customerId)).thenReturn(true);
+        when(orders.customerIsActive(customerId)).thenReturn(true);
         when(orders.findPending(customerId, productId)).thenReturn(Optional.empty());
         when(catalog.get(productId))
                 .thenReturn(new CatalogProduct(productId, "Guia", "d", ProductCategory.LAW, 2990, null));

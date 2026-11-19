@@ -1,18 +1,10 @@
 package br.com.sergio.sapiensia.customer;
 
 import br.com.sergio.sapiensia.admin.AdministratorPrincipal;
-import br.com.sergio.sapiensia.audit.AuditAction;
-import br.com.sergio.sapiensia.audit.AuditEntry;
-import br.com.sergio.sapiensia.audit.AuditLog;
-import br.com.sergio.sapiensia.audit.AuditObject;
-import br.com.sergio.sapiensia.audit.AuditResult;
-import br.com.sergio.sapiensia.payment.CustomerHasPendingOrderException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import java.util.Optional;
-import java.util.UUID;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -30,12 +22,10 @@ import org.springframework.web.bind.annotation.RestController;
 class CustomerAnonymizationController {
 
     private final CustomerAnonymization anonymization;
-    private final AuditLog audit;
     private final ClientIpResolver clientIp;
 
-    CustomerAnonymizationController(CustomerAnonymization anonymization, AuditLog audit, ClientIpResolver clientIp) {
+    CustomerAnonymizationController(CustomerAnonymization anonymization, ClientIpResolver clientIp) {
         this.anonymization = anonymization;
-        this.audit = audit;
         this.clientIp = clientIp;
     }
 
@@ -53,29 +43,7 @@ class CustomerAnonymizationController {
             HttpServletRequest request) {
         var administrator = (AdministratorPrincipal) authentication.getPrincipal();
         String origin = clientIp.resolve(request);
-        Optional<UUID> customerId;
-        try {
-            customerId = anonymization.anonymize(body.email(), administrator.id(), origin);
-        } catch (CustomerHasPendingOrderException refused) {
-            audit.recordIndependent(new AuditEntry(
-                    AuditAction.ADMIN_CUSTOMER_ANONYMIZED,
-                    AuditResult.FAILURE,
-                    administrator.id(),
-                    AuditObject.CUSTOMER,
-                    refused.customerId(),
-                    origin));
-            throw refused;
-        }
-        if (customerId.isEmpty()) {
-            audit.recordIndependent(new AuditEntry(
-                    AuditAction.ADMIN_CUSTOMER_ANONYMIZED,
-                    AuditResult.FAILURE,
-                    administrator.id(),
-                    AuditObject.CUSTOMER,
-                    null,
-                    origin));
-            throw new CustomerNotFoundException();
-        }
+        anonymization.anonymize(body.email(), administrator.id(), origin).orElseThrow(CustomerNotFoundException::new);
         return ResponseEntity.noContent().build();
     }
 }
