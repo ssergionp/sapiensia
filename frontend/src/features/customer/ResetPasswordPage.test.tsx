@@ -1,7 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, type NavigateFunction, useNavigate } from "react-router";
+import { StrictMode } from "react";
+import {
+  MemoryRouter,
+  type NavigateFunction,
+  useLocation,
+  useNavigate,
+} from "react-router";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import ResetPasswordPage from "./ResetPasswordPage";
 
@@ -23,18 +29,40 @@ function CaptureNavigate() {
   return null;
 }
 
-function renderPage(hash = "#tok-123") {
+function HashProbe() {
+  return <output data-testid="hash">{useLocation().hash}</output>;
+}
+
+function renderPage(hash = "#tok-123", strict = false) {
   const client = new QueryClient({
     defaultOptions: { mutations: { retry: false } },
   });
-  return render(
+  const tree = (
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[`/redefinir-senha${hash}`]}>
         <CaptureNavigate />
+        <HashProbe />
         <ResetPasswordPage />
       </MemoryRouter>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
+  return render(strict ? <StrictMode>{tree}</StrictMode> : tree);
+}
+
+async function expectHashGone() {
+  await waitFor(() => expect(screen.getByTestId("hash").textContent).toBe(""));
+}
+
+async function expectTokenSent(
+  fetchSpy: { mock: { calls: Parameters<typeof fetch>[] } },
+  token: string,
+) {
+  await screen.findByText(SUCCESS);
+  const [, init] = confirmCalls(fetchSpy)[0];
+  expect(JSON.parse(String(init?.body))).toEqual({
+    token,
+    newPassword: LONG_ENOUGH,
+  });
 }
 
 function jsonResponse(status: number, body?: unknown) {
@@ -132,6 +160,46 @@ describe("ResetPasswordPage", () => {
       token: "tok-123",
       newPassword: LONG_ENOUGH,
     });
+  });
+
+  test("SEC-007: o token sai da URL depois de lido", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(204));
+    renderPage("#tok-1");
+
+    await expectHashGone();
+    await submit(LONG_ENOUGH);
+
+    await expectTokenSent(fetchSpy, "tok-1");
+  });
+
+  test("SEC-007: o token sobrevive ao StrictMode", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(204));
+    renderPage("#tok-1", true);
+
+    await expectHashGone();
+    await submit(LONG_ENOUGH);
+
+    await expectTokenSent(fetchSpy, "tok-1");
+  });
+
+  test("SEC-007: um link novo na mesma aba troca o token", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(204));
+    renderPage("#tok-1");
+    await expectHashGone();
+
+    act(() => {
+      navigate("/redefinir-senha#tok-2");
+    });
+    await expectHashGone();
+    await submit(LONG_ENOUGH);
+
+    await expectTokenSent(fetchSpy, "tok-2");
   });
 
   test("SEC-007: um link mais novo aberto na mesma aba envia o token novo", async () => {

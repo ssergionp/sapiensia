@@ -45,6 +45,16 @@ async function expectAnonymousHome(page: Page) {
 async function openLink(page: Page, link: string) {
   await page.goto("/esqueci-senha");
   await page.goto(link);
+  // The page has read the token, so it must be out of the address bar.
+  await expect(page).not.toHaveURL(/#/);
+}
+
+// Done after the new password is saved: once the token left the history entry, going back
+// and forward shows the page without a token, so the link cannot be used any more.
+async function expectTokenOutOfHistory(page: Page) {
+  await page.goBack();
+  await page.goForward();
+  await expect(page).not.toHaveURL(/#/);
 }
 
 async function submitNewPassword(page: Page, password: string) {
@@ -81,6 +91,7 @@ test("SEC-006/SEC-007: recuperar a senha encerra a sessão aberta, o link vale u
   await openLink(other, link);
   await submitNewPassword(other, newPassword);
   await expect(other.getByText(PASSWORD_CHANGED)).toBeVisible();
+  await expectTokenOutOfHistory(other);
   // the success message's own "Entrar" link (the signed-out header has one too since #186 stage 2)
   await expect(
     other.getByRole("main").getByRole("link", { name: "Entrar" }),

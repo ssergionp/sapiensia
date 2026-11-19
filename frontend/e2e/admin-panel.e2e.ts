@@ -170,6 +170,7 @@ async function setPasswordFromNewestEmail(page: Page): Promise<string> {
   // A fresh navigation, because changing only the fragment would not reload the page.
   await page.goto("/painel/entrar");
   await page.goto(link[0]);
+  await expect(page).not.toHaveURL(/#/);
   await fillSecret(page.getByLabel("Nova senha"), password);
   await page.getByRole("button", { name: "Salvar senha" }).click();
   const done = page.getByText(PASSWORD_SET);

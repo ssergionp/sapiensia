@@ -101,6 +101,7 @@ async function expectDeadLink(page: Page, link: string, password: string) {
 async function openLink(page: Page, link: string) {
   await page.goto("/cadastro");
   await page.goto(link);
+  await expect(page).not.toHaveURL(/#/);
 }
 
 test("SEC-007: o Visitante cadastra, abre o link do e-mail e confirma com a senha", async ({

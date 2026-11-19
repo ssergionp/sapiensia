@@ -1,7 +1,7 @@
 ﻿import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, useLocation } from "react-router";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import ConfirmEmailPage from "./ConfirmEmailPage";
 
@@ -14,14 +14,18 @@ function confirmCalls(spy: { mock: { calls: unknown[][] } }) {
 }
 const SUCCESS = "E-mail confirmado. Agora você já pode entrar na sua conta.";
 
+function HashProbe() {
+  return <output data-testid="hash">{useLocation().hash}</output>;
+}
+
 function renderPage(hash = "#abc") {
-  window.location.hash = hash;
   const client = new QueryClient({
     defaultOptions: { mutations: { retry: false } },
   });
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[`/confirmar-email${hash}`]}>
+        <HashProbe />
         <ConfirmEmailPage />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -44,7 +48,25 @@ async function submit(password: string) {
 describe("ConfirmEmailPage", () => {
   afterEach(() => {
     vi.restoreAllMocks();
-    window.location.hash = "";
+  });
+
+  test("SEC-007: o token sai da URL depois de lido", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(jsonResponse(204));
+    renderPage("#tok-1");
+
+    await waitFor(() =>
+      expect(screen.getByTestId("hash").textContent).toBe(""),
+    );
+    await submit("uma senha bem longa 123");
+
+    await screen.findByText(SUCCESS);
+    const [, init] = confirmCalls(fetchSpy)[0] as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({
+      token: "tok-1",
+      password: "uma senha bem longa 123",
+    });
   });
 
   test("não chama a API ao abrir e mostra o formulário", () => {

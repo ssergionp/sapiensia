@@ -2,7 +2,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import type { UseMutationResult } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import { useForm } from "react-hook-form";
-import { useLocation } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +13,7 @@ import {
   resetPasswordSchema,
   SAVE_UNEXPECTED_ERROR,
 } from "./schemas";
+import { useLinkToken } from "./useLinkToken";
 
 type PasswordLinkMutation = UseMutationResult<
   unknown,
@@ -34,10 +34,9 @@ export type PasswordLinkFormProps = {
 };
 
 export default function PasswordLinkForm(props: PasswordLinkFormProps) {
-  // The token travels in the URL fragment so it is never sent to servers or logs.
-  // Read from the router so a newer link opened in the same tab replaces it; the key
-  // resets the form and its flags for the new token.
-  const token = useLocation().hash.replace(/^#/, "");
+  // The hook reads the token from the URL fragment and clears the fragment; a newer link
+  // opened in the same tab replaces it, and the key resets the form and its flags.
+  const token = useLinkToken();
   return <PasswordLinkContent key={token} token={token} {...props} />;
 }
 
