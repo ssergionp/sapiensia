@@ -48,6 +48,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
             "app.rate-limit.order-create.ip-capacity=100",
             "app.rate-limit.order-read.account-capacity=2",
             "app.rate-limit.order-read.ip-capacity=100",
+            "app.rate-limit.refund-request.account-capacity=2",
+            "app.rate-limit.refund-request.ip-capacity=100",
             "app.rate-limit.download.account-capacity=2",
             "app.rate-limit.download.ip-capacity=100",
             "app.rate-limit.cover.ip-capacity=3",
@@ -227,6 +229,20 @@ class RateLimitRoutesTest {
             assertThat(customer.get("/api/orders/" + orderId + "/status").statusCode())
                     .isEqualTo(200);
         }
+    }
+
+    @Test
+    @DisplayName("SEC-014: pedir Reembolso além do limite do Cliente recebe 429 com Retry-After (conta antes do 404)")
+    void shouldRefuseRefundRequestsBeyondTheCustomerLimit() throws Exception {
+        Client customer = new Client().logIn();
+        String path = "/api/orders/" + UUID.randomUUID() + "/refund-request";
+        String body = "{\"reason\":\"OTHER\"}";
+
+        assertThat(customer.post(path, body).statusCode()).isEqualTo(404);
+        assertThat(customer.post(path, body).statusCode()).isEqualTo(404);
+
+        assertRateLimited(customer.post(path, body));
+        assertNotRateLimited(new Client().logIn().post(path, body));
     }
 
     @Test

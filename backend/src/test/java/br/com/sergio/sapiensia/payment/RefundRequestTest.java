@@ -398,6 +398,19 @@ class RefundRequestTest {
     @DisplayName("FR-023: compra duplicada — a solicitação do Pedido sem Acesso não suspende o Acesso do outro Pedido")
     void shouldNotSuspendTheAccessOfAnotherOrderWhenTheDuplicatePurchaseIsRequested() throws Exception {
         Placed first = placePaidOrder();
+        UUID duplicate = paidDuplicateOf(first);
+
+        HttpResponse<String> response = request(first.customer(), duplicate, body("BOUGHT_BY_MISTAKE", null));
+
+        assertThat(response.statusCode()).isEqualTo(201);
+        assertThat(requestRows(duplicate)).isEqualTo(1);
+        assertThat(suspended(first.orderId())).isFalse();
+        assertThat(libraryItems(first.customer())).isEqualTo("1");
+        assertThat(download(first)).isEqualTo(200);
+    }
+
+    /** A second paid Order of the same Product, inserted as the duplicate-purchase test does: no Access of its own. */
+    private UUID paidDuplicateOf(Placed first) {
         UUID duplicate = UUID.randomUUID();
         Instant now = Instant.now();
         orders.insert(
@@ -409,16 +422,118 @@ class RefundRequestTest {
                 now.minusSeconds(60),
                 now.plusSeconds(1800));
         assertThat(orders.markPaid(duplicate, now)).isTrue();
-
-        HttpResponse<String> response = request(first.customer(), duplicate, body("BOUGHT_BY_MISTAKE", null));
-
-        assertThat(response.statusCode()).isEqualTo(201);
-        assertThat(requestRows(duplicate)).isEqualTo(1);
-        assertThat(suspended(first.orderId())).isFalse();
-        assertThat(libraryItems(first.customer())).isEqualTo("1");
-        assertThat(download(first)).isEqualTo(200);
+        return duplicate;
     }
 
+    private int accessRows(UUID orderId) {
+        return jdbc.queryForObject("select count(*) from accesses where order_id = ?", Integer.class, orderId);
+    }
+
+    private int accessRows(Placed placed) {
+        return jdbc.queryForObject(
+                "select count(*) from accesses where customer_id = ? and product_id = ?",
+                Integer.class,
+                placed.customer().id,
+                placed.productId());
+    }
+
+    /** The provider answers this charge as refunded and sends the refund event; waits for the REFUNDED Order. */
+    private void refundThroughTheProvider(Placed placed) throws Exception {
+        gateway.answerCharge(
+                placed.chargeId(),
+                new PixCharge(
+                        placed.chargeId(),
+                        "REFUNDED",
+                        new BigDecimal("29.90"),
+                        "PIX",
+                        placed.orderId().toString(),
+                        false));
+        assertThat(AsaasWebhookTestSupport.post(
+                                port,
+                                LOOPBACK,
+                                Map.of(AsaasWebhookAccess.TOKEN_HEADER, TOKEN),
+                                paymentEvent(uniqueId(), "PAYMENT_REFUNDED", placed.chargeId()),
+                                "application/json")
+                        .statusCode())
+                .isEqualTo(200);
+        await("the REFUNDED Order", () -> "REFUNDED".equals(status(placed.orderId())));
+    }
+
+    @Test
+    @DisplayName(
+            "FR-023: compra duplicada — a solicitação do Pedido que concedeu o Acesso suspende o Acesso e não toca o Pedido duplicado")
+    void shouldSuspendTheAccessOfTheRequestedOrderAndLeaveTheDuplicatePurchaseAlone() throws Exception {
+        Placed first = placePaidOrder();
+        UUID duplicate = paidDuplicateOf(first);
+
+        HttpResponse<String> response = request(first, "BOUGHT_BY_MISTAKE", null);
+
+        assertThat(response.statusCode()).isEqualTo(201);
+        assertThat(suspended(first.orderId())).isTrue();
+        assertThat(status(duplicate)).isEqualTo("PAID");
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from refund_requests where customer_id = ?",
+                        Integer.class,
+                        first.customer().id))
+                .isEqualTo(1);
+        assertThat(requestRows(first.orderId())).isEqualTo(1);
+        assertThat(accessRows(duplicate)).isZero();
+
+        refundThroughTheProvider(first);
+
+        assertThat(jdbc.queryForObject(
+                        "select cancelled_at is not null from accesses where order_id = ?",
+                        Boolean.class,
+                        first.orderId()))
+                .isTrue();
+        assertThat(status(duplicate)).isEqualTo("PAID");
+        assertThat(accessRows(duplicate)).isZero();
+    }
+
+    @Test
+    @DisplayName("FR-023: Pedido pago enquanto o Acesso está suspenso vira compra duplicada, sem Acesso novo")
+    void shouldMarkAnOrderPaidWhileTheAccessIsSuspendedAsADuplicatePurchase() throws Exception {
+        Placed first = placePaidOrder();
+        assertThat(request(first, "NOT_AS_EXPECTED", null).statusCode()).isEqualTo(201);
+        // the purchase is refused while the request is open (REFUND_IN_PROGRESS), so the second Order is inserted
+        // straight, as a charge created before the request and paid late
+        UUID second = UUID.randomUUID();
+        String chargeId = "pay_" + UUID.randomUUID().toString().replace("-", "");
+        Instant now = Instant.now();
+        orders.insert(
+                second,
+                first.customer().id,
+                first.productId(),
+                2990,
+                chargeId,
+                now.minusSeconds(60),
+                now.plusSeconds(1800));
+        gateway.answerCharge(
+                chargeId,
+                new PixCharge(chargeId, "RECEIVED", new BigDecimal("29.90"), "PIX", second.toString(), false));
+        String eventId = uniqueId();
+
+        assertThat(AsaasWebhookTestSupport.post(
+                                port,
+                                LOOPBACK,
+                                Map.of(AsaasWebhookAccess.TOKEN_HEADER, TOKEN),
+                                paymentEvent(eventId, "PAYMENT_RECEIVED", chargeId),
+                                "application/json")
+                        .statusCode())
+                .isEqualTo(200);
+
+        String resultSql = "select r.result from payment_event_results r join payment_events e"
+                + " on e.id = r.payment_event_id where e.provider_event_id = ?";
+        await(
+                "the result of the payment event",
+                () -> !jdbc.queryForList(resultSql, String.class, eventId).isEmpty());
+        assertThat(jdbc.queryForList(resultSql, String.class, eventId)).containsExactly("DUPLICATE_PURCHASE");
+        assertThat(status(second)).isEqualTo("PAID");
+        assertThat(accessRows(first)).isEqualTo(1);
+        assertThat(accessRows(second)).isZero();
+        assertThat(suspended(first.orderId())).isTrue();
+        assertThat(libraryItems(first.customer())).isEqualTo("0");
+    }
     @Test
     @DisplayName(
             "FR-023: 3ª solicitação em 12 meses — Alerta REFUND_REQUESTS_REPEATED; a 2ª não gera; um Reembolso de 13 meses atrás não conta")
