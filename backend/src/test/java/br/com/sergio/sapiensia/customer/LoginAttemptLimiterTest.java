@@ -354,6 +354,58 @@ class LoginAttemptLimiterTest {
         assertThat(output.getAll()).doesNotContain("@example.com").doesNotContain("203.0.113.");
     }
 
+    private static long lines(CapturedOutput output, String text) {
+        return output.getAll().lines().filter(l -> l.contains(text)).count();
+    }
+
+    @Test
+    @DisplayName("SEC-014: shouldLogOnceWhenTheIpTableIsFull")
+    void shouldLogOnceWhenTheIpTableIsFull(CapturedOutput output) {
+        LoginAttemptLimiter small =
+                new LoginAttemptLimiter(PROPERTIES, clock, 3, new RefusalLogThrottle(Duration.ofMinutes(1), clock));
+        // one account (never locked: 3 attempts) from three IPs: the IP table is full, the accounts table is not
+        for (int i = 1; i <= 3; i++) {
+            assertThat(small.admit(EMAIL, "192.0.2." + i).allowed()).isTrue();
+        }
+
+        for (int i = 1; i <= 20; i++) {
+            assertThat(small.admit(EMAIL, "198.51.100." + i).allowed()).isFalse();
+        }
+
+        assertThat(lines(output, "Login limit table full: table=ips")).isEqualTo(1);
+        assertThat(lines(output, "Login limit table full: table=ips suppressed=0"))
+                .isEqualTo(1);
+        assertThat(lines(output, "table=accounts")).isZero();
+        assertThat(output.getAll())
+                .doesNotContain("@example.com")
+                .doesNotContain("192.0.2.")
+                .doesNotContain("198.51.100.");
+    }
+
+    @Test
+    @DisplayName("SEC-002: shouldLogOneLinePerTableWhenBothAreFull")
+    void shouldLogOneLinePerTableWhenBothAreFull(CapturedOutput output) {
+        LoginAttemptLimiter small =
+                new LoginAttemptLimiter(PROPERTIES, clock, 3, new RefusalLogThrottle(Duration.ofMinutes(1), clock));
+        for (int i = 1; i <= 3; i++) {
+            assertThat(small.admit("user" + i + "@example.com", "192.0.2." + i).allowed())
+                    .isTrue();
+        }
+
+        for (int i = 1; i <= 20; i++) {
+            assertThat(small.admit("new" + i + "@example.com", "198.51.100." + i)
+                            .allowed())
+                    .isFalse();
+        }
+
+        assertThat(lines(output, "Login limit table full: table=accounts")).isEqualTo(1);
+        assertThat(lines(output, "Login limit table full: table=ips")).isEqualTo(1);
+        assertThat(output.getAll())
+                .doesNotContain("@example.com")
+                .doesNotContain("192.0.2.")
+                .doesNotContain("198.51.100.");
+    }
+
     @Test
     @DisplayName("SEC-002: shouldRefuseNewIpsWhenFull")
     void shouldRefuseNewIpsWhenFull() {

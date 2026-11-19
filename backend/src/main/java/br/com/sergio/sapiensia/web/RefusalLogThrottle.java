@@ -14,6 +14,9 @@ import org.springframework.stereotype.Component;
  * the count of the lines that were held back. Keys must be fixed strings chosen by the code (an operation, a reason),
  * never data chosen by the client, so the table stays small. Only the log line goes through it: the refusal itself is
  * never sampled.
+ *
+ * <p>The count of held lines is reported only by the next line that passes for the same key: after a burst ends, the
+ * count appears on the next refusal of that key, however much later that is (and never, if none comes).
  */
 @Component
 public class RefusalLogThrottle {

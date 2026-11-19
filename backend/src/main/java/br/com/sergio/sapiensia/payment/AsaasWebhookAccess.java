@@ -63,7 +63,8 @@ public class AsaasWebhookAccess implements AuthorizationManager<RequestAuthoriza
             String reason = !ipAllowed && !tokenValid
                     ? "IP_NOT_ALLOWED_AND_TOKEN_INVALID"
                     : !ipAllowed ? "IP_NOT_ALLOWED" : "TOKEN_INVALID";
-            // sampled per reason: anyone can repeat a refusal in a loop (the decision and the alert are not sampled)
+            // sampled per reason: anyone can repeat the both-wrong refusal in a loop (IP_NOT_ALLOWED needs the valid
+            // token and TOKEN_INVALID needs an Asaas address); the decision and the alert are not sampled
             refusalLog
                     .pass("asaas-webhook:" + reason)
                     .ifPresent(

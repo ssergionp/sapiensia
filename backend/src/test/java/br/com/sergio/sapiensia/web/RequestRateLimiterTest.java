@@ -85,10 +85,34 @@ class RequestRateLimiterTest {
         for (int i = 0; i < 20; i++) {
             refuse(limiter, IP_ONLY, "198.51.100." + i);
         }
-        assertThat(lines(output, "Request limit table full for COVER")).isEqualTo(1);
+        assertThat(lines(output, "Request limit table full for COVER: suppressed=0"))
+                .isEqualTo(1);
         assertThat(output.getAll())
                 .doesNotContain("Request limit reached for COVER")
                 .doesNotContain("198.51.100.");
+    }
+
+    @Test
+    @DisplayName("SEC-014: shouldLogAFullTableWhenTheAccountKeyDoesNotFit")
+    void shouldLogAFullTableWhenTheAccountKeyDoesNotFit(CapturedOutput output) {
+        RequestRateLimiter limiter =
+                new RequestRateLimiter(properties(0), clock, 2, new RefusalLogThrottle(Duration.ofMinutes(1), clock));
+        // the IP key and the account key fill the table of the operation
+        limiter.require(WITH_ACCOUNT, "192.0.2.1", account("ana@example.com"));
+
+        for (int i = 0; i < 4; i++) {
+            String email = "new-" + i + "@example.com";
+            assertThatThrownBy(() -> limiter.require(WITH_ACCOUNT, "192.0.2.1", account(email)))
+                    .isInstanceOf(RateLimitedException.class);
+        }
+
+        assertThat(lines(output, "Request limit table full for SIGN_UP: suppressed=0"))
+                .isEqualTo(1);
+        assertThat(output.getAll())
+                .doesNotContain("Request limit reached for SIGN_UP")
+                .doesNotContain("192.0.2.")
+                .doesNotContain("@example.com")
+                .doesNotContain(RequestRateLimiter.emailKey("new-0@example.com"));
     }
 
     private static Optional<String> account(String email) {
