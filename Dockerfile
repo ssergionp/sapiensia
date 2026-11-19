@@ -30,6 +30,12 @@ FROM eclipse-temurin:25-jre
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --only-upgrade apt libapt-pkg7.0 \
     && rm -rf /var/lib/apt/lists/*
+# TEMPORARY: Trivy fails the build on the HIGH CVE-2026-97054 in the Go standard library (v1.27.3, fixed in 1.27.4) of
+# /usr/bin/pebble, a Canonical service manager that the base image ships outside of dpkg (so there is no package to
+# upgrade). The system never runs it (the ENTRYPOINT is java), so it is removed. Remove this RUN when
+# eclipse-temurin:25-jre ships a pebble built with Go 1.27.4 or newer, or without pebble (check with: trivy image
+# eclipse-temurin:25-jre).
+RUN rm -f /usr/bin/pebble
 RUN groupadd --system app && useradd --system --gid app --no-create-home app
 WORKDIR /app
 COPY --from=backend /app/app.jar app.jar
