@@ -152,6 +152,11 @@ app:
       account-window: PT10M
       ip-capacity: 120
       ip-window: PT10M
+    refund-request:
+      account-capacity: 10
+      account-window: PT10M
+      ip-capacity: 30
+      ip-window: PT10M
     download:
       account-capacity: 30
       account-window: PT10M

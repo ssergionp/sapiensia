@@ -13,6 +13,7 @@ const NAV_TEXTS = {
   home: "Painel",
   products: "Produtos",
   orders: "Pedidos",
+  refunds: "Reembolsos",
   signOut: "Sair",
   signingOut: "Saindo…",
 } as const;
@@ -52,6 +53,11 @@ export default function AdminNav({ session }: { session: AdminSession }) {
         {session.capabilities.includes("ORDERS_VIEW") && (
           <NavLink to="/painel/pedidos" className={NAV_LINK}>
             {NAV_TEXTS.orders}
+          </NavLink>
+        )}
+        {session.capabilities.includes("REFUNDS_VIEW") && (
+          <NavLink to="/painel/reembolsos" className={NAV_LINK}>
+            {NAV_TEXTS.refunds}
           </NavLink>
         )}
         <Button

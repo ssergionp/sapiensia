@@ -185,6 +185,11 @@ describe("BuyWithPix", () => {
       { errors: { order: "ALREADY_OWNED" } },
       "Você já tem Acesso a este Produto.",
     ],
+    [
+      409,
+      { errors: { order: "REFUND_IN_PROGRESS" } },
+      "Você pediu o Reembolso deste Produto. Depois que o valor for devolvido, você pode comprar de novo.",
+    ],
     [404, undefined, "Este Produto não está mais disponível."],
     [500, {}, "Não foi possível concluir agora. Tente novamente."],
   ])(

@@ -38,6 +38,9 @@ class LibraryTest {
     @Autowired
     PasswordEncoder encoder;
 
+    @Autowired
+    Accesses accesses;
+
     private OrderHttp.Customer customer;
     private OrderHttp.Customer other;
     private UUID first;
@@ -139,6 +142,26 @@ class LibraryTest {
         assertThat(OrderHttp.json(answer, "$.items.length()")).isEqualTo("1");
         assertThat(OrderHttp.json(answer, "$.items[0].productId")).isEqualTo(second.toString());
         assertThat(answer.body()).doesNotContain(first.toString());
+    }
+
+    @Test
+    @DisplayName("FR-025: Acesso suspenso não aparece na Biblioteca")
+    void shouldHideSuspendedAccessFromLibrary() throws Exception {
+        grant(customer, first, "1 day");
+        addCover(first, "abcdef0123456789");
+        UUID orderId = jdbc.queryForObject(
+                "select order_id from accesses where customer_id = ? and product_id = ?",
+                UUID.class,
+                customer.id,
+                first);
+        assertThat(accesses.suspendByOrder(orderId, java.time.Instant.now())).isTrue();
+
+        HttpResponse<String> answer = library(customer);
+
+        assertThat(answer.statusCode()).isEqualTo(200);
+        assertThat(OrderHttp.json(answer, "$.items.length()")).isEqualTo("0");
+        assertThat(customer.get("/api/library/" + first + "/cover").statusCode())
+                .isEqualTo(404);
     }
 
     @Test

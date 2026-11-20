@@ -12,7 +12,8 @@ record OrderResponse(
         OrderStatus status,
         Instant expiresAt,
         long secondsToExpire,
-        String pixCopyPaste) {
+        String pixCopyPaste,
+        Instant refundRequestedAt) {
 
     // never the Pix code
     @Override

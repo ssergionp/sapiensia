@@ -45,4 +45,24 @@ class Accesses {
                         .update()
                 == 1;
     }
+
+    /** True only when this call suspended the active Access of this Order (FR-025); it stays cancellable. */
+    boolean suspendByOrder(UUID orderId, Instant now) {
+        return jdbc.sql("update accesses set suspended_at = :now where order_id = :orderId"
+                                + " and cancelled_at is null and suspended_at is null")
+                        .param("now", java.sql.Timestamp.from(now))
+                        .param("orderId", orderId)
+                        .update()
+                == 1;
+    }
+
+    /** True when the Customer has a non-cancelled, suspended Access to the Product. */
+    boolean suspended(UUID customerId, UUID productId) {
+        return jdbc.sql("select exists (select 1 from accesses where customer_id = :customerId"
+                        + " and product_id = :productId and cancelled_at is null and suspended_at is not null)")
+                .param("customerId", customerId)
+                .param("productId", productId)
+                .query(Boolean.class)
+                .single();
+    }
 }

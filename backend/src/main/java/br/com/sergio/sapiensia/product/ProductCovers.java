@@ -59,7 +59,7 @@ class ProductCovers {
         return jdbc.sql("select c.object_key, c.media_type, c.version from product_covers c"
                         + " join accesses a on a.product_id = c.product_id"
                         + " where a.customer_id = :customerId and a.product_id = :productId"
-                        + " and a.cancelled_at is null")
+                        + " and a.cancelled_at is null and a.suspended_at is null")
                 .param("customerId", customerId)
                 .param("productId", productId)
                 .query((rs, i) -> new StoredCover(rs.getString(1), rs.getString(2), rs.getString(3)))

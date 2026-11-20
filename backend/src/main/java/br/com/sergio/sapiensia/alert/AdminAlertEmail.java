@@ -47,6 +47,20 @@ class AdminAlertEmail {
                                 + " que o sistema não corrige sozinho.",
                         "veja o que cada código quer dizer e como achar a cobrança no runbook conciliacao-asaas.md,"
                                 + " seção \"Divergências\". Cada divergência é avisada uma vez só.");
+            case REFUND_REQUESTED ->
+                new Text(
+                        "Reembolso solicitado",
+                        "Um Cliente pediu o Reembolso de um Pedido pelo site. O Acesso daquele Pedido já está"
+                                + " suspenso.",
+                        "veja o motivo no painel, em Reembolsos, e devolva o valor inteiro no painel do Asaas, pelo"
+                                + " runbook suporte-cliente.md, seção \"Reembolso\".");
+            case REFUND_REQUESTS_REPEATED ->
+                new Text(
+                        "Cliente com 3 ou mais Reembolsos em 12 meses",
+                        "Um Cliente pediu um Reembolso e, com ele, soma 3 ou mais em 12 meses.",
+                        "o Reembolso dentro do prazo continua devido e novas compras não são bloqueadas. Veja o"
+                                + " histórico no painel, em Reembolsos, e siga o runbook suporte-cliente.md, seção"
+                                + " \"Reembolsos repetidos\".");
             case RECONCILIATION_FAILED ->
                 new Text(
                         "conciliação com o Asaas não terminou",

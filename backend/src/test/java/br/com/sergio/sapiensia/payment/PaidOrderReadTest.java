@@ -57,6 +57,7 @@ class PaidOrderReadTest {
 
     @AfterEach
     void cleanUp() {
+        jdbc.update("delete from refund_requests where customer_id = ?", customer.id);
         OrderTestSupport.deleteOrdersOf(jdbc, customer.id, productId);
     }
 
@@ -78,6 +79,26 @@ class PaidOrderReadTest {
 
     private Map<String, Object> row(UUID orderId) {
         return jdbc.queryForMap("select * from orders where id = ?", orderId);
+    }
+
+    @Test
+    @DisplayName("FR-020: shouldShowTheRefundRequestDateOfAPaidOrder")
+    void shouldShowTheRefundRequestDateOfAPaidOrder() throws Exception {
+        UUID id = newOrder();
+        markPaid(id);
+        HttpResponse<String> before = customer.get("/api/orders/" + id);
+        jdbc.update(
+                "insert into refund_requests (id, order_id, customer_id, reason, details, requested_at)"
+                        + " values (?, ?, ?, 'OTHER', null, now())",
+                UUID.randomUUID(),
+                id,
+                customer.id);
+
+        HttpResponse<String> view = customer.get("/api/orders/" + id);
+
+        assertThat(OrderHttp.json(before, "$.refundRequestedAt")).isNull();
+        assertThat(OrderHttp.json(view, "$.status")).isEqualTo("PAID");
+        assertThat(OrderHttp.json(view, "$.refundRequestedAt")).isNotBlank();
     }
 
     @Test

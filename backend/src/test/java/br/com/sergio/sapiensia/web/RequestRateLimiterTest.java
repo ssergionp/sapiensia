@@ -28,7 +28,7 @@ class RequestRateLimiterTest {
     private static RateLimitProperties properties(int floor) {
         RateLimitProperties.Limit both = new RateLimitProperties.Limit(2, TEN_MINUTES, 5, TEN_MINUTES);
         RateLimitProperties.Limit ipOnly = new RateLimitProperties.Limit(null, null, 3, TEN_MINUTES);
-        return new RateLimitProperties(floor, both, both, both, ipOnly, both, both, ipOnly, ipOnly, ipOnly);
+        return new RateLimitProperties(floor, both, both, both, ipOnly, both, both, ipOnly, ipOnly, ipOnly, both);
     }
 
     private RequestRateLimiter limiter(int floor) {
@@ -274,7 +274,7 @@ class RequestRateLimiterTest {
         RateLimitProperties.Limit limit =
                 new RateLimitProperties.Limit(1, Duration.ofMinutes(60), 1, Duration.ofMinutes(15));
         RateLimitProperties.Limit any = new RateLimitProperties.Limit(null, null, 1, TEN_MINUTES);
-        RateLimitProperties properties = new RateLimitProperties(0, any, any, any, any, limit, any, any, any, any);
+        RateLimitProperties properties = new RateLimitProperties(0, any, any, any, any, limit, any, any, any, any, any);
         RequestRateLimiter limiter = new RequestRateLimiter(properties, clock);
         limiter.tryConsume(WITH_ACCOUNT, "192.0.2.1", account("ana@example.com"));
 

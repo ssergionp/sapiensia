@@ -28,7 +28,8 @@ record RateLimitProperties(
         @NotNull @Valid Limit passwordResetRequest,
         @NotNull @Valid Limit passwordResetConfirm,
         @NotNull @Valid Limit emailConfirmation,
-        @NotNull @Valid Limit adminPasswordSetup) {
+        @NotNull @Valid Limit adminPasswordSetup,
+        @NotNull @Valid Limit refundRequest) {
 
     /** Fixed window: {@code capacity} requests per {@code window}; the account part is optional (null = none). */
     record Limit(
@@ -62,6 +63,7 @@ record RateLimitProperties(
             case PASSWORD_RESET_REQUEST -> passwordResetRequest;
             case PASSWORD_RESET_CONFIRM -> passwordResetConfirm;
             case EMAIL_CONFIRMATION -> emailConfirmation;
+            case REFUND_REQUEST -> refundRequest;
             case ADMIN_PASSWORD_SETUP -> adminPasswordSetup;
         };
     }

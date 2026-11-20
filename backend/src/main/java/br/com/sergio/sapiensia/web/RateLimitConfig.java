@@ -25,6 +25,7 @@ class RateLimitConfig implements WebMvcConfigurer {
     public void addInterceptors(InterceptorRegistry registry) {
         add(registry, RateLimitedOperation.ORDER_CREATE, "POST", true, "/api/orders");
         add(registry, RateLimitedOperation.ORDER_READ, "GET", true, "/api/orders/{id}");
+        add(registry, RateLimitedOperation.REFUND_REQUEST, "POST", true, "/api/orders/{id}/refund-request");
         add(registry, RateLimitedOperation.DOWNLOAD, "POST", true, "/api/library/{productId}/download");
         add(
                 registry,

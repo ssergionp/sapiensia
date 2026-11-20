@@ -18,6 +18,16 @@ describe("returnTo", () => {
     },
   );
 
+  test("SEC-012: aceita /pedidos/<uuid>/reembolso", () => {
+    rememberReturnTo(`/pedidos/${ID}/reembolso`);
+    expect(takeReturnTo()).toBe(`/pedidos/${ID}/reembolso`);
+  });
+
+  test("SEC-012: recusa /catalogo/<uuid>/reembolso", () => {
+    rememberReturnTo(`/catalogo/${ID}/reembolso`);
+    expect(takeReturnTo()).toBeNull();
+  });
+
   test("SEC-012: aceita /biblioteca", () => {
     rememberReturnTo("/biblioteca");
     expect(takeReturnTo()).toBe("/biblioteca");

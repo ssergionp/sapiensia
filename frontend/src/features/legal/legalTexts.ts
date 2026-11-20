@@ -59,7 +59,7 @@ export const TERMS_OF_USE: LegalDocument = {
       paragraphs: [
         "Depois do pagamento, você tem Acesso vitalício ao Arquivo do produto, sempre na versão mais recente. [a definir: o advogado deve rever a expressão “Acesso vitalício”, por exemplo trocando por “enquanto a SapiensIA estiver em operação”].",
         "Cada Download usa um link que vale 60 segundos e é gerado a cada clique, depois de conferir o seu login e o seu Acesso. Há um limite de 10 Downloads por dia, por Produto. Registramos o Cliente, o Produto, a versão do arquivo e a data de cada Download.",
-        "Se um Produto sair do Catálogo, o seu Acesso continua. Só um Reembolso cancela o Acesso.",
+        "Se um Produto sair do Catálogo, o seu Acesso continua. Só um Reembolso cancela o Acesso; quando você pede o Reembolso, o Acesso daquele Pedido fica suspenso até a devolução do valor.",
       ],
     },
     {
@@ -78,7 +78,7 @@ export const TERMS_OF_USE: LegalDocument = {
     {
       heading: "Suspensão por abuso",
       paragraphs: [
-        "Podemos limitar ou suspender uma conta que use o site de forma abusiva, tente burlar os limites de Download, tente fraudar pagamentos ou redistribua os Produtos. [a definir: critérios e aviso prévio antes da suspensão].",
+        "Podemos limitar ou suspender uma conta que use o site de forma abusiva, tente burlar os limites de Download, tente fraudar pagamentos, redistribua os Produtos ou peça Reembolsos repetidos para ficar com os arquivos sem pagar. [a definir: critérios e aviso prévio antes da suspensão].",
       ],
     },
     {
@@ -119,6 +119,7 @@ export const PRIVACY_POLICY: LegalDocument = {
         "E-mail e senha da conta (a senha é guardada só em forma de hash, nunca em texto) e as datas da conta.",
         "Aparelhos conhecidos: um identificador do aparelho (guardado em hash) e datas, para avisar quando você entra de um aparelho novo.",
         "Pedidos e Acessos: Produto, valor, datas e estado.",
+        "Solicitações de Reembolso: o motivo escolhido, o comentário que você escrever (opcional) e a data.",
         "Eventos de pagamento recebidos do Asaas, como chegaram, para provar o pagamento.",
         "Registros de download: Cliente, Produto, versão do arquivo e data. Não guardamos o seu IP nos Registros de download.",
         "Trilha de auditoria das ações do Administrador no painel, que inclui o IP de origem dessas ações. Ela não leva o e-mail do Cliente.",
@@ -145,7 +146,7 @@ export const PRIVACY_POLICY: LegalDocument = {
         "Supabase: banco de dados e arquivos dos Produtos (região de São Paulo).",
         "Fly.io: hospedagem do site (região de São Paulo).",
         "Asaas: processamento do pagamento por Pix.",
-        "Resend: envio dos e-mails (confirmação, nova senha, aparelho novo, pagamento confirmado).",
+        "Resend: envio dos e-mails (confirmação, nova senha, aparelho novo, pagamento confirmado, reembolso).",
         "Cloudflare R2: cópia de segurança diária do banco.",
         "Não vendemos dados pessoais.",
       ],
@@ -161,7 +162,7 @@ export const PRIVACY_POLICY: LegalDocument = {
       items: [
         "Conta: enquanto ela existir. Conta que nunca foi confirmada é apagada em 7 dias.",
         "Códigos de confirmação de e-mail: 24 horas. Códigos de nova senha: 30 minutos.",
-        "Pedidos, Acessos, eventos de pagamento e Registros de download: 5 anos depois do Pedido.",
+        "Pedidos, Acessos, eventos de pagamento, solicitações de Reembolso e Registros de download: 5 anos depois do Pedido.",
         "Trilha de auditoria: 365 dias.",
         "O prazo de guarda de cada serviço de fora (Asaas, Resend, Fly.io) ainda está a conferir: [a definir: prazos de cada operador].",
       ],
@@ -182,7 +183,7 @@ export const PRIVACY_POLICY: LegalDocument = {
       heading: "Seus direitos",
       paragraphs: [
         `Você pode pedir, pelo e-mail ${SUPPORT_EMAIL}, o acesso aos seus dados, a correção de dados errados, a exportação (cópia) dos seus dados e a exclusão da sua conta. Hoje esses pedidos são atendidos à mão, por e-mail. [a definir: prazo de resposta; proposta provisória: declaração completa de acesso em até 15 dias, Lei 13.709/2018, art. 19, II].`,
-        "A exclusão da conta é feita por anonimização: o e-mail e a senha são substituídos e as sessões encerradas. Os registros financeiros (Pedidos, Acessos, eventos de pagamento e Registros de download) ficam pelo prazo de guarda, sem o seu e-mail nem o seu nome.",
+        "A exclusão da conta é feita por anonimização: o e-mail e a senha são substituídos e as sessões encerradas. Os registros financeiros (Pedidos, Acessos, eventos de pagamento, solicitações de Reembolso e Registros de download) ficam pelo prazo de guarda, sem o seu e-mail nem o seu nome. O comentário que você escreveu numa solicitação de Reembolso é apagado quando a conta é anonimizada.",
         "O Asaas guarda o e-mail e o CPF da cobrança por regra própria; a anonimização não apaga esses dados lá.",
       ],
     },
@@ -214,28 +215,35 @@ export const REFUND_POLICY: LegalDocument = {
     {
       heading: "Quando você pode pedir",
       items: [
-        "Em até 7 dias da compra (direito de arrependimento, art. 49 do Código de Defesa do Consumidor). [a definir: o advogado confirma se e como o arrependimento vale para produto digital já baixado].",
-        "Por defeito no arquivo: o PDF não abre, está corrompido ou não é o Produto comprado.",
+        "Em até 7 dias depois do pagamento, contados até o fim do 7º dia (direito de arrependimento, art. 49 do Código de Defesa do Consumidor). Dentro desse prazo o Reembolso é sempre concedido, qualquer que seja o motivo, mesmo que você já tenha baixado o arquivo.",
+        "Por defeito no arquivo, mesmo depois dos 7 dias: o PDF não abre, está corrompido ou não é o Produto comprado.",
       ],
     },
     {
       heading: "Como pedir",
       paragraphs: [
-        `Envie um e-mail para ${SUPPORT_EMAIL} com o e-mail da sua conta, o Produto e o motivo. [a definir: prazo de resposta ao pedido; proposta provisória: primeira resposta em até 2 dias úteis].`,
+        "Em até 7 dias depois do pagamento: entre na sua conta, abra Meus Pedidos e escolha “Pedir Reembolso” no Pedido pago. Você escolhe o motivo e, se quiser, escreve um comentário. O motivo nos ajuda a melhorar e não muda o seu direito ao Reembolso.",
+        `Por defeito no arquivo depois dos 7 dias, ou se não conseguir pedir pelo site: escreva para ${SUPPORT_EMAIL} com o e-mail da sua conta, o Produto e o motivo. [a definir: prazo de resposta ao pedido por e-mail; proposta provisória: primeira resposta em até 2 dias úteis].`,
       ],
     },
     {
       heading: "Como o dinheiro volta",
       paragraphs: [
-        "O Reembolso é feito pelo Pix, de volta a quem pagou, por meio do Asaas. O prazo para o valor aparecer na sua conta depende do banco. [a definir: prazo máximo para a devolução].",
-        "Por ora não há botão de reembolso no site: o Administrador faz a devolução no painel do Asaas.",
+        "O Reembolso é feito pelo Pix, de volta a quem pagou, por meio do Asaas, em até 2 dias úteis depois do pedido. O prazo para o valor aparecer na sua conta depende do banco.",
       ],
     },
     {
       heading: "O que acontece com o Acesso",
       paragraphs: [
-        "Quando o Asaas mostra que a cobrança foi estornada, o Acesso é cancelado e o Produto deixa de aparecer na sua Biblioteca. Com o Acesso cancelado, você não pode mais baixar aquele Produto.",
+        "Quando você pede o Reembolso, o Acesso daquele Pedido é suspenso na hora: o Produto sai da sua Biblioteca e você não pode mais baixar o arquivo.",
+        "Quando o Asaas mostra que a cobrança foi estornada, o Acesso é cancelado em definitivo e você recebe um e-mail.",
         "Depois do cancelamento você pode comprar o Produto de novo e recebe um Acesso novo.",
+      ],
+    },
+    {
+      heading: "Reembolsos repetidos",
+      paragraphs: [
+        "Pedir Reembolso não impede novas compras. Reembolsos repetidos podem ser analisados como uso abusivo, conforme a seção “Suspensão por abuso” dos Termos de uso.",
       ],
     },
     {

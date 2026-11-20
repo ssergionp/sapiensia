@@ -1,5 +1,11 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { createOrder, fetchOrder, fetchOrderStatus, listOrders } from "./api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  createOrder,
+  fetchOrder,
+  fetchOrderStatus,
+  listOrders,
+  requestRefund,
+} from "./api";
 
 // The list reads only the database; default refetching (on open and on window focus), no polling.
 // gcTime 0: another Customer logging in on the same tab must not see this list.
@@ -40,5 +46,19 @@ export function useOrderStatus(id: string, enabled: boolean) {
     refetchOnWindowFocus: true,
     retry: false,
     gcTime: 0,
+  });
+}
+
+// gcTime 0: the variables (with the free-text comment) must not stay in the mutation cache.
+// A request suspends the Access, so the Orders list and the Library are reloaded.
+export function useRequestRefund() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: requestRefund,
+    gcTime: 0,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["orders"] });
+      void client.invalidateQueries({ queryKey: ["library"] });
+    },
   });
 }

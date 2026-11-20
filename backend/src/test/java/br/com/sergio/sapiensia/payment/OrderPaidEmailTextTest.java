@@ -73,7 +73,9 @@ class OrderPaidEmailTextTest {
                         OrderStatus.PAID,
                         "pay_x",
                         Instant.now(),
-                        Instant.now())));
+                        Instant.now(),
+                        Instant.now(),
+                        null)));
         when(customers.findEmail(customerId)).thenReturn(Optional.empty());
         OrderPaidEmail email = new OrderPaidEmail(
                 orders,

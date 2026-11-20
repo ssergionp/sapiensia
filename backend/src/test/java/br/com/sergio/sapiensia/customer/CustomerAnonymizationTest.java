@@ -146,6 +146,36 @@ class CustomerAnonymizationTest {
     }
 
     @Test
+    @DisplayName("FR-036: a anonimização apaga o comentário da solicitação de Reembolso e mantém a linha")
+    void shouldEraseTheRefundRequestCommentAndKeepTheRow() {
+        insertOrderAccessDownloadAndEvent();
+        UUID orderId = jdbc.queryForObject("select id from orders where customer_id = ?", UUID.class, customerId);
+        jdbc.update(
+                "insert into refund_requests (id, order_id, customer_id, reason, details, requested_at)"
+                        + " values (?, ?, ?, 'OTHER', ?, now())",
+                UUID.randomUUID(),
+                orderId,
+                customerId,
+                "meu comentário pessoal");
+        Map<String, Object> before = jdbc.queryForMap("select * from refund_requests where order_id = ?", orderId);
+        try {
+            anonymization.anonymize(email, administratorId, ORIGIN);
+
+            Map<String, Object> after = jdbc.queryForMap("select * from refund_requests where order_id = ?", orderId);
+            assertThat(after.get("details")).isNull();
+            assertThat(after.get("reason")).isEqualTo("OTHER");
+            assertThat(after.get("requested_at")).isEqualTo(before.get("requested_at"));
+            assertThat(after.get("id")).isEqualTo(before.get("id"));
+            // the Order and its Access are untouched, so a later refund still finds them
+            assertThat(jdbc.queryForObject("select status from orders where id = ?", String.class, orderId))
+                    .isEqualTo("PAID");
+            assertThat(countOfCustomer("accesses")).isEqualTo(1);
+        } finally {
+            jdbc.update("delete from refund_requests where order_id = ?", orderId);
+        }
+    }
+
+    @Test
     @DisplayName("FR-036: a sessão aberta do Cliente cai na anonimização")
     void shouldEndTheOpenSessionOfTheCustomer() throws Exception {
         var principal = ((CustomerUserDetailsService.CustomerPrincipal) userDetailsService.loadUserByUsername(email))

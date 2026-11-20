@@ -10,6 +10,7 @@ A linha do Cliente **não é apagada**: Pedidos, Acessos e Registros de download
 - a senha vira um valor aleatório que ninguém conhece, e toda sessão aberta do Cliente cai;
 - `first_login_at` fica vazio e `anonymized_at` recebe a data;
 - as linhas de tokens de confirmação, tokens de nova senha, aparelhos conhecidos e do vínculo com o Asaas são apagadas;
+- o comentário de uma Solicitação de reembolso é apagado; a solicitação em si (motivo e data) fica;
 - a trilha de auditoria ganha uma linha `ADMIN_CUSTOMER_ANONYMIZED` com o seu id e o id do Cliente, nunca o e-mail;
 - e-mails pendentes para essa conta deixam de ser enviados.
 

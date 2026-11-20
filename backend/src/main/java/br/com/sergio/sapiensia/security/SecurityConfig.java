@@ -293,6 +293,10 @@ public class SecurityConfig {
                         // stay denied
                         .requestMatchers(HttpMethod.GET, "/api/admin/orders")
                         .access(panel(Capability.ORDERS_VIEW))
+                        // the Administrator's list of Refund requests (#213): GET of the list only; REFUNDS_VIEW
+                        // (SEC-029)
+                        .requestMatchers(HttpMethod.GET, "/api/admin/refund-requests")
+                        .access(panel(Capability.REFUNDS_VIEW))
                         // anonymizing a Customer account (#41): CUSTOMERS_ANONYMIZE, both factors and always a recent
                         // authentication; POST only
                         .requestMatchers(HttpMethod.POST, "/api/admin/customer-anonymizations")
@@ -309,6 +313,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/orders/*")
                         .hasRole("CUSTOMER")
                         .requestMatchers(HttpMethod.GET, "/api/orders/*/status")
+                        .hasRole("CUSTOMER")
+                        // Refund request (#213): the logged-in Customer only; the Order is filtered by its owner in
+                        // the SQL (SEC-011)
+                        .requestMatchers(HttpMethod.POST, "/api/orders/*/refund-request")
                         .hasRole("CUSTOMER")
                         // Library (#32): the logged-in Customer only
                         .requestMatchers(HttpMethod.GET, "/api/library")

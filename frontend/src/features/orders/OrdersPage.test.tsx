@@ -25,6 +25,8 @@ function summary(overrides: Record<string, unknown> = {}) {
     // 2026-11-14T17:35Z is 14:35 in São Paulo.
     createdAt: "2026-11-14T17:05:00Z",
     expiresAt: "2026-11-14T17:35:00Z",
+    refundableUntil: null,
+    refundRequestedAt: null,
     ...overrides,
   };
 }
@@ -118,6 +120,57 @@ describe("OrdersPage", () => {
       await screen.findByRole("link", { name: "Ir para a Biblioteca" }),
     ).toHaveAttribute("href", "/biblioteca");
     expect(screen.queryByText(/Pix válido até/)).toBeNull();
+  });
+
+  test("Pedido pago dentro do prazo mostra a data e o link Pedir Reembolso", async () => {
+    mockItems([
+      summary({
+        id: PAID_ID,
+        status: "PAID",
+        refundableUntil: "2026-11-26",
+      }),
+    ]);
+    renderOrders();
+
+    expect(
+      await screen.findByText("Você pode pedir o Reembolso até 26/11/2026."),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Pedir Reembolso de Guia de saúde" }),
+    ).toHaveAttribute("href", `/pedidos/${PAID_ID}/reembolso`);
+    expect(
+      screen.getByRole("link", { name: "Ir para a Biblioteca" }),
+    ).toBeVisible();
+  });
+
+  test("Pedido pago fora do prazo não mostra o link Pedir Reembolso", async () => {
+    mockItems([summary({ id: PAID_ID, status: "PAID" })]);
+    renderOrders();
+
+    expect(await screen.findByText("Pago")).toBeVisible();
+    expect(screen.queryByText(/Pedir Reembolso/)).toBeNull();
+    expect(screen.queryByText(/Você pode pedir o Reembolso/)).toBeNull();
+  });
+
+  test("Pedido com solicitação mostra o selo, a data e nenhum link para a Biblioteca", async () => {
+    mockItems([
+      summary({
+        id: PAID_ID,
+        status: "PAID",
+        // 01:30Z on the 20th is still the 19th in São Paulo.
+        refundRequestedAt: "2026-11-20T01:30:00Z",
+      }),
+    ]);
+    renderOrders();
+
+    expect(await screen.findByText("Reembolso solicitado")).toBeVisible();
+    expect(
+      screen.getByText(
+        "Reembolso solicitado em 19/11/2026. O Acesso a este Produto está suspenso.",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText("Pago")).toBeNull();
+    expect(screen.queryByRole("link")).toBeNull();
   });
 
   test("FR-020: Pedido expirado não tem link", async () => {

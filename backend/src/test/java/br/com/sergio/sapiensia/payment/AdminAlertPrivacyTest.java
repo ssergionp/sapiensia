@@ -218,6 +218,10 @@ class AdminAlertPrivacyTest {
         alerts.record(AdminAlertType.RECONCILIATION_DIVERGENCE, "ORDER_PAID_CHARGE_NOT_PAID", paid.orderId(), null);
         alerts.record(AdminAlertType.RECONCILIATION_FAILED, "ASAAS_UNAVAILABLE", null, null);
 
+        // REFUND_REQUESTED: no detail, an Order id only (the hourly limit of 8 mails leaves no room for the
+        // REFUND_REQUESTS_REPEATED type, which shares this shape and is covered by AdminAlertEmailTextTest)
+        alerts.record(AdminAlertType.REFUND_REQUESTED, null, paid.orderId(), null);
+
         assertThat(jdbc.queryForList("select distinct type from admin_alerts"))
                 .extracting(row -> row.get("type"))
                 .containsExactlyInAnyOrder(
@@ -227,14 +231,15 @@ class AdminAlertPrivacyTest {
                         "WEBHOOK_REJECTED",
                         "TASK_GAVE_UP",
                         "RECONCILIATION_DIVERGENCE",
-                        "RECONCILIATION_FAILED");
-        assertThat(AdminAlertTestAccess.dispatch(context)).isEqualTo(7);
+                        "RECONCILIATION_FAILED",
+                        "REFUND_REQUESTED");
+        assertThat(AdminAlertTestAccess.dispatch(context)).isEqualTo(8);
 
         List<String> forbidden = List.of(customerEmail, CPF, marker, TOKEN, wrongToken, LOOPBACK, OTHER_IP);
         List<EmailMessage> mails = sender.messagesTo(admin).stream()
                 .filter(m -> m.subject().startsWith(SUBJECT_PREFIX))
                 .toList();
-        assertThat(mails).hasSize(7);
+        assertThat(mails).hasSize(8);
         for (EmailMessage mail : mails) {
             assertThat(mail.subject() + "\n" + mail.text()).doesNotContain(forbidden);
         }

@@ -76,7 +76,9 @@ export default function OrderPage() {
   let documentTitle: string = T.loadingDocumentTitle;
   if (notFound) documentTitle = T.notFoundDocumentTitle;
   else if (query.isError && !notLoggedIn) documentTitle = T.documentTitle;
-  else if (paid) documentTitle = T.paidDocumentTitle;
+  else if (paid && order?.refundRequestedAt) {
+    documentTitle = T.refundRequestedDocumentTitle;
+  } else if (paid) documentTitle = T.paidDocumentTitle;
   else if (expired) documentTitle = T.expiredDocumentTitle;
   else if (refunded) documentTitle = T.refundedDocumentTitle;
   else if (pending) documentTitle = T.documentTitle;
@@ -192,6 +194,22 @@ export default function OrderPage() {
     return (
       <main className="auth-panel">
         <p role="status">{T.loading}</p>
+      </main>
+    );
+  }
+
+  if (order.status === "PAID" && order.refundRequestedAt) {
+    return (
+      <main className="auth-panel">
+        <h1 ref={headingRef} tabIndex={-1} className="text-3xl outline-none">
+          {T.refundRequestedHeading}
+        </h1>
+        <p className="mt-4">{T.orderRefundRequestedText}</p>
+        <p className="mt-4">
+          <Link to="/pedidos" className="text-link">
+            {T.backToOrders}
+          </Link>
+        </p>
       </main>
     );
   }

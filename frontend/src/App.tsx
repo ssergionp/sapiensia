@@ -5,6 +5,7 @@ import AdminLoginPage from "@/features/admin/AdminLoginPage";
 import AdminMfaPage from "@/features/admin/AdminMfaPage";
 import SetAdminPasswordPage from "@/features/admin/SetAdminPasswordPage";
 import AdminOrdersPage from "@/features/admin-orders/AdminOrdersPage";
+import AdminRefundsPage from "@/features/admin-refunds/AdminRefundsPage";
 import CatalogPage from "@/features/catalog/CatalogPage";
 import CatalogProductPage from "@/features/catalog/CatalogProductPage";
 import ConfirmEmailPage from "@/features/customer/ConfirmEmailPage";
@@ -21,6 +22,7 @@ import SiteFooter from "@/features/legal/SiteFooter";
 import LibraryPage from "@/features/library/LibraryPage";
 import OrderPage from "@/features/orders/OrderPage";
 import OrdersPage from "@/features/orders/OrdersPage";
+import RefundRequestPage from "@/features/orders/RefundRequestPage";
 import ProductFormPage from "@/features/products/ProductFormPage";
 import ProductListPage from "@/features/products/ProductListPage";
 import HomePage from "@/features/session/HomePage";
@@ -46,6 +48,10 @@ export default function App() {
           <Route path="/biblioteca" element={<LibraryPage />} />
           <Route path="/pedidos" element={<OrdersPage />} />
           <Route path="/pedidos/:id" element={<OrderPage />} />
+          <Route
+            path="/pedidos/:id/reembolso"
+            element={<RefundRequestPage />}
+          />
           <Route path="/cadastro" element={<RegisterPage />} />
           <Route path="/confirmar-email" element={<ConfirmEmailPage />} />
           <Route path="/esqueci-senha" element={<ForgotPasswordPage />} />
@@ -58,6 +64,7 @@ export default function App() {
             element={<SetAdminPasswordPage />}
           />
           <Route path="/painel/pedidos" element={<AdminOrdersPage />} />
+          <Route path="/painel/reembolsos" element={<AdminRefundsPage />} />
           <Route path="/painel/produtos" element={<ProductListPage />} />
           <Route path="/painel/produtos/novo" element={<ProductFormPage />} />
           <Route path="/painel/produtos/:id" element={<ProductFormPage />} />

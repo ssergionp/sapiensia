@@ -423,6 +423,27 @@ class RefundProcessingTest {
     }
 
     @Test
+    @DisplayName("FR-023, FR-025: o estorno cancela um Acesso suspenso e manda o e-mail")
+    void shouldCancelASuspendedAccessAndSendTheRefundEmail() throws Exception {
+        Placed placed = placePaidOrder();
+        assertThat(accesses.suspendByOrder(placed.orderId(), Instant.now())).isTrue();
+        provider(placed, "REFUNDED");
+        String eventId = uniqueId();
+
+        postEvent(eventId, "PAYMENT_REFUNDED", placed);
+
+        awaitResult(eventId, "REFUNDED");
+        assertThat(status(placed.orderId())).isEqualTo("REFUNDED");
+        assertThat(accessCancelled(placed.orderId())).isTrue();
+        assertThat(cancelAudits(placed.orderId())).isEqualTo(1);
+        assertThat(sender.awaitMessageTo(placed.customer().email, Duration.ofSeconds(15)))
+                .isPresent()
+                .get()
+                .extracting(EmailMessage::subject)
+                .isEqualTo(OrderRefundedEmail.SUBJECT);
+    }
+
+    @Test
     @DisplayName("SEC-031: segundo aviso de estorno não muda nada")
     void shouldChangeNothingOnASecondRefundNotice() throws Exception {
         Placed placed = placePaidOrder();
